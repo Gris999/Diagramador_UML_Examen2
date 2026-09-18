@@ -5,7 +5,12 @@ from django.conf import settings
 
 from uuid import uuid4
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+
+def _gemini_api_url():
+    model = getattr(settings, "GEMINI_MODEL", "gemini-3.8-flash")
+    return GEMINI_API_BASE_URL.format(model=model)
 
 
 def call_gemini(prompt: str):
@@ -216,7 +221,7 @@ Prompt del usuario:
     }
 
     response = requests.post(
-        GEMINI_API_URL, headers=headers, params=params, json=data)
+        _gemini_api_url(), headers=headers, params=params, json=data)
     response.raise_for_status()
     result = response.json()
 
@@ -269,7 +274,7 @@ Prompt:
     }
 
     response = requests.post(
-        GEMINI_API_URL, headers=headers, params=params, json=data)
+        _gemini_api_url(), headers=headers, params=params, json=data)
     response.raise_for_status()
     result = response.json()
 
@@ -294,7 +299,6 @@ def call_gemini_from_image(image_base64: str, mime_type: str = "image/png"):
     """
 
     GEMINI_API_KEY = getattr(settings, "GEMINI_API_KEY", None)
-    GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
@@ -414,7 +418,7 @@ NO escribas texto fuera del JSON.
 
     try:
         response = requests.post(
-            GEMINI_API_URL, headers=headers, params=params, json=data)
+            _gemini_api_url(), headers=headers, params=params, json=data)
         response.raise_for_status()
         result = response.json()
 

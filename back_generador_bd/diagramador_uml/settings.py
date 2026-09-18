@@ -11,22 +11,29 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-import os
 import environ
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env(
+    DEBUG=(bool, True),
+)
+environ.Env.read_env(str(BASE_DIR / ".env"))
+
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-88z8b!fhxkly)-m_(ho9575ih1u$)tl@ta5ddar)%w9^5hl_f1'
+SECRET_KEY = env("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 
 # Application definition
@@ -48,22 +55,16 @@ INSTALLED_APPS = [
 ASGI_APPLICATION = "diagramador_uml.asgi.application"
 
 
-env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
-
-GEMINI_API_KEY = env("GEMINI_API_KEY")
-
-
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
 
             # el nombre del servicio en docker-compose
-            # "hosts": [("redis_server", 6379)],
+            # "hosts": [(env("REDIS_HOST", default="redis_server"), env.int("REDIS_PORT", default=6379))],
 
             # el nombre del servicio en docker-compose
-            "hosts": [("redis_server", 6379)],
+            "hosts": [(env("REDIS_HOST", default="redis_server"), env.int("REDIS_PORT", default=6379))],
         },
     },
 }
@@ -80,13 +81,16 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=["http://localhost:4200", "http://localhost:4000"],
+)
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://ec2-3-84-241-46.compute-1.amazonaws.com",
-    "http://localhost:4000",
-    "http://angular-app:4000"
-]
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:4200", "http://localhost:4000"],
+)
 
 
 ROOT_URLCONF = 'diagramador_uml.urls'
@@ -113,13 +117,13 @@ WSGI_APPLICATION = 'diagramador_uml.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'uml_bd',      # nombre de tu base de datos
-        'USER': 'postgres',          # tu usuario de PostgreSQL
-        'PASSWORD': '071104',   # la contraseña de ese usuario
-        'HOST': 'postgres',         # o la IP del servidor si es remoto
-        'PORT': '5432',              # puerto por defecto de PostgreSQL
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env("POSTGRES_DB", default="uml_bd"),
+        "USER": env("POSTGRES_USER", default="postgres"),
+        "PASSWORD": env("POSTGRES_PASSWORD"),
+        "HOST": env("POSTGRES_HOST", default="postgres"),
+        "PORT": env("POSTGRES_PORT", default="5432"),
     }
 }
 

@@ -1,0 +1,21 @@
+# Local Python environment
+.venv/
+venv/
+env/
+
+# Secrets / environment
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / VCS
+.git/
+.vscode/
+.idea/
+.DS_Store

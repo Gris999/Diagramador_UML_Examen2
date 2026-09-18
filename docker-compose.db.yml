@@ -1,20 +1,16 @@
-version: '3.8'
-
 services:
   postgres:
     image: public.ecr.aws/docker/library/postgres:17
     container_name: postgres_db
     restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=071104 
-      - POSTGRES_DB=uml_bd
+    env_file:
+      - ./back_generador_bd/.env
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d uml_bd"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,9 +21,8 @@ services:
     image: dpage/pgadmin4:latest 
     container_name: pgadmin
     restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+    env_file:
+      - ./back_generador_bd/.env
     volumes:
       - pgadmin_data:/var/lib/pgadmin
       #- ./aula-inteligente-back/rp.sql:/tmp/rp.sql

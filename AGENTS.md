@@ -54,7 +54,9 @@ Generated mobile target:
 
 ## Local ports
 
-- Angular: 4200
+- Angular local/dev URL: 4200
+- Angular SSR container internal port: 4000
+- Docker publishes Angular as host 4200 -> container 4000
 - Django: 8000
 - Redis: 6379
 - PostgreSQL host port: 5433
@@ -85,6 +87,16 @@ Port 7000 on macOS is occupied by ControlCenter/AirPlay.
 15. Avoid broad refactors close to the delivery deadline.
 
 ## Testing expectations
+
+When running Django tests locally from the repository root, use the project virtual environment explicitly:
+
+`back_generador_bd/.venv/bin/python back_generador_bd/manage.py test`
+
+When testing inside Docker, use:
+
+`docker exec django_backend_UML python manage.py test`
+
+Do not assume the system/global Python has Django installed.
 
 Critical features require tests:
 
