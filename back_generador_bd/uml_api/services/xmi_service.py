@@ -189,6 +189,45 @@ def _validate_model(uml_json: dict[str, Any]) -> None:
             )
 
 
+UML_21_PRIMITIVE_HREF = "http://schema.omg.org/spec/UML/2.1/uml.xml#"
+
+UML_PRIMITIVE_TYPES = {
+    "string": "String",
+    "str": "String",
+    "int": "Integer",
+    "integer": "Integer",
+    "bool": "Boolean",
+    "boolean": "Boolean",
+    "float": "Real",
+    "double": "Real",
+    "real": "Real",
+    "unlimitednatural": "UnlimitedNatural",
+}
+
+
+def _append_uml_type(element: ET.Element, type_name: str) -> None:
+    type_name = str(type_name or "").strip()
+
+    if not type_name:
+        return
+
+    primitive_name = UML_PRIMITIVE_TYPES.get(type_name.lower())
+
+    if primitive_name:
+        ET.SubElement(
+            element,
+            "type",
+            {
+                _xmi_attr("type"): "uml:PrimitiveType",
+                "href": f"{UML_21_PRIMITIVE_HREF}{primitive_name}",
+            },
+        )
+        return
+
+    # Custom/class types keep the existing reference style.
+    element.set("type", type_name)
+
+
 def _parse_parameters(parameters: str) -> list[tuple[str, str]]:
     if not parameters:
         return []
@@ -273,6 +312,10 @@ def _read_multiplicity(end: ET.Element) -> str:
         elif child_name == "upperValue":
             upper = child.attrib.get("value", upper)
 
+    # Enterprise Architect serializes UnlimitedNatural "*" as -1.
+    if upper == "-1":
+        upper = "*"
+
     if lower is None and upper is None:
         return "1"
 
@@ -351,7 +394,7 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
         for attribute_index, attribute in enumerate(
             uml_class.get("attributes", [])
         ):
-            ET.SubElement(
+            attribute_element = ET.SubElement(
                 class_element,
                 "ownedAttribute",
                 {
@@ -360,8 +403,12 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                         f"{class_id}-attribute-{attribute_index}"
                     ),
                     "name": str(attribute.get("name", "")),
-                    "type": str(attribute.get("type", "")),
                 },
+            )
+
+            _append_uml_type(
+                attribute_element,
+                str(attribute.get("type", "")),
             )
 
         for method_index, method in enumerate(
@@ -625,6 +672,14 @@ def _read_attribute_type(element: ET.Element) -> str:
         if "#" in href:
             return href.rsplit("#", 1)[1]
 
+        idref = (
+            child.attrib.get(_xmi_attr("idref"))
+            or child.attrib.get("idref")
+        )
+
+        if idref:
+            return idref
+
         child_id = _xmi_id(child)
 
         if child_id:
@@ -856,8 +911,8 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
             first_end = owned_ends[0]
             second_end = owned_ends[1]
 
-            first_type = first_end.attrib.get("type")
-            second_type = second_end.attrib.get("type")
+            first_type = _read_attribute_type(first_end)
+            second_type = _read_attribute_type(second_end)
 
             if not first_type or not second_type:
                 continue

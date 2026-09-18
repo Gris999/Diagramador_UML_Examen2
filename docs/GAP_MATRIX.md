@@ -22,7 +22,7 @@ Status values:
 | State recovery | PARTIAL | BackupUML exists; reconnect recovery must be integrated/tested |
 | XMI export | DONE | Backend and Angular export verified; CASE-specific XMI extension preserves class position and size |
 | XMI import | DONE | Backend and Angular import verified; class position and size are restored when CASE layout metadata is present |
-| Enterprise Architect round trip | VERIFY | Angular ↔ XMI round trip works, including CASE layout metadata; physical import/export with Enterprise Architect still needs verification |
+| Enterprise Architect round trip | DONE | Physical UML/XMI 2.1 round trip verified with Enterprise Architect 17.2 in both directions; classes, attributes/types, operations, associations and multiplicities preserved |
 | Spring Boot generation | VERIFY | Generator exists and Spring service runs |
 | PostgreSQL generation | VERIFY | Templates/configuration exist |
 | Postman generation | VERIFY | Generator implementation exists |

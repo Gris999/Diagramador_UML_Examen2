@@ -162,5 +162,15 @@ The extension currently preserves:
 Relationship vertices remain outside the current XMI interoperability scope.
 
 The Angular → XMI → Angular round trip has been manually verified to preserve
-class layout. Physical import/export verification with Enterprise Architect
-is still pending.
+class layout.
+
+Physical bidirectional interoperability with Enterprise Architect 17.2 has
+also been manually verified using UML/XMI 2.1:
+
+- CASE → XMI → Enterprise Architect preserves classes, attributes, primitive
+  types, operations, associations and multiplicities;
+- Enterprise Architect → XMI → CASE restores the same UML semantics;
+- Enterprise Architect normalizes primitive aliases such as `int` and
+  `string` to UML `Integer` and `String`;
+- CASE-specific layout metadata remains optional and can be ignored by
+  external tools without affecting the UML model.

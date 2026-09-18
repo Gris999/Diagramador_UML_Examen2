@@ -125,10 +125,13 @@ Verification:
 - exported `.xmi` returns HTTP 200;
 - imported exported file preserves semantic UML data.
 
-Still pending:
+Final physical verification:
 
 - Angular import/export UI;
-- physical interoperability test with Enterprise Architect.
+- physical interoperability test with Enterprise Architect: DONE.
+  Verified bidirectionally with Enterprise Architect 17.2 using XMI 2.1.
+  Classes, attributes and primitive types, operations, associations and
+  multiplicities survived the physical round trip.
 
 ### Test environment
 
