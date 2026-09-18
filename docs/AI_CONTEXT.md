@@ -129,3 +129,23 @@ manual UML
 → Spring/PostgreSQL/Postman generation
 → Flutter generation
 → offline/local capability
+
+## XMI interoperability decision
+
+The XMI interoperability layer targets UML/XMI 2.1 as the first exchange format for Enterprise Architect compatibility.
+
+The conversion must be deterministic and must not depend on Gemini or any other AI service.
+
+The initial supported subset is:
+
+- classes;
+- attributes;
+- operations;
+- association;
+- aggregation;
+- composition;
+- generalization;
+- dependency;
+- multiplicities.
+
+Visual JointJS coordinates and vertices are outside the first XMI MVP.

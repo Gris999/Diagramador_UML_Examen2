@@ -1,5 +1,13 @@
 from django.urls import path
-from .views import GenerateUMLView, set_backupUML, get_backupUML, analyze_uml_image, generar_flutter
+from .views import (
+    GenerateUMLView,
+    set_backupUML,
+    get_backupUML,
+    analyze_uml_image,
+    generar_flutter,
+    export_xmi,
+    import_xmi,
+)
 
 
 urlpatterns = [
@@ -9,4 +17,7 @@ urlpatterns = [
     path("uml_from_image/", analyze_uml_image, name="uml-from-image"),
 
     path("generar_flutter/", generar_flutter, name="generar-flutter"),
+
+    path("xmi/export/", export_xmi, name="xmi-export"),
+    path("xmi/import/", import_xmi, name="xmi-import"),
 ]

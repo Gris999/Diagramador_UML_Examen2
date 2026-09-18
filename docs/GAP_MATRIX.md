@@ -20,9 +20,9 @@ Status values:
 | Collaboration permissions | PARTIAL | Needs explicit semantics and testing |
 | Reconnection | PARTIAL | Infrastructure exists; behavior must be verified |
 | State recovery | PARTIAL | BackupUML exists; reconnect recovery must be integrated/tested |
-| XMI export | MISSING | High-priority feature |
-| XMI import | MISSING | High-priority feature |
-| Enterprise Architect round trip | MISSING | Depends on XMI import/export |
+| XMI export | DONE | Backend endpoint and XMI service verified by automated tests and HTTP round trip |
+| XMI import | DONE | Backend endpoint imports XMI into internal UML JSON; malformed XML handled |
+| Enterprise Architect round trip | VERIFY | JSON ↔ XMI round trip works; physical import/export with Enterprise Architect still needs verification |
 | Spring Boot generation | VERIFY | Generator exists and Spring service runs |
 | PostgreSQL generation | VERIFY | Templates/configuration exist |
 | Postman generation | VERIFY | Generator implementation exists |

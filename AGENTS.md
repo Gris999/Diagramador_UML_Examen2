@@ -140,3 +140,15 @@ It should, when applicable:
 - have no committed secrets;
 - preserve existing behavior;
 - update documentation if architecture or requirement status changed.
+
+
+For Django tests that do not require PostgreSQL, local venv execution is allowed:
+
+back_generador_bd/.venv/bin/python back_generador_bd/manage.py test <test-label>
+
+For database-backed Django/API tests in the current development configuration, run them inside the Django container because POSTGRES_HOST=postgres is resolved by the Docker network:
+
+docker exec django_backend_UML python manage.py test
+
+Do not treat failure to resolve the Docker hostname `postgres` from the macOS host as an application test failure.
+Do not assume global Python has Django installed.

@@ -1,5 +1,5 @@
 import tempfile
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -15,6 +15,7 @@ from .services.services_gemini import call_gemini, call_gemini_from_image
 
 from pathlib import Path
 from .services.flutter_generator import FlutterCRUDGenerator
+from .services.xmi_service import XMIError, export_uml_to_xmi, import_xmi_to_uml
 from .utils.zip_utils import compress_folder_to_zip
 
 
@@ -139,3 +140,54 @@ def generar_flutter(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+def export_xmi(request):
+    """
+    Exporta el JSON UML interno a un archivo XMI 2.1.
+    """
+    try:
+        xmi_bytes = export_uml_to_xmi(request.data)
+    except XMIError as exc:
+        return Response(
+            {"error": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    response = HttpResponse(
+        xmi_bytes,
+        content_type="application/xml; charset=utf-8",
+    )
+    response["Content-Disposition"] = (
+        'attachment; filename="diagram.xmi"'
+    )
+    return response
+
+
+@api_view(["POST"])
+@parser_classes([MultiPartParser, FormParser])
+def import_xmi(request):
+    """
+    Importa un archivo XMI/XML y devuelve el JSON UML interno.
+    """
+    xmi_file = request.FILES.get("file")
+
+    if not xmi_file:
+        return Response(
+            {"error": "Debe enviar un archivo XMI en el campo 'file'."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        uml_json = import_xmi_to_uml(xmi_file)
+    except XMIError as exc:
+        return Response(
+            {"error": str(exc)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(
+        uml_json,
+        status=status.HTTP_200_OK,
+    )
