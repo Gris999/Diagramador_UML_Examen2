@@ -1,13 +1,64 @@
 <div class="app-layout">
   <app-side-panel #sidePanel></app-side-panel>
+
   <div class="canvas-wrapper" cdkDropListGroup>
-    <div #paperContainer class="diagram-container" cdkDropList>
-      <!-- Aquí se renderizará el canvas de JointJS -->
+    <div class="flex items-center gap-2 p-2 bg-gray-100 border-b">
+
+      <button
+        (click)="zoomIn()"
+        class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+        title="Acercar"
+      >
+        ➕
+      </button>
+
+      <button
+        (click)="zoomOut()"
+        class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+        title="Alejar"
+      >
+        ➖
+      </button>
+
+      <button
+        (click)="resetZoom()"
+        class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+        title="Restablecer zoom"
+      >
+        🔄
+      </button>
+
+      <div class="h-6 border-l border-gray-300 mx-1"></div>
+
+      <button
+        (click)="xmiInput.click()"
+        class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+      >
+        Importar XMI
+      </button>
+
+      <button
+        (click)="exportXmi()"
+        class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+      >
+        Exportar XMI
+      </button>
+
+      <input
+        #xmiInput
+        type="file"
+        accept=".xmi,.xml,application/xml,text/xml"
+        class="hidden"
+        (change)="importXmi($event)"
+      />
     </div>
-    <div class="flex space-x-2 p-2 bg-gray-100 border-b">
-      <button (click)="zoomIn()" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">➕</button>
-      <button (click)="zoomOut()" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">➖</button>
-      <button (click)="resetZoom()" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">🔄</button>
+
+    <div
+      #paperContainer
+      class="diagram-container"
+      cdkDropList
+    >
+      <!-- Canvas JointJS -->
     </div>
   </div>
 </div>

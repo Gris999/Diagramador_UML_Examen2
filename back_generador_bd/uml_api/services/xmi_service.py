@@ -7,9 +7,11 @@ from xml.etree import ElementTree as ET
 
 XMI_NS = "http://schema.omg.org/spec/XMI/2.1"
 UML_NS = "http://www.eclipse.org/uml2/5.0.0/UML"
+CASE_LAYOUT_NS = "https://software1-case.local/xmi/layout/1.0"
 
 ET.register_namespace("xmi", XMI_NS)
 ET.register_namespace("uml", UML_NS)
+ET.register_namespace("case", CASE_LAYOUT_NS)
 
 
 class XMIError(ValueError):
@@ -311,6 +313,7 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
     )
 
     class_elements: dict[str, ET.Element] = {}
+    layout_entries: list[dict[str, Any]] = []
 
     for class_index, uml_class in enumerate(uml_json.get("classes", [])):
         class_id = str(
@@ -332,6 +335,18 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
         )
 
         class_elements[class_id] = class_element
+
+        position = uml_class.get("position")
+        size = uml_class.get("size")
+
+        if isinstance(position, dict) or isinstance(size, dict):
+            layout_entries.append(
+                {
+                    "class_id": class_id,
+                    "position": position if isinstance(position, dict) else {},
+                    "size": size if isinstance(size, dict) else {},
+                }
+            )
 
         for attribute_index, attribute in enumerate(
             uml_class.get("attributes", [])
@@ -545,6 +560,49 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                 },
             )
 
+    # Información visual propia del CASE.
+    # Herramientas UML externas pueden ignorar esta extensión sin afectar
+    # las clases, atributos, operaciones ni relaciones UML estándar.
+    if layout_entries:
+        extension = ET.SubElement(
+            root,
+            f"{{{XMI_NS}}}Extension",
+            {
+                "extender": "software1-case",
+            },
+        )
+
+        layout = ET.SubElement(
+            extension,
+            f"{{{CASE_LAYOUT_NS}}}layout",
+        )
+
+        for entry in layout_entries:
+            attrs = {
+                _xmi_attr("idref"): entry["class_id"],
+            }
+
+            position = entry["position"]
+            size = entry["size"]
+
+            if position.get("x") is not None:
+                attrs["x"] = str(position["x"])
+
+            if position.get("y") is not None:
+                attrs["y"] = str(position["y"])
+
+            if size.get("width") is not None:
+                attrs["width"] = str(size["width"])
+
+            if size.get("height") is not None:
+                attrs["height"] = str(size["height"])
+
+            ET.SubElement(
+                layout,
+                f"{{{CASE_LAYOUT_NS}}}element",
+                attrs,
+            )
+
     return ET.tostring(
         root,
         encoding="utf-8",
@@ -658,6 +716,65 @@ def _is_class_element(element: ET.Element) -> bool:
         return _uml_type_name(element) == "Class"
 
     return local_name == "Class"
+
+
+def _layout_number(value: str | None) -> int | float | None:
+    if value is None:
+        return None
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if number.is_integer():
+        return int(number)
+
+    return number
+
+
+def _apply_case_layout(
+    root: ET.Element,
+    classes: list[dict[str, Any]],
+) -> None:
+    classes_by_id = {
+        str(uml_class.get("id")): uml_class
+        for uml_class in classes
+        if uml_class.get("id") is not None
+    }
+
+    for element in root.iter(
+        f"{{{CASE_LAYOUT_NS}}}element"
+    ):
+        class_id = (
+            element.attrib.get(_xmi_attr("idref"))
+            or element.attrib.get("idref")
+        )
+
+        if not class_id:
+            continue
+
+        uml_class = classes_by_id.get(class_id)
+
+        if uml_class is None:
+            continue
+
+        x = _layout_number(element.attrib.get("x"))
+        y = _layout_number(element.attrib.get("y"))
+        width = _layout_number(element.attrib.get("width"))
+        height = _layout_number(element.attrib.get("height"))
+
+        if x is not None and y is not None:
+            uml_class["position"] = {
+                "x": x,
+                "y": y,
+            }
+
+        if width is not None and height is not None:
+            uml_class["size"] = {
+                "width": width,
+                "height": height,
+            }
 
 
 def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
@@ -830,6 +947,8 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
                     "labels": [],
                 }
             )
+
+    _apply_case_layout(root, classes)
 
     return {
         "classes": classes,

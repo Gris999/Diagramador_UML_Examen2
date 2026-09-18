@@ -11,6 +11,7 @@ import { BackendGeneratorService } from '../../services/exports/backend-generato
 import { ChatbotService } from '../../services/IA/chatbot.service';
 import { UmlValidationService } from '../../services/colaboration/uml-validation.service';
 import { ActivatedRoute } from '@angular/router';
+import { XmiService } from '../../services/interop/xmi.service';
 
 @Component({
   selector: 'app-diagram',
@@ -35,7 +36,8 @@ export class Diagram implements AfterViewInit {
     private backendGen: BackendGeneratorService,
     private chatbot: ChatbotService,
     private umlValidation: UmlValidationService,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private xmiService: XmiService
   ) {}
   
   async ngAfterViewInit(): Promise<void> {
@@ -86,6 +88,89 @@ export class Diagram implements AfterViewInit {
 
     // luego lo puedes enviar a backend
     this.backendGen.generateBackend(json, 'mi-backend.zip');
+  }
+
+  exportXmi(): void {
+    const umlJson = this.exportService.export(
+      this.diagramService.getGraph()
+    );
+
+    this.xmiService.exportXmi(umlJson).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+
+        anchor.href = url;
+        anchor.download = 'diagram.xmi';
+        anchor.click();
+
+        URL.revokeObjectURL(url);
+
+        console.log('XMI exportado correctamente');
+      },
+      error: (error) => {
+        console.error('Error exportando XMI:', error);
+        alert('No se pudo exportar el archivo XMI.');
+      }
+    });
+  }
+
+  importXmi(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    this.xmiService.importXmi(file).subscribe({
+      next: (umlJson) => {
+        this.applyDefaultXmiLayout(umlJson);
+
+        this.diagramService.loadFromJson(
+          umlJson,
+          false
+        );
+
+        console.log('XMI importado correctamente');
+
+        // Permite seleccionar nuevamente el mismo archivo.
+        input.value = '';
+      },
+      error: (error) => {
+        console.error('Error importando XMI:', error);
+        alert('No se pudo importar el archivo XMI.');
+        input.value = '';
+      }
+    });
+  }
+
+  private applyDefaultXmiLayout(umlJson: any): void {
+    if (!Array.isArray(umlJson?.classes)) {
+      return;
+    }
+
+    const columns = 3;
+    const startX = 80;
+    const startY = 80;
+    const horizontalGap = 260;
+    const verticalGap = 200;
+
+    umlJson.classes.forEach((umlClass: any, index: number) => {
+      if (!umlClass.position) {
+        umlClass.position = {
+          x: startX + (index % columns) * horizontalGap,
+          y: startY + Math.floor(index / columns) * verticalGap
+        };
+      }
+
+      if (!umlClass.size) {
+        umlClass.size = {
+          width: 180,
+          height: 110
+        };
+      }
+    });
   }
 
   generateFromPrompt(prompt: string) {

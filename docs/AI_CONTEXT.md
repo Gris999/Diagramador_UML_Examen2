@@ -148,4 +148,19 @@ The initial supported subset is:
 - dependency;
 - multiplicities.
 
-Visual JointJS coordinates and vertices are outside the first XMI MVP.
+Visual layout preservation was added after the first XMI MVP.
+
+The CASE tool stores class position and size in a CASE-specific `xmi:Extension`.
+This extension is optional metadata: external UML/XMI tools may ignore it
+without affecting the standard UML model.
+
+The extension currently preserves:
+
+- class `x` and `y` position;
+- class width and height.
+
+Relationship vertices remain outside the current XMI interoperability scope.
+
+The Angular → XMI → Angular round trip has been manually verified to preserve
+class layout. Physical import/export verification with Enterprise Architect
+is still pending.
