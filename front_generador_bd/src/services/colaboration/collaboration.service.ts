@@ -218,7 +218,7 @@ export class CollaborationService {
 
         case 'full_state': {
           if (this.api) {
-            this.api!.loadFromJson(op.payload);
+            this.api!.loadFromJson(op.payload, false, true);
           }
           break;
         }
