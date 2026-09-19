@@ -1,6 +1,8 @@
 import re
 import requests
 import json
+import random
+import time
 from django.conf import settings
 
 from uuid import uuid4
@@ -8,13 +10,126 @@ from uuid import uuid4
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
-def _gemini_api_url():
-    model = getattr(settings, "GEMINI_MODEL", "gemini-3.8-flash")
+def _configured_gemini_models():
+    primary = getattr(
+        settings,
+        "GEMINI_MODEL",
+        "gemini-3.5-flash",
+    ).strip()
+
+    fallbacks = [
+        "gemini-3.5-flash-lite",
+    ]
+
+    models = []
+
+    for model in [primary, *fallbacks]:
+        if model and model not in models:
+            models.append(model)
+
+    return models
+
+
+def _gemini_api_url(model: str):
     return GEMINI_API_BASE_URL.format(model=model)
 
 
-def call_gemini(prompt: str):
+GEMINI_RETRYABLE_STATUS_CODES = {
+    408,
+    429,
+    500,
+    502,
+    503,
+    504,
+}
+
+
+def _post_gemini(
+    data,
+    headers,
+    params,
+    max_attempts=3,
+):
+    """
+    Reintenta errores transitorios y, si persisten,
+    prueba un modelo Gemini de respaldo.
+    """
+    last_error = None
+
+    for model in _configured_gemini_models():
+
+        for attempt in range(max_attempts):
+
+            try:
+                response = requests.post(
+                    _gemini_api_url(model),
+                    headers=headers,
+                    params=params,
+                    json=data,
+                    timeout=60,
+                )
+
+                if (
+                    response.status_code
+                    not in GEMINI_RETRYABLE_STATUS_CODES
+                ):
+                    response.raise_for_status()
+                    return response
+
+                response.raise_for_status()
+
+            except requests.HTTPError as exc:
+                last_error = exc
+
+                status_code = (
+                    exc.response.status_code
+                    if exc.response is not None
+                    else None
+                )
+
+                if (
+                    status_code
+                    not in GEMINI_RETRYABLE_STATUS_CODES
+                ):
+                    raise
+
+                if attempt == max_attempts - 1:
+                    break
+
+            except (
+                requests.Timeout,
+                requests.ConnectionError,
+            ) as exc:
+                last_error = exc
+
+                if attempt == max_attempts - 1:
+                    break
+
+            delay = (
+                (2 ** attempt)
+                + random.uniform(0, 0.5)
+            )
+            time.sleep(delay)
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError(
+        "No se pudo completar la solicitud a Gemini."
+    )
+
+
+def call_gemini(prompt: str, current_uml=None):
     GEMINI_API_KEY = getattr(settings, "GEMINI_API_KEY", None)
+
+    if (
+        not GEMINI_API_KEY
+        or str(GEMINI_API_KEY).strip().lower()
+        in {"placeholder", "change-me"}
+    ):
+        raise RuntimeError(
+            "GEMINI_API_KEY no está configurada."
+        )
 
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
@@ -35,6 +150,15 @@ def call_gemini(prompt: str):
                      ]
     is_edit_request = any(keyword in prompt.lower()
                           for keyword in edit_keywords)
+
+    current_uml_context = ""
+    if current_uml:
+        current_uml_context = f"""
+
+DIAGRAMA UML ACTUAL (úsalo como fuente de verdad para identificar IDs y
+elementos existentes; no inventes ni elimines elementos no solicitados):
+{json.dumps(current_uml, ensure_ascii=False)}
+"""
 
     if is_delete_request:
         # Prompt para eliminación - devolver un solo JSON con marcadores de eliminación
@@ -91,6 +215,7 @@ Ejemplos:
 
 Prompt del usuario:
 {prompt}
+{current_uml_context}
 """
     elif is_edit_request:
         # Prompt para edición - devolver dos JSONs
@@ -104,7 +229,7 @@ IMPORTANTE: El usuario quiere editar/modificar una tabla o relación existente. 
 
 Ejemplo de cambio de atributo:
 - Si el prompt dice "cambia fecha:Date a fecha_Hora:String"
-- En "editado" debe aparecer: {{"name": "fecha_Hora", "type": "String", "editado": true}}
+- En "editado" debe aparecer: {{"originalName": "fecha", "name": "fecha_Hora", "type": "String", "editado": true}}
 
 Formato de respuesta:
 ```json
@@ -138,10 +263,10 @@ Formato de respuesta:
         "id": "mismo_id_del_original",
         "name": "NombreClaseModificado",
         "attributes": [
-          {{"name": "nuevo_nombre_atributo", "type": "nuevo_tipo", "editado": true}}
+          {{"originalName": "nombre_atributo_original", "name": "nuevo_nombre_atributo", "type": "nuevo_tipo", "editado": true}}
         ],
         "methods": [
-          {{"name": "nuevo_nombre_metodo", "parameters": "nuevos_params", "returnType": "nuevo_tipo", "editado": true}}
+          {{"originalName": "nombre_metodo_original", "name": "nuevo_nombre_metodo", "parameters": "nuevos_params", "returnType": "nuevo_tipo", "editado": true}}
         ],
         "editado": true
       }}
@@ -164,12 +289,14 @@ REGLAS CRÍTICAS:
 - Aplica EXACTAMENTE los cambios solicitados en el prompt
 - Si el prompt dice "cambia X a Y", en "editado" debe aparecer Y, NO X
 - En "editado" solo incluye los elementos que REALMENTE cambiaron con sus NUEVOS valores
+- Para renombrar un atributo o método, incluye siempre `originalName` con su nombre antes de la edición
 - Usa los mismos UUIDs en ambos JSONs para la misma entidad
 - Marca con "editado": true SOLO los elementos que sufrieron modificaciones
 - NO devuelvas nada más, solo el JSON
 
 Prompt del usuario:
 {prompt}
+{current_uml_context}
 """
     else:
         # Prompt normal - devolver un solo JSON
@@ -206,6 +333,7 @@ NO devuelvas nada más, solo el JSON.
 
 Prompt del usuario:
 {prompt}
+{current_uml_context}
 """
 
     data = {
@@ -220,8 +348,15 @@ Prompt del usuario:
         ]
     }
 
-    response = requests.post(
-        _gemini_api_url(), headers=headers, params=params, json=data)
+    data["generationConfig"] = {
+        "responseMimeType": "application/json",
+    }
+
+    response = _post_gemini(
+        data,
+        headers,
+        params,
+    )
     response.raise_for_status()
     result = response.json()
 
@@ -234,6 +369,15 @@ Prompt del usuario:
 
 def call_gemini_analysis(prompt: str):
     GEMINI_API_KEY = getattr(settings, "GEMINI_API_KEY", None)
+
+    if (
+        not GEMINI_API_KEY
+        or str(GEMINI_API_KEY).strip().lower()
+        in {"placeholder", "change-me"}
+    ):
+        raise RuntimeError(
+            "GEMINI_API_KEY no está configurada."
+        )
 
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
@@ -273,8 +417,15 @@ Prompt:
         ]
     }
 
-    response = requests.post(
-        _gemini_api_url(), headers=headers, params=params, json=data)
+    data["generationConfig"] = {
+        "responseMimeType": "application/json",
+    }
+
+    response = _post_gemini(
+        data,
+        headers,
+        params,
+    )
     response.raise_for_status()
     result = response.json()
 
@@ -291,14 +442,112 @@ Prompt:
 # ===============================================================
 # 🔹 Servicio: Procesar imagen UML → devolver JSON limpio y estructurado
 # ===============================================================
+
+def call_gemini_transcribe_audio(
+    audio_base64: str,
+    mime_type: str = "audio/webm",
+):
+    """
+    Transcribe una instrucción de voz mediante Gemini.
+    El texto resultante se reutiliza después en call_gemini().
+    """
+    GEMINI_API_KEY = getattr(
+        settings,
+        "GEMINI_API_KEY",
+        None,
+    )
+
+    if (
+        not GEMINI_API_KEY
+        or str(GEMINI_API_KEY).strip().lower()
+        in {"placeholder", "change-me"}
+    ):
+        raise RuntimeError(
+            "GEMINI_API_KEY no está configurada."
+        )
+
+    normalized_mime = (
+        mime_type.split(";", 1)[0].strip().lower()
+        or "audio/webm"
+    )
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+    params = {
+        "key": GEMINI_API_KEY,
+    }
+
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": (
+                            "Transcribe exactamente la instrucción "
+                            "hablada del usuario. "
+                            "La instrucción describe una operación "
+                            "sobre un diagrama UML. "
+                            "Devuelve solamente la transcripción, "
+                            "sin explicaciones, sin Markdown y "
+                            "sin comillas adicionales."
+                        )
+                    },
+                    {
+                        "inline_data": {
+                            "mime_type": normalized_mime,
+                            "data": audio_base64,
+                        }
+                    },
+                ]
+            }
+        ]
+    }
+
+    response = _post_gemini(
+        data,
+        headers,
+        params,
+    )
+
+    result = response.json()
+
+    try:
+        transcript = (
+            result["candidates"][0]
+            ["content"]["parts"][0]["text"]
+            .strip()
+        )
+    except (KeyError, IndexError, AttributeError):
+        raise RuntimeError(
+            "Gemini no devolvió una transcripción válida."
+        )
+
+    if not transcript:
+        raise RuntimeError(
+            "La transcripción de audio está vacía."
+        )
+
+    return transcript
+
+
 def call_gemini_from_image(image_base64: str, mime_type: str = "image/png"):
     """
-    Envía una imagen UML a Gemini (1.5-pro) y devuelve un JSON estructurado con:
+    Envía una imagen UML al modelo Gemini configurado y devuelve un JSON estructurado con:
     - Clases (nombre, atributos, métodos)
     - Relaciones clasificadas visualmente (composition, aggregation, generalization, association)
     """
 
     GEMINI_API_KEY = getattr(settings, "GEMINI_API_KEY", None)
+
+    if (
+        not GEMINI_API_KEY
+        or str(GEMINI_API_KEY).strip().lower()
+        in {"placeholder", "change-me"}
+    ):
+        raise RuntimeError(
+            "GEMINI_API_KEY no está configurada."
+        )
 
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
@@ -417,8 +666,15 @@ NO escribas texto fuera del JSON.
     }
 
     try:
-        response = requests.post(
-            _gemini_api_url(), headers=headers, params=params, json=data)
+        data["generationConfig"] = {
+            "responseMimeType": "application/json",
+        }
+
+        response = _post_gemini(
+            data,
+            headers,
+            params,
+        )
         response.raise_for_status()
         result = response.json()
 

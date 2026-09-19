@@ -84,6 +84,15 @@ These differ from the original project because host ports 5432 and 7000 are alre
 
 ## AI workflow
 
+The AI endpoints support context-aware UML edits. The Angular text and voice
+flows export the current diagram and send it as `uml`; Gemini receives that
+snapshot only as context for identifying existing classes, relationships, and
+IDs. Image input remains a diagram-creation flow.
+
+Gemini transport retries only transient failures and then tries the configured
+fallback model. Public AI endpoint failures are returned as sanitized `502`
+responses; image uploads are limited to 10 MB and PNG, JPEG, or WebP.
+
 Gentle-AI is installed for Codex.
 
 Components configured:

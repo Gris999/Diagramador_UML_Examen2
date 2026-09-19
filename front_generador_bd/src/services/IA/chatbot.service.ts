@@ -8,7 +8,36 @@ export class ChatbotService {
 
   public isLoading=signal<boolean>(false);
 
-  generateDiagram(prompt: string) {
-    return this.http.post<any>(`${environment.endpoint_python}api/chatbot/`, { prompt });
+  generateDiagram(prompt: string, uml: any | null = null) {
+    return this.http.post<any>(`${environment.endpoint_python}api/chatbot/`, {
+      prompt,
+      uml
+    });
   }
+
+  generateDiagramFromAudio(audio: Blob, uml: any | null = null) {
+    const formData = new FormData();
+
+    const mimeType =
+      audio.type.split(';', 1)[0] || 'audio/webm';
+
+    const extension =
+      mimeType === 'audio/ogg' ? 'ogg' : 'webm';
+
+    formData.append(
+      'audio',
+      audio,
+      `instruccion-uml.${extension}`
+    );
+
+    if (uml) {
+      formData.append('uml', JSON.stringify(uml));
+    }
+
+    return this.http.post<any>(
+      `${environment.endpoint_python}api/uml_from_audio/`,
+      formData
+    );
+  }
+
 }

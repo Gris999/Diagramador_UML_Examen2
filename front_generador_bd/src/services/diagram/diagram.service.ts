@@ -175,28 +175,12 @@ export class DiagramService {
         this.umlValidationService.validateModel(umlJson);
       });
 
-      //👉 Difundir movimiento y redimensionamiento
-      this.paper.on('element:pointerup', (view: any) => {
-        const m = view.model;
-        const p = m.position();
-        this.collab.broadcast({ t: 'move', id: m.id, x: p.x, y: p.y });
-      });
       // Si tienes resize interactivo, algo como:
       this.paper.on('element:resize:pointerup', (view: any) => {
         const m = view.model;
         const s = m.size();
         this.collab.broadcast({ t: 'resize', id: m.id, w: s.width, h: s.height });
       });
-      // Difundir edición de etiquetas en links
-      this.paper.on('link:label:pointerup', (linkView: any, evt: any, x: number, y: number) => {
-        const model = linkView.model;
-        const idx = this.getClickedLabelIndex(linkView, evt);
-        if (idx == null) return;
-        const lbl = model.label(idx);
-        if (!lbl) return;
-        this.collab.broadcast({ t: 'move_label', linkId: model.id, index: idx, position: lbl.position });
-      });
-
       // 1) Emitir add_link al añadir un Link localmente
       this.graph.on('add', (cell: any, _col: any, opt: any = {}) => {
         if (opt?.collab) return;                 // si viene de remoto, no re-emitir
@@ -276,34 +260,6 @@ export class DiagramService {
         if (!lbl) return;
         this.collab.broadcast({ t: 'move_label', linkId: model.id, index: idx, position: lbl.position });
         pendingLabelMove = null;
-      });
-
-      // 👉 Vertices
-      this.graph.on('change:source change:target', (link: any, _val: any, opt: any = {}) => {
-        if (!link?.isLink || opt?.collab) return;
-
-        const src = link.get('source')?.id;
-        const trg = link.get('target')?.id;
-        if (!src || !trg) return;
-
-        if (!link.has('alreadyBroadcasted')) {
-          link.set('alreadyBroadcasted', true);
-
-          // 👇 extraer el tipo del link si existe, si no, fallback
-          const type = link.get('relationType') || 'association';
-
-          this.collab.broadcast({
-            t: 'add_link',
-            id: link.id,
-            sourceId: src,
-            targetId: trg,
-            payload: { type, labels: link.get('labels') }
-          });
-        } else {
-          this.collab.broadcast({ t: 'move_link', id: link.id, sourceId: src, targetId: trg });
-          const umlJson = this.exportService.export(this.graph);
-          this.umlValidationService.validateModel(umlJson);
-        }
       });
 
       // 3.3. CURVATURA / RUTEO DEL LINK (vértices)
@@ -591,9 +547,7 @@ export class DiagramService {
    ***************************************************************************************************/
   deleteSelected() {
     if (!this.selectedCell) return;
-    const id = this.selectedCell.id;
     this.selectedCell.remove();
-    this.collab.broadcast({ t: 'delete', id });
     this.selectedCell = null;
   }
 
@@ -873,24 +827,51 @@ export class DiagramService {
     const idMap: Record<string, string> = {};
     // mapea el id original del JSON -> id real en el canvas
 
-    // 1. Crear (o reusar) todas las clases
-    json.classes.forEach((cls: any) => {
+    // 1. Crear (o reusar) todas las clases.
+    // Si el JSON viene de IA y no incluye posición, distribuir
+    // automáticamente las clases para evitar que se superpongan.
+    const existingElementCount = this.graph.getElements().length;
+    const layoutColumns = 3;
+    const layoutStartX = 100;
+    const layoutStartY = 100;
+    const layoutGapX = 280;
+    const layoutGapY = 190;
+
+    json.classes.forEach((cls: any, index: number) => {
       const existing = this.graph.getCells().find((c: any) => {
         return c.isElement?.() && c.get('name') === cls.name;
       });
+
       if (existing && isStorageLoad) {
         idMap[cls.id] = existing.id;
-        // 🔹 restaurar posición/tamaño si vino del storage
-        if (cls.position) existing.position(cls.position.x, cls.position.y);
-        if (cls.size) existing.resize(cls.size.width, cls.size.height);
+
+        // Restaurar posición/tamaño si vino del storage.
+        if (cls.position) {
+          existing.position(cls.position.x, cls.position.y);
+        }
+
+        if (cls.size) {
+          existing.resize(cls.size.width, cls.size.height);
+        }
       } else {
+        const layoutIndex = existingElementCount + index;
+
+        const defaultPosition = {
+          x:
+            layoutStartX +
+            (layoutIndex % layoutColumns) * layoutGapX,
+          y:
+            layoutStartY +
+            Math.floor(layoutIndex / layoutColumns) * layoutGapY
+        };
+
         const newCls = this.createUmlClass({
           id: cls.id,
           name: cls.name,
-          position: cls.position || { x: 100, y: 100 },
+          position: cls.position || defaultPosition,
           size: cls.size || { width: 180, height: 110 },
-          attributes: cls.attributes,
-          methods: cls.methods
+          attributes: cls.attributes || [],
+          methods: cls.methods || []
         });
 
         idMap[cls.id] = newCls.id;
@@ -986,12 +967,6 @@ export class DiagramService {
           if (existingElement) {
             console.log(`🗑️ Eliminando clase completa: "${cls.name}"`);
             existingElement.remove();
-
-            // Broadcast para colaboración
-            this.collab.broadcast({
-              t: 'delete',
-              id: existingElement.id
-            });
           } else {
             console.warn(`⚠️ No se encontró la clase "${cls.name}" para eliminar`);
           }
@@ -1107,12 +1082,6 @@ export class DiagramService {
           if (existingLink) {
             console.log(`🗑️ Eliminando relación entre "${rel.sourceId}" -> "${rel.targetId}"`);
             existingLink.remove();
-
-            // Broadcast para colaboración
-            this.collab.broadcast({
-              t: 'delete',
-              id: existingLink.id
-            });
           } else {
             console.warn(`⚠️ No se encontró relación entre "${rel.sourceId}" -> "${rel.targetId}"`);
           }
@@ -1125,23 +1094,78 @@ export class DiagramService {
 
   /**
    * Maneja operaciones de edición cuando llegan dos JSONs (original y editado)
+   *
+   * Contrato: `original.classes` es el diagrama completo, `editado.classes` trae
+   * SOLO las clases modificadas (mismo id que su contraparte en `original`).
+   * Por eso el emparejamiento entre ambas listas debe hacerse por `id` estable
+   * y nunca por posición en el array (un `editado.classes[0]` puede corresponder
+   * a `original.classes[2]`, por ejemplo).
    */
   private handleEditOperation(editData: { original: any; editado: any }) {
-    //console.log('🔄 Procesando edición de clase UML', editData);
+    const originalClasses: any[] = editData.original?.classes || [];
+    const editedClasses: any[] = editData.editado?.classes || [];
 
-    // 1. Buscar la clase a editar usando el JSON original
-    const originalClass = editData.original.classes?.[0];
-    if (!originalClass) {
-      //console.error('❌ No se encontró clase en JSON original');
+    if (editedClasses.length === 0) {
+      //console.warn('❌ No se encontró clase en JSON editado');
+      if (!(editData.editado.relationships) || editData.editado.relationships.length === 0) return;
+      editData.editado.relationships.forEach((editedRel: any) => {
+        if (editedRel.editado) {
+          this.updateRelationship(editedRel, editData.original.relationships, editData.original.classes);
+        }
+      });
       return;
     }
 
-    // 2. Buscar la clase en el canvas por nombre o ID
+    // Cada clase editada se resuelve de forma independiente contra SU propia
+    // clase original (por ID), así que el resto del diagrama no se ve afectado.
+    editedClasses.forEach((editedClass: any) => {
+      this.applyClassEdit(editedClass, originalClasses);
+    });
+
+    // Actualizar relaciones editadas
+    if (editData.editado.relationships && editData.editado.relationships.length > 0) {
+      editData.editado.relationships.forEach((editedRel: any) => {
+        if (editedRel.editado) {
+          this.updateRelationship(editedRel, editData.original.relationships, editData.original.classes);
+        }
+      });
+    }
+  }
+
+  /**
+   * Busca la clase original correspondiente a una clase editada por ID estable.
+   * Solo recurre a nombre/originalName como fallback cuando no hay ID o no matchea,
+   * para no reintroducir el emparejamiento por posición.
+   */
+  private findOriginalClass(editedClass: any, originalClasses: any[]): any | undefined {
+    if (editedClass?.id) {
+      const byId = originalClasses.find((cls: any) => cls.id === editedClass.id);
+      if (byId) return byId;
+    }
+    const fallbackName = editedClass?.originalName || editedClass?.name;
+    if (!fallbackName) return undefined;
+    return originalClasses.find((cls: any) => cls.name === fallbackName);
+  }
+
+  /**
+   * Aplica las modificaciones de una única clase editada sobre el elemento
+   * correspondiente del canvas, usando su clase original (encontrada por ID)
+   * como referencia para saber qué cambió.
+   */
+  private applyClassEdit(editedClass: any, originalClasses: any[]) {
+    // 1. Buscar la clase original correspondiente por ID estable
+    const originalClass = this.findOriginalClass(editedClass, originalClasses);
+    if (!originalClass) {
+      console.warn('⚠️ No se encontró clase original correspondiente para la edición', editedClass);
+      return;
+    }
+
+    // 2. Buscar la clase en el canvas por ID (o nombre original como fallback)
     const existingElement = this.graph.getCells().find((cell: any) => {
       if (!cell.isElement?.()) return false;
 
       // Buscar por ID si coincide
-      if (cell.id === originalClass.id) return true;
+      if (originalClass.id && cell.id === originalClass.id) return true;
 
       // Buscar por nombre si no hay ID match
       return cell.get('name') === originalClass.name;
@@ -1161,25 +1185,9 @@ export class DiagramService {
       return;
     }
 
-    // 3. Aplicar las modificaciones del JSON editado
-    const editedClass = editData.editado.classes?.[0];
-    if (!editedClass) {
-      console.warn('❌ No se encontró clase en JSON editado');
-      if (!(editData.editado.relationships) || editData.editado.relationships.length === 0) return;
-      //Actualizar relaciones editadas
-      if (editData.editado.relationships && editData.editado.relationships.length > 0) {
-        editData.editado.relationships.forEach((editedRel: any) => {
-          if (editedRel.editado) {
-            this.updateRelationship(editedRel, editData.original.relationships, editData.original.classes);
-          }
-        });
-      }
-      return;
-    }
-
     //console.log('🎯 Aplicando ediciones a:', existingElement.get('name'));
 
-    // 4. Actualizar propiedades modificadas (nombre)
+    // 3. Actualizar propiedades modificadas (nombre)
     if (editedClass.name) {
       const currentCanvasName = existingElement.get('name');
 
@@ -1193,7 +1201,7 @@ export class DiagramService {
       }
     }
 
-    // 5. Actualizar atributos
+    // 4. Actualizar atributos
     if (editedClass.attributes) {
       // Obtener atributos ACTUALES del canvas (no del JSON original)
       const currentCanvasAttributes = existingElement.get('attributes') || '';
@@ -1217,7 +1225,7 @@ export class DiagramService {
       //console.log('📝 Atributos actualizados usando comparación original vs canvas:', finalAttributes);
     }
 
-    // 6. Actualizar métodos
+    // 5. Actualizar métodos
     if (editedClass.methods) {
       // Obtener métodos ACTUALES del canvas (no del JSON original)
       const currentCanvasMethods = existingElement.get('methods') || '';
@@ -1245,7 +1253,7 @@ export class DiagramService {
       //console.log('🔧 Métodos actualizados usando comparación original vs canvas:', finalMethods);
     }
 
-    // 7. Broadcast de la edición para colaboración (enviar múltiples broadcasts)
+    // 6. Broadcast de la edición para colaboración (enviar múltiples broadcasts)
     if (editedClass.name && originalClass.name) {
       // Solo hacer broadcast si se detectó que el nombre debía cambiar
       const currentCanvasName = existingElement.get('name');
@@ -1277,15 +1285,7 @@ export class DiagramService {
       });
     }
 
-    // 8. Actualizar relaciones editadas
-    if (editData.editado.relationships && editData.editado.relationships.length > 0) {
-      editData.editado.relationships.forEach((editedRel: any) => {
-        if (editedRel.editado) {
-          this.updateRelationship(editedRel, editData.original.relationships, editData.original.classes);
-        }
-      });
-    }
-    // 9. Redimensionar automáticamente
+    // 7. Redimensionar automáticamente
     this.edition.scheduleAutoResize(existingElement, this.paper);
 
     //console.log('✅ Edición completada exitosamente');
@@ -1301,79 +1301,38 @@ export class DiagramService {
    */
   private mergeAttributes(canvasAttributesText: string, editedText: string, editedArray: any[], originalArray: any[] = []): string {
     if (!Array.isArray(editedArray)) return editedText;
-
-    // Parsear atributos actuales del canvas (formato: "nombre: tipo")
     const canvasLines = canvasAttributesText.split('\n').filter(line => line.trim());
-    const canvasAttributes = new Map<string, { fullLine: string, type: string }>();
+    const originalNamesById = new Map(
+      originalArray
+        .filter((attribute: any) => attribute?.id && attribute?.name)
+        .map((attribute: any) => [attribute.id, attribute.name])
+    );
+    const attributeKey = (attribute: any) =>
+      attribute?.originalName || attribute?.previousName ||
+      originalNamesById.get(attribute?.id) || attribute?.name;
+    const remaining = [...editedArray].filter((attribute: any) => attribute?.name);
+    const used = new Set<any>();
 
-    canvasLines.forEach(line => {
-      const colonIndex = line.indexOf(': ');
-      if (colonIndex > 0) {
-        const name = line.substring(0, colonIndex).trim();
-        const type = line.substring(colonIndex + 1).trim();
-        canvasAttributes.set(name, { fullLine: line, type });
+    const finalLines = canvasLines.map((line) => {
+      const canvasName = line.split(':')[0]?.trim();
+      const editedAttribute = remaining.find((attribute: any) =>
+        !used.has(attribute) && attributeKey(attribute) === canvasName
+      );
+
+      if (!editedAttribute) return line;
+      used.add(editedAttribute);
+      return `${editedAttribute.name}: ${editedAttribute.type || ''}`.trimEnd();
+    });
+
+    remaining.forEach((attribute: any) => {
+      if (!used.has(attribute) && !canvasLines.some((line) =>
+        line.split(':')[0]?.trim() === attribute.name
+      )) {
+        finalLines.push(`${attribute.name}: ${attribute.type || ''}`.trimEnd());
       }
     });
 
-    // Mapear atributos originales y editados por nombre
-    const originalAttributeNames = new Set<string>();
-
-    // Procesar array original (puede ser objetos o strings)
-    originalArray.forEach(attr => {
-      if (typeof attr === 'object' && attr.name) {
-        originalAttributeNames.add(attr.name);
-      } else if (typeof attr === 'string') {
-        const colonIndex = attr.indexOf(':');
-        if (colonIndex > 0) {
-          const name = attr.substring(0, colonIndex).trim();
-          originalAttributeNames.add(name);
-        }
-      }
-    });
-
-    // Procesar array editado
-    // editedArray.forEach(attr => {
-    // 	if (typeof attr === 'object' && attr.name) {
-    // 		editedAttributes.set(attr.name, attr);
-    // 	}
-    // });
-    // console.log('----------------------------------------');
-    // console.log('🔍 Canvas actual:', Array.from(canvasAttributes.keys()));
-    // console.log('🔍 JSON original:', Array.from(originalAttributeNames));
-    // console.log('🔍 JSON editado:', Array.from(editedArray));
-
-    const finalLines: string[] = [];
-
-    // 1. Procesar atributos que están en el canvas
-    canvasAttributes.forEach((canvasData, canvasName) => {
-      // Verificar si este atributo del canvas debe ser editado
-      if (originalAttributeNames.has(canvasName)) {
-        // Este atributo existe en original y editado, reemplazar con editado;
-        const editedAttr = editedArray.shift();
-        const newLine = `${editedAttr.name}: ${editedAttr.type}`;
-        finalLines.push(newLine);
-        //console.log(`✏️ Editando "${canvasName}" del canvas: "${canvasData.fullLine}" -> "${newLine}"`);
-      } else {
-        // Mantener el atributo del canvas sin cambios
-        finalLines.push(canvasData.fullLine);
-        //console.log(`✅ Manteniendo "${canvasName}" del canvas: "${canvasData.fullLine}"`);
-      }
-    });
-
-    // 2. Añadir atributos que están en editado pero NO en canvas
-    editedArray.forEach(editedName => {
-      if (!canvasAttributes.has(editedName)) {
-        // Este atributo no existe en canvas pero sí en original y editado
-        const editedAttr = editedArray.shift();
-        const newLine = `${editedAttr.name}: ${editedAttr.type}`;
-        finalLines.push(newLine);
-        //console.log(`🆕 Añadiendo "${editedName}" que no estaba en canvas: "${newLine}"`);
-      }
-    });
-
-    const result = finalLines.join('\n');
-    //console.log('📝 Resultado final de atributos:', result);
-    return result;
+    return finalLines.join('\n');
   }
 
   /**
@@ -1384,82 +1343,43 @@ export class DiagramService {
    */
   private mergeMethods(canvasMethodsText: string, editedText: string, editedArray: any[], originalArray: any[] = []): string {
     if (!Array.isArray(editedArray)) return editedText;
-
-    // Parsear métodos actuales del canvas (formato: "nombre(params): tipo;")
     const canvasLines = canvasMethodsText.split('\n').filter(line => line.trim());
-    const canvasMethods = new Map<string, string>();
+    const originalNamesById = new Map(
+      originalArray
+        .filter((method: any) => method?.id && method?.name)
+        .map((method: any) => [method.id, method.name])
+    );
+    const methodKey = (method: any) =>
+      method?.originalName || method?.previousName ||
+      originalNamesById.get(method?.id) || method?.name;
+    const remaining = [...editedArray].filter((method: any) => method?.name);
+    const used = new Set<any>();
+    const toLine = (method: any) => {
+      const params = method.parameters ? `(${method.parameters})` : '()';
+      const returnType = method.returnType ? `: ${method.returnType}` : '';
+      return `${method.name}${params}${returnType};`;
+    };
 
-    canvasLines.forEach(line => {
-      const parenIndex = line.indexOf('(');
-      if (parenIndex > 0) {
-        const methodName = line.substring(0, parenIndex).trim();
-        canvasMethods.set(methodName, line);
+    const finalLines = canvasLines.map((line) => {
+      const canvasName = line.split('(')[0]?.trim();
+      const editedMethod = remaining.find((method: any) =>
+        !used.has(method) && methodKey(method) === canvasName
+      );
+
+      if (!editedMethod) return line;
+      used.add(editedMethod);
+      return toLine(editedMethod);
+    });
+
+    remaining.forEach((method: any) => {
+      if (!used.has(method) && !canvasLines.some((line) =>
+        line.split('(')[0]?.trim() === method.name
+      )) {
+        finalLines.push(toLine(method));
       }
     });
 
-    // Mapear métodos originales y editados por nombre
-    const originalMethodNames = new Set<string>();
-
-    // Procesar array original (puede ser objetos o strings)
-    originalArray.forEach(method => {
-      if (typeof method === 'object' && method.name) {
-        originalMethodNames.add(method.name);
-      } else if (typeof method === 'string') {
-        const parenIndex = method.indexOf('(');
-        if (parenIndex > 0) {
-          const name = method.substring(0, parenIndex).trim();
-          originalMethodNames.add(name);
-        }
-      }
-    });
-
-    // Procesar array editado
-    // editedArray.forEach(method => {
-    // 	if (typeof method === 'object' && method.name) {
-    // 		editedMethods.set(method.name, method);
-    // 	}
-    // });
-
-    // console.log('🔍 Canvas actual:', Array.from(canvasMethods.keys()));
-    // console.log('🔍 JSON original:', Array.from(originalMethodNames));
-    // console.log('🔍 JSON editado:', Array.from(editedMethods.keys()));
-
-    const finalLines: string[] = [];
-
-    // 1. Procesar métodos que están en el canvas
-    canvasMethods.forEach((canvasLine, canvasName) => {
-      // Verificar si este método del canvas debe ser editado
-      if (originalMethodNames.has(canvasName)) {
-        // Este método existe en original y editado, reemplazar con editado
-        const editedMethod = editedArray.shift();
-        const params = editedMethod.parameters ? `(${editedMethod.parameters})` : '()';
-        const ret = editedMethod.returnType ? `: ${editedMethod.returnType}` : '';
-        const newLine = `${editedMethod.name}${params}${ret};`;
-        finalLines.push(newLine);
-        //console.log(`✏️ Editando "${canvasName}" del canvas: "${canvasLine}" -> "${newLine}"`);
-      } else {
-        // Mantener el método del canvas sin cambios
-        finalLines.push(canvasLine);
-        //console.log(`✅ Manteniendo "${canvasName}" del canvas: "${canvasLine}"`);
-      }
-    });
-
-    // 2. Añadir métodos que están en edited pero NO en canvas
-    editedArray.forEach(editedName => {
-      if (!canvasMethods.has(editedName)) {
-        // Este método no existe en canvas pero sí en original y editado
-        const editedMethod = editedArray.shift();
-        const params = editedMethod.parameters ? `(${editedMethod.parameters})` : '()';
-        const ret = editedMethod.returnType ? `: ${editedMethod.returnType}` : '';
-        const newLine = `${editedMethod.name}${params}${ret};`;
-        finalLines.push(newLine);
-        //console.log(`🆕 Añadiendo "${editedName}" que no estaba en canvas: "${newLine}"`);
-      }
-    });
-
-    const result = finalLines.join('\n');
-    //console.log('🔧 Resultado final de métodos:', result);
-    return result;
+    return finalLines.join('\n');
   }
 
   /**
@@ -1590,12 +1510,26 @@ export class DiagramService {
       }
     }
 
+    // createTypedRelationship(..., true) construye el link pero, al ser remote=true,
+    // deliberadamente NO lo agrega al graph (ver su implementación). Sin este addCell
+    // la relación nunca aparecía en JointJS ni quedaba realmente insertada.
+    // Se usa { collab: true } (mismo flag que usa CollaborationService al aplicar
+    // links remotos) para que el listener graph.on('add', ...) no dispare su propio
+    // broadcast 'add_link': el broadcast de esta operación ya se envía explícitamente
+    // abajo, y sin este flag se emitirían dos broadcasts para una sola relación nueva.
+    this.graph.addCell(newLink, { collab: true });
+
     // Broadcast para colaboración
+    const type = newLink.get('relationType') || editedRelation.type || 'association';
     this.collab.broadcast({
-      t: 'move_link',
+      t: 'add_link',
       id: newLink.id,
       sourceId: sourceId,
-      targetId: targetId
+      targetId: targetId,
+      payload: {
+        type,
+        labels: newLink.get('labels')
+      }
     });
 
     // Broadcast para etiquetas/cardinalidades

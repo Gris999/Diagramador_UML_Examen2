@@ -11,9 +11,9 @@ Status values:
 |---|---|---|
 | Manual UML editor | DONE | Existing Angular + JointJS editor |
 | UML 2.5 class/data modeling | PARTIAL | Existing class modeling; formal UML 2.5 coverage must be validated |
-| Text → UML | VERIFY | Gemini integration exists; API/model compatibility must be tested |
-| Image/photo → UML | VERIFY | Gemini image flow exists; needs current API validation |
-| Voice → UML/editing | MISSING | No confirmed implementation |
+| Text → UML/editing | VERIFY | Gemini receives the current UML snapshot for contextual edits; needs live API validation |
+| Image/photo → UML | VERIFY | Gemini image flow now validates MIME type/size and sanitizes provider failures; needs live API validation |
+| Voice → UML/editing | VERIFY | Browser recording, Gemini transcription, contextual UML edits, and mocked endpoint coverage are implemented; needs live validation |
 | Real-time collaboration | PARTIAL | Channels/WebSocket/P2P infrastructure exists |
 | 2-3 collaborative users | VERIFY | Needs end-to-end multi-client test |
 | Host/participant roles | MISSING | No complete formal role model confirmed |

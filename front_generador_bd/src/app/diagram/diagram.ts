@@ -175,10 +175,22 @@ export class Diagram implements AfterViewInit {
 
   generateFromPrompt(prompt: string) {
     this.chatbot.isLoading.set(true);
-    this.chatbot.generateDiagram(prompt).subscribe({
+    const currentUml = this.diagramService.exportToJson();
+    this.chatbot.generateDiagram(prompt, currentUml).subscribe({
       next: (json) => {
         console.log('Respuesta del chatbot:', json);
-        this.diagramService.loadFromJson(json,true);
+
+        if (!json || json.error) {
+          console.error('Respuesta inválida del chatbot:', json);
+          alert(
+            json?.error ||
+            'La IA no devolvió un modelo UML válido.'
+          );
+          this.chatbot.isLoading.set(false);
+          return;
+        }
+
+        this.diagramService.loadFromJson(json, true);
         this.chatbot.isLoading.set(false);
       },
       error: (err) => {
@@ -318,4 +330,3 @@ export class Diagram implements AfterViewInit {
     this.diagramService.resetZoom();
   }
 }
-

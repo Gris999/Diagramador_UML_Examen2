@@ -38,7 +38,9 @@ export class SidePanel {
   roomId: string | null = null;
   copied = signal<boolean>(false);
   recognizing = signal<boolean>(false);
-  recognition: any;
+  private mediaRecorder: MediaRecorder | null = null;
+  private mediaStream: MediaStream | null = null;
+  private audioChunks: Blob[] = [];
   isBrowser: boolean;
 
   constructor(
@@ -53,9 +55,6 @@ export class SidePanel {
     this.isBrowser = isPlatformBrowser(platformId); // ✅ detecta si estamos en navegador
     this.roomId = this.route.snapshot.paramMap.get('roomId');
 
-    if (this.isBrowser) {
-      this.configVoiceRecognition();
-    }
   }
 
 
@@ -132,44 +131,192 @@ export class SidePanel {
     document.body.removeChild(textarea);
   }
 
-  configVoiceRecognition() {
-    if (!this.isBrowser) return;
-    this.recognition = null;
-    const SpeechRecognition =
-      (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-
-    if (SpeechRecognition) {
-      this.recognition = new SpeechRecognition();
-      this.recognition.lang = 'es-ES';
-      this.recognition.interimResults = true;
-      this.recognition.continuous = false;
-
-      this.recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join('');
-        this.prompt = transcript;
-      };
-
-      this.recognition.onend = () => {
-        this.recognizing.set(true);
-      };
-    }
-  }
-  toggleVoiceInput() {
-    if (!this.recognition) {
-      alert('Tu navegador no soporta reconocimiento de voz');
+  async toggleVoiceInput() {
+    if (!this.isBrowser) {
       return;
     }
 
-    if (this.recognizing()) {
-      this.recognition.stop();
+    if (
+      this.mediaRecorder &&
+      this.mediaRecorder.state === 'recording'
+    ) {
+      this.mediaRecorder.stop();
       this.recognizing.set(false);
-    } else {
-      this.recognition.start();
+      return;
+    }
+
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      alert(
+        'Este navegador no permite grabar audio.'
+      );
+      return;
+    }
+
+    try {
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          audio: true
+        });
+
+      this.mediaStream = stream;
+      this.audioChunks = [];
+
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus'
+      ];
+
+      const supportedMime =
+        candidates.find((mime) =>
+          MediaRecorder.isTypeSupported(mime)
+        );
+
+      this.mediaRecorder = supportedMime
+        ? new MediaRecorder(
+            stream,
+            { mimeType: supportedMime }
+          )
+        : new MediaRecorder(stream);
+
+      const recorder = this.mediaRecorder;
+
+      recorder.ondataavailable = (
+        event: BlobEvent
+      ) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data);
+        }
+      };
+
+      recorder.onerror = (event: Event) => {
+        console.error(
+          'Error grabando audio:',
+          event
+        );
+
+        this.recognizing.set(false);
+        this.stopMicrophoneStream();
+      };
+
+      recorder.onstop = () => {
+        const mimeType =
+          recorder.mimeType
+            ?.split(';', 1)[0]
+            .trim() ||
+          'audio/webm';
+
+        const audioBlob = new Blob(
+          this.audioChunks,
+          { type: mimeType }
+        );
+
+        this.audioChunks = [];
+        this.recognizing.set(false);
+        this.stopMicrophoneStream();
+
+        if (audioBlob.size === 0) {
+          alert(
+            'No se capturó audio. Intenta nuevamente.'
+          );
+          return;
+        }
+
+        this.processVoiceAudio(audioBlob);
+      };
+
+      recorder.start();
       this.recognizing.set(true);
+
+    } catch (error) {
+      console.error(
+        'No se pudo acceder al micrófono:',
+        error
+      );
+
+      this.recognizing.set(false);
+
+      alert(
+        'No se pudo acceder al micrófono.'
+      );
     }
   }
+
+  private processVoiceAudio(audio: Blob) {
+    this.chatboxService.isLoading.set(true);
+    const currentUml = this.diagramService.exportToJson();
+
+    this.chatboxService
+      .generateDiagramFromAudio(audio, currentUml)
+      .subscribe({
+        next: (response: any) => {
+          const umlJson =
+            response?.uml_json || response;
+
+          if (
+            umlJson?.error ||
+            !umlJson ||
+            !Array.isArray(umlJson.classes)
+          ) {
+            console.error(
+              'Respuesta UML de voz inválida:',
+              response
+            );
+
+            alert(
+              response?.error ||
+              'La IA no pudo interpretar la voz.'
+            );
+
+            this.chatboxService.isLoading.set(
+              false
+            );
+            return;
+          }
+
+          if (response?.transcript) {
+            this.prompt = response.transcript;
+          }
+
+          this.diagramService.loadFromJson(
+            umlJson,
+            true
+          );
+
+          this.chatboxService.isLoading.set(
+            false
+          );
+        },
+
+        error: (error: any) => {
+          console.error(
+            'Error procesando voz:',
+            error
+          );
+
+          this.chatboxService.isLoading.set(
+            false
+          );
+
+          alert(
+            'No se pudo procesar la instrucción de voz.'
+          );
+        }
+      });
+  }
+
+  private stopMicrophoneStream() {
+    this.mediaStream
+      ?.getTracks()
+      .forEach((track) => track.stop());
+
+    this.mediaStream = null;
+    this.mediaRecorder = null;
+  }
+
   exportImage() {
     this.diagramService.exportToImage('diagrama.png');
   }
@@ -188,10 +335,28 @@ export class SidePanel {
 
     this.umlImageService.analyzeImage(file).subscribe({
       next: (res) => {
-        const umlJson = res.uml_json || res; // depende de la respuesta del backend
+        const umlJson = res.uml_json || res;
+
+        if (
+          umlJson?.error ||
+          !umlJson ||
+          !Array.isArray(umlJson.classes)
+        ) {
+          console.error('Respuesta UML de imagen inválida:', umlJson);
+          alert(
+            umlJson?.error ||
+            'La IA no pudo obtener un modelo UML válido de la imagen.'
+          );
+          this.analyzingModel.set(false);
+          this.umlImageService.loading.set(false);
+          input.value = '';
+          return;
+        }
+
         this.diagramService.loadFromJson(umlJson);
         this.analyzingModel.set(false);
         this.umlImageService.loading.set(false);
+        input.value = '';
       },
       error: (err) => {
         console.error('❌ Error al analizar imagen UML:', err);
