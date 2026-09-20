@@ -4,6 +4,7 @@ import { SignalingService } from './signaling.service';
 type Peer = {
   pc: RTCPeerConnection;
   dc?: RTCDataChannel;
+  pendingIceCandidates: RTCIceCandidateInit[];
 };
 
 @Injectable({ providedIn: 'root' })
@@ -28,7 +29,7 @@ export class P2PService {
   private newPeer(remoteId: string, isInitiator: boolean) {
     //console.log(`[P2P] Creando peer con ${remoteId}, initiator=${isInitiator}`);
     const pc = new RTCPeerConnection({ iceServers: this.iceServers });
-    const peer: Peer = { pc };
+    const peer: Peer = { pc, pendingIceCandidates: [] };
     this.peers.set(remoteId, peer);
 
     pc.onicecandidate = (e) => {
@@ -50,6 +51,17 @@ export class P2PService {
     }
 
     return peer;
+  }
+
+  private async flushPendingIceCandidates(peer: Peer) {
+    const pendingCandidates = peer.pendingIceCandidates.splice(0);
+    for (const candidate of pendingCandidates) {
+      try {
+        await peer.pc.addIceCandidate(candidate);
+      } catch (e) {
+        console.warn('[P2P] Error aplicando ICE:', e);
+      }
+    }
   }
 
   private attachDataChannel(remoteId: string, dc: RTCDataChannel) {
@@ -110,6 +122,7 @@ export class P2PService {
       if (payload.type === 'offer') {
         //console.log(`[P2P] Offer recibido de ${remoteId}`);
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        await this.flushPendingIceCandidates(peer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         this.signaling.sendSignal(remoteId, { type: 'answer', sdp: answer });
@@ -117,8 +130,13 @@ export class P2PService {
       } else if (payload.type === 'answer') {
         if (pc.signalingState !== 'stable') {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          await this.flushPendingIceCandidates(peer);
         }
       } else if (payload.type === 'ice' && payload.candidate) {
+        if (!pc.remoteDescription) {
+          peer.pendingIceCandidates.push(payload.candidate);
+          return;
+        }
         try {
           await pc.addIceCandidate(payload.candidate);
           //console.log(`[P2P] ICE aplicado de ${remoteId}`);
@@ -141,6 +159,7 @@ export class P2PService {
   closeSocketRTC() {
     // Cerrar WebRTC peers
     for (const [id, peer] of this.peers) {
+      peer.pendingIceCandidates.length = 0;
       try {
         peer.dc?.close();
       } catch {}
