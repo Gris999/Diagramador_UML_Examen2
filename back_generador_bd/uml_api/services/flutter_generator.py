@@ -156,6 +156,19 @@ class FlutterCRUDGenerator:
                 self._generate_intermediate_form_view(base_path, intermediate)
                 self._generate_intermediate_detail_view(base_path, intermediate)
 
+            # Generar la infraestructura del asistente (solo entidades UML
+            # originales; las entidades intermedias M:N quedan fuera del P0).
+            self._generate_app_schema(base_path, original_classes)
+            self._generate_business_command(base_path)
+            self._generate_entity_service_adapter(base_path)
+            self._generate_command_parser(base_path)
+            self._generate_command_validator(base_path)
+            self._generate_entity_service_registry(base_path, original_classes)
+            self._generate_command_router(base_path)
+            self._generate_voice_input_controller(base_path)
+            self._generate_assistant_view(base_path)
+            self._generate_assistant_tests(base_path, original_classes)
+
             self._generate_main(base_path, intermediate_entities)
             self._generate_widget_test(base_path)
             self._generate_routes(base_path)
@@ -217,7 +230,9 @@ class FlutterCRUDGenerator:
             'lib/services',
             'lib/views',
             'lib/widgets',
+            'lib/assistant',
             'test',
+            'test/assistant',
         ]
         for folder in folders:
             (base_path / folder).mkdir(parents=True, exist_ok=True)
@@ -230,7 +245,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.12.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -240,6 +255,7 @@ dependencies:
   provider: ^6.0.5
   sqflite: ^2.4.4
   path: ^1.9.1
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:
@@ -468,6 +484,7 @@ class DatabaseHelper {{
         imports_str = '\n'.join(imports)
         
         content = f"""import 'package:flutter/material.dart';
+import 'assistant/assistant_view.dart';
 {imports_str}
 
 void main() {{
@@ -505,6 +522,16 @@ class HomePage extends StatelessWidget {{
         children: [
 {self._generate_home_cards(intermediate_entities)}
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {{
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AssistantView()),
+          );
+        }},
+        icon: const Icon(Icons.mic),
+        label: const Text('Asistente'),
       ),
     );
   }}
@@ -2216,6 +2243,2363 @@ class {name}DetailView extends StatelessWidget {{
         """Genera el archivo de rutas (opcional)"""
         pass
     
+    # ========================================
+    # === ASISTENTE SCHEMA-AWARE (P0) ===
+    # ========================================
+    # Infraestructura generada de forma independiente a los generadores de
+    # modelos/servicios/vistas ya existentes. Los métodos de esta sección NO
+    # reutilizan ni refactorizan la lógica de herencia/relaciones de
+    # _generate_model/_generate_service/_generate_database_helper: la
+    # replican intencionalmente para no arriesgar una regresión en el CRUD
+    # ya generado. Solo cubren las clases UML originales; las entidades
+    # intermedias M:N quedan fuera del vocabulario del asistente en este P0.
+
+    def _assistant_pick_name_field(self, fields):
+        """Heurística de "campo legible" para el asistente.
+
+        Prioridad: un campo String no-PK llamado name/nombre/title/titulo/
+        label (comparación sin tildes). Si no hay, el primer campo String
+        no-PK. Si no hay ninguno, None. No se inventan traducciones."""
+        priority = {'name', 'nombre', 'title', 'titulo', 'label'}
+
+        def fold(value):
+            table = str.maketrans('áéíóúÁÉÍÓÚ', 'aeiouAEIOU')
+            return value.translate(table).lower()
+
+        for field in fields:
+            if field['dart_type'] == 'String' and not field['is_primary_key'] and fold(field['name']) in priority:
+                return field['name']
+        for field in fields:
+            if field['dart_type'] == 'String' and not field['is_primary_key']:
+                return field['name']
+        return None
+
+    def _assistant_entity_metadata(self, clase):
+        """Recolecta metadata del asistente para una clase UML original.
+
+        Replica (sin reutilizar) el aplanamiento de atributos/relaciones que
+        usan _generate_model/_generate_service, para no acoplar el asistente
+        a esos métodos ni arriesgar tocarlos."""
+        name = clase['name']
+        relationships = self.parsed_relationships
+
+        def collect_attrs(class_name):
+            attrs = []
+            current = next((c for c in self.classes if c['name'] == class_name), None)
+            if current:
+                parent_rels = [r for r in relationships if r["from"] == class_name and r["kind"] == "inherits"]
+                if parent_rels:
+                    attrs.extend(collect_attrs(parent_rels[0]["to"]))
+                existing = {a['name'].lower() for a in attrs}
+                for attr in current.get('attributes', []):
+                    if attr['name'].lower() not in existing:
+                        attrs.append(attr)
+            return attrs
+
+        all_attrs = collect_attrs(name)
+
+        fields = []
+        for i, attr in enumerate(all_attrs):
+            dart_type = self._convert_type(attr['type'])
+            is_pk = (i == 0)
+            # Mirrors _generate_form_view's is_numeric_pk (int AND double are
+            # both treated as generator-populated, non-user-entered PKs).
+            # CommandValidator separately hard-blocks ALL mutations for a
+            # double PK entity regardless of this flag; it is not reused to
+            # decide that block.
+            is_auto_increment = is_pk and dart_type in ('int', 'double')
+            is_date = dart_type == 'DateTime'
+            fields.append({
+                'name': attr['name'],
+                'dart_type': dart_type,
+                'json_key': self._to_backend_json_key(attr['name']),
+                'is_primary_key': is_pk,
+                'is_auto_increment': is_auto_increment,
+                'required_on_create': not is_auto_increment,
+                'writable': not is_date,
+            })
+
+        def collect_rels(class_name):
+            rels = []
+            for r in relationships:
+                if r["from"] == class_name and r["kind"] == "inherits":
+                    rels.extend(collect_rels(r["to"]))
+                    break
+            for r in relationships:
+                if r["from"] == class_name and r["kind"] in ("many_to_one", "one_to_one", "one_to_many"):
+                    rels.append(r)
+            return rels
+
+        existing_attr_names = {a['name'].lower().replace('_', '') for a in all_attrs}
+        relations = []
+        for rel in collect_rels(name):
+            target = rel['to']
+            rel_snake = self._to_snake_case(target)
+            if rel['kind'] in ('many_to_one', 'one_to_one'):
+                field_name = f"{rel_snake}Id"
+                normalized = field_name.lower().replace('_', '')
+                if normalized in existing_attr_names:
+                    continue
+                relations.append({
+                    'name': field_name,
+                    'target_entity': target,
+                    'kind': rel['kind'],
+                    'json_key': self._to_backend_json_key(field_name),
+                    'required_on_create': True,
+                    'writable': True,
+                })
+            elif rel['kind'] == 'one_to_many':
+                field_name = rel_snake
+                normalized = field_name.lower().replace('_', '')
+                if normalized in existing_attr_names:
+                    continue
+                relations.append({
+                    'name': field_name,
+                    'target_entity': target,
+                    'kind': rel['kind'],
+                    'json_key': self._to_backend_json_key(field_name),
+                    'required_on_create': False,
+                    'writable': False,
+                })
+
+        return {
+            'name': name,
+            'fields': fields,
+            'relations': relations,
+            'name_field': self._assistant_pick_name_field(fields),
+        }
+
+    def _assistant_dart_string_literal(self, value):
+        escaped = value.replace('\\', '\\\\').replace("'", "\\'")
+        return f"'{escaped}'"
+
+    def _assistant_render_field(self, field):
+        return (
+            "AssistantFieldSchema(\n"
+            f"          name: {self._assistant_dart_string_literal(field['name'])},\n"
+            f"          dartType: {self._assistant_dart_string_literal(field['dart_type'])},\n"
+            f"          jsonKey: {self._assistant_dart_string_literal(field['json_key'])},\n"
+            f"          isPrimaryKey: {str(field['is_primary_key']).lower()},\n"
+            f"          isAutoIncrement: {str(field['is_auto_increment']).lower()},\n"
+            f"          requiredOnCreate: {str(field['required_on_create']).lower()},\n"
+            f"          writable: {str(field['writable']).lower()},\n"
+            "        )"
+        )
+
+    def _assistant_render_relation(self, rel):
+        kind_map = {
+            'many_to_one': 'AssistantRelationKind.manyToOne',
+            'one_to_one': 'AssistantRelationKind.oneToOne',
+            'one_to_many': 'AssistantRelationKind.oneToMany',
+        }
+        return (
+            "AssistantRelationField(\n"
+            f"          name: {self._assistant_dart_string_literal(rel['name'])},\n"
+            f"          targetEntity: {self._assistant_dart_string_literal(rel['target_entity'])},\n"
+            f"          kind: {kind_map[rel['kind']]},\n"
+            f"          jsonKey: {self._assistant_dart_string_literal(rel['json_key'])},\n"
+            f"          requiredOnCreate: {str(rel['required_on_create']).lower()},\n"
+            f"          writable: {str(rel['writable']).lower()},\n"
+            "        )"
+        )
+
+    def _generate_app_schema(self, base_path, original_classes):
+        """Genera lib/assistant/app_schema.dart a partir de las clases UML
+        originales (excluye entidades intermedias M:N)."""
+        entity_literals = []
+        for clase in original_classes:
+            meta = self._assistant_entity_metadata(clase)
+            fields_str = ',\n        '.join(self._assistant_render_field(f) for f in meta['fields'])
+            relations_str = ',\n        '.join(self._assistant_render_relation(r) for r in meta['relations'])
+            name_field_literal = (
+                self._assistant_dart_string_literal(meta['name_field'])
+                if meta['name_field'] else 'null'
+            )
+            entity_literals.append(
+                "    AssistantEntitySchema(\n"
+                f"      name: {self._assistant_dart_string_literal(meta['name'])},\n"
+                f"      aliases: [{self._assistant_dart_string_literal(meta['name'].lower())}],\n"
+                "      fields: [\n"
+                f"        {fields_str}\n"
+                "      ],\n"
+                "      relations: [\n"
+                f"        {relations_str}\n"
+                "      ],\n"
+                f"      nameField: {name_field_literal},\n"
+                "    )"
+            )
+        entities_str = ',\n'.join(entity_literals)
+
+        content = '''/// Esquema de entidades derivado del UML, usado por el asistente
+/// (CommandParser, CommandValidator, CommandRouter). Generado
+/// automáticamente: no editar a mano, regenerar el proyecto Flutter.
+class AssistantFieldSchema {
+  final String name;
+  final String dartType;
+  final String jsonKey;
+  final bool isPrimaryKey;
+  final bool isAutoIncrement;
+  final bool requiredOnCreate;
+  final bool writable;
+
+  const AssistantFieldSchema({
+    required this.name,
+    required this.dartType,
+    required this.jsonKey,
+    required this.isPrimaryKey,
+    required this.isAutoIncrement,
+    required this.requiredOnCreate,
+    required this.writable,
+  });
+}
+
+enum AssistantRelationKind { manyToOne, oneToOne, oneToMany }
+
+class AssistantRelationField {
+  final String name;
+  final String targetEntity;
+  final AssistantRelationKind kind;
+  final String jsonKey;
+  final bool requiredOnCreate;
+  final bool writable;
+
+  const AssistantRelationField({
+    required this.name,
+    required this.targetEntity,
+    required this.kind,
+    required this.jsonKey,
+    required this.requiredOnCreate,
+    required this.writable,
+  });
+}
+
+class AssistantEntitySchema {
+  final String name;
+  final List<String> aliases;
+  final List<AssistantFieldSchema> fields;
+  final List<AssistantRelationField> relations;
+  final String? nameField;
+
+  const AssistantEntitySchema({
+    required this.name,
+    required this.aliases,
+    required this.fields,
+    required this.relations,
+    required this.nameField,
+  });
+
+  AssistantFieldSchema get pkField => fields.firstWhere((f) => f.isPrimaryKey);
+
+  /// Campos escalares más los IDs de relación many-to-one/one-to-one,
+  /// tratados de forma uniforme como campos String escribibles. Las
+  /// relaciones one-to-many nunca se incluyen: son listas de solo lectura,
+  /// el asistente nunca las escribe.
+  List<AssistantFieldSchema> get allWritableFields => [
+        ...fields,
+        ...relations.where((r) => r.kind != AssistantRelationKind.oneToMany).map(
+              (r) => AssistantFieldSchema(
+                name: r.name,
+                dartType: 'String',
+                jsonKey: r.jsonKey,
+                isPrimaryKey: false,
+                isAutoIncrement: false,
+                requiredOnCreate: r.requiredOnCreate,
+                writable: r.writable,
+              ),
+            ),
+      ];
+
+  AssistantFieldSchema? fieldByName(String candidate) {
+    final normalized = AppSchema.normalize(candidate);
+    for (final field in allWritableFields) {
+      if (AppSchema.normalize(field.name) == normalized) return field;
+    }
+    return null;
+  }
+
+  /// Convierte un mapa indexado por nombre de campo Dart (como el que
+  /// produce CommandParser) en un mapa indexado por la clave JSON del
+  /// backend (la que esperan los fromJson generados). Las claves
+  /// desconocidas se descartan; CommandValidator ya debe haber rechazado
+  /// campos desconocidos antes de llegar aquí.
+  Map<String, dynamic> toJsonKeyed(Map<String, dynamic> fieldKeyedData) {
+    final result = <String, dynamic>{};
+    for (final entry in fieldKeyedData.entries) {
+      final field = fieldByName(entry.key);
+      if (field != null) {
+        result[field.jsonKey] = entry.value;
+      }
+    }
+    return result;
+  }
+}
+
+class AppSchema {
+  static const List<AssistantEntitySchema> entities = [
+__ENTITIES__
+  ];
+
+  /// Resuelve un token en español (ya extraído por CommandParser) a una
+  /// entidad conocida. Aplica una normalización singular/plural ingenua,
+  /// pero nunca inventa traducciones ni sinónimos. Devuelve null tanto si
+  /// no hay coincidencia como si es ambigua: en ambos casos el llamador
+  /// debe tratarlo como "entidad desconocida" y no ejecutar nada.
+  static AssistantEntitySchema? resolveEntity(String token) {
+    final normalized = normalize(token);
+    final singularized = normalize(_singularize(token));
+    AssistantEntitySchema? match;
+    for (final entity in entities) {
+      final candidates = <String>{entity.name, ...entity.aliases};
+      for (final candidate in candidates) {
+        final normalizedCandidate = normalize(candidate);
+        if (normalizedCandidate == normalized || normalizedCandidate == singularized) {
+          if (match != null && match.name != entity.name) {
+            return null;
+          }
+          match = entity;
+        }
+      }
+    }
+    return match;
+  }
+
+  /// Entidades que declaran un campo o relación escribible llamado
+  /// [fieldToken] (comparación sin mayúsculas/tildes). Lo usa la gramática
+  /// de UPDATE de CommandParser para inferir la entidad a partir del campo.
+  static List<AssistantEntitySchema> entitiesWithField(String fieldToken) {
+    final normalized = normalize(fieldToken);
+    return entities
+        .where((entity) => entity.allWritableFields.any((field) => normalize(field.name) == normalized))
+        .toList();
+  }
+
+  static String _singularize(String word) {
+    final lower = word.toLowerCase();
+    if (lower.endsWith('es') && lower.length > 3) {
+      return lower.substring(0, lower.length - 2);
+    }
+    if (lower.endsWith('s') && lower.length > 1) {
+      return lower.substring(0, lower.length - 1);
+    }
+    return lower;
+  }
+
+  /// Minúsculas y sin tildes agudas, para comparaciones deterministas. A
+  /// propósito NO toca 'ñ'/'ü': son letras propias del español, no vocales
+  /// acentuadas.
+  static String normalize(String value) {
+    const from = 'áéíóúÁÉÍÓÚ';
+    const to = 'aeiouAEIOU';
+    var result = value.trim().toLowerCase();
+    for (var i = 0; i < from.length; i++) {
+      result = result.replaceAll(from[i], to[i].toLowerCase());
+    }
+    return result;
+  }
+}
+'''
+        content = content.replace('__ENTITIES__', entities_str)
+        (base_path / 'lib' / 'assistant' / 'app_schema.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_business_command(self, base_path):
+        """Genera lib/assistant/business_command.dart (genérico)."""
+        content = '''/// Comando genérico producido por CommandParser tras interpretar una
+/// instrucción escrita o hablada. Esta clase no contiene lógica: toda la
+/// validación ocurre en CommandValidator y toda la ejecución ocurre en
+/// CommandRouter. Un futuro intérprete de lenguaje natural podría
+/// reemplazar CommandParser sin tocar CommandValidator, CommandRouter ni
+/// este archivo, siempre que siga produciendo BusinessCommand.
+enum CommandAction { create, read, update, delete, unknown }
+
+class BusinessCommand {
+  /// Qué quiere hacer el usuario.
+  final CommandAction action;
+
+  /// Nombre canónico de la entidad, tal como aparece en AppSchema
+  /// (por ejemplo, 'Producto').
+  final String entity;
+
+  /// Valores a escribir (CREATE) o a aplicar (UPDATE), indexados por
+  /// nombre de campo Dart (no por clave JSON del backend).
+  final Map<String, dynamic> data;
+
+  /// Valores usados para ubicar el/los registro(s) objetivo
+  /// (READ de uno solo/UPDATE/DELETE). Vacío en CREATE y en READ/LIST de
+  /// todos los registros.
+  final Map<String, dynamic> filters;
+
+  /// Texto original a partir del cual se interpretó el comando. Se
+  /// conserva para mensajes de error y para mostrarle al usuario qué se
+  /// entendió.
+  final String rawText;
+
+  const BusinessCommand({
+    required this.action,
+    required this.entity,
+    required this.data,
+    required this.filters,
+    required this.rawText,
+  });
+
+  @override
+  String toString() =>
+      'BusinessCommand(action: $action, entity: $entity, data: $data, filters: $filters)';
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'business_command.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_entity_service_adapter(self, base_path):
+        """Genera lib/assistant/entity_service_adapter.dart (genérico)."""
+        content = '''import 'app_schema.dart';
+
+/// Interfaz uniforme que usa CommandRouter para llegar al {Entity}Service
+/// generado concreto sin conocer su tipo. Se genera una implementación por
+/// cada entidad UML original en entity_service_registry.dart, y cada
+/// implementación solo llama a los métodos del Service ya generado (getAll,
+/// create, update, delete) — nunca a DatabaseHelper ni a dart:http
+/// directamente — de modo que el asistente hereda automáticamente el
+/// comportamiento de red-primero/respaldo-SQLite que esos servicios ya
+/// tienen.
+abstract class EntityServiceAdapter {
+  final AssistantEntitySchema schema;
+  const EntityServiceAdapter(this.schema);
+
+  Future<List<Map<String, dynamic>>> list();
+  Future<Map<String, dynamic>> create(Map<String, dynamic> jsonData);
+  Future<Map<String, dynamic>> updateFromMap(String id, Map<String, dynamic> mergedJsonData);
+  Future<void> deleteById(String id);
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'entity_service_adapter.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_command_parser(self, base_path):
+        """Genera lib/assistant/command_parser.dart (genérico: consulta
+        AppSchema en tiempo de ejecución, no depende del esquema UML en
+        tiempo de generación)."""
+        content = r'''import 'app_schema.dart';
+import 'business_command.dart';
+
+/// Resultado de intentar interpretar un texto como comando. [error] viene
+/// acompañado de un mensaje pensado para mostrarse tal cual al usuario.
+class ParsedCommandResult {
+  final BusinessCommand? command;
+  final String? error;
+
+  const ParsedCommandResult.success(BusinessCommand command)
+      : command = command,
+        error = null;
+
+  const ParsedCommandResult.failure(String error)
+      : command = null,
+        error = error;
+
+  bool get isSuccess => command != null;
+}
+
+/// Parser determinista y consciente del esquema para un conjunto acotado de
+/// comandos CRUD en español. Esto es reconocimiento de patrones de gramática
+/// fija — NO es un modelo de lenguaje ni IA. Cualquier entrada que no
+/// encaje en las formas soportadas falla de forma cerrada: se devuelve un
+/// [ParsedCommandResult.failure] y nunca se produce un BusinessCommand
+/// parcial ni una ejecución "mejor esfuerzo".
+class CommandParser {
+  static const Map<String, CommandAction> _actionVerbs = {
+    'registra': CommandAction.create,
+    'registrar': CommandAction.create,
+    'crea': CommandAction.create,
+    'crear': CommandAction.create,
+    'agrega': CommandAction.create,
+    'agregar': CommandAction.create,
+    'añade': CommandAction.create,
+    'añadir': CommandAction.create,
+    'muestra': CommandAction.read,
+    'muestrame': CommandAction.read,
+    'listar': CommandAction.read,
+    'lista': CommandAction.read,
+    'ver': CommandAction.read,
+    'busca': CommandAction.read,
+    'buscar': CommandAction.read,
+    'encuentra': CommandAction.read,
+    'actualiza': CommandAction.update,
+    'actualizar': CommandAction.update,
+    'modifica': CommandAction.update,
+    'modificar': CommandAction.update,
+    'cambia': CommandAction.update,
+    'cambiar': CommandAction.update,
+    'edita': CommandAction.update,
+    'editar': CommandAction.update,
+    'elimina': CommandAction.delete,
+    'eliminar': CommandAction.delete,
+    'borra': CommandAction.delete,
+    'borrar': CommandAction.delete,
+    'quita': CommandAction.delete,
+    'quitar': CommandAction.delete,
+  };
+
+  static const Set<String> _leadingArticles = {
+    'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las',
+  };
+
+  ParsedCommandResult parse(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return const ParsedCommandResult.failure('Escribe o di un comando.');
+    }
+
+    final tokens = _splitWords(trimmed);
+    final verbToken = tokens.first;
+    final rest = tokens.length > 1 ? tokens.sublist(1).join(' ') : '';
+
+    final action = _actionVerbs[AppSchema.normalize(verbToken)];
+    if (action == null) {
+      return ParsedCommandResult.failure('No reconozco la acción "$verbToken".');
+    }
+
+    switch (action) {
+      case CommandAction.create:
+        return _parseCreate(rest, trimmed);
+      case CommandAction.read:
+        return _parseReadOrDelete(rest, trimmed, CommandAction.read);
+      case CommandAction.delete:
+        return _parseReadOrDelete(rest, trimmed, CommandAction.delete);
+      case CommandAction.update:
+        return _parseUpdate(rest, trimmed);
+      case CommandAction.unknown:
+        return const ParsedCommandResult.failure('No reconozco esa acción.');
+    }
+  }
+
+  ParsedCommandResult _parseCreate(String rest, String rawText) {
+    if (rest.isEmpty) {
+      return const ParsedCommandResult.failure('Falta indicar qué crear.');
+    }
+
+    final conMatch = RegExp(r'\s+con\s+', caseSensitive: false).firstMatch(rest);
+    final beforeCon = conMatch == null ? rest : rest.substring(0, conMatch.start);
+    final afterCon = conMatch == null ? '' : rest.substring(conMatch.end);
+
+    final beforeTokens = _splitWords(beforeCon);
+    if (beforeTokens.isEmpty) {
+      return const ParsedCommandResult.failure('Falta indicar qué crear.');
+    }
+    var cursor = 0;
+    if (_leadingArticles.contains(AppSchema.normalize(beforeTokens[cursor]))) {
+      cursor++;
+    }
+    if (cursor >= beforeTokens.length) {
+      return const ParsedCommandResult.failure('Falta indicar la entidad a crear.');
+    }
+    final entityToken = beforeTokens[cursor];
+    final entity = AppSchema.resolveEntity(entityToken);
+    if (entity == null) {
+      return ParsedCommandResult.failure('No conozco la entidad "$entityToken".');
+    }
+    final nameValueRaw = beforeTokens.sublist(cursor + 1).join(' ').trim();
+
+    final data = <String, dynamic>{};
+    if (nameValueRaw.isNotEmpty) {
+      if (entity.nameField == null) {
+        return ParsedCommandResult.failure(
+            'No sé qué hacer con "$nameValueRaw" para ${entity.name}.');
+      }
+      data[entity.nameField!] = nameValueRaw;
+    }
+
+    if (afterCon.trim().isNotEmpty) {
+      final clauses = afterCon.split(RegExp(r'\s+y\s+', caseSensitive: false));
+      for (final rawClause in clauses) {
+        final clause = rawClause.trim();
+        if (clause.isEmpty) continue;
+        final clauseTokens = _splitWords(clause);
+        if (clauseTokens.length < 2) {
+          return ParsedCommandResult.failure('No entendí "$clause".');
+        }
+        final fieldToken = clauseTokens.first;
+        final valueRaw = clauseTokens.sublist(1).join(' ').trim();
+        final field = entity.fieldByName(fieldToken);
+        if (field == null) {
+          return ParsedCommandResult.failure(
+              'No reconozco el campo "$fieldToken" en ${entity.name}.');
+        }
+        if (data.containsKey(field.name)) {
+          return ParsedCommandResult.failure('El campo "$fieldToken" está repetido.');
+        }
+        data[field.name] = valueRaw;
+      }
+    }
+
+    return ParsedCommandResult.success(BusinessCommand(
+      action: CommandAction.create,
+      entity: entity.name,
+      data: data,
+      filters: const {},
+      rawText: rawText,
+    ));
+  }
+
+  ParsedCommandResult _parseReadOrDelete(String rest, String rawText, CommandAction action) {
+    if (rest.isEmpty) {
+      return const ParsedCommandResult.failure('Falta indicar sobre qué entidad.');
+    }
+    final tokens = _splitWords(rest);
+    var cursor = 0;
+    if (_leadingArticles.contains(AppSchema.normalize(tokens[cursor]))) {
+      cursor++;
+    }
+    if (cursor >= tokens.length) {
+      return const ParsedCommandResult.failure('Falta indicar la entidad.');
+    }
+    final entityToken = tokens[cursor];
+    final entity = AppSchema.resolveEntity(entityToken);
+    if (entity == null) {
+      return ParsedCommandResult.failure('No conozco la entidad "$entityToken".');
+    }
+    final leftover = tokens.sublist(cursor + 1).join(' ').trim();
+
+    final filters = <String, dynamic>{};
+    if (leftover.isNotEmpty) {
+      if (entity.nameField == null) {
+        return ParsedCommandResult.failure('No sé cómo buscar "$leftover" en ${entity.name}.');
+      }
+      filters[entity.nameField!] = leftover;
+    } else if (action == CommandAction.delete) {
+      return ParsedCommandResult.failure(
+          'Indica cuál ${entity.name} eliminar (por ejemplo, su nombre).');
+    }
+
+    return ParsedCommandResult.success(BusinessCommand(
+      action: action,
+      entity: entity.name,
+      data: const {},
+      filters: filters,
+      rawText: rawText,
+    ));
+  }
+
+  ParsedCommandResult _parseUpdate(String rest, String rawText) {
+    if (rest.isEmpty) {
+      return const ParsedCommandResult.failure('Falta indicar qué actualizar.');
+    }
+
+    final aMatches = RegExp(r'\s+a\s+', caseSensitive: false).allMatches(rest).toList();
+    if (aMatches.isEmpty) {
+      return const ParsedCommandResult.failure('Indica el nuevo valor con "... a <valor>".');
+    }
+    final lastA = aMatches.last;
+    final left = rest.substring(0, lastA.start).trim();
+    final right = rest.substring(lastA.end).trim();
+    if (left.isEmpty || right.isEmpty) {
+      return const ParsedCommandResult.failure('Indica el nuevo valor con "... a <valor>".');
+    }
+
+    final leftTokens = _splitWords(left);
+    var cursor = 0;
+    if (_leadingArticles.contains(AppSchema.normalize(leftTokens[cursor]))) {
+      cursor++;
+    }
+    if (cursor >= leftTokens.length) {
+      return const ParsedCommandResult.failure('No entendí qué actualizar.');
+    }
+    final firstToken = leftTokens[cursor];
+
+    final candidatesByField = AppSchema.entitiesWithField(firstToken);
+    if (candidatesByField.length > 1) {
+      return ParsedCommandResult.failure(
+          'El campo "$firstToken" existe en varias entidades; sé más específico.');
+    }
+    if (candidatesByField.length == 1) {
+      // Modo B: el campo va primero y la entidad se infiere a partir de él.
+      final entity = candidatesByField.first;
+      final field = entity.fieldByName(firstToken)!;
+      var targetRaw = leftTokens.sublist(cursor + 1).join(' ').trim();
+      targetRaw = _stripLeadingWord(targetRaw, 'de');
+      if (targetRaw.isEmpty) {
+        return ParsedCommandResult.failure('Indica cuál ${entity.name} actualizar.');
+      }
+      if (entity.nameField == null) {
+        return ParsedCommandResult.failure('No sé cómo identificar ${entity.name} por nombre.');
+      }
+      return ParsedCommandResult.success(BusinessCommand(
+        action: CommandAction.update,
+        entity: entity.name,
+        data: {field.name: right},
+        filters: {entity.nameField!: targetRaw},
+        rawText: rawText,
+      ));
+    }
+
+    // Modo A: la entidad va primero y el campo se toma de la cláusula
+    // posterior al último "a".
+    final entity = AppSchema.resolveEntity(firstToken);
+    if (entity == null) {
+      return ParsedCommandResult.failure('No reconozco "$firstToken".');
+    }
+    final targetRaw = leftTokens.sublist(cursor + 1).join(' ').trim();
+    if (targetRaw.isEmpty) {
+      return ParsedCommandResult.failure('Indica cuál ${entity.name} actualizar.');
+    }
+    if (entity.nameField == null) {
+      return ParsedCommandResult.failure('No sé cómo identificar ${entity.name} por nombre.');
+    }
+    final rightTokens = _splitWords(right);
+    if (rightTokens.length < 2) {
+      return ParsedCommandResult.failure('Indica qué campo actualizar y su valor.');
+    }
+    final fieldToken = rightTokens.first;
+    final newValueRaw = rightTokens.sublist(1).join(' ').trim();
+    final field = entity.fieldByName(fieldToken);
+    if (field == null) {
+      return ParsedCommandResult.failure('No reconozco el campo "$fieldToken" en ${entity.name}.');
+    }
+
+    return ParsedCommandResult.success(BusinessCommand(
+      action: CommandAction.update,
+      entity: entity.name,
+      data: {field.name: newValueRaw},
+      filters: {entity.nameField!: targetRaw},
+      rawText: rawText,
+    ));
+  }
+
+  List<String> _splitWords(String value) =>
+      value.trim().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
+  String _stripLeadingWord(String value, String word) {
+    final tokens = _splitWords(value);
+    if (tokens.isNotEmpty && AppSchema.normalize(tokens.first) == word) {
+      return tokens.sublist(1).join(' ').trim();
+    }
+    return value;
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'command_parser.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_command_validator(self, base_path):
+        """Genera lib/assistant/command_validator.dart (genérico: valida
+        contra AppSchema en tiempo de ejecución)."""
+        content = '''import 'app_schema.dart';
+import 'business_command.dart';
+
+/// Resultado de validar un BusinessCommand ya interpretado.
+class ValidationResult {
+  final bool isValid;
+  final BusinessCommand? command;
+  final String? error;
+
+  const ValidationResult.valid(BusinessCommand command)
+      : isValid = true,
+        command = command,
+        error = null;
+
+  const ValidationResult.invalid(String error)
+      : isValid = false,
+        command = null,
+        error = error;
+}
+
+/// Valida un BusinessCommand ya interpretado contra AppSchema antes de
+/// llamar a cualquier servicio. No realiza E/S ni efectos secundarios: solo
+/// clasifica si el comando es seguro de ejecutar.
+///
+/// IMPORTANTE: el BusinessCommand devuelto en un ValidationResult.valid
+/// NO es el mismo que se recibió. Su `data` se reemplaza por los valores ya
+/// coercionados a su tipo Dart real (String recortado, int, double con coma
+/// normalizada a punto, o bool) — CommandRouter y los adaptadores deben usar
+/// SIEMPRE ese `data` coercionado, nunca los strings crudos originales.
+///
+/// Los requisitos replican exactamente el comportamiento actual de los
+/// formularios generados: la PK numérica autoincremental (int o double) se
+/// omite en CREATE y se rechaza si se indica explícitamente, la PK String es
+/// obligatoria, los atributos escalares y heredados son obligatorios, y los
+/// IDs de relación many-to-one/one-to-one son obligatorios. Una entidad con
+/// PK double queda inhabilitada para CREATE, UPDATE y DELETE en este P0
+/// (READ sigue disponible); los campos de fecha (Date/DateTime) se marcan no
+/// escribibles por las inconsistencias conocidas en su generación actual —
+/// ninguna de las dos cosas se corrige aquí.
+class CommandValidator {
+  ValidationResult validate(BusinessCommand command) {
+    if (command.action == CommandAction.unknown) {
+      return const ValidationResult.invalid('Comando no reconocido.');
+    }
+
+    final matches = AppSchema.entities.where((e) => e.name == command.entity).toList();
+    if (matches.isEmpty) {
+      return ValidationResult.invalid('No conozco la entidad "${command.entity}".');
+    }
+    final entity = matches.first;
+
+    for (final key in command.data.keys) {
+      if (entity.fieldByName(key) == null) {
+        return ValidationResult.invalid('No reconozco el campo "$key" en ${entity.name}.');
+      }
+    }
+    for (final key in command.filters.keys) {
+      if (entity.fieldByName(key) == null) {
+        return ValidationResult.invalid('No reconozco el campo "$key" en ${entity.name}.');
+      }
+    }
+
+    switch (command.action) {
+      case CommandAction.create:
+        return _validateCreate(entity, command);
+      case CommandAction.read:
+        return ValidationResult.valid(command);
+      case CommandAction.update:
+        return _validateMutation(entity, command, requireData: true);
+      case CommandAction.delete:
+        return _validateMutation(entity, command, requireData: false);
+      case CommandAction.unknown:
+        return const ValidationResult.invalid('Comando no reconocido.');
+    }
+  }
+
+  ValidationResult _validateCreate(AssistantEntitySchema entity, BusinessCommand command) {
+    if (entity.pkField.dartType == 'double') {
+      return ValidationResult.invalid(
+          '${entity.name} usa una clave primaria double; el asistente no soporta crear, '
+          'actualizar ni eliminar registros de esa entidad en este P0.');
+    }
+
+    if (entity.pkField.isAutoIncrement && command.data.containsKey(entity.pkField.name)) {
+      return ValidationResult.invalid(
+          '"${entity.pkField.name}" se genera automáticamente; no lo indiques al crear un ${entity.name}.');
+    }
+
+    for (final field in entity.allWritableFields) {
+      if (field.isPrimaryKey && field.isAutoIncrement) continue;
+      final provided = command.data.containsKey(field.name);
+      if (!field.writable) {
+        if (provided) {
+          return ValidationResult.invalid(
+              'El campo "${field.name}" no es compatible con el asistente todavía.');
+        }
+        if (field.requiredOnCreate) {
+          return ValidationResult.invalid(
+              '${entity.name} requiere "${field.name}", que aún no es compatible con el asistente.');
+        }
+        continue;
+      }
+      if (field.requiredOnCreate && !provided) {
+        return ValidationResult.invalid('Falta el campo "${field.name}".');
+      }
+    }
+
+    final coercedData = <String, dynamic>{};
+    for (final entry in command.data.entries) {
+      final field = entity.fieldByName(entry.key)!;
+      final coerced = _coerce(field, entry.value.toString());
+      if (coerced == null) {
+        return ValidationResult.invalid('El valor de "${field.name}" no es válido para su tipo.');
+      }
+      coercedData[entry.key] = coerced;
+    }
+
+    return ValidationResult.valid(BusinessCommand(
+      action: command.action,
+      entity: command.entity,
+      data: coercedData,
+      filters: command.filters,
+      rawText: command.rawText,
+    ));
+  }
+
+  ValidationResult _validateMutation(
+    AssistantEntitySchema entity,
+    BusinessCommand command, {
+    required bool requireData,
+  }) {
+    if (entity.pkField.dartType == 'double') {
+      return ValidationResult.invalid(
+          '${entity.name} usa una clave primaria double; el asistente no soporta crear, '
+          'actualizar ni eliminar registros de esa entidad en este P0.');
+    }
+    if (command.filters.isEmpty) {
+      return ValidationResult.invalid('Indica cuál ${entity.name} quieres afectar.');
+    }
+    if (requireData && command.data.isEmpty) {
+      return ValidationResult.invalid('Indica qué campo actualizar.');
+    }
+    final coercedData = <String, dynamic>{};
+    for (final entry in command.data.entries) {
+      final field = entity.fieldByName(entry.key)!;
+      if (!field.writable) {
+        return ValidationResult.invalid(
+            'El campo "${field.name}" no es compatible con el asistente todavía.');
+      }
+      final coerced = _coerce(field, entry.value.toString());
+      if (coerced == null) {
+        return ValidationResult.invalid('El valor de "${field.name}" no es válido para su tipo.');
+      }
+      coercedData[entry.key] = coerced;
+    }
+    return ValidationResult.valid(BusinessCommand(
+      action: command.action,
+      entity: command.entity,
+      data: coercedData,
+      filters: command.filters,
+      rawText: command.rawText,
+    ));
+  }
+
+  /// La coerción refleja las mismas restricciones que los formularios
+  /// CREATE generados: los valores int/double/bool deben parsear
+  /// limpiamente o se rechazan por completo.
+  static dynamic coerce(AssistantFieldSchema field, String raw) => _coerce(field, raw);
+
+  static dynamic _coerce(AssistantFieldSchema field, String raw) {
+    final value = raw.trim();
+    switch (field.dartType) {
+      case 'String':
+        return value;
+      case 'int':
+        return int.tryParse(value);
+      case 'double':
+        return double.tryParse(value.replaceAll(',', '.'));
+      case 'bool':
+        final normalized = AppSchema.normalize(value);
+        if (normalized == 'true' || normalized == 'si' || normalized == 'activo' || normalized == 'verdadero') {
+          return true;
+        }
+        if (normalized == 'false' || normalized == 'no' || normalized == 'inactivo' || normalized == 'falso') {
+          return false;
+        }
+        return null;
+      case 'DateTime':
+        return null;
+      default:
+        return null;
+    }
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'command_validator.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_entity_service_registry(self, base_path, original_classes):
+        """Genera lib/assistant/entity_service_registry.dart: una clase
+        adaptadora mínima por cada entidad UML original que SOLO llama a los
+        {Name}Service ya generados (nunca a DatabaseHelper ni a dart:http
+        directamente), reutilizando fromJson/toJson tal como están."""
+        adapter_template = (
+            "class _{name}Adapter extends EntityServiceAdapter {{\n"
+            "  _{name}Adapter(AssistantEntitySchema schema) : super(schema);\n"
+            "  final {name}Service _service = {name}Service();\n"
+            "\n"
+            "  @override\n"
+            "  Future<List<Map<String, dynamic>>> list() async =>\n"
+            "      (await _service.getAll()).map((item) => item.toJson()).toList();\n"
+            "\n"
+            "  @override\n"
+            "  Future<Map<String, dynamic>> create(Map<String, dynamic> jsonData) async {{\n"
+            "    final created = await _service.create({name}.fromJson(jsonData));\n"
+            "    return created.toJson();\n"
+            "  }}\n"
+            "\n"
+            "  @override\n"
+            "  Future<Map<String, dynamic>> updateFromMap(String id, Map<String, dynamic> mergedJsonData) async {{\n"
+            "    final updated = await _service.update(id, {name}.fromJson(mergedJsonData));\n"
+            "    return updated.toJson();\n"
+            "  }}\n"
+            "\n"
+            "  @override\n"
+            "  Future<void> deleteById(String id) => _service.delete(id);\n"
+            "}}"
+        )
+
+        imports = []
+        adapters = []
+        map_entries = []
+        for clase in original_classes:
+            name = clase['name']
+            snake = self._to_snake_case(name)
+            imports.append(f"import '../models/{snake}.dart';")
+            imports.append(f"import '../services/{snake}_service.dart';")
+            adapters.append(adapter_template.format(name=name))
+            name_literal = self._assistant_dart_string_literal(name)
+            map_entries.append(
+                f"  {name_literal}: _{name}Adapter(\n"
+                f"    AppSchema.entities.firstWhere((e) => e.name == {name_literal}),\n"
+                "  ),"
+            )
+
+        imports_str = "\n".join(dict.fromkeys(imports))
+        adapters_str = "\n\n".join(adapters)
+        map_entries_str = "\n".join(map_entries)
+
+        content = (
+            "import 'app_schema.dart';\n"
+            "import 'entity_service_adapter.dart';\n"
+            f"{imports_str}\n"
+            "\n"
+            f"{adapters_str}\n"
+            "\n"
+            "final Map<String, EntityServiceAdapter> entityServiceRegistry = {\n"
+            f"{map_entries_str}\n"
+            "};\n"
+        )
+        (base_path / 'lib' / 'assistant' / 'entity_service_registry.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_command_router(self, base_path):
+        """Genera lib/assistant/command_router.dart (genérico)."""
+        content = '''import 'app_schema.dart';
+import 'business_command.dart';
+import 'entity_service_adapter.dart';
+import 'entity_service_registry.dart';
+
+/// Resultado de ejecutar (o intentar ejecutar) un BusinessCommand.
+/// [pendingDelete] solo se establece cuando un objetivo de DELETE fue
+/// resuelto con éxito y todavía necesita confirmación explícita del
+/// usuario — ver [CommandRouter.confirmDelete].
+class RouterOutcome {
+  final bool success;
+  final String message;
+  final List<Map<String, dynamic>> rows;
+  final PendingDelete? pendingDelete;
+
+  const RouterOutcome({
+    required this.success,
+    required this.message,
+    this.rows = const [],
+    this.pendingDelete,
+  });
+}
+
+class PendingDelete {
+  final String entity;
+  final String pk;
+  final Map<String, dynamic> preview;
+  const PendingDelete({required this.entity, required this.pk, required this.preview});
+}
+
+/// Ejecuta BusinessCommand ya validados contra la capa {Entity}Service
+/// generada, a través de un registro de adaptadores (por defecto,
+/// entityServiceRegistry). Nunca importa DatabaseHelper ni dart:http
+/// directamente, y nunca confía en ninguna bandera de confirmación provista
+/// por el llamador: la seguridad de DELETE se deriva únicamente de
+/// `command.action == CommandAction.delete`, que dispara un flujo de dos
+/// fases: resolver aquí (execute) y luego confirmar explícitamente
+/// (confirmDelete). El registro es inyectable solo para permitir pruebas
+/// unitarias con adaptadores falsos; en la app real siempre se usa el
+/// registro generado.
+class CommandRouter {
+  final Map<String, EntityServiceAdapter> _registry;
+
+  CommandRouter({Map<String, EntityServiceAdapter>? registry})
+      : _registry = registry ?? entityServiceRegistry;
+
+  Future<RouterOutcome> execute(BusinessCommand command) async {
+    final adapter = _registry[command.entity];
+    if (adapter == null) {
+      return RouterOutcome(success: false, message: 'Entidad no soportada: ${command.entity}.');
+    }
+    final schema = adapter.schema;
+
+    switch (command.action) {
+      case CommandAction.create:
+        return _executeCreate(adapter, schema, command);
+      case CommandAction.read:
+        return _executeRead(adapter, schema, command);
+      case CommandAction.update:
+        return _executeUpdate(adapter, schema, command);
+      case CommandAction.delete:
+        return _resolveDelete(adapter, schema, command);
+      case CommandAction.unknown:
+        return const RouterOutcome(success: false, message: 'Comando no reconocido.');
+    }
+  }
+
+  /// Fase 2 de DELETE. [pending] DEBE provenir de un PendingDelete devuelto
+  /// previamente por [execute] — nunca se vuelve a derivar a partir de
+  /// filtros, de modo que confirmar nunca puede volver a ejecutar el
+  /// emparejamiento difuso contra datos que pudieron haber cambiado.
+  Future<RouterOutcome> confirmDelete(PendingDelete pending) async {
+    final adapter = _registry[pending.entity];
+    if (adapter == null) {
+      return RouterOutcome(success: false, message: 'Entidad no soportada: ${pending.entity}.');
+    }
+    await adapter.deleteById(pending.pk);
+    return const RouterOutcome(success: true, message: 'Eliminado correctamente.');
+  }
+
+  Future<RouterOutcome> _executeCreate(
+    EntityServiceAdapter adapter,
+    AssistantEntitySchema schema,
+    BusinessCommand command,
+  ) async {
+    final jsonData = schema.toJsonKeyed(command.data);
+    final created = await adapter.create(jsonData);
+    return RouterOutcome(success: true, message: '${schema.name} creado correctamente.', rows: [created]);
+  }
+
+  Future<RouterOutcome> _executeRead(
+    EntityServiceAdapter adapter,
+    AssistantEntitySchema schema,
+    BusinessCommand command,
+  ) async {
+    final all = await adapter.list();
+    if (command.filters.isEmpty) {
+      return RouterOutcome(success: true, message: '${all.length} resultado(s).', rows: all);
+    }
+    final matches = _matchRows(all, schema, command.filters, exact: false);
+    return RouterOutcome(
+      success: true,
+      message: matches.isEmpty ? 'Sin resultados.' : '${matches.length} resultado(s).',
+      rows: matches,
+    );
+  }
+
+  Future<RouterOutcome> _executeUpdate(
+    EntityServiceAdapter adapter,
+    AssistantEntitySchema schema,
+    BusinessCommand command,
+  ) async {
+    final all = await adapter.list();
+    final matches = _matchRows(all, schema, command.filters, exact: true);
+    if (matches.isEmpty) {
+      return const RouterOutcome(success: false, message: 'No encontré ningún registro que coincida.');
+    }
+    if (matches.length > 1) {
+      return RouterOutcome(
+        success: false,
+        message: 'La búsqueda es ambigua: coinciden ${matches.length} registros.',
+        rows: matches,
+      );
+    }
+    final target = matches.first;
+    final pk = target[schema.pkField.jsonKey];
+    final merged = Map<String, dynamic>.from(target)..addAll(schema.toJsonKeyed(command.data));
+    final updated = await adapter.updateFromMap(pk.toString(), merged);
+    return RouterOutcome(success: true, message: '${schema.name} actualizado correctamente.', rows: [updated]);
+  }
+
+  Future<RouterOutcome> _resolveDelete(
+    EntityServiceAdapter adapter,
+    AssistantEntitySchema schema,
+    BusinessCommand command,
+  ) async {
+    final all = await adapter.list();
+    final matches = _matchRows(all, schema, command.filters, exact: true);
+    if (matches.isEmpty) {
+      return const RouterOutcome(success: false, message: 'No encontré ningún registro que coincida.');
+    }
+    if (matches.length > 1) {
+      return RouterOutcome(
+        success: false,
+        message: 'La búsqueda es ambigua: coinciden ${matches.length} registros.',
+        rows: matches,
+      );
+    }
+    final target = matches.first;
+    final pk = target[schema.pkField.jsonKey].toString();
+    return RouterOutcome(
+      success: true,
+      message: 'Confirma la eliminación de este registro.',
+      pendingDelete: PendingDelete(entity: schema.name, pk: pk, preview: target),
+    );
+  }
+
+  List<Map<String, dynamic>> _matchRows(
+    List<Map<String, dynamic>> rows,
+    AssistantEntitySchema schema,
+    Map<String, dynamic> filters, {
+    required bool exact,
+  }) {
+    return rows.where((row) {
+      for (final entry in filters.entries) {
+        final field = schema.fieldByName(entry.key);
+        if (field == null) return false;
+        final rowValue = row[field.jsonKey];
+        if (!_valuesMatch(rowValue, entry.value, exact: exact)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  bool _valuesMatch(dynamic rowValue, dynamic filterValue, {required bool exact}) {
+    final rowText = AppSchema.normalize(rowValue?.toString() ?? '');
+    final filterText = AppSchema.normalize(filterValue?.toString() ?? '');
+    if (exact) return rowText == filterText;
+    return rowText.contains(filterText);
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'command_router.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_voice_input_controller(self, base_path):
+        """Genera lib/assistant/voice_input_controller.dart (genérico)."""
+        content = '''import 'package:flutter/foundation.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+/// Envoltorio delgado sobre package:speech_to_text. La voz es solo un
+/// mecanismo de entrada: lo que se reconoce se entrega al mismo pipeline de
+/// CommandParser que usa el texto escrito — nunca se salta la validación.
+/// Este controlador NO afirma reconocimiento offline/en el dispositivo: la
+/// disponibilidad, el idioma soportado y la dependencia de red varían según
+/// la plataforma, el sistema operativo y el servicio de reconocimiento de
+/// voz instalado, y no se han verificado aquí. Requiere los permisos de
+/// micrófono/reconocimiento de voz nativos correspondientes (ver la
+/// documentación del generador CASE para los pasos exactos).
+///
+/// Deliberadamente no se inicializa en Web.
+class VoiceInputController {
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _available = false;
+  bool _initialized = false;
+
+  bool get isAvailable => _available;
+  bool get isListening => _speech.isListening;
+
+  Future<bool> initialize() async {
+    if (kIsWeb) {
+      _initialized = true;
+      _available = false;
+      return false;
+    }
+    if (_initialized) return _available;
+    try {
+      _available = await _speech.initialize(
+        onStatus: (status) => debugPrint('VoiceInputController status: $status'),
+        onError: (error) => debugPrint('VoiceInputController error: $error'),
+      );
+    } catch (error) {
+      debugPrint('VoiceInputController initialize failed: $error');
+      _available = false;
+    }
+    _initialized = true;
+    return _available;
+  }
+
+  Future<void> startListening({required void Function(String recognizedText) onResult}) async {
+    if (kIsWeb || !_available) return;
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          if (result.finalResult && result.recognizedWords.isNotEmpty) {
+            onResult(result.recognizedWords);
+          }
+        },
+        listenOptions: stt.SpeechListenOptions(localeId: 'es_ES'),
+      );
+    } catch (error) {
+      debugPrint('VoiceInputController listen failed: $error');
+    }
+  }
+
+  Future<void> stopListening() async {
+    if (_speech.isListening) {
+      await _speech.stop();
+    }
+  }
+
+  void dispose() {
+    if (_speech.isListening) {
+      _speech.stop();
+    }
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'voice_input_controller.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_assistant_view(self, base_path):
+        """Genera lib/assistant/assistant_view.dart (genérico)."""
+        content = '''import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'business_command.dart';
+import 'command_parser.dart';
+import 'command_router.dart';
+import 'command_validator.dart';
+import 'voice_input_controller.dart';
+
+class AssistantHistoryEntry {
+  final String text;
+  final bool isError;
+  const AssistantHistoryEntry(this.text, {this.isError = false});
+}
+
+/// Punto de entrada global del asistente consciente del esquema. Acepta
+/// texto escrito (siempre disponible) y, en plataformas nativas
+/// compatibles, entrada hablada que se transcribe a texto y se procesa por
+/// exactamente el mismo pipeline de interpretación — la voz nunca se salta
+/// la validación.
+class AssistantView extends StatefulWidget {
+  /// Only meant for tests: injects a CommandRouter (e.g. backed by fake
+  /// adapters) instead of the real one, so failure paths can be exercised
+  /// without a live service/database. Production code should never pass
+  /// this.
+  final CommandRouter? router;
+
+  const AssistantView({super.key, this.router});
+
+  @override
+  State<AssistantView> createState() => _AssistantViewState();
+}
+
+class _AssistantViewState extends State<AssistantView> {
+  final _controller = TextEditingController();
+  final _parser = CommandParser();
+  final _validator = CommandValidator();
+  late final CommandRouter _router = widget.router ?? CommandRouter();
+  final _voice = VoiceInputController();
+  final List<AssistantHistoryEntry> _history = [];
+  bool _voiceAvailable = false;
+  bool _isListening = false;
+  bool _isBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initVoice();
+  }
+
+  Future<void> _initVoice() async {
+    if (kIsWeb) return;
+    final available = await _voice.initialize();
+    if (mounted) setState(() => _voiceAvailable = available);
+  }
+
+  @override
+  void dispose() {
+    _voice.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _isBusy) return;
+    setState(() {
+      _isBusy = true;
+      _history.add(AssistantHistoryEntry(text));
+    });
+    _controller.clear();
+
+    try {
+      final parsed = _parser.parse(text);
+      if (!parsed.isSuccess) {
+        _appendResult(parsed.error!, isError: true);
+        return;
+      }
+
+      final validated = _validator.validate(parsed.command!);
+      if (!validated.isValid) {
+        _appendResult(validated.error!, isError: true);
+        return;
+      }
+
+      final command = validated.command!;
+      if (command.action == CommandAction.delete) {
+        final outcome = await _router.execute(command);
+        if (!outcome.success || outcome.pendingDelete == null) {
+          _appendResult(outcome.message, isError: !outcome.success);
+          return;
+        }
+        if (!mounted) return;
+        final confirmed = await _confirmDelete(outcome.pendingDelete!);
+        if (confirmed != true) {
+          _appendResult('Eliminación cancelada.');
+          return;
+        }
+        final result = await _router.confirmDelete(outcome.pendingDelete!);
+        _appendResult(result.message, isError: !result.success);
+        return;
+      }
+
+      final outcome = await _router.execute(command);
+      _appendResult(outcome.message, isError: !outcome.success);
+    } catch (_) {
+      // Nunca se muestra el detalle/stack trace real: solo un mensaje
+      // genérico. El comando pudo fallar por cualquier excepción no
+      // anticipada del adaptador/servicio (red, parsing, etc.).
+      _appendResult('Ocurrió un error al ejecutar el comando.', isError: true);
+    } finally {
+      // Red de seguridad: _appendResult ya limpia _isBusy en cada camino de
+      // retorno normal, pero esto garantiza que nunca quede atascado en
+      // busy si una excepción escapó antes de llegar a _appendResult.
+      if (mounted && _isBusy) {
+        setState(() => _isBusy = false);
+      }
+    }
+  }
+
+  void _appendResult(String message, {bool isError = false}) {
+    if (!mounted) return;
+    setState(() {
+      _history.add(AssistantHistoryEntry(message, isError: isError));
+      _isBusy = false;
+    });
+  }
+
+  Future<bool?> _confirmDelete(PendingDelete pending) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: Text('Se eliminará ${pending.entity} (id: ${pending.pk}):\\n${pending.preview}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleListening() async {
+    if (!_voiceAvailable) return;
+    if (_isListening) {
+      await _voice.stopListening();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+    setState(() => _isListening = true);
+    await _voice.startListening(
+      onResult: (text) {
+        if (!mounted) return;
+        setState(() {
+          _controller.text = text;
+          _isListening = false;
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Asistente')),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: _history.length,
+              itemBuilder: (context, index) {
+                final entry = _history[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    entry.text,
+                    style: TextStyle(color: entry.isError ? Colors.red : null),
+                  ),
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Escribe un comando, por ejemplo: Muéstrame los productos',
+                    ),
+                    onSubmitted: (_) => _submit(),
+                  ),
+                ),
+                if (_voiceAvailable)
+                  IconButton(
+                    icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
+                    onPressed: _toggleListening,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _isBusy ? null : _submit,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'assistant_view.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _assistant_sample_value(self, dart_type, seed):
+        if dart_type == 'int':
+            return str(10 + seed)
+        if dart_type == 'double':
+            return f"{5 + seed},5"
+        if dart_type == 'bool':
+            return 'true'
+        return f"Valor{seed}"
+
+    def _assistant_dart_typed_literal(self, dart_type, raw_value):
+        """Mirrors CommandValidator._coerce() to build the DART LITERAL a
+        generated test should expect once a raw value is coerced. Used only
+        to build test assertions, never emitted as runtime generator output."""
+        value = raw_value.strip()
+        if dart_type == 'int':
+            return str(int(value))
+        if dart_type == 'double':
+            return repr(float(value.replace(',', '.')))
+        if dart_type == 'bool':
+            truthy = {'true', 'si', 'sí', 'activo', 'verdadero'}
+            return 'true' if value.lower() in truthy else 'false'
+        return self._assistant_dart_string_literal(value)
+
+    def _assistant_render_dart_map(self, entries):
+        parts = [
+            f"{self._assistant_dart_string_literal(k)}: {self._assistant_dart_string_literal(v)}"
+            for k, v in entries
+        ]
+        return "{" + ", ".join(parts) + "}"
+
+    def _assistant_required_create_data(self, meta, name_value='Ejemplo Uno'):
+        entries = []
+        seed = 1
+        for field in meta['fields']:
+            if field['is_primary_key'] and field['is_auto_increment']:
+                continue
+            if not field['writable'] or not field['required_on_create']:
+                continue
+            if field['name'] == meta['name_field']:
+                entries.append((field['name'], name_value))
+            else:
+                entries.append((field['name'], self._assistant_sample_value(field['dart_type'], seed)))
+            seed += 1
+        for rel in meta['relations']:
+            if rel['kind'] in ('many_to_one', 'one_to_one') and rel['required_on_create'] and rel['writable']:
+                entries.append((rel['name'], str(seed)))
+                seed += 1
+        return entries
+
+    def _assistant_render_parser_case(self, test_name, input_text, action, entity, data, filters):
+        lines = [f"  test({self._assistant_dart_string_literal(test_name)}, () {{"]
+        lines.append(
+            f"    final result = CommandParser().parse({self._assistant_dart_string_literal(input_text)});"
+        )
+        lines.append("    expect(result.isSuccess, isTrue, reason: result.error);")
+        lines.append(f"    expect(result.command!.action, {action});")
+        lines.append(f"    expect(result.command!.entity, {self._assistant_dart_string_literal(entity)});")
+        for key, value in data:
+            lines.append(
+                f"    expect(result.command!.data[{self._assistant_dart_string_literal(key)}], "
+                f"{self._assistant_dart_string_literal(value)});"
+            )
+        for key, value in filters:
+            lines.append(
+                f"    expect(result.command!.filters[{self._assistant_dart_string_literal(key)}], "
+                f"{self._assistant_dart_string_literal(value)});"
+            )
+        lines.append("  });")
+        return "\n".join(lines)
+
+    def _assistant_render_failure_case(self, test_name, input_text):
+        return (
+            f"  test({self._assistant_dart_string_literal(test_name)}, () {{\n"
+            f"    final result = CommandParser().parse({self._assistant_dart_string_literal(input_text)});\n"
+            "    expect(result.isSuccess, isFalse);\n"
+            "    expect(result.error, isNotNull);\n"
+            "  });"
+        )
+
+    def _assistant_find_writable_field(self, metas, dart_type):
+        """First (entity, field) pair, across ALL entities, with a writable
+        non-PK field of the given Dart type on a non-double-PK entity. Only
+        used for standalone CREATE-only coercion tests, so a nameField is
+        not required (CREATE never needs to filter/identify a row)."""
+        for meta in metas:
+            if meta['fields'] and meta['fields'][0]['dart_type'] == 'double':
+                continue
+            for field in meta['fields']:
+                if field['dart_type'] == dart_type and field['writable'] and not field['is_primary_key']:
+                    return meta, field
+        return None, None
+
+    def _assistant_find_required_relation(self, metas):
+        """First (entity, relation) pair with a required many-to-one/
+        one-to-one relation, across ALL entities. Only used for a
+        standalone CREATE-only test, so a nameField is not required."""
+        for meta in metas:
+            if meta['fields'] and meta['fields'][0]['dart_type'] == 'double':
+                continue
+            for rel in meta['relations']:
+                if rel['kind'] in ('many_to_one', 'one_to_one') and rel['required_on_create'] and rel['writable']:
+                    return meta, rel
+        return None, None
+
+    def _assistant_find_string_pk_entity(self, metas):
+        for meta in metas:
+            if meta['fields'] and meta['fields'][0]['dart_type'] == 'String':
+                return meta
+        return None
+
+    def _assistant_render_type_coercion_create_test(self, meta, field, raw_value, test_name):
+        entries = self._assistant_required_create_data(meta)
+        entries = [(k, raw_value) if k == field['name'] else (k, v) for k, v in entries]
+        template = '''  test('__TEST_NAME__', () async {
+    final targetSchema = AppSchema.entities.firstWhere((e) => e.name == __ENTITY__);
+    final adapter = _FakeAdapter(targetSchema, []);
+    final router = CommandRouter(registry: {__ENTITY__: adapter});
+    final validated = CommandValidator().validate(BusinessCommand(
+      action: CommandAction.create,
+      entity: __ENTITY__,
+      data: __DATA__,
+      filters: const {},
+      rawText: 'test',
+    ));
+    expect(validated.isValid, isTrue, reason: validated.error);
+    expect(validated.command!.data[__FIELD__], __EXPECTED__);
+    final outcome = await router.execute(validated.command!);
+    expect(outcome.success, isTrue);
+    expect(adapter.lastCreatedMap![__JSON_KEY__], __EXPECTED__);
+  });'''
+        return (
+            template
+            .replace('__TEST_NAME__', test_name)
+            .replace('__ENTITY__', self._assistant_dart_string_literal(meta['name']))
+            .replace('__DATA__', self._assistant_render_dart_map(entries))
+            .replace('__FIELD__', self._assistant_dart_string_literal(field['name']))
+            .replace('__JSON_KEY__', self._assistant_dart_string_literal(field['json_key']))
+            .replace('__EXPECTED__', self._assistant_dart_typed_literal(field['dart_type'], raw_value))
+        )
+
+    def _assistant_render_relation_create_test(self, meta, rel):
+        entries = self._assistant_required_create_data(meta)
+        rel_value = next(v for k, v in entries if k == rel['name'])
+        template = '''  test('CREATE sends a required relationship id under its normalized JSON key', () async {
+    final targetSchema = AppSchema.entities.firstWhere((e) => e.name == __ENTITY__);
+    final adapter = _FakeAdapter(targetSchema, []);
+    final router = CommandRouter(registry: {__ENTITY__: adapter});
+    final validated = CommandValidator().validate(BusinessCommand(
+      action: CommandAction.create,
+      entity: __ENTITY__,
+      data: __DATA__,
+      filters: const {},
+      rawText: 'test',
+    ));
+    expect(validated.isValid, isTrue, reason: validated.error);
+    final outcome = await router.execute(validated.command!);
+    expect(outcome.success, isTrue);
+    expect(adapter.lastCreatedMap![__JSON_KEY__], __EXPECTED__);
+  });'''
+        return (
+            template
+            .replace('__ENTITY__', self._assistant_dart_string_literal(meta['name']))
+            .replace('__DATA__', self._assistant_render_dart_map(entries))
+            .replace('__JSON_KEY__', self._assistant_dart_string_literal(rel['json_key']))
+            .replace('__EXPECTED__', self._assistant_dart_string_literal(rel_value))
+        )
+
+    def _generate_assistant_tests(self, base_path, original_classes):
+        """Genera test/assistant/command_parser_test.dart,
+        test/assistant/command_validator_test.dart y
+        test/assistant/command_router_test.dart, adaptados al esquema UML
+        real. Los casos que dependen de una forma que el esquema actual no
+        tiene (PK String, relación obligatoria, campo de fecha, campo bool o
+        double) solo se incluyen cuando el esquema efectivamente la tiene."""
+        metas = [self._assistant_entity_metadata(c) for c in original_classes]
+        # El "subject" de las pruebas CRUD principales nunca es una entidad
+        # con PK double: TODAS las mutaciones fallan cerrado para esa PK, lo
+        # que volvería vacías las pruebas de create/update/delete.
+        subject = next(
+            (m for m in metas if m['name_field'] and not (m['fields'] and m['fields'][0]['dart_type'] == 'double')),
+            None,
+        )
+
+        parser_cases = [
+            self._assistant_render_failure_case(
+                'fails closed on an unrecognized action verb',
+                'Teletransporta un widget',
+            ),
+            self._assistant_render_failure_case(
+                'fails closed on an unrecognized entity',
+                'Registra un marciano Bob',
+            ),
+        ]
+        validator_cases = []
+        router_test_blocks = []
+        assistant_view_test_content = None
+
+        if subject is not None:
+            entity_name = subject['name']
+            entity_lower = entity_name.lower()
+            name_field = subject['name_field']
+            entity_literal = self._assistant_dart_string_literal(entity_name)
+            writable_extra = [
+                f for f in subject['fields']
+                if f['writable'] and not f['is_primary_key'] and f['name'] != name_field
+            ]
+            extra_fields = writable_extra[:3]
+
+            # ---------------------------------------------------------
+            # command_parser_test.dart
+            # ---------------------------------------------------------
+            clause_parts = []
+            create_data = [(name_field, 'Ejemplo Uno')]
+            for i, f in enumerate(extra_fields):
+                value = self._assistant_sample_value(f['dart_type'], i + 1)
+                clause_parts.append(f"{f['name']} {value}")
+                create_data.append((f['name'], value))
+            create_text = f"Registra un {entity_lower} Ejemplo Uno"
+            if clause_parts:
+                create_text += " con " + " y ".join(clause_parts)
+
+            parser_cases.append(self._assistant_render_parser_case(
+                'parses the flagship CREATE shape with a multiword name and extra fields',
+                create_text, 'CommandAction.create', entity_name, create_data, [],
+            ))
+            parser_cases.append(self._assistant_render_parser_case(
+                'parses a LIST-all READ with no filters, ignoring case/accents/extra whitespace',
+                f"  MUÉSTRAME   los {entity_lower}s  ", 'CommandAction.read', entity_name, [], [],
+            ))
+            parser_cases.append(self._assistant_render_parser_case(
+                'parses a single-target READ using the name field',
+                f"Busca el {entity_lower} Ejemplo Uno", 'CommandAction.read', entity_name,
+                [], [(name_field, 'Ejemplo Uno')],
+            ))
+            parser_cases.append(self._assistant_render_parser_case(
+                'parses DELETE with a target filter (never deletes by itself)',
+                f"Elimina el {entity_lower} Ejemplo Uno", 'CommandAction.delete', entity_name,
+                [], [(name_field, 'Ejemplo Uno')],
+            ))
+
+            if extra_fields:
+                update_field = extra_fields[0]
+                update_value = self._assistant_sample_value(update_field['dart_type'], 9)
+                parser_cases.append(self._assistant_render_parser_case(
+                    'parses UPDATE using the entity-first grammar',
+                    f"Actualiza el {entity_lower} Ejemplo Uno a {update_field['name']} {update_value}",
+                    'CommandAction.update', entity_name,
+                    [(update_field['name'], update_value)], [(name_field, 'Ejemplo Uno')],
+                ))
+                parser_cases.append(self._assistant_render_failure_case(
+                    'fails closed when the UPDATE value clause is missing a field name',
+                    f"Actualiza el {entity_lower} Ejemplo Uno a {update_value}",
+                ))
+
+            parser_cases.append(self._assistant_render_failure_case(
+                'fails closed on an unrecognized field inside a CREATE clause',
+                f"Registra un {entity_lower} Ejemplo Uno con campoInventado 1",
+            ))
+            parser_cases.append(self._assistant_render_failure_case(
+                'fails closed on ambiguous/incomplete CREATE field clauses',
+                f"Registra un {entity_lower} Ejemplo Uno con campoInventado",
+            ))
+
+            # ---------------------------------------------------------
+            # command_validator_test.dart
+            # ---------------------------------------------------------
+            full_data_entries = self._assistant_required_create_data(subject)
+
+            validator_cases.append(f"""  test('allows CREATE when every required field is present, auto PK omitted', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map(full_data_entries)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isTrue, reason: result.error);
+  }});""")
+
+            if full_data_entries:
+                missing_map = self._assistant_render_dart_map(full_data_entries[1:])
+                validator_cases.append(f"""  test('rejects CREATE missing a required field', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {entity_literal},
+      data: {missing_map},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            if subject['fields'][0]['is_auto_increment']:
+                pk_field_name = subject['fields'][0]['name']
+                explicit_pk_entries = full_data_entries + [(pk_field_name, '999')]
+                validator_cases.append(f"""  test('rejects an explicit value for the auto-increment primary key on CREATE', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map(explicit_pk_entries)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            validator_cases.append(f"""  test('rejects UPDATE with no target filter', () {{
+    final command = BusinessCommand(
+      action: CommandAction.update,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map([(name_field, 'x')])},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            validator_cases.append(f"""  test('rejects DELETE with no target filter', () {{
+    final command = BusinessCommand(
+      action: CommandAction.delete,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            relation_required = next(
+                (r for r in subject['relations']
+                 if r['kind'] in ('many_to_one', 'one_to_one') and r['required_on_create']),
+                None,
+            )
+            if relation_required is not None:
+                without_relation = [e for e in full_data_entries if e[0] != relation_required['name']]
+                validator_cases.append(f"""  test('rejects CREATE missing a required relationship id', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map(without_relation)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            date_field = next((f for f in subject['fields'] if f['dart_type'] == 'DateTime'), None)
+            if date_field is not None:
+                with_date = full_data_entries + [(date_field['name'], '01/01/2026')]
+                validator_cases.append(f"""  test('rejects a Date field write as unsupported in this P0', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map(with_date)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            # Regression coverage for the "validate but discard" bug: the
+            # coerced, typed value must be what ends up in result.command!.data.
+            bool_meta, bool_field = self._assistant_find_writable_field(metas, 'bool')
+            if bool_meta is not None:
+                bool_entries_base = self._assistant_required_create_data(bool_meta)
+                for word, expected in [
+                    ('sí', 'true'), ('si', 'true'), ('activo', 'true'), ('verdadero', 'true'),
+                    ('no', 'false'), ('inactivo', 'false'), ('falso', 'false'),
+                ]:
+                    entries = [(k, word) if k == bool_field['name'] else (k, v) for k, v in bool_entries_base]
+                    validator_cases.append(f"""  test('coerces bool word \"{word}\" to {expected}', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {self._assistant_dart_string_literal(bool_meta['name'])},
+      data: {self._assistant_render_dart_map(entries)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isTrue, reason: result.error);
+    expect(result.command!.data[{self._assistant_dart_string_literal(bool_field['name'])}], {expected});
+  }});""")
+
+            double_meta, double_field = self._assistant_find_writable_field(metas, 'double')
+            if double_meta is not None:
+                double_entries_base = self._assistant_required_create_data(double_meta)
+                for raw, expected in [('10,5', '10.5'), ('10.5', '10.5')]:
+                    entries = [(k, raw) if k == double_field['name'] else (k, v) for k, v in double_entries_base]
+                    validator_cases.append(f"""  test('coerces double \"{raw}\" to {expected}', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {self._assistant_dart_string_literal(double_meta['name'])},
+      data: {self._assistant_render_dart_map(entries)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isTrue, reason: result.error);
+    expect(result.command!.data[{self._assistant_dart_string_literal(double_field['name'])}], {expected});
+  }});""")
+
+            double_pk_entity = next((m for m in metas if m['fields'] and m['fields'][0]['dart_type'] == 'double'), None)
+            if double_pk_entity is not None:
+                dpk_entity_literal = self._assistant_dart_string_literal(double_pk_entity['name'])
+                dpk_data = self._assistant_required_create_data(double_pk_entity) if double_pk_entity['name_field'] else []
+                dpk_name_field = double_pk_entity['name_field']
+                dpk_filters = (
+                    self._assistant_render_dart_map([(dpk_name_field, 'Ejemplo Uno')])
+                    if dpk_name_field else '{}'
+                )
+                validator_cases.append(f"""  test('double PK: CREATE is rejected', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {dpk_entity_literal},
+      data: {self._assistant_render_dart_map(dpk_data)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+                validator_cases.append(f"""  test('double PK: UPDATE is rejected', () {{
+    final command = BusinessCommand(
+      action: CommandAction.update,
+      entity: {dpk_entity_literal},
+      data: {self._assistant_render_dart_map([(dpk_name_field, 'x')]) if dpk_name_field else 'const {}'},
+      filters: {dpk_filters},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+                validator_cases.append(f"""  test('double PK: DELETE is rejected', () {{
+    final command = BusinessCommand(
+      action: CommandAction.delete,
+      entity: {dpk_entity_literal},
+      data: const {{}},
+      filters: {dpk_filters},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            string_pk_entity = self._assistant_find_string_pk_entity(metas)
+            if string_pk_entity is not None:
+                sp_entries = self._assistant_required_create_data(string_pk_entity)
+                pk_field = string_pk_entity['fields'][0]
+                sp_without_pk = [e for e in sp_entries if e[0] != pk_field['name']]
+                sp_entity_literal = self._assistant_dart_string_literal(string_pk_entity['name'])
+                validator_cases.append(f"""  test('requires a String primary key on CREATE', () {{
+    final command = BusinessCommand(
+      action: CommandAction.create,
+      entity: {sp_entity_literal},
+      data: {self._assistant_render_dart_map(sp_without_pk)},
+      filters: const {{}},
+      rawText: 'test',
+    );
+    final result = CommandValidator().validate(command);
+    expect(result.isValid, isFalse);
+  }});""")
+
+            # ---------------------------------------------------------
+            # command_router_test.dart
+            # ---------------------------------------------------------
+            pk_dart_type = subject['fields'][0]['dart_type']
+            if pk_dart_type == 'int':
+                pk_seed_1, pk_seed_2, pk_string_1 = '1', '2', "'1'"
+            else:
+                pk_seed_1, pk_seed_2, pk_string_1 = "'seed-1'", "'seed-2'", "'seed-1'"
+
+            router_preamble = f"""  final schema = AppSchema.entities.firstWhere((e) => e.name == {entity_literal});
+  final pkJsonKey = schema.pkField.jsonKey;
+  final nameJsonKey = schema.fieldByName({self._assistant_dart_string_literal(name_field)})!.jsonKey;
+"""
+
+            router_test_blocks.append(f"""  test('CREATE validates and sends values under normalized backend JSON keys, PK omitted', () async {{
+    final adapter = _FakeAdapter(schema, []);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final validated = CommandValidator().validate(BusinessCommand(
+      action: CommandAction.create,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map(create_data)},
+      filters: const {{}},
+      rawText: 'test',
+    ));
+    expect(validated.isValid, isTrue, reason: validated.error);
+    final outcome = await router.execute(validated.command!);
+    expect(outcome.success, isTrue);
+    expect(adapter.lastCreatedMap, isNotNull);
+    expect(adapter.lastCreatedMap![nameJsonKey], 'Ejemplo Uno');
+    expect(adapter.lastCreatedMap!.containsKey(pkJsonKey), isFalse);
+  }});""")
+
+            if extra_fields:
+                update_field = extra_fields[0]
+                update_raw = self._assistant_sample_value(update_field['dart_type'], 50)
+                update_expected = self._assistant_dart_typed_literal(update_field['dart_type'], update_raw)
+                unchanged_field = extra_fields[1] if len(extra_fields) > 1 else None
+                seed_literal_by_type = {'int': '42', 'double': '3.5', 'bool': 'false'}
+                unchanged_seed_entry = ''
+                unchanged_assertion = ''
+                if unchanged_field is not None:
+                    unchanged_seed_literal = seed_literal_by_type.get(unchanged_field['dart_type'], "'Sin cambios'")
+                    unchanged_seed_entry = (
+                        f", {self._assistant_dart_string_literal(unchanged_field['json_key'])}: {unchanged_seed_literal}"
+                    )
+                    unchanged_assertion = (
+                        f"    expect(adapter.lastUpdatedMap![{self._assistant_dart_string_literal(unchanged_field['json_key'])}], "
+                        f"{unchanged_seed_literal});"
+                    )
+
+                router_test_blocks.append(f"""  test('UPDATE overlays only the changed field, preserves other fields, and targets the stable PK under the normalized key', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Ejemplo Uno'{unchanged_seed_entry}}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final validated = CommandValidator().validate(BusinessCommand(
+      action: CommandAction.update,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map([(update_field['name'], update_raw)])},
+      filters: {self._assistant_render_dart_map([(name_field, 'Ejemplo Uno')])},
+      rawText: 'test',
+    ));
+    expect(validated.isValid, isTrue, reason: validated.error);
+    final outcome = await router.execute(validated.command!);
+    expect(outcome.success, isTrue);
+    expect(adapter.updateCalls, 1);
+    expect(adapter.lastUpdatedId, {pk_string_1});
+    expect(adapter.lastUpdatedMap![{self._assistant_dart_string_literal(update_field['json_key'])}], {update_expected});
+    expect(adapter.lastUpdatedMap![nameJsonKey], 'Ejemplo Uno');
+{unchanged_assertion}
+  }});""")
+
+                router_test_blocks.append(f"""  test('UPDATE with zero matches does not call update', () async {{
+    final adapter = _FakeAdapter(schema, []);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.update,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map([(update_field['name'], update_raw)])},
+      filters: {self._assistant_render_dart_map([(name_field, 'Nadie')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isFalse);
+    expect(adapter.updateCalls, 0);
+  }});""")
+
+                router_test_blocks.append(f"""  test('UPDATE with more than one match is ambiguous and never calls update', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Ejemplo Uno'}},
+      {{pkJsonKey: {pk_seed_2}, nameJsonKey: 'Ejemplo Uno'}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.update,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map([(update_field['name'], update_raw)])},
+      filters: {self._assistant_render_dart_map([(name_field, 'Ejemplo Uno')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isFalse);
+    expect(adapter.updateCalls, 0);
+  }});""")
+
+            router_test_blocks.append(f"""  test('DELETE with zero matches does not delete', () async {{
+    final adapter = _FakeAdapter(schema, []);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.delete,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: {self._assistant_render_dart_map([(name_field, 'Nadie')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isFalse);
+    expect(outcome.pendingDelete, isNull);
+    expect(adapter.deleteCalls, 0);
+  }});""")
+
+            router_test_blocks.append(f"""  test('DELETE with more than one match is ambiguous and never deletes', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Ejemplo Uno'}},
+      {{pkJsonKey: {pk_seed_2}, nameJsonKey: 'Ejemplo Uno'}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.delete,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: {self._assistant_render_dart_map([(name_field, 'Ejemplo Uno')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isFalse);
+    expect(outcome.pendingDelete, isNull);
+    expect(adapter.deleteCalls, 0);
+  }});""")
+
+            router_test_blocks.append(f"""  test('DELETE resolves exactly one match to a PendingDelete with the stable PK; confirmDelete deletes that exact PK without re-matching', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Ejemplo Uno'}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.delete,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: {self._assistant_render_dart_map([(name_field, 'Ejemplo Uno')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isTrue);
+    expect(outcome.pendingDelete, isNotNull);
+    expect(outcome.pendingDelete!.pk, {pk_string_1});
+    expect(adapter.deleteCalls, 0);
+
+    // Mutar los datos subyacentes DESPUÉS de resolver: confirmDelete debe
+    // borrar el PK ya resuelto, sin volver a ejecutar el emparejamiento.
+    adapter.rows.clear();
+    final confirmOutcome = await router.confirmDelete(outcome.pendingDelete!);
+    expect(confirmOutcome.success, isTrue);
+    expect(adapter.deleteCalls, 1);
+    expect(adapter.lastDeletedId, {pk_string_1});
+  }});""")
+
+            bool_router_meta, bool_router_field = self._assistant_find_writable_field(metas, 'bool')
+            if bool_router_meta is not None:
+                router_test_blocks.append(self._assistant_render_type_coercion_create_test(
+                    bool_router_meta, bool_router_field, 'sí',
+                    'CREATE sends a coerced bool value (from the word "sí") to the adapter as an actual bool',
+                ))
+
+            double_router_meta, double_router_field = self._assistant_find_writable_field(metas, 'double')
+            if double_router_meta is not None:
+                router_test_blocks.append(self._assistant_render_type_coercion_create_test(
+                    double_router_meta, double_router_field, '10,5',
+                    'CREATE sends a comma-decimal value ("10,5") to the adapter as an actual double',
+                ))
+
+            relation_meta, relation_rel = self._assistant_find_required_relation(metas)
+            if relation_meta is not None:
+                router_test_blocks.append(self._assistant_render_relation_create_test(relation_meta, relation_rel))
+
+            string_pk_router_entity = self._assistant_find_string_pk_entity(metas)
+            if string_pk_router_entity is not None:
+                sp_entries = self._assistant_required_create_data(string_pk_router_entity)
+                sp_pk_field = string_pk_router_entity['fields'][0]
+                sp_pk_value = next(v for k, v in sp_entries if k == sp_pk_field['name'])
+                sp_entity_literal = self._assistant_dart_string_literal(string_pk_router_entity['name'])
+                router_test_blocks.append(f"""  test('String primary key: CREATE requires the explicit PK value and sends it under its JSON key', () async {{
+    final spSchema = AppSchema.entities.firstWhere((e) => e.name == {sp_entity_literal});
+    final adapter = _FakeAdapter(spSchema, []);
+    final router = CommandRouter(registry: {{{sp_entity_literal}: adapter}});
+    final validated = CommandValidator().validate(BusinessCommand(
+      action: CommandAction.create,
+      entity: {sp_entity_literal},
+      data: {self._assistant_render_dart_map(sp_entries)},
+      filters: const {{}},
+      rawText: 'test',
+    ));
+    expect(validated.isValid, isTrue, reason: validated.error);
+    final outcome = await router.execute(validated.command!);
+    expect(outcome.success, isTrue);
+    expect(adapter.lastCreatedMap![{self._assistant_dart_string_literal(sp_pk_field['json_key'])}], {self._assistant_dart_string_literal(sp_pk_value)});
+  }});""")
+
+                if string_pk_router_entity['name_field']:
+                    sp_name_field = string_pk_router_entity['name_field']
+                    sp_name_json_key = self._to_backend_json_key(sp_name_field)
+                    router_test_blocks.append(f"""  test('String primary key: UPDATE targets the exact String PK', () async {{
+    final spSchema = AppSchema.entities.firstWhere((e) => e.name == {sp_entity_literal});
+    final adapter = _FakeAdapter(spSchema, [
+      {{{self._assistant_dart_string_literal(sp_pk_field['json_key'])}: {self._assistant_dart_string_literal(sp_pk_value)}, {self._assistant_dart_string_literal(sp_name_json_key)}: 'Etiqueta Uno'}},
+    ]);
+    final router = CommandRouter(registry: {{{sp_entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.update,
+      entity: {sp_entity_literal},
+      data: {self._assistant_render_dart_map([(sp_name_field, 'Etiqueta Dos')])},
+      filters: {self._assistant_render_dart_map([(sp_name_field, 'Etiqueta Uno')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isTrue);
+    expect(adapter.lastUpdatedId, {self._assistant_dart_string_literal(sp_pk_value)});
+  }});""")
+
+            # ---------------------------------------------------------
+            # assistant_view_test.dart — proves an adapter/service
+            # exception during _submit() never leaves the assistant
+            # permanently busy, and that typed input keeps working when
+            # voice never becomes available (no plugin registered in the
+            # widget-test sandbox).
+            # ---------------------------------------------------------
+            widget_template = '''import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/app_schema.dart';
+import 'package:generated_crud_app/assistant/assistant_view.dart';
+import 'package:generated_crud_app/assistant/command_router.dart';
+import 'package:generated_crud_app/assistant/entity_service_adapter.dart';
+
+class _ThrowingAdapter extends EntityServiceAdapter {
+  _ThrowingAdapter(super.schema);
+
+  @override
+  Future<List<Map<String, dynamic>>> list() async {
+    throw Exception('simulated adapter failure');
+  }
+
+  @override
+  Future<Map<String, dynamic>> create(Map<String, dynamic> jsonData) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> updateFromMap(String id, Map<String, dynamic> mergedJsonData) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteById(String id) async => throw UnimplementedError();
+}
+
+void main() {
+  testWidgets(
+    'an adapter exception during a command does not leave the assistant permanently busy',
+    (tester) async {
+      final schema = AppSchema.entities.firstWhere((e) => e.name == __ENTITY__);
+      final router = CommandRouter(registry: {__ENTITY__: _ThrowingAdapter(schema)});
+
+      await tester.pumpWidget(MaterialApp(home: AssistantView(router: router)));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), __LIST_COMMAND__);
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+
+      // A concise, generic error reached the UI — never a raw exception.
+      expect(find.textContaining('error'), findsWidgets);
+
+      // The send control is usable again: a second submission must still
+      // run (and fail the same way) instead of being silently ignored
+      // because _isBusy stayed stuck true.
+      await tester.enterText(find.byType(TextField), __LIST_COMMAND__);
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('error'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets('typed input keeps working when voice never becomes available', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: AssistantView()));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byIcon(Icons.mic), findsNothing);
+    expect(find.byIcon(Icons.mic_none), findsNothing);
+    expect(find.byIcon(Icons.send), findsOneWidget);
+  });
+}
+'''
+            assistant_view_test_content = (
+                widget_template
+                .replace('__ENTITY__', entity_literal)
+                .replace('__LIST_COMMAND__', self._assistant_dart_string_literal(f"Muestra los {entity_lower}s"))
+            )
+
+        parser_test_content = (
+            "import 'package:flutter_test/flutter_test.dart';\n"
+            "import 'package:generated_crud_app/assistant/business_command.dart';\n"
+            "import 'package:generated_crud_app/assistant/command_parser.dart';\n"
+            "\n"
+            "void main() {\n"
+            + "\n\n".join(parser_cases) +
+            "\n}\n"
+        )
+        (base_path / 'test' / 'assistant' / 'command_parser_test.dart').write_text(
+            self._sanitize(parser_test_content), encoding="utf-8", newline="\n"
+        )
+
+        validator_test_content = (
+            "import 'package:flutter_test/flutter_test.dart';\n"
+            "import 'package:generated_crud_app/assistant/business_command.dart';\n"
+            "import 'package:generated_crud_app/assistant/command_validator.dart';\n"
+            "\n"
+            "void main() {\n"
+            + ("\n\n".join(validator_cases) if validator_cases else "  test('no assistant-writable entity in this schema', () {\n    expect(true, isTrue);\n  });")
+            + "\n}\n"
+        )
+        (base_path / 'test' / 'assistant' / 'command_validator_test.dart').write_text(
+            self._sanitize(validator_test_content), encoding="utf-8", newline="\n"
+        )
+
+        if router_test_blocks:
+            router_boilerplate = '''import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/app_schema.dart';
+import 'package:generated_crud_app/assistant/business_command.dart';
+import 'package:generated_crud_app/assistant/command_router.dart';
+import 'package:generated_crud_app/assistant/command_validator.dart';
+import 'package:generated_crud_app/assistant/entity_service_adapter.dart';
+
+class _FakeAdapter extends EntityServiceAdapter {
+  _FakeAdapter(super.schema, this.rows);
+  final List<Map<String, dynamic>> rows;
+  int deleteCalls = 0;
+  int updateCalls = 0;
+  String? lastDeletedId;
+  String? lastUpdatedId;
+  Map<String, dynamic>? lastUpdatedMap;
+  Map<String, dynamic>? lastCreatedMap;
+
+  @override
+  Future<List<Map<String, dynamic>>> list() async => rows;
+
+  @override
+  Future<Map<String, dynamic>> create(Map<String, dynamic> jsonData) async {
+    lastCreatedMap = jsonData;
+    rows.add(jsonData);
+    return jsonData;
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateFromMap(String id, Map<String, dynamic> mergedJsonData) async {
+    updateCalls++;
+    lastUpdatedId = id;
+    lastUpdatedMap = mergedJsonData;
+    return mergedJsonData;
+  }
+
+  @override
+  Future<void> deleteById(String id) async {
+    deleteCalls++;
+    lastDeletedId = id;
+  }
+}
+
+void main() {
+__PREAMBLE__
+__TESTS__
+}
+'''
+            router_test_content = (
+                router_boilerplate
+                .replace('__PREAMBLE__', router_preamble)
+                .replace('__TESTS__', "\n\n".join(router_test_blocks))
+            )
+            (base_path / 'test' / 'assistant' / 'command_router_test.dart').write_text(
+                self._sanitize(router_test_content), encoding="utf-8", newline="\n"
+            )
+
+        if assistant_view_test_content is not None:
+            (base_path / 'test' / 'assistant' / 'assistant_view_test.dart').write_text(
+                self._sanitize(assistant_view_test_content), encoding="utf-8", newline="\n"
+            )
+
     # ========================================
     # === GENERADORES PARA ENTIDADES INTERMEDIAS ===
     # ========================================

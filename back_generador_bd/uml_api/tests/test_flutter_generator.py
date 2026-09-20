@@ -114,6 +114,30 @@ class FlutterGeneratorTests(SimpleTestCase):
                 (first / "lib/models/employee.dart").read_text(),
             )
 
+            # La infraestructura del asistente (P0) se genera para las
+            # entidades UML originales, con el mismo determinismo verificado
+            # arriba (first_files == second_files ya lo cubre byte a byte).
+            assistant_files = [
+                "app_schema.dart",
+                "business_command.dart",
+                "command_parser.dart",
+                "command_validator.dart",
+                "entity_service_adapter.dart",
+                "entity_service_registry.dart",
+                "command_router.dart",
+                "voice_input_controller.dart",
+                "assistant_view.dart",
+            ]
+            for filename in assistant_files:
+                self.assertTrue((first / f"lib/assistant/{filename}").is_file())
+            self.assertTrue((first / "test/assistant/command_parser_test.dart").is_file())
+            self.assertTrue((first / "test/assistant/command_validator_test.dart").is_file())
+            # PersonRole es una entidad intermedia M:N; el vocabulario del
+            # asistente en este P0 solo cubre las clases UML originales.
+            registry = (first / "lib/assistant/entity_service_registry.dart").read_text()
+            self.assertNotIn("PersonRole", registry)
+            self.assertIn("Employee", registry)
+
             main = (first / "lib/main.dart").read_text()
             imports = re.findall(r"^import 'views/[^']+';$", main, re.MULTILINE)
             self.assertEqual(len(imports), len(set(imports)))
@@ -121,6 +145,8 @@ class FlutterGeneratorTests(SimpleTestCase):
                 main.count("import 'views/person_role_list_view.dart';"),
                 1,
             )
+            self.assertIn("import 'assistant/assistant_view.dart';", main)
+            self.assertIn("AssistantView()", main)
 
     def test_generated_source_regresses_known_analyzer_failures(self):
         with tempfile.TemporaryDirectory() as output_dir:
@@ -196,6 +222,251 @@ class FlutterGeneratorTests(SimpleTestCase):
                 "                _buildDetailRow('ID de Label'",
                 detail,
             )
+
+
+class AssistantSchemaGeneratorTests(SimpleTestCase):
+    """Cobertura semántica de la infraestructura del asistente (P0)."""
+
+    def test_pubspec_includes_speech_to_text(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            pubspec = (output / "pubspec.yaml").read_text()
+            self.assertIn("speech_to_text:", pubspec)
+
+    def test_app_schema_reflects_inheritance_and_field_metadata(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+
+            # Herencia: Employee incluye los atributos heredados de Person
+            # (id, name, active) además de su propio salary.
+            employee_block = schema[schema.index("name: 'Employee'"):]
+            self.assertIn("name: 'id'", employee_block[:employee_block.index("relations:")])
+            self.assertIn("name: 'name'", employee_block[:employee_block.index("relations:")])
+            self.assertIn("name: 'active'", employee_block[:employee_block.index("relations:")])
+            self.assertIn("name: 'salary'", employee_block[:employee_block.index("relations:")])
+
+            # PK numérica: autoincremental, no requerida en CREATE.
+            person_block = schema[schema.index("name: 'Person'"):schema.index("name: 'Pet'")]
+            self.assertIn("isPrimaryKey: true", person_block)
+            self.assertIn("isAutoIncrement: true", person_block)
+
+            # Tipos Dart y claves JSON correctos para cada tipo soportado.
+            self.assertIn("dartType: 'int'", schema)
+            self.assertIn("dartType: 'String'", schema)
+            self.assertIn("dartType: 'bool'", schema)
+            self.assertIn("jsonKey: 'active'", schema)
+
+            # PK double explícita en el modelo: Employee hereda la PK int de
+            # Person, así que se prueba por separado en otro test.
+
+            # Heurística de nameField: 'label' está en la lista de prioridad,
+            # 'nickname' cae al primer campo String no-PK por no estarlo.
+            self.assertIn("nameField: 'label'", schema)
+            self.assertIn("nameField: 'nickname'", schema)
+
+    def test_intermediate_entities_excluded_from_app_schema(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+            # PersonRole (la entidad intermedia M:N) nunca es una entidad de
+            # primera clase del asistente: no tiene su propia
+            # AssistantEntitySchema ni puede resolverse por nombre. Sí puede
+            # aparecer como targetEntity de una relación one-to-many
+            # (Person/Role realmente tienen esa colección), lo cual es
+            # metadata descriptiva y no vocabulario invocable.
+            self.assertNotIn("name: 'PersonRole'", schema)
+            self.assertIn("targetEntity: 'PersonRole'", schema)
+
+    def test_registry_wires_existing_generated_services(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            registry = (output / "lib/assistant/entity_service_registry.dart").read_text()
+            for entity, snake in [("Person", "person"), ("Pet", "pet"), ("Role", "role"), ("Employee", "employee")]:
+                self.assertIn(f"import '../services/{snake}_service.dart';", registry)
+                self.assertIn(f"{entity}Service _service = {entity}Service();", registry)
+            self.assertNotIn("DatabaseHelper", registry)
+            self.assertNotIn("package:http", registry)
+
+    def test_date_field_marked_unwritable_and_required_relation_flagged(self):
+        uml = {
+            "classes": [
+                {
+                    "id": "cita",
+                    "name": "Cita",
+                    "attributes": [
+                        {"name": "id", "type": "int"},
+                        {"name": "fecha", "type": "Date"},
+                    ],
+                },
+                {
+                    "id": "paciente",
+                    "name": "Paciente",
+                    "attributes": [
+                        {"name": "id", "type": "int"},
+                        {"name": "nombre", "type": "String"},
+                    ],
+                },
+            ],
+            "relationships": [
+                {
+                    "id": "cita-paciente",
+                    "type": "association",
+                    "sourceId": "cita",
+                    "targetId": "paciente",
+                    "labels": ["*", "1"],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(uml).generate_project(output)
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+            cita_block = schema[schema.index("name: 'Cita'"):schema.index("name: 'Paciente'")]
+
+            # Date se mapea a DateTime en Dart y se marca no escribible: no
+            # se corrige la generación de fechas en esta feature, solo se
+            # falla de forma cerrada en el asistente.
+            self.assertIn("dartType: 'DateTime'", cita_block)
+            fecha_field = cita_block[cita_block.index("name: 'fecha'"):]
+            self.assertIn("writable: false", fecha_field[:fecha_field.index(")")])
+
+            # Relación many-to-one obligatoria: el asistente exige el ID
+            # crudo, nunca resuelve el nombre relacionado.
+            self.assertIn("targetEntity: 'Paciente'", cita_block)
+            self.assertIn("requiredOnCreate: true", cita_block[cita_block.index("AssistantRelationField"):])
+
+            validator = (output / "lib/assistant/command_validator.dart").read_text()
+            self.assertIn("dartType == 'double'", validator)
+            self.assertIn("case 'DateTime':\n        return null;", validator)
+
+    def test_main_exposes_assistant_entry_point(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            main = (output / "lib/main.dart").read_text()
+            self.assertIn("FloatingActionButton", main)
+            self.assertIn("AssistantView()", main)
+
+    def test_setup_documentation_exists(self):
+        repo_root = Path(__file__).resolve().parents[3]
+        setup_doc = repo_root / "docs" / "FLUTTER_ASSISTANT_SETUP.md"
+        self.assertTrue(setup_doc.is_file())
+        content = setup_doc.read_text()
+        self.assertIn("NSMicrophoneUsageDescription", content)
+        self.assertIn("RECORD_AUDIO", content)
+        self.assertNotIn("on-device recognizer", content)
+        self.assertIn("Dart SDK >= 3.12.0", content)
+
+    def test_voice_controller_does_not_reference_nonexistent_generated_doc(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            controller = (output / "lib/assistant/voice_input_controller.dart").read_text()
+            self.assertNotIn("docs/FLUTTER_ASSISTANT_SETUP.md", controller)
+
+    def test_validator_applies_coerced_values_not_raw_strings(self):
+        """CommandValidator must not discard the coerced value it validated."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            validator = (output / "lib/assistant/command_validator.dart").read_text()
+            # CREATE/UPDATE/DELETE's valid() branch must be built from a NEW
+            # BusinessCommand whose data is the coerced map, not the
+            # original `command` (only READ legitimately returns `command`
+            # unchanged, since it never writes anything).
+            create_fn = validator[
+                validator.index("ValidationResult _validateCreate("):
+                validator.index("ValidationResult _validateMutation(")
+            ]
+            mutation_fn = validator[
+                validator.index("ValidationResult _validateMutation("):
+                validator.index("static dynamic coerce")
+            ]
+            self.assertIn("data: coercedData", create_fn)
+            self.assertIn("data: coercedData", mutation_fn)
+            self.assertNotIn("return ValidationResult.valid(command);", create_fn)
+            self.assertNotIn("return ValidationResult.valid(command);", mutation_fn)
+
+    def test_validator_rejects_explicit_autoincrement_pk_on_create(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            validator = (output / "lib/assistant/command_validator.dart").read_text()
+            self.assertIn(
+                "entity.pkField.isAutoIncrement && command.data.containsKey(entity.pkField.name)",
+                validator,
+            )
+
+    def test_double_pk_blocks_all_mutations_but_not_read(self):
+        uml = {
+            "classes": [
+                {
+                    "id": "medida",
+                    "name": "Medida",
+                    "attributes": [
+                        {"name": "valor", "type": "double"},
+                        {"name": "etiqueta", "type": "String"},
+                    ],
+                },
+            ],
+            "relationships": [],
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(uml).generate_project(output)
+
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+            medida_block = schema[schema.index("name: 'Medida'"):]
+            valor_field = medida_block[medida_block.index("name: 'valor'"):medida_block.index("name: 'etiqueta'")]
+            # Mirrors _generate_form_view.is_numeric_pk: a double PK is ALSO
+            # generator-populated (not user-entered), same as an int PK.
+            self.assertIn("isPrimaryKey: true", valor_field)
+            self.assertIn("isAutoIncrement: true", valor_field)
+
+            validator = (output / "lib/assistant/command_validator.dart").read_text()
+            # The double-PK block must appear in BOTH _validateCreate and
+            # _validateMutation (used by update/delete), not only create.
+            create_fn = validator[
+                validator.index("ValidationResult _validateCreate("):
+                validator.index("ValidationResult _validateMutation(")
+            ]
+            mutation_fn = validator[validator.index("ValidationResult _validateMutation("):]
+            self.assertIn("dartType == 'double'", create_fn)
+            self.assertIn("dartType == 'double'", mutation_fn)
+            # READ is untouched: validate() returns the command as-is for
+            # CommandAction.read regardless of PK type.
+            self.assertIn("case CommandAction.read:\n        return ValidationResult.valid(command);", validator)
+
+    def test_router_tests_cover_coercion_pk_and_two_phase_delete(self):
+        uml = {
+            "classes": [
+                {
+                    "id": "producto",
+                    "name": "Producto",
+                    "attributes": [
+                        {"name": "id", "type": "int"},
+                        {"name": "nombre", "type": "String"},
+                        {"name": "precio", "type": "double"},
+                        {"name": "activo", "type": "Boolean"},
+                    ],
+                },
+            ],
+            "relationships": [],
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(uml).generate_project(output)
+            router_test = (output / "test/assistant/command_router_test.dart").read_text()
+            self.assertIn("adapter as an actual bool", router_test)
+            self.assertIn("adapter as an actual double", router_test)
+            self.assertIn("lastUpdatedId", router_test)
+            self.assertIn("confirmDelete deletes that exact PK without re-matching", router_test)
+            self.assertIn("rows.clear()", router_test)
 
 
 class FlutterGeneratorApiTests(SimpleTestCase):
