@@ -230,3 +230,101 @@ class FlutterGeneratorApiTests(SimpleTestCase):
             response.json(),
             {"error": "El JSON UML debe contener 'classes'."},
         )
+
+
+
+
+    def test_database_helper_generated(self):
+        """1. lib/database/database_helper.dart is generated"""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            FlutterCRUDGenerator({"classes": [{"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]}]}).generate_project(base_path)
+            db_file = base_path / 'lib' / 'database' / 'database_helper.dart'
+            self.assertTrue(db_file.exists())
+
+    def test_pubspec_contains_sqflite(self):
+        """2. generated pubspec contains sqflite and path"""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            FlutterCRUDGenerator({"classes": [{"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]}]}).generate_project(base_path)
+            pubspec_file = base_path / 'pubspec.yaml'
+            pubspec_content = pubspec_file.read_text(encoding='utf-8')
+            self.assertIn('sqflite:', pubspec_content)
+            self.assertIn('path:', pubspec_content)
+
+    def test_database_schema(self):
+        """3-8. DatabaseHelper contains CREATE TABLE, correct mappings, etc."""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            uml = {
+                "classes": [
+                    {"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]},
+                    {"id": "cls_2", "name": "carro", "attributes": [{"name": "id", "type": "int"}]}
+                ],
+                "relationships": [
+                    {"sourceId": "cls_1", "targetId": "cls_2", "type": "association", "labels": ["1..*", "1..*"]}
+                ]
+            }
+            FlutterCRUDGenerator(uml).generate_project(base_path)
+            db_file = base_path / 'lib' / 'database' / 'database_helper.dart'
+            db_content = db_file.read_text(encoding='utf-8')
+            self.assertIn('CREATE TABLE persona', db_content)
+            self.assertIn("id INTEGER PRIMARY KEY", db_content)
+            self.assertIn("isactive INTEGER", db_content)
+            self.assertIn('CREATE TABLE carropersona', db_content)
+            self.assertIn("id INTEGER PRIMARY KEY", db_content)
+            self.assertIn("personaid INTEGER", db_content)
+            self.assertIn("carroid INTEGER", db_content)
+
+    def test_boolean_normalization_in_db_helper(self):
+        """9. boolean fields are normalized in DatabaseHelper"""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            FlutterCRUDGenerator({"classes": [{"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]}]}).generate_project(base_path)
+            db_file = base_path / 'lib' / 'database' / 'database_helper.dart'
+            db_content = db_file.read_text(encoding='utf-8')
+            self.assertIn("_boolColumns =", db_content)
+            self.assertIn("'persona': ['isactive']", db_content)
+            self.assertIn("result[col] = result[col] == true || result[col] == 1 || result[col] == 'true' ? 1 : 0", db_content)
+
+    def test_from_json_accepts_sqlite_booleans(self):
+        """10. generated fromJson accepts SQLite 1/0 and API true/false"""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            FlutterCRUDGenerator({"classes": [{"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]}]}).generate_project(base_path)
+            model_file = base_path / 'lib' / 'models' / 'persona.dart'
+            model_content = model_file.read_text(encoding='utf-8')
+            self.assertIn("is_active: json['isactive'] == true || json['isactive'] == 1 || json['isactive'] == 'true'", model_content)
+
+    def test_local_db_fallback_in_service(self):
+        """11-15. Service uses local DB fallback, Web protected, etc."""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            FlutterCRUDGenerator({"classes": [{"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]}]}).generate_project(base_path)
+            service_file = base_path / 'lib' / 'services' / 'persona_service.dart'
+            service_content = service_file.read_text(encoding='utf-8')
+            self.assertIn("if (kIsWeb) return remoteData;", service_content)
+            self.assertIn("DatabaseHelper.instance.upsert", service_content)
+            self.assertIn("DatabaseHelper.instance.getAll", service_content)
+            self.assertIn("DatabaseHelper.instance.insertLocal", service_content)
+            self.assertIn("DatabaseHelper.instance.updateLocal", service_content)
+            self.assertIn("DatabaseHelper.instance.deleteLocal", service_content)
+            self.assertIn("body: json.encode(item.toJson())", service_content)

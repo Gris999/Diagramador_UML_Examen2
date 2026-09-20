@@ -159,6 +159,7 @@ class FlutterCRUDGenerator:
             self._generate_main(base_path, intermediate_entities)
             self._generate_widget_test(base_path)
             self._generate_routes(base_path)
+            self._generate_database_helper(base_path)
         finally:
             # Reutilizar la misma instancia debe producir el mismo proyecto sin
             # acumular clases o relaciones sintéticas.
@@ -211,6 +212,7 @@ class FlutterCRUDGenerator:
     def _create_folder_structure(self, base_path):
         """Crea la estructura de carpetas del proyecto"""
         folders = [
+            'lib/database',
             'lib/models',
             'lib/services',
             'lib/views',
@@ -236,6 +238,8 @@ dependencies:
   cupertino_icons: ^1.0.2
   http: ^1.1.0
   provider: ^6.0.5
+  sqflite: ^2.4.4
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
@@ -247,6 +251,209 @@ flutter:
 """
         with open(base_path / 'pubspec.yaml', "w", encoding="utf-8") as f:
           f.write(self._sanitize(content))    
+    def _map_sqlite_type(self, uml_type):
+        """Mapea tipos UML a columnas SQLite. Date/String->TEXT, int/Long->INTEGER, double->REAL, bool->INTEGER"""
+        type_map = {
+            'string': 'TEXT',
+            'String': 'TEXT',
+            'int': 'INTEGER',
+            'Int': 'INTEGER',
+            'Long': 'INTEGER',
+            'double': 'REAL',
+            'Double': 'REAL',
+            'bool': 'INTEGER',
+            'Boolean': 'INTEGER',
+            'Date': 'TEXT',
+            'DateTime': 'TEXT',
+        }
+        return type_map.get(uml_type, 'TEXT')
+
+    def _generate_database_helper(self, base_path):
+        create_tables = []
+        bool_columns_map = {}
+
+        for clase in self.classes:
+            table_name = self._to_snake_case(clase['name'])
+            is_intermediate = clase.get('is_intermediate', False)
+
+            columns = []
+            bool_cols = []
+
+            if is_intermediate:
+                columns.append("id INTEGER PRIMARY KEY")
+                relationships = [r for r in self.parsed_relationships if r["from"] == clase['name']]
+
+                for rel in relationships:
+                    if rel["kind"] == "many_to_one":
+                        rel_snake = self._to_snake_case(rel['to'])
+                        fk_col = f"{rel_snake}id"
+                        columns.append(f"{fk_col} INTEGER")
+            else:
+                relationships = [r for r in self.parsed_relationships if r["from"] == clase['name']]
+
+                parent_class = None
+                for rel in relationships:
+                    if rel["kind"] == "inherits":
+                        parent_class = rel["to"]
+                        break
+
+                def get_all_attributes(class_name):
+                    attrs = []
+                    current_class = next((c for c in self.classes if c['name'] == class_name), None)
+                    if current_class:
+                        parent_rels = [r for r in self.parsed_relationships if r["from"] == class_name and r["kind"] == "inherits"]
+                        if parent_rels:
+                            attrs.extend(get_all_attributes(parent_rels[0]["to"]))
+                        existing_attr_names = {attr['name'].lower() for attr in attrs}
+                        for attr in current_class.get('attributes', []):
+                            if attr['name'].lower() not in existing_attr_names:
+                                attrs.append(attr)
+                    return attrs
+
+                all_attrs = get_all_attributes(clase['name'])
+
+                for i, attr in enumerate(all_attrs):
+                    col_name = self._to_backend_json_key(attr['name'])
+                    sql_type = self._map_sqlite_type(attr['type'])
+
+                    if i == 0:
+                        columns.append(f"{col_name} {sql_type} PRIMARY KEY")
+                    else:
+                        columns.append(f"{col_name} {sql_type}")
+
+                    if sql_type == 'INTEGER' and attr['type'] in ['bool', 'Boolean']:
+                        bool_cols.append(f"'{col_name}'")
+
+                def get_all_relations(class_name):
+                    rels = []
+                    for r in self.parsed_relationships:
+                        if r["from"] == class_name and r["kind"] == "inherits":
+                            rels.extend(get_all_relations(r["to"]))
+                            break
+                    for r in self.parsed_relationships:
+                        if r["from"] == class_name and r["kind"] in ["many_to_one", "one_to_one"]:
+                            rels.append(r)
+                    return rels
+
+                all_rels = get_all_relations(clase['name'])
+                added_rels = set()
+                for rel in all_rels:
+                    if rel['to'] not in added_rels:
+                        fk_field = f"{self._to_snake_case(rel['to'])}Id"
+                        fk_col = self._to_backend_json_key(fk_field)
+                        columns.append(f"{fk_col} TEXT")
+                        added_rels.add(rel['to'])
+
+            cols_str = ",\n        ".join(columns)
+            create_tables.append(f"    await db.execute('''\n      CREATE TABLE {table_name} (\n        {cols_str}\n      )\n    ''');")
+            if bool_cols:
+                bool_columns_map[table_name] = f"'{table_name}': [{', '.join(bool_cols)}]"
+
+        bool_map_str = ",\n    ".join(bool_columns_map.values())
+        tables_str = "\n".join(create_tables)
+
+        content = f"""import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import 'package:flutter/foundation.dart';
+
+class DatabaseHelper {{
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+  DatabaseHelper._init();
+
+  final Map<String, List<String>> _boolColumns = {{
+    {bool_map_str}
+  }};
+
+  Future<Database> get database async {{
+    if (_database != null) return _database!;
+    _database = await _initDB('app_database.db');
+    return _database!;
+  }}
+
+  Future<Database> _initDB(String filePath) async {{
+    if (kIsWeb) throw Exception("SQLite is not supported on Web");
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+    return await openDatabase(path, version: 1, onCreate: _createDB);
+  }}
+
+  Future _createDB(Database db, int version) async {{
+{tables_str}
+  }}
+
+  Map<String, dynamic> _normalizeForDb(String table, Map<String, dynamic> map) {{
+    final result = Map<String, dynamic>.from(map);
+    if (_boolColumns.containsKey(table)) {{
+      for (var col in _boolColumns[table]!) {{
+        if (result.containsKey(col) && result[col] != null) {{
+          result[col] = result[col] == true || result[col] == 1 || result[col] == 'true' ? 1 : 0;
+        }}
+      }}
+    }}
+    return result;
+  }}
+
+  Future<void> upsert(String table, Map<String, dynamic> map, String pkColumn) async {{
+    if (kIsWeb) return;
+    final db = await instance.database;
+    final normalized = _normalizeForDb(table, map);
+    await db.insert(table, normalized, conflictAlgorithm: ConflictAlgorithm.replace);
+  }}
+
+  Future<List<Map<String, dynamic>>> getAll(String table) async {{
+    if (kIsWeb) return [];
+    final db = await instance.database;
+    return await db.query(table);
+  }}
+
+  Future<Map<String, dynamic>?> getById(String table, String pkColumn, String id) async {{
+    if (kIsWeb) return null;
+    final db = await instance.database;
+    final res = await db.query(table, where: '$pkColumn = ?', whereArgs: [id]);
+    if (res.isNotEmpty) return res.first;
+    return null;
+  }}
+
+  Future<Map<String, dynamic>> insertLocal(String table, Map<String, dynamic> map, String pkColumn, bool isNumericPk) async {{
+    if (kIsWeb) throw Exception("Offline persistence not supported on Web");
+    final db = await instance.database;
+    final normalized = _normalizeForDb(table, map);
+
+    if (isNumericPk) {{
+      final currentPk = normalized[pkColumn];
+      if (currentPk == null || currentPk == 0 || currentPk == '0') {{
+        final res = await db.rawQuery('SELECT MIN($pkColumn) as min_id FROM $table WHERE $pkColumn < 0');
+        int nextId = -1;
+        if (res.isNotEmpty && res.first['min_id'] != null) {{
+          nextId = (res.first['min_id'] as int) - 1;
+        }}
+        normalized[pkColumn] = nextId;
+      }}
+    }}
+
+    await db.insert(table, normalized, conflictAlgorithm: ConflictAlgorithm.replace);
+    return normalized;
+  }}
+
+  Future<Map<String, dynamic>> updateLocal(String table, Map<String, dynamic> map, String pkColumn, String id) async {{
+    if (kIsWeb) throw Exception("Offline persistence not supported on Web");
+    final db = await instance.database;
+    final normalized = _normalizeForDb(table, map);
+    await db.update(table, normalized, where: '$pkColumn = ?', whereArgs: [id]);
+    return normalized;
+  }}
+
+  Future<void> deleteLocal(String table, String pkColumn, String id) async {{
+    if (kIsWeb) return;
+    final db = await instance.database;
+    await db.delete(table, where: '$pkColumn = ?', whereArgs: [id]);
+  }}
+}}
+"""
+        (base_path / 'lib' / 'database').mkdir(parents=True, exist_ok=True)
+        (base_path / 'lib' / 'database' / 'database_helper.dart').write_text(self._sanitize(content), encoding="utf-8", newline="\n")
+
     def _generate_main(self, base_path, intermediate_entities=[]):
         """Genera el archivo main.dart"""
         entity_names = [
@@ -669,7 +876,7 @@ void main() {
               elif attr_type == 'String':
                   from_json_fields.append(f"{attr['name']}: json['{json_key}']?.toString() ?? ''")
               elif attr_type == 'bool':
-                  from_json_fields.append(f"{attr['name']}: json['{json_key}'] == true")
+                  from_json_fields.append(f"{attr['name']}: json['{json_key}'] == true || json['{json_key}'] == 1 || json['{json_key}'] == 'true'")
               else:
                   from_json_fields.append(f"{attr['name']}: json['{json_key}']")
           
@@ -706,7 +913,7 @@ void main() {
           elif attr_type == 'String':
               from_json_fields.append(f"{attr['name']}: json['{json_key}']?.toString() ?? ''")
           elif attr_type == 'bool':
-              from_json_fields.append(f"{attr['name']}: json['{json_key}'] == true")
+              from_json_fields.append(f"{attr['name']}: json['{json_key}'] == true || json['{json_key}'] == 1 || json['{json_key}'] == 'true'")
           else:
               from_json_fields.append(f"{attr['name']}: json['{json_key}']")
 
@@ -894,33 +1101,18 @@ void main() {
 
     
     def _generate_service(self, base_path, clase):
-        """Genera el servicio para operaciones CRUD, con relaciones anidadas"""
         name = clase['name']
         snake_name = self._to_snake_case(name)
-        # Convertir nombre de clase al formato del backend para URLs
         backend_url_name = self._to_backend_json_key(name)
         relationships = [r for r in self.parsed_relationships if r["from"] == name]
-        attributes = clase.get('attributes', [])
-
-        # Detectar herencia y obtener todos los atributos (propios + heredados)
-        parent_class = None
-        for rel in relationships:
-            if rel["kind"] == "inherits":
-                parent_class = rel["to"]
-                break
         
-        # Función recursiva para obtener todos los atributos heredados
         def get_all_attributes(class_name):
             attrs = []
             current_class = next((c for c in self.classes if c['name'] == class_name), None)
             if current_class:
-                # Primero obtener atributos del padre (si existe)
                 parent_rels = [r for r in self.parsed_relationships if r["from"] == class_name and r["kind"] == "inherits"]
                 if parent_rels:
-                    parent_name = parent_rels[0]["to"]
-                    attrs.extend(get_all_attributes(parent_name))
-                
-                # Luego agregar atributos propios (solo si no existen ya en attrs)
+                    attrs.extend(get_all_attributes(parent_rels[0]["to"]))
                 existing_attr_names = {attr['name'].lower() for attr in attrs}
                 for attr in current_class.get('attributes', []):
                     if attr['name'].lower() not in existing_attr_names:
@@ -928,56 +1120,83 @@ void main() {
             return attrs
         
         all_attributes = get_all_attributes(name)
-
-        # Verificar si la clase tiene un atributo 'id' definido
-        has_id = any(attr['name'].lower() == 'id' for attr in all_attributes)
+        pk_attr = all_attributes[0] if all_attributes else None
+        pk_type = self._convert_type(pk_attr['type']) if pk_attr else 'String'
+        is_numeric_pk = pk_type in ['int', 'double'] if pk_attr else False
+        pk_name = pk_attr['name'] if pk_attr else 'id'
 
         content = f"""import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/{snake_name}.dart';
 import '../config.dart';
+import '../database/database_helper.dart';
 
 class {name}Service {{
   static const String baseUrl = ApiConfig.baseUrl;
   
   Future<List<{name}>> getAll() async {{
+    List<{name}> remoteData = [];
+    bool networkSuccess = false;
     try {{
       final response = await http.get(
-        Uri.parse('$baseUrl/{backend_url_name}'),
+        Uri.parse('$baseUrl/{backend_url_name}/'),
         headers: {{'Content-Type': 'application/json'}},
       );
 
-      if (response.statusCode == 200) {{
-        final List<dynamic> jsonList = json.decode(response.body);
-        // El backend puede devolver listas mixtas [objeto, id] debido a @JsonIdentityInfo
-        // Filtrar solo los objetos completos (Maps), omitir los IDs sueltos
-        return jsonList
+      if (response.statusCode == 200 || response.statusCode == 201) {{
+        final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
+        remoteData = jsonList
             .whereType<Map<String, dynamic>>()
             .map((item) => {name}.fromJson(item))
             .toList();
+        networkSuccess = true;
       }} else {{
         throw Exception('Error al cargar {name}s: ${{response.statusCode}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al cargar')) rethrow;
+      if (kIsWeb) rethrow;
     }}
+
+    if (kIsWeb) return remoteData;
+
+    if (networkSuccess) {{
+      for (var item in remoteData) {{
+        await DatabaseHelper.instance.upsert('{snake_name}', item.toJson(), '{pk_name}');
+      }}
+    }}
+
+    final localData = await DatabaseHelper.instance.getAll('{snake_name}');
+    return localData.map((j) => {name}.fromJson(j)).toList();
   }}
 
   Future<{name}?> getById(String id) async {{
     try {{
       final response = await http.get(
-        Uri.parse('$baseUrl/{backend_url_name}/$id'),
+        Uri.parse('$baseUrl/{backend_url_name}/$id/'),
         headers: {{'Content-Type': 'application/json'}},
       );
 
-      if (response.statusCode == 200) {{
-        return {name}.fromJson(json.decode(response.body));
-      }} else if (response.statusCode == 404) {{
-        return null;
+      if (response.statusCode == 200 || response.statusCode == 201) {{
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.upsert('{snake_name}', data, '{pk_name}');
+        }}
+        return {name}.fromJson(data);
       }} else {{
+        if (!kIsWeb && response.statusCode == 404) {{
+          final localData = await DatabaseHelper.instance.getById('{snake_name}', '{pk_name}', id);
+          if (localData != null) return {name}.fromJson(localData);
+        }}
         throw Exception('Error al obtener {name}: ${{response.statusCode}}');
       }}
     }} catch (e) {{
+      if (e.toString().contains('Error al obtener')) rethrow;
+      if (!kIsWeb) {{
+        final localData = await DatabaseHelper.instance.getById('{snake_name}', '{pk_name}', id);
+        if (localData != null) return {name}.fromJson(localData);
+      }}
       throw Exception('Error de conexión: $e');
     }}
   }}
@@ -985,59 +1204,87 @@ class {name}Service {{
   Future<{name}> create({name} item) async {{
     try {{
       final response = await http.post(
-        Uri.parse('$baseUrl/{backend_url_name}'),
+        Uri.parse('$baseUrl/{backend_url_name}/'),
         headers: {{'Content-Type': 'application/json'}},
         body: json.encode(item.toJson()),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {{
-        return {name}.fromJson(json.decode(response.body));
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.upsert('{snake_name}', data, '{pk_name}');
+        }}
+        return {name}.fromJson(data);
       }} else {{
         throw Exception('Error al crear {name}: ${{response.statusCode}} - ${{response.body}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al crear')) rethrow;
+      if (kIsWeb) rethrow;
+
+      final map = item.toJson();
+      final insertedMap = await DatabaseHelper.instance.insertLocal('{snake_name}', map, '{pk_name}', {str(is_numeric_pk).lower()});
+      return {name}.fromJson(insertedMap);
     }}
   }}
 
   Future<{name}> update(String id, {name} item) async {{
     try {{
       final response = await http.put(
-        Uri.parse('$baseUrl/{backend_url_name}/$id'),
+        Uri.parse('$baseUrl/{backend_url_name}/$id/'),
         headers: {{'Content-Type': 'application/json'}},
         body: json.encode(item.toJson()),
       );
 
-      if (response.statusCode == 200) {{
-        return {name}.fromJson(json.decode(response.body));
+      if (response.statusCode == 200 || response.statusCode == 201) {{
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.upsert('{snake_name}', data, '{pk_name}');
+        }}
+        return {name}.fromJson(data);
       }} else {{
+        if (!kIsWeb && response.statusCode == 404) {{
+          final updatedMap = await DatabaseHelper.instance.updateLocal('{snake_name}', item.toJson(), '{pk_name}', id);
+          return {name}.fromJson(updatedMap);
+        }}
         throw Exception('Error al actualizar {name}: ${{response.statusCode}} - ${{response.body}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al actualizar')) rethrow;
+      if (kIsWeb) rethrow;
+
+      final updatedMap = await DatabaseHelper.instance.updateLocal('{snake_name}', item.toJson(), '{pk_name}', id);
+      return {name}.fromJson(updatedMap);
     }}
   }}
 
   Future<void> delete(String id) async {{
     try {{
-      final response = await http.delete(
-        Uri.parse('$baseUrl/{backend_url_name}/$id'),
-        headers: {{'Content-Type': 'application/json'}},
-      );
+      final response = await http.delete(Uri.parse('$baseUrl/{backend_url_name}/$id/'));
 
-      if (response.statusCode != 204 && response.statusCode != 200) {{
-        throw Exception('Error al eliminar {name}: ${{response.statusCode}}');
+      if (response.statusCode == 204 || response.statusCode == 200) {{
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.deleteLocal('{snake_name}', '{pk_name}', id);
+        }}
+        return;
+      }} else {{
+        if (!kIsWeb && response.statusCode == 404) {{
+          await DatabaseHelper.instance.deleteLocal('{snake_name}', '{pk_name}', id);
+          return;
+        }}
+        throw Exception('Error al eliminar {name}: ${{response.statusCode}} - ${{response.body}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al eliminar')) rethrow;
+      if (kIsWeb) rethrow;
+
+      await DatabaseHelper.instance.deleteLocal('{snake_name}', '{pk_name}', id);
     }}
   }}
 }}
 """
-        file_path = base_path / 'lib' / 'services' / f'{snake_name}_service.dart'
-        file_path.write_text(self._sanitize(content), encoding="utf-8", newline="\n")
+        (base_path / 'lib' / 'services' / f'{snake_name}_service.dart').write_text(self._sanitize(content), encoding="utf-8", newline="\n")
 
-    
     def _generate_list_view(self, base_path, clase):
         """Genera la vista de listado"""
         name = clase['name']
@@ -2042,57 +2289,82 @@ class {name} {{
         file_path.write_text(self._sanitize(content), encoding="utf-8", newline="\n")
     
     def _generate_intermediate_service(self, base_path, intermediate):
-        """Genera el servicio para una entidad intermedia"""
         name = intermediate['name']
         snake_name = self._to_snake_case(name)
         backend_url_name = self._to_backend_json_key(name)
         
         content = f"""import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/{snake_name}.dart';
 import '../config.dart';
+import '../database/database_helper.dart';
 
 class {name}Service {{
   static const String baseUrl = ApiConfig.baseUrl;
   
   Future<List<{name}>> getAll() async {{
+    List<{name}> remoteData = [];
+    bool networkSuccess = false;
     try {{
       final response = await http.get(
-        Uri.parse('$baseUrl/{backend_url_name}'),
+        Uri.parse('$baseUrl/{backend_url_name}/'),
         headers: {{'Content-Type': 'application/json'}},
       );
 
-      if (response.statusCode == 200) {{
-        final List<dynamic> jsonList = json.decode(response.body);
-        // El backend puede devolver listas mixtas [objeto, id] debido a @JsonIdentityInfo
-        // Filtrar solo los objetos completos (Maps), omitir los IDs sueltos
-        return jsonList
+      if (response.statusCode == 200 || response.statusCode == 201) {{
+        final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
+        remoteData = jsonList
             .whereType<Map<String, dynamic>>()
             .map((item) => {name}.fromJson(item))
             .toList();
+        networkSuccess = true;
       }} else {{
         throw Exception('Error al cargar {name}s: ${{response.statusCode}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al cargar')) rethrow;
+      if (kIsWeb) rethrow;
     }}
+
+    if (kIsWeb) return remoteData;
+
+    if (networkSuccess) {{
+      for (var item in remoteData) {{
+        await DatabaseHelper.instance.upsert('{snake_name}', item.toJson(), 'id');
+      }}
+    }}
+
+    final localData = await DatabaseHelper.instance.getAll('{snake_name}');
+    return localData.map((j) => {name}.fromJson(j)).toList();
   }}
 
   Future<{name}?> getById(String id) async {{
     try {{
       final response = await http.get(
-        Uri.parse('$baseUrl/{backend_url_name}/$id'),
+        Uri.parse('$baseUrl/{backend_url_name}/$id/'),
         headers: {{'Content-Type': 'application/json'}},
       );
 
-      if (response.statusCode == 200) {{
-        return {name}.fromJson(json.decode(response.body));
-      }} else if (response.statusCode == 404) {{
-        return null;
+      if (response.statusCode == 200 || response.statusCode == 201) {{
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.upsert('{snake_name}', data, 'id');
+        }}
+        return {name}.fromJson(data);
       }} else {{
+        if (!kIsWeb && response.statusCode == 404) {{
+          final localData = await DatabaseHelper.instance.getById('{snake_name}', 'id', id);
+          if (localData != null) return {name}.fromJson(localData);
+        }}
         throw Exception('Error al obtener {name}: ${{response.statusCode}}');
       }}
     }} catch (e) {{
+      if (e.toString().contains('Error al obtener')) rethrow;
+      if (!kIsWeb) {{
+        final localData = await DatabaseHelper.instance.getById('{snake_name}', 'id', id);
+        if (localData != null) return {name}.fromJson(localData);
+      }}
       throw Exception('Error de conexión: $e');
     }}
   }}
@@ -2100,58 +2372,87 @@ class {name}Service {{
   Future<{name}> create({name} item) async {{
     try {{
       final response = await http.post(
-        Uri.parse('$baseUrl/{backend_url_name}'),
+        Uri.parse('$baseUrl/{backend_url_name}/'),
         headers: {{'Content-Type': 'application/json'}},
         body: json.encode(item.toJson()),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {{
-        return {name}.fromJson(json.decode(response.body));
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.upsert('{snake_name}', data, 'id');
+        }}
+        return {name}.fromJson(data);
       }} else {{
         throw Exception('Error al crear {name}: ${{response.statusCode}} - ${{response.body}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al crear')) rethrow;
+      if (kIsWeb) rethrow;
+
+      final map = item.toJson();
+      final insertedMap = await DatabaseHelper.instance.insertLocal('{snake_name}', map, 'id', true);
+      return {name}.fromJson(insertedMap);
     }}
   }}
 
   Future<{name}> update(String id, {name} item) async {{
     try {{
       final response = await http.put(
-        Uri.parse('$baseUrl/{backend_url_name}/$id'),
+        Uri.parse('$baseUrl/{backend_url_name}/$id/'),
         headers: {{'Content-Type': 'application/json'}},
         body: json.encode(item.toJson()),
       );
 
-      if (response.statusCode == 200) {{
-        return {name}.fromJson(json.decode(response.body));
+      if (response.statusCode == 200 || response.statusCode == 201) {{
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.upsert('{snake_name}', data, 'id');
+        }}
+        return {name}.fromJson(data);
       }} else {{
+        if (!kIsWeb && response.statusCode == 404) {{
+          final updatedMap = await DatabaseHelper.instance.updateLocal('{snake_name}', item.toJson(), 'id', id);
+          return {name}.fromJson(updatedMap);
+        }}
         throw Exception('Error al actualizar {name}: ${{response.statusCode}} - ${{response.body}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al actualizar')) rethrow;
+      if (kIsWeb) rethrow;
+
+      final updatedMap = await DatabaseHelper.instance.updateLocal('{snake_name}', item.toJson(), 'id', id);
+      return {name}.fromJson(updatedMap);
     }}
   }}
 
   Future<void> delete(String id) async {{
     try {{
-      final response = await http.delete(
-        Uri.parse('$baseUrl/{backend_url_name}/$id'),
-        headers: {{'Content-Type': 'application/json'}},
-      );
+      final response = await http.delete(Uri.parse('$baseUrl/{backend_url_name}/$id/'));
 
-      if (response.statusCode != 204 && response.statusCode != 200) {{
-        throw Exception('Error al eliminar {name}: ${{response.statusCode}}');
+      if (response.statusCode == 204 || response.statusCode == 200) {{
+        if (!kIsWeb) {{
+          await DatabaseHelper.instance.deleteLocal('{snake_name}', 'id', id);
+        }}
+        return;
+      }} else {{
+        if (!kIsWeb && response.statusCode == 404) {{
+          await DatabaseHelper.instance.deleteLocal('{snake_name}', 'id', id);
+          return;
+        }}
+        throw Exception('Error al eliminar {name}: ${{response.statusCode}} - ${{response.body}}');
       }}
     }} catch (e) {{
-      throw Exception('Error de conexión: $e');
+      if (e.toString().contains('Error al eliminar')) rethrow;
+      if (kIsWeb) rethrow;
+
+      await DatabaseHelper.instance.deleteLocal('{snake_name}', 'id', id);
     }}
   }}
 }}
 """
-        file_path = base_path / 'lib' / 'services' / f'{snake_name}_service.dart'
-        file_path.write_text(self._sanitize(content), encoding="utf-8", newline="\n")
-    
+        (base_path / 'lib' / 'services' / f'{snake_name}_service.dart').write_text(self._sanitize(content), encoding="utf-8", newline="\n")
+
     def _generate_intermediate_list_view(self, base_path, intermediate):
         """Genera la vista de listado para una entidad intermedia"""
         name = intermediate['name']
