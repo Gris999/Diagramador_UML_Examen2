@@ -41,7 +41,7 @@ public class ProjectGenerator {
         Map<String, Object> props = Map.of(
                 "serverPort", 9000,
                 "dbHost", "localhost",
-                "dbPort", "5432",
+                "dbPort", "5433",
                 "dbName", "mi_base",
                 "dbUser", "postgres",
                 "dbPassword", "123456",
