@@ -107,60 +107,63 @@ class FlutterCRUDGenerator:
         
         # Detectar entidades intermedias de ManyToMany
         intermediate_entities = self._detect_intermediate_entities()
-        
-        # Agregar entidades intermedias a self.classes para que sean consideradas en el procesamiento
-        # y agregar sus relaciones ManyToOne a parsed_relationships
+        original_classes = self.classes
+        original_relationships = self.parsed_relationships
+
+        # Las clases intermedias solo se agregan temporalmente para que las vistas
+        # de detalle de las entidades originales puedan resolver sus relaciones.
+        # Sus archivos se generan exclusivamente con los generadores especializados.
+        temporary_classes = []
+        temporary_relationships = []
         for intermediate in intermediate_entities:
             intermediate_name = intermediate['name']
-            first_entity = intermediate['first_entity']
-            second_entity = intermediate['second_entity']
-            
-            # Agregar la entidad intermedia como una "clase" temporal
-            # Esto permite que sea detectada por related_class en _generate_detail_view
-            self.classes.append({
+            temporary_classes.append({
                 'id': f'intermediate_{intermediate_name}',
                 'name': intermediate_name,
-                'attributes': [
-                    {'name': 'id', 'type': 'Long'}
-                ],
-                'is_intermediate': True  # Marcar como intermedia
+                'attributes': [{'name': 'id', 'type': 'Long'}],
+                'is_intermediate': True,
             })
-            
-            # Agregar relación ManyToOne desde entidad intermedia a primera entidad
-            self.parsed_relationships.append({
-                "from": intermediate_name,
-                "to": first_entity,
-                "kind": "many_to_one"
-            })
-            
-            # Agregar relación ManyToOne desde entidad intermedia a segunda entidad
-            self.parsed_relationships.append({
-                "from": intermediate_name,
-                "to": second_entity,
-                "kind": "many_to_one"
-            })
-        
-        # Generar modelos, servicios y vistas para cada clase
-        for clase in self.classes:
-            self._generate_model(base_path, clase)
-            self._generate_service(base_path, clase)
-            self._generate_list_view(base_path, clase)
-            self._generate_form_view(base_path, clase)
-            self._generate_detail_view(base_path, clase)
-        
-        # Generar entidades intermedias (modelos, servicios y vistas)
-        for intermediate in intermediate_entities:
-            self._generate_intermediate_model(base_path, intermediate)
-            self._generate_intermediate_service(base_path, intermediate)
-            self._generate_intermediate_list_view(base_path, intermediate)
-            self._generate_intermediate_form_view(base_path, intermediate)
-            self._generate_intermediate_detail_view(base_path, intermediate)
-        
-        # Generar main.dart con todas las clases (originales + intermedias)
-        self._generate_main(base_path, intermediate_entities)
-        
-        # Generar archivo de rutas
-        self._generate_routes(base_path)
+            for entity_name in (
+                intermediate['first_entity'],
+                intermediate['second_entity'],
+            ):
+                temporary_relationships.append({
+                    "from": intermediate_name,
+                    "to": entity_name,
+                    "kind": "many_to_one",
+                })
+
+        self.classes = [*original_classes, *temporary_classes]
+        self.parsed_relationships = [
+            *original_relationships,
+            *temporary_relationships,
+        ]
+
+        try:
+            # Generar modelos, servicios y vistas solo para las clases UML originales.
+            for clase in original_classes:
+                self._generate_model(base_path, clase)
+                self._generate_service(base_path, clase)
+                self._generate_list_view(base_path, clase)
+                self._generate_form_view(base_path, clase)
+                self._generate_detail_view(base_path, clase)
+
+            # Generar las entidades intermedias exactamente una vez.
+            for intermediate in intermediate_entities:
+                self._generate_intermediate_model(base_path, intermediate)
+                self._generate_intermediate_service(base_path, intermediate)
+                self._generate_intermediate_list_view(base_path, intermediate)
+                self._generate_intermediate_form_view(base_path, intermediate)
+                self._generate_intermediate_detail_view(base_path, intermediate)
+
+            self._generate_main(base_path, intermediate_entities)
+            self._generate_widget_test(base_path)
+            self._generate_routes(base_path)
+        finally:
+            # Reutilizar la misma instancia debe producir el mismo proyecto sin
+            # acumular clases o relaciones sintéticas.
+            self.classes = original_classes
+            self.parsed_relationships = original_relationships
         
         print(f"✅ Proyecto Flutter generado en: {output_dir}")
         
@@ -212,6 +215,7 @@ class FlutterCRUDGenerator:
             'lib/services',
             'lib/views',
             'lib/widgets',
+            'test',
         ]
         for folder in folders:
             (base_path / folder).mkdir(parents=True, exist_ok=True)
@@ -245,10 +249,15 @@ flutter:
           f.write(self._sanitize(content))    
     def _generate_main(self, base_path, intermediate_entities=[]):
         """Genera el archivo main.dart"""
-        # Imports para clases originales
-        imports = [f"import 'views/{self._to_snake_case(c['name'])}_list_view.dart';" for c in self.classes]
-        # Imports para entidades intermedias
-        imports.extend([f"import 'views/{self._to_snake_case(ie['name'])}_list_view.dart';" for ie in intermediate_entities])
+        entity_names = [
+            c['name'] for c in self.classes
+            if not c.get('is_intermediate', False)
+        ]
+        entity_names.extend(ie['name'] for ie in intermediate_entities)
+        imports = [
+            f"import 'views/{self._to_snake_case(name)}_list_view.dart';"
+            for name in dict.fromkeys(entity_names)
+        ]
         imports_str = '\n'.join(imports)
         
         content = f"""import 'package:flutter/material.dart';
@@ -295,6 +304,25 @@ class HomePage extends StatelessWidget {{
 }}
 """
         (base_path / 'lib' / 'main.dart').write_text(self._sanitize(content), encoding="utf-8", newline="\n")
+
+    def _generate_widget_test(self, base_path):
+        """Genera una prueba mínima que no depende del backend."""
+        content = """import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/main.dart';
+
+void main() {
+  testWidgets('shows the generated CRUD home page', (tester) async {
+    await tester.pumpWidget(const MyApp());
+
+    expect(find.text('Gestión de Clases'), findsOneWidget);
+  });
+}
+"""
+        (base_path / 'test' / 'widget_test.dart').write_text(
+            self._sanitize(content),
+            encoding="utf-8",
+            newline="\n",
+        )
     
     def _generate_home_cards(self, intermediate_entities=[]):
         """Genera las tarjetas de navegación en el home"""
@@ -904,17 +932,7 @@ class HomePage extends StatelessWidget {{
         # Verificar si la clase tiene un atributo 'id' definido
         has_id = any(attr['name'].lower() == 'id' for attr in all_attributes)
 
-        # Importar modelos relacionados
-        related_models = [
-            rel["to"] for rel in relationships if rel["kind"] in ["one_to_one", "one_to_many"]
-        ]
-        imports = "\n".join([
-            f"import '../models/{self._to_snake_case(model)}.dart';"
-            for model in related_models
-        ])
-
-        content = f"""{imports}
-import 'dart:convert';
+        content = f"""import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/{snake_name}.dart';
 import '../config.dart';
@@ -1420,7 +1438,7 @@ class _{name}ListViewState extends State<{name}ListView> {{
                     : null;
                 return DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: '{rel['to']}'),
-                  value: validValue,
+                  initialValue: validValue,
                   items: uniqueItems.map((e) => DropdownMenuItem(
                     value: e.{related_pk}.toString(),
                     child: Text(e.{display_attr}.toString()),
@@ -1478,7 +1496,7 @@ class _{name}ListViewState extends State<{name}ListView> {{
                 if (!snapshot.hasData) return const CircularProgressIndicator();
                 return DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: '{rel['to']}'),
-                  value: _selected{rel['to']}Id,
+                  initialValue: _selected{rel['to']}Id,
                   items: snapshot.data!.map((e) => DropdownMenuItem(
                     value: e.{related_pk}.toString(),
                     child: Text(e.{display_attr}.toString()),
@@ -1863,7 +1881,7 @@ class _{name}FormViewState extends State<{name}FormView> {{
                 ...item.{field_name}.map((e) => Padding(
                   padding: const EdgeInsets.only(left: 16, bottom: 4),
                   child: Text('• ${{e.{display_attr}.toString()}}', style: const TextStyle(fontSize: 14)),
-                ))""")
+                )),""")
             elif rel["kind"] == "one_to_one" or rel["kind"] == "many_to_one":
                 field_name = self._to_snake_case(rel['to'])
                 normalized_field = field_name.lower().replace('_', '')
@@ -1880,7 +1898,7 @@ class _{name}FormViewState extends State<{name}FormView> {{
                         attrs_to_show = display_attrs[:2]
                         
                         for attr in attrs_to_show:
-                            detail_rows.append(f"""              if (item.{field_name} != null) _buildDetailRow('{rel['to']}.{attr['name']}', item.{field_name}!.{attr['name']}.toString())""")
+                            detail_rows.append(f"""              if (item.{field_name} != null) _buildDetailRow('{rel['to']}.{attr['name']}', item.{field_name}!.{attr['name']}.toString()),""")
         
         content = f"""import 'package:flutter/material.dart';
 import '../models/{snake_name}.dart';
@@ -2435,7 +2453,7 @@ class _{name}FormViewState extends State<{name}FormView> {{
                 child: Column(
                   children: [
                     DropdownButtonFormField<int>(
-                      value: _selected{first_entity}Id,
+                      initialValue: _selected{first_entity}Id,
                       decoration: const InputDecoration(
                         labelText: 'Seleccionar {first_entity}',
                         border: OutlineInputBorder(),
@@ -2456,7 +2474,7 @@ class _{name}FormViewState extends State<{name}FormView> {{
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int>(
-                      value: _selected{second_entity}Id,
+                      initialValue: _selected{second_entity}Id,
                       decoration: const InputDecoration(
                         labelText: 'Seleccionar {second_entity}',
                         border: OutlineInputBorder(),
@@ -2565,7 +2583,7 @@ class {name}DetailView extends StatelessWidget {{
                 const SizedBox(height: 12),
                 _buildDetailRow('ID de {first_entity}', item.{first_snake}id.toString()),
                 const SizedBox(height: 12),
-{chr(10).join(first_entity_rows) if first_entity_rows else f"                _buildDetailRow('{first_entity}', item.{first_snake}?.toString() ?? 'No disponible'),{chr(10)}                const SizedBox(height: 12)"}
+{chr(10).join(first_entity_rows) if first_entity_rows else f"                _buildDetailRow('{first_entity}', item.{first_snake}?.toString() ?? 'No disponible'),{chr(10)}                const SizedBox(height: 12),"}
                 _buildDetailRow('ID de {second_entity}', item.{second_snake}id.toString()),
                 const SizedBox(height: 12),
 {chr(10).join(second_entity_rows) if second_entity_rows else f"                _buildDetailRow('{second_entity}', item.{second_snake}?.toString() ?? 'No disponible'),"}
@@ -2685,4 +2703,3 @@ class {name}DetailView extends StatelessWidget {{
                 continue
             disposes.append(f"    _{attr['name']}Controller.dispose();")
         return '\n'.join(disposes)
-
