@@ -468,6 +468,66 @@ class AssistantSchemaGeneratorTests(SimpleTestCase):
             self.assertIn("confirmDelete deletes that exact PK without re-matching", router_test)
             self.assertIn("rows.clear()", router_test)
 
+    def test_normalize_treats_hyphen_dash_variants_as_space(self):
+        """Regression for the iOS speech_to_text hyphenation bug: a row
+        stored as 'Coca cola' must match a voice-produced filter like
+        'Coca-Cola'. AppSchema.normalize() is the single, central place
+        that both UPDATE and DELETE matching go through (via
+        CommandRouter._valuesMatch), so fixing it there fixes both."""
+        uml = {
+            "classes": [
+                {
+                    "id": "producto",
+                    "name": "Producto",
+                    "attributes": [
+                        {"name": "id", "type": "int"},
+                        {"name": "nombre", "type": "String"},
+                        {"name": "precio", "type": "double"},
+                        {"name": "activo", "type": "Boolean"},
+                    ],
+                },
+            ],
+            "relationships": [],
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(uml).generate_project(output)
+
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+            # The fix lives only inside AppSchema.normalize(): dash/dash-like
+            # variants become a space, then repeated whitespace collapses.
+            self.assertIn("dashVariants", schema)
+            self.assertIn("result.replaceAll(dash, ' ')", schema)
+            self.assertIn("RegExp(' +')", schema)
+            # Narrow scope: no general punctuation stripping was added.
+            self.assertNotIn("RegExp(r'[^\\w\\s]')", schema)
+
+            router_test = (output / "test/assistant/command_router_test.dart").read_text()
+            # Direct unit-level regressions on AppSchema.normalize() itself.
+            self.assertIn("final base = AppSchema.normalize('Coca cola');", router_test)
+            self.assertIn("expect(base, 'coca cola');", router_test)
+            self.assertIn("expect(AppSchema.normalize('Coca-Cola'), base);", router_test)
+            self.assertIn("expect(AppSchema.normalize('Coca–Cola'), base);", router_test)  # en dash
+            self.assertIn("expect(AppSchema.normalize('Coca—Cola'), base);", router_test)  # em dash
+            self.assertIn("expect(AppSchema.normalize('Coca---Cola'), 'coca cola');", router_test)
+            self.assertIn("expect(AppSchema.normalize('Coca   cola'), 'coca cola');", router_test)
+
+            # Functional regression: a row stored with a plain space is
+            # found by CommandRouter when the UPDATE filter uses a dash.
+            self.assertIn(
+                "UPDATE finds a row stored with a plain space using a filter written with a dash",
+                router_test,
+            )
+            self.assertIn("nameJsonKey: 'Coca cola'", router_test)
+            self.assertIn("filters: {'nombre': 'Coca-Cola'}", router_test)
+
+            # DELETE must reuse the exact same central normalization, not a
+            # duplicated matching implementation in CommandRouter.
+            self.assertIn(
+                "DELETE reuses the same normalized matching as UPDATE (AppSchema.normalize)",
+                router_test,
+            )
+
 
 class FlutterGeneratorApiTests(SimpleTestCase):
     def setUp(self):

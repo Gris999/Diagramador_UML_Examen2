@@ -2587,6 +2587,12 @@ __ENTITIES__
   /// Minúsculas y sin tildes agudas, para comparaciones deterministas. A
   /// propósito NO toca 'ñ'/'ü': son letras propias del español, no vocales
   /// acentuadas.
+  ///
+  /// También trata las variantes comunes de guion/raya como un espacio
+  /// (p. ej. el dictado de iOS que produce "Coca-Cola" para un registro
+  /// guardado como "Coca cola"), y colapsa los espacios repetidos que eso
+  /// pueda dejar. Deliberadamente NO hace una limpieza general de
+  /// puntuación: solo guiones/rayas, para mantener este fix acotado.
   static String normalize(String value) {
     const from = 'áéíóúÁÉÍÓÚ';
     const to = 'aeiouAEIOU';
@@ -2594,6 +2600,11 @@ __ENTITIES__
     for (var i = 0; i < from.length; i++) {
       result = result.replaceAll(from[i], to[i].toLowerCase());
     }
+    const dashVariants = ['-', '‐', '‑', '‒', '–', '—', '―'];
+    for (final dash in dashVariants) {
+      result = result.replaceAll(dash, ' ');
+    }
+    result = result.replaceAll(RegExp(' +'), ' ').trim();
     return result;
   }
 }
@@ -4225,6 +4236,40 @@ class _AssistantViewState extends State<AssistantView> {
   final nameJsonKey = schema.fieldByName({self._assistant_dart_string_literal(name_field)})!.jsonKey;
 """
 
+            router_test_blocks.append('''  test('AppSchema.normalize() treats common dash/hyphen variants as a plain space (voice-recognition artifact, e.g. iOS dictating "Coca-Cola")', () {
+    final base = AppSchema.normalize('Coca cola');
+    expect(base, 'coca cola');
+    expect(AppSchema.normalize('Coca-Cola'), base);
+    expect(AppSchema.normalize('Coca‐Cola'), base);
+    expect(AppSchema.normalize('Coca‑Cola'), base);
+    expect(AppSchema.normalize('Coca‒Cola'), base);
+    expect(AppSchema.normalize('Coca–Cola'), base);
+    expect(AppSchema.normalize('Coca—Cola'), base);
+    expect(AppSchema.normalize('Coca―Cola'), base);
+  });''')
+
+            router_test_blocks.append('''  test('AppSchema.normalize() collapses repeated whitespace left by dash substitution into a single space', () {
+    expect(AppSchema.normalize('Coca---Cola'), 'coca cola');
+    expect(AppSchema.normalize('Coca   cola'), 'coca cola');
+  });''')
+
+            router_test_blocks.append(f"""  test('DELETE reuses the same normalized matching as UPDATE (AppSchema.normalize) to find a dash-written filter against a space-stored value', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Coca cola'}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.delete,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: {self._assistant_render_dart_map([(name_field, 'Coca-Cola')])},
+      rawText: 'test',
+    ));
+    expect(outcome.success, isTrue);
+    expect(outcome.pendingDelete, isNotNull);
+    expect(outcome.pendingDelete!.pk, {pk_string_1});
+  }});""")
+
             router_test_blocks.append(f"""  test('CREATE validates and sends values under normalized backend JSON keys, PK omitted', () async {{
     final adapter = _FakeAdapter(schema, []);
     final router = CommandRouter(registry: {{{entity_literal}: adapter}});
@@ -4312,6 +4357,25 @@ class _AssistantViewState extends State<AssistantView> {
     ));
     expect(outcome.success, isFalse);
     expect(adapter.updateCalls, 0);
+  }});""")
+
+                router_test_blocks.append(f"""  test('UPDATE finds a row stored with a plain space using a filter written with a dash (iOS dictation artifact)', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Coca cola'}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final validated = CommandValidator().validate(BusinessCommand(
+      action: CommandAction.update,
+      entity: {entity_literal},
+      data: {self._assistant_render_dart_map([(update_field['name'], update_raw)])},
+      filters: {self._assistant_render_dart_map([(name_field, 'Coca-Cola')])},
+      rawText: 'test',
+    ));
+    expect(validated.isValid, isTrue, reason: validated.error);
+    final outcome = await router.execute(validated.command!);
+    expect(outcome.success, isTrue);
+    expect(adapter.updateCalls, 1);
+    expect(adapter.lastUpdatedId, {pk_string_1});
   }});""")
 
             router_test_blocks.append(f"""  test('DELETE with zero matches does not delete', () async {{
