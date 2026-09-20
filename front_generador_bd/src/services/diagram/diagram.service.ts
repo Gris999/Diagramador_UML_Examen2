@@ -390,7 +390,7 @@ export class DiagramService {
         getJoint: () => this.joint,
         getEdition: () => this.edition,
         getPaper: () => this.paper,
-        createUmlClass: (payload) => this.createUmlClass(payload),
+        createUmlClass: (payload, remote = false) => this.createUmlClass(payload, remote),
         buildLinkForRemote: this.buildLinkForRemote,
         createRelationship: (sourceId, targetId, remote = false) =>
           this.createRelationship(sourceId, targetId, remote),
@@ -399,7 +399,7 @@ export class DiagramService {
         createTypedRelationship: (sourceId: string, targetId: string, type: string, remote = false) =>
           this.createTypedRelationship(sourceId, targetId, type, remote),
 
-        loadFromJson: (json) => this.loadFromJson(json),
+        loadFromJson: (json, isStorageLoad = false, isRemoteSync = false) => this.loadFromJson(json, isStorageLoad, isRemoteSync),
         exportToJson: () => this.exportService.export(this.graph),
       });
 
@@ -644,7 +644,7 @@ export class DiagramService {
       umlClass.addPort({ group: 'inout', id: 'left' });
       umlClass.addPort({ group: 'inout', id: 'right' });
       umlClass.on('change:size', () => this.edition.updatePorts(umlClass));
-      umlClass.on('change:attrs', () => this.edition.scheduleAutoResize(this.paper, umlClass));
+      umlClass.on('change:attrs', () => this.edition.scheduleAutoResize(umlClass, this.paper));
       // 🔹 Añadir al grafo SOLO UNA VEZ
       this.graph.addCell(umlClass);
       this.edition.scheduleAutoResize(umlClass, this.paper);
@@ -808,7 +808,7 @@ export class DiagramService {
   getJoint() {
     return this.joint;
   }
-  loadFromJson(json: any, isStorageLoad: boolean = false) {
+  loadFromJson(json: any, isStorageLoad: boolean = false, isRemoteSync: boolean = false) {
     if (!this.graph) return;
 
     // DETECTAR SI ES UNA ELIMINACIÓN (tiene elementos con "eliminar": true)
@@ -872,7 +872,7 @@ export class DiagramService {
           size: cls.size || { width: 180, height: 110 },
           attributes: cls.attributes || [],
           methods: cls.methods || []
-        });
+        }, isRemoteSync);
 
         idMap[cls.id] = newCls.id;
       }
@@ -913,7 +913,7 @@ export class DiagramService {
         link.set('vertices', rel.vertices);
       }
 
-      this.graph.addCell(link);
+      this.graph.addCell(link, isRemoteSync ? { collab: true } : undefined);
     });
   }
 
@@ -1041,7 +1041,7 @@ export class DiagramService {
           }
 
           // Redimensionar después de eliminar contenido
-          this.edition.scheduleAutoResize(this.paper, existingElement);
+          this.edition.scheduleAutoResize(existingElement, this.paper);
         }
       });
     }

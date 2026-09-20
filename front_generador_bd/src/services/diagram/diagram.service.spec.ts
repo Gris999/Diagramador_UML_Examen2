@@ -243,4 +243,163 @@ describe('DiagramService AI edit regressions', () => {
     expect(addLinkBroadcasts[0][0].payload.type).toBe('association');
     expect(addLinkBroadcasts[0][0].payload.labels.map((l: any) => l.attrs.text.text)).toEqual(['1', '0..*']);
   });
+
+  class FakeUMLClass {
+    id: string;
+    private state: any;
+    constructor(opts: any) {
+      this.id = opts.id || 'new';
+      this.state = { ...opts };
+    }
+    set(k: any, v: any) {
+      this.state[k] = v;
+      if (k === 'id') this.id = v;
+    }
+    get(k: any) { return this.state[k]; }
+    listeners: any = {};
+    on(evt: string, cb: any) { this.listeners[evt] = cb; }
+    trigger(evt: string) { if (this.listeners[evt]) this.listeners[evt](); }
+    addPort() {}
+    toFront() {}
+    isElement() { return true; }
+  }
+
+  class FakeGraph {
+    cells: any[] = [];
+    addCellCalls: Array<{cell: any, opts: any}> = [];
+    getCells() { return this.cells; }
+    getElements() { return this.cells.filter(c => c.isElement && c.isElement()); }
+    getLinks() { return this.cells.filter(c => !c.isElement || !c.isElement()); }
+    getCell(id: string) { return this.cells.find(c => c.id === id || c.get('id') === id); }
+    addCell(cell: any, opts?: any) {
+      this.cells.push(cell);
+      this.addCellCalls.push({ cell, opts });
+    }
+    on() {}
+    off() {}
+  }
+
+  it('loadFromJson local load broadcasts add_class normally', () => {
+    const service = createService();
+    const broadcast = (service as any).collab.broadcast as jasmine.Spy;
+    (service as any).joint = {
+      shapes: { custom: { UMLClass: FakeUMLClass } }
+    };
+
+    const graph = new FakeGraph();
+    (service as any).graph = graph;
+    (service as any).edition = { scheduleAutoResize: () => {} };
+
+    const json = {
+      classes: [{ id: 'c1', name: 'LocalClass' }],
+      relationships: []
+    };
+
+    service.loadFromJson(json, false, false);
+
+    const addClassBroadcasts = broadcast.calls.allArgs().filter(([msg]: any[]) => msg.t === 'add_class');
+    expect(addClassBroadcasts.length).toBe(1);
+    expect(addClassBroadcasts[0][0].id).toBe('c1');
+    expect(graph.addCellCalls.length).toBe(1);
+    expect(graph.addCellCalls[0].cell.get('name')).toBe('LocalClass');
+  });
+
+  it('loadFromJson remote/full_state load does NOT broadcast add_class or duplicate relationship', () => {
+    const service = createService();
+    const broadcast = (service as any).collab.broadcast as jasmine.Spy;
+    (service as any).joint = {
+      shapes: { custom: { UMLClass: FakeUMLClass } },
+      dia: { Link: FakeLink }
+    };
+
+    const graph = new FakeGraph();
+    (service as any).graph = graph;
+    (service as any).edition = { scheduleAutoResize: () => {} };
+
+    const json = {
+      classes: [{ id: 'c2', name: 'RemoteClass' }],
+      relationships: [
+        { id: 'r1', type: 'association', sourceId: 'c2', targetId: 'c2', labels: [] }
+      ]
+    };
+
+    service.loadFromJson(json, false, true);
+
+    const addClassBroadcasts = broadcast.calls.allArgs().filter(([msg]: any[]) => msg.t === 'add_class');
+    expect(addClassBroadcasts.length).toBe(0);
+
+    const addLinkBroadcasts = broadcast.calls.allArgs().filter(([msg]: any[]) => msg.t === 'add_link');
+    expect(addLinkBroadcasts.length).toBe(0);
+
+    const relAddCellCall = graph.addCellCalls.find(call => call.cell.get('id') === 'r1');
+    expect(relAddCellCall).toBeTruthy();
+    expect(relAddCellCall!.opts).toEqual({ collab: true });
+  });
+  describe('DiagramApi registration and wrappers', () => {
+    let service: any;
+    let collabSpy: any;
+    let api: any;
+    let graph: FakeGraph;
+    let broadcast: jasmine.Spy;
+
+    beforeEach(async () => {
+      service = createService();
+      broadcast = (service as any).collab.broadcast;
+      collabSpy = service.collab;
+      collabSpy.init = jasmine.createSpy('init');
+
+      collabSpy.registerDiagramApi = jasmine.createSpy('registerDiagramApi').and.callFake((registeredApi: any) => {
+        api = registeredApi;
+      });
+
+      service.joint = {
+        shapes: { custom: { UMLClass: FakeUMLClass } },
+        dia: { Link: FakeLink }
+      };
+      graph = new FakeGraph();
+      service.graph = graph;
+      service.edition = { scheduleAutoResize: jasmine.createSpy('scheduleAutoResize'), updatePorts: jasmine.createSpy('updatePorts') };
+      service.paper = { mock: 'paper' };
+      service.exportService = { export: jasmine.createSpy('export') };
+
+      spyOn(localStorage, 'getItem').and.returnValue(null);
+      spyOn(localStorage, 'setItem').and.callFake(() => {});
+
+      const el = document.createElement('div');
+      try {
+        await service.initialize(el, 'test-room');
+      } catch (e) {}
+    });
+
+    it('A) registered createUmlClass forwards remote=true so remote add_class does not rebroadcast', () => {
+      broadcast.calls.reset();
+      api.createUmlClass({ id: 'c1', name: 'Test' }, true);
+      const addClassBroadcasts = broadcast.calls.allArgs().filter(([msg]: any[]) => msg.t === 'add_class');
+      expect(addClassBroadcasts.length).toBe(0);
+    });
+
+    it('B) registered loadFromJson forwards (false, true), and remote full_state does not rebroadcast', () => {
+      broadcast.calls.reset();
+      const json = { classes: [{ id: 'c2', name: 'Test2' }], relationships: [] };
+      api.loadFromJson(json, false, true);
+      const addClassBroadcasts = broadcast.calls.allArgs().filter(([msg]: any[]) => msg.t === 'add_class');
+      expect(addClassBroadcasts.length).toBe(0);
+    });
+
+    it('C) registered loadFromJson forwards isStorageLoad=true for backup restoration', () => {
+      spyOn(service, 'loadFromJson').and.callThrough();
+      const json = { classes: [], relationships: [] };
+      api.loadFromJson(json, true);
+      expect(service.loadFromJson).toHaveBeenCalledWith(json, true, false);
+    });
+
+    it('D) verify scheduleAutoResize receives (model, paper) when attributes change', () => {
+      const cls = api.createUmlClass({ id: 'c3' }, true);
+      // Trigger the listener we set in createUmlClass
+      if (cls.trigger) {
+        cls.trigger('change:attrs');
+      }
+      expect(service.edition.scheduleAutoResize).toHaveBeenCalledWith(cls, service.paper);
+    });
+  });
 });
