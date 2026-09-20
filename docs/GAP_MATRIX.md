@@ -27,9 +27,9 @@ Status values:
 | PostgreSQL generation | VERIFY | Templates/configuration exist |
 | Postman generation | VERIFY | Generator implementation exists |
 | Generated Spring project compiles | MISSING | Need generated-project integration test |
-| Flutter generation | PARTIAL | Basic generator exists |
-| SQLite/offline Flutter persistence | MISSING | Required extension |
-| Local/on-device mobile AI | MISSING | Required MVP/design |
+| Flutter generation | VERIFY | Generator now emits models, CRUD services/views, SQLite offline persistence, M:N intermediate entities, and a schema-aware text/voice command assistant. Generated tests plus Web/APK/iOS builds pass; physical-device validation remains pending. |
+| SQLite/offline Flutter persistence | VERIFY | Implemented in the Flutter generator with SQLite DatabaseHelper and network-first/local-fallback services; generator tests and Web/APK/iOS builds pass. Physical offline runtime demo pending. |
+| Local/on-device mobile AI | PARTIAL | Generated Flutter apps now include a local schema-aware CRUD command assistant and speech-input integration. The command parser is deterministic, not an LLM/AI model; offline/on-device speech and genuine local model inference are still unverified/pending. |
 | AWS deployment | PARTIAL | Needs current deployment path/evidence |
 | Automated tests | PARTIAL | Existing coverage is insufficient for final requirements |
 | PUDS/process documentation | PARTIAL | Needs final alignment |

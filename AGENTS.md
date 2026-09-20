@@ -85,6 +85,8 @@ Port 7000 on macOS is occupied by ControlCenter/AirPlay.
 13. Do not store full conversation transcripts in Engram.
 14. One agent should own one implementation task/branch at a time.
 15. Avoid broad refactors close to the delivery deadline.
+    - Near a delivery deadline, temporary duplication is acceptable when reusing existing logic would require refactoring already-stable generator paths and would materially increase regression risk.
+    - Such duplication must be isolated, explicitly documented as intentional, covered by regression tests, and treated as post-delivery technical debt rather than a preferred design.
 
 ## Testing expectations
 
