@@ -659,3 +659,151 @@ class FlutterGeneratorApiTests(SimpleTestCase):
             self.assertIn("DatabaseHelper.instance.updateLocal", service_content)
             self.assertIn("DatabaseHelper.instance.deleteLocal", service_content)
             self.assertIn("body: json.encode(item.toJson())", service_content)
+
+
+class LocalLlmGeneratorTests(SimpleTestCase):
+    """Cobertura del trabajo Local-LLM Phase A: pubspec, script de setup de
+    iOS, y que la extraccion local por LLM no hardcodee ningun esquema."""
+
+    ALTERNATE_UML = {
+        "classes": [
+            {
+                "id": "vehiculo",
+                "name": "Vehiculo",
+                "attributes": [
+                    {"name": "id", "type": "int"},
+                    {"name": "placa", "type": "String"},
+                    {"name": "kilometraje", "type": "int"},
+                ],
+            },
+            {
+                "id": "taller",
+                "name": "Taller",
+                "attributes": [
+                    {"name": "id", "type": "int"},
+                    {"name": "direccion", "type": "String"},
+                ],
+            },
+        ],
+        "relationships": [
+            {
+                "id": "vehiculo-taller",
+                "type": "association",
+                "sourceId": "vehiculo",
+                "targetId": "taller",
+                "labels": ["*", "1"],
+            }
+        ],
+    }
+
+    def test_pubspec_includes_local_llm_runtime_and_flutter_floor(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            pubspec = (output / "pubspec.yaml").read_text()
+            self.assertIn("llamadart:", pubspec)
+            self.assertIn("llamadart_llama_cpp_flutter:", pubspec)
+            self.assertIn("file_selector:", pubspec)
+            self.assertIn("path_provider:", pubspec)
+            self.assertIn("flutter: '>=3.38.0'", pubspec)
+
+    def test_ios_setup_script_is_generated_and_executable(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            script = output / "tool" / "configure_ios_local_ai.sh"
+            self.assertTrue(script.exists())
+            content = script.read_text()
+            self.assertIn("16.4", content)
+            self.assertIn("IPHONEOS_DEPLOYMENT_TARGET", content)
+            self.assertIn("--verify", content)
+            # No invoca Ruby/CocoaPods: solo sed/grep.
+            self.assertNotIn("pod install", content)
+
+    def test_gguf_picker_declares_ios_uniform_type_identifier(self):
+        # iOS's file_selector_ios throws ArgumentError at runtime if an
+        # XTypeGroup has extensions but no uniformTypeIdentifiers (physically
+        # reproduced on a real iPhone: "The provided type group ... should
+        # either allow all files, or have a non-empty
+        # 'uniformTypeIdentifiers'"). Extensions alone are not enough on iOS.
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            manager = (output / "lib/assistant/local_model_manager.dart").read_text()
+            self.assertIn("uniformTypeIdentifiers", manager)
+            self.assertIn("extensions: ['gguf']", manager)
+
+    def test_local_model_manager_generates_bounded_cpu_fallback_and_cleanup(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            manager = (output / "lib/assistant/local_model_manager.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            lifecycle_tests = (
+                output / "test/assistant/local_model_manager_test.dart"
+            ).read_text()
+
+            self.assertIn("Future<void>? _activeLoad", manager)
+            self.assertIn("preferredBackend: GpuBackend.cpu", manager)
+            self.assertIn("await candidate.dispose()", manager)
+            self.assertIn("if (_ownsModelManager) _modelManager.dispose()", view)
+            self.assertIn("one CPU fallback ends ready", lifecycle_tests)
+            self.assertIn("concurrent load calls share one primary attempt", lifecycle_tests)
+
+    def test_local_llm_extractor_is_byte_identical_across_unrelated_schemas(self):
+        """Prueba directa de que el generador NO hardcodea ningun nombre de
+        entidad/campo de ningun proyecto especifico: el mismo archivo Dart
+        generado para dos esquemas UML completamente distintos (ninguno
+        Producto/Cliente/Venta) debe ser exactamente el mismo, porque toda
+        la logica de la extraccion local consulta AppSchema.entities en
+        tiempo de ejecucion, no en tiempo de generacion."""
+        with tempfile.TemporaryDirectory() as dir_a, tempfile.TemporaryDirectory() as dir_b:
+            output_a = Path(dir_a)
+            output_b = Path(dir_b)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output_a)
+            FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(output_b)
+
+            extractor_a = (output_a / "lib/assistant/local_llm_command_extractor.dart").read_text()
+            extractor_b = (output_b / "lib/assistant/local_llm_command_extractor.dart").read_text()
+            self.assertEqual(extractor_a, extractor_b)
+
+            manager_a = (output_a / "lib/assistant/local_model_manager.dart").read_text()
+            manager_b = (output_b / "lib/assistant/local_model_manager.dart").read_text()
+            self.assertEqual(manager_a, manager_b)
+
+            # 'Role' is deliberately excluded: it's a substring of the
+            # llamadart API type `LlamaChatRole`, unrelated to any UML
+            # schema entity — a coincidental match, not hardcoding.
+            for name in ("Producto", "Cliente", "Venta", "Person", "Pet", "Employee", "Vehiculo", "Taller"):
+                self.assertNotIn(name, extractor_a)
+
+    def test_local_llm_extractor_never_calls_router_or_adapter_directly(self):
+        """La extraccion local SOLO propone un BusinessCommand: nunca debe
+        importar CommandRouter/EntityServiceAdapter ni invocar confirmDelete,
+        que es justamente lo que garantiza que el modelo local no pueda
+        ejecutar nada por si mismo. Mencionarlos en un comentario de
+        documentacion (para explicar la relacion con esas clases) es
+        aceptable; importarlos o invocarlos no lo es."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            extractor = (output / "lib/assistant/local_llm_command_extractor.dart").read_text()
+            self.assertNotIn("import 'command_router.dart'", extractor)
+            self.assertNotIn("import 'entity_service_adapter.dart'", extractor)
+            self.assertNotIn("CommandRouter(", extractor)
+            self.assertNotIn("EntityServiceAdapter(", extractor)
+            self.assertNotIn("confirmDelete(", extractor)
+
+    def test_assistant_view_wires_local_ai_fallback_without_touching_delete_flow(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            self.assertIn("LocalLlmCommandExtractor", view)
+            self.assertIn("LocalModelState.ready", view)
+            # El flujo de confirmacion de DELETE en dos fases sigue intacto y
+            # sin condicionarlo a si el comando vino del modelo local.
+            self.assertIn("_confirmDelete(outcome.pendingDelete!)", view)
+            self.assertIn("_router.confirmDelete(outcome.pendingDelete!)", view)
+            # El fallback nunca se etiqueta como IA.
+            self.assertIn("usedLocalAi", view)

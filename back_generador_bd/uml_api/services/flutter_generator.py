@@ -104,6 +104,7 @@ class FlutterCRUDGenerator:
         # Generar archivos base
         self._generate_pubspec(base_path)
         self._generate_config(base_path)
+        self._generate_ios_local_ai_setup_script(base_path)
         
         # Detectar entidades intermedias de ManyToMany
         intermediate_entities = self._detect_intermediate_entities()
@@ -166,8 +167,11 @@ class FlutterCRUDGenerator:
             self._generate_entity_service_registry(base_path, original_classes)
             self._generate_command_router(base_path)
             self._generate_voice_input_controller(base_path)
+            self._generate_local_model_manager(base_path)
+            self._generate_local_llm_command_extractor(base_path)
             self._generate_assistant_view(base_path)
             self._generate_assistant_tests(base_path, original_classes)
+            self._generate_local_llm_tests(base_path, original_classes)
 
             self._generate_main(base_path, intermediate_entities)
             self._generate_widget_test(base_path)
@@ -246,6 +250,7 @@ version: 1.0.0+1
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
+  flutter: '>=3.38.0'
 
 dependencies:
   flutter:
@@ -256,6 +261,10 @@ dependencies:
   sqflite: ^2.4.4
   path: ^1.9.1
   speech_to_text: ^7.5.0
+  file_selector: ^1.1.0
+  path_provider: ^2.1.6
+  llamadart: ^0.8.23
+  llamadart_llama_cpp_flutter: ^0.0.18
 
 dev_dependencies:
   flutter_test:
@@ -266,7 +275,118 @@ flutter:
   uses-material-design: true
 """
         with open(base_path / 'pubspec.yaml', "w", encoding="utf-8") as f:
-          f.write(self._sanitize(content))    
+          f.write(self._sanitize(content))
+
+    def _generate_ios_local_ai_setup_script(self, base_path):
+        """Genera tool/configure_ios_local_ai.sh: un script POSIX (sed/grep
+        solamente, sin Ruby/plutil) que el desarrollador ejecuta DESPUES de
+        `flutter create . --platforms=ios,android,web`, para fijar el
+        deployment target de iOS en 16.4 (requerido por el motor de
+        inferencia local). No modifica archivos del SDK de Flutter: solo
+        ios/Runner.xcodeproj/project.pbxproj (siempre) e ios/Podfile (solo si
+        existe), ambos dentro del propio proyecto generado.
+        Nota verificada empiricamente (Flutter 3.47.x): `flutter create` con
+        integracion via Swift Package Manager (el default actual) NO genera
+        ios/Podfile en absoluto; solo aparece si/cuando el proyecto adopta
+        CocoaPods. El script debe funcionar en ambos casos: el
+        IPHONEOS_DEPLOYMENT_TARGET del .pbxproj es el requisito real que
+        Xcode exige para resolver el paquete SPM
+        llamadart_llama_cpp_flutter; el Podfile es opcional/best-effort."""
+        content = '''#!/bin/sh
+# Configura el proyecto iOS generado para requerir 16.4+, necesario para la
+# inferencia local (llamadart + llamadart_llama_cpp_flutter). Ejecutar UNA
+# vez despues de `flutter create . --platforms=ios,android,web`.
+#
+# Uso:
+#   tool/configure_ios_local_ai.sh            # aplica el deployment target
+#   tool/configure_ios_local_ai.sh --verify   # solo verifica, no modifica
+#
+# No modifica nada fuera de ios/Runner.xcodeproj/project.pbxproj (siempre) e
+# ios/Podfile (solo si existe) de este proyecto. No requiere Ruby, CocoaPods
+# ni plutil: solo sed/grep.
+#
+# Nota: con integracion via Swift Package Manager (el flujo por defecto en
+# Flutter 3.38+), `flutter create` NO genera ios/Podfile; en ese caso este
+# script solo toca project.pbxproj, que es lo que Xcode realmente exige para
+# resolver el paquete llamadart_llama_cpp_flutter. Si tu proyecto SI usa
+# CocoaPods, tambien fija `platform :ios, 'X.Y'` en el Podfile.
+
+set -eu
+
+TARGET="16.4"
+PODFILE="ios/Podfile"
+PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
+VERIFY_ONLY=0
+
+if [ "${1:-}" = "--verify" ]; then
+  VERIFY_ONLY=1
+fi
+
+if [ ! -f "$PBXPROJ" ]; then
+  echo "error: $PBXPROJ no existe. Ejecuta primero:" >&2
+  echo "  flutter create . --platforms=ios,android,web" >&2
+  exit 1
+fi
+
+check_podfile() {
+  [ -f "$PODFILE" ] || return 0
+  grep -Eq "^[[:space:]]*platform[[:space:]]*:ios,[[:space:]]*['\\"]${TARGET}['\\"]" "$PODFILE"
+}
+
+check_pbxproj() {
+  ! grep -E "IPHONEOS_DEPLOYMENT_TARGET[[:space:]]*=" "$PBXPROJ" \\
+    | grep -vq "IPHONEOS_DEPLOYMENT_TARGET = ${TARGET};"
+}
+
+if [ "$VERIFY_ONLY" -eq 1 ]; then
+  ok=1
+  if ! check_podfile; then
+    echo "FAIL: $PODFILE no fija platform :ios, '${TARGET}'" >&2
+    ok=0
+  fi
+  if ! check_pbxproj; then
+    echo "FAIL: $PBXPROJ tiene un IPHONEOS_DEPLOYMENT_TARGET distinto de ${TARGET}" >&2
+    ok=0
+  fi
+  if [ "$ok" -eq 1 ]; then
+    echo "OK: iOS deployment target ya esta en ${TARGET}"
+    exit 0
+  fi
+  exit 1
+fi
+
+# --- Podfile (si existe): fijar/crear la linea `platform :ios, 'X.Y'` ---
+if [ -f "$PODFILE" ]; then
+  if grep -Eq "^[[:space:]]*#?[[:space:]]*platform[[:space:]]*:ios," "$PODFILE"; then
+    sed -i.bak -E "s/^[[:space:]]*#?[[:space:]]*platform[[:space:]]*:ios,.*/platform :ios, '${TARGET}'/" "$PODFILE"
+  else
+    { echo "platform :ios, '${TARGET}'"; cat "$PODFILE"; } > "$PODFILE.new" && mv "$PODFILE.new" "$PODFILE"
+  fi
+  rm -f "$PODFILE.bak"
+else
+  echo "info: $PODFILE no existe (proyecto integrado via Swift Package Manager); se omite."
+fi
+
+# --- project.pbxproj: reemplazar todas las ocurrencias de
+# IPHONEOS_DEPLOYMENT_TARGET (Debug/Release/Profile suelen repetirla) ---
+sed -i.bak -E "s/IPHONEOS_DEPLOYMENT_TARGET = [^;]*;/IPHONEOS_DEPLOYMENT_TARGET = ${TARGET};/g" "$PBXPROJ"
+rm -f "$PBXPROJ.bak"
+
+if check_podfile && check_pbxproj; then
+  echo "OK: iOS deployment target configurado en ${TARGET}"
+else
+  echo "error: la configuracion no se aplico correctamente; revisa $PBXPROJ (y $PODFILE si existe)" >&2
+  exit 1
+fi
+'''
+        script_path = base_path / 'tool' / 'configure_ios_local_ai.sh'
+        script_path.parent.mkdir(parents=True, exist_ok=True)
+        script_path.write_text(self._sanitize(content), encoding="utf-8", newline="\n")
+        try:
+            script_path.chmod(0o755)
+        except OSError:
+            pass
+
     def _map_sqlite_type(self, uml_type):
         """Mapea tipos UML a columnas SQLite. Date/String->TEXT, int/Long->INTEGER, double->REAL, bool->INTEGER"""
         type_map = {
@@ -2757,6 +2877,17 @@ class CommandParser {
     'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las',
   };
 
+  /// Reconoce solo la intención CRUD explícita del primer verbo, sin
+  /// interpretar todavía entidad, campos ni valores. El extractor local la
+  /// reutiliza como compuerta de seguridad: un LLM nunca puede convertir una
+  /// lectura o una entrada ambigua en una mutación.
+  static CommandAction? recognizeAction(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) return null;
+    final firstToken = trimmed.split(RegExp(r'\s+')).first;
+    return _actionVerbs[AppSchema.normalize(firstToken)];
+  }
+
   ParsedCommandResult parse(String rawText) {
     final trimmed = rawText.trim();
     if (trimmed.isEmpty) {
@@ -2767,7 +2898,7 @@ class CommandParser {
     final verbToken = tokens.first;
     final rest = tokens.length > 1 ? tokens.sublist(1).join(' ') : '';
 
-    final action = _actionVerbs[AppSchema.normalize(verbToken)];
+    final action = recognizeAction(trimmed);
     if (action == null) {
       return ParsedCommandResult.failure('No reconozco la acción "$verbToken".');
     }
@@ -3361,14 +3492,40 @@ class CommandRouter {
   ) async {
     final all = await adapter.list();
     if (command.filters.isEmpty) {
-      return RouterOutcome(success: true, message: '${all.length} resultado(s).', rows: all);
+      return RouterOutcome(success: true, message: _describeRows(schema, all), rows: all);
     }
     final matches = _matchRows(all, schema, command.filters, exact: false);
     return RouterOutcome(
       success: true,
-      message: matches.isEmpty ? 'Sin resultados.' : '${matches.length} resultado(s).',
+      message: _describeRows(schema, matches),
       rows: matches,
     );
+  }
+
+  static const int _maxDescribedRows = 5;
+
+  /// Construye un mensaje de resultado legible y compacto a partir de las
+  /// filas devueltas (mapas indexados por la clave JSON del backend),
+  /// usando unicamente los campos que el esquema real (AssistantEntitySchema)
+  /// define para esta entidad -- nunca un nombre de campo/entidad fijo de
+  /// ningun proyecto. Maneja 0, 1 y varios resultados; para varios, limita
+  /// las filas mostradas para que la salida siga siendo legible en un
+  /// telefono.
+  String _describeRows(AssistantEntitySchema schema, List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) return 'Sin resultados.';
+
+    final buffer = StringBuffer('${rows.length} resultado(s).');
+    for (final row in rows.take(_maxDescribedRows)) {
+      final parts = <String>[];
+      for (final field in schema.fields) {
+        if (!row.containsKey(field.jsonKey)) continue;
+        parts.add('${field.name}: ${row[field.jsonKey]}');
+      }
+      if (parts.isNotEmpty) buffer.write('\\n- ${parts.join(', ')}');
+    }
+    final remaining = rows.length - _maxDescribedRows;
+    if (remaining > 0) buffer.write('\\n… y $remaining más.');
+    return buffer.toString();
   }
 
   Future<RouterOutcome> _executeUpdate(
@@ -3527,20 +3684,1478 @@ class VoiceInputController {
             self._sanitize(content), encoding="utf-8", newline="\n"
         )
 
+    def _generate_local_model_manager(self, base_path):
+        """Genera lib/assistant/local_model_manager.dart (generico): gestiona
+        la seleccion, copia a almacenamiento propio de la app, persistencia y
+        carga/descarga de un modelo GGUF local. No empaqueta ningun modelo
+        con la app ni lo descarga automaticamente: el usuario/desarrollador
+        debe importarlo explicitamente. Cero llamadas de red en este
+        archivo."""
+        content = '''import 'dart:async';
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
+import 'package:llamadart/llamadart.dart';
+import 'package:path_provider/path_provider.dart';
+
+/// Estado del ciclo de vida del modelo local.
+enum LocalModelState { notConfigured, loading, ready, error }
+
+/// Small injectable lifecycle boundary. Production wraps a real
+/// [LlamaEngine]; generated tests use a fake without loading a GGUF.
+abstract class LocalModelEngineHandle {
+  LlamaEngine? get engine;
+  Future<void> loadModel(String path, {ModelParams? modelParams});
+  Future<void> dispose();
+}
+
+class _LlamaModelEngineHandle implements LocalModelEngineHandle {
+  _LlamaModelEngineHandle() : _engine = LlamaEngine(LlamaBackend());
+
+  final LlamaEngine _engine;
+
+  @override
+  LlamaEngine get engine => _engine;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) {
+    return modelParams == null
+        ? _engine.loadModel(path)
+        : _engine.loadModel(path, modelParams: modelParams);
+  }
+
+  @override
+  Future<void> dispose() => _engine.dispose();
+}
+
+typedef LocalModelEngineFactory = LocalModelEngineHandle Function();
+typedef LocalModelDirectoryProvider = Future<Directory> Function();
+
+/// Administra un modelo GGUF local: seleccion (file_selector), copia a
+/// almacenamiento propio de la app (path_provider, no un directorio
+/// temporal, para que persista entre reinicios), metadata minima (nombre de
+/// archivo original), y el ciclo de vida de carga/descarga del motor de
+/// inferencia (llamadart). NUNCA descarga un modelo por red ni incluye uno
+/// empaquetado: [selectAndImportModel] es la unica forma de configurar un
+/// modelo, y siempre requiere una accion explicita del usuario/desarrollador
+/// eligiendo un archivo .gguf local.
+class LocalModelManager extends ChangeNotifier {
+  static const _modelFileName = 'local_model.gguf';
+  static const _metaFileName = 'local_model.meta';
+
+  LocalModelManager({
+    LocalModelEngineFactory? engineFactory,
+    LocalModelDirectoryProvider? modelDirectoryProvider,
+  })  : _engineFactory = engineFactory ?? _LlamaModelEngineHandle.new,
+        _modelDirectoryProvider =
+            modelDirectoryProvider ?? getApplicationSupportDirectory;
+
+  final LocalModelEngineFactory _engineFactory;
+  final LocalModelDirectoryProvider _modelDirectoryProvider;
+
+  LocalModelState _state = LocalModelState.notConfigured;
+  String? _modelFileNameLabel;
+  String? _errorMessage;
+  LocalModelEngineHandle? _engine;
+  Future<void>? _activeLoad;
+  bool _disposed = false;
+
+  LocalModelState get state => _state;
+  String? get modelFileNameLabel => _modelFileNameLabel;
+  String? get errorMessage => _errorMessage;
+
+  /// Motor listo para inferencia. Solo no nulo cuando [state] es
+  /// [LocalModelState.ready] — cualquier otro estado devuelve null, para que
+  /// un llamador nunca use por accidente un motor a medio cargar o
+  /// descargado.
+  LlamaEngine? get engine =>
+      _state == LocalModelState.ready ? _engine?.engine : null;
+
+  Future<Directory> _modelDirectory() => _modelDirectoryProvider();
+
+  void _notifyListeners() {
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<File> _modelFile() async {
+    final dir = await _modelDirectory();
+    return File('${dir.path}/$_modelFileName');
+  }
+
+  Future<File> _metaFile() async {
+    final dir = await _modelDirectory();
+    return File('${dir.path}/$_metaFileName');
+  }
+
+  /// Se llama una vez al iniciar la app (ver AssistantView.initState). Si ya
+  /// hay un modelo previamente importado en almacenamiento propio de la
+  /// app, lo carga automaticamente para no exigir una nueva seleccion en
+  /// cada arranque. Un fallo aqui deja [state] en
+  /// [LocalModelState.error]/[LocalModelState.notConfigured]: el asistente
+  /// sigue funcionando por completo via el parser determinista.
+  Future<void> initialize() async {
+    try {
+      final modelFile = await _modelFile();
+      if (!await modelFile.exists()) {
+        _state = LocalModelState.notConfigured;
+        _notifyListeners();
+        return;
+      }
+      final metaFile = await _metaFile();
+      _modelFileNameLabel =
+          await metaFile.exists() ? (await metaFile.readAsString()).trim() : _modelFileName;
+      await loadModel();
+    } catch (error) {
+      _state = LocalModelState.error;
+      _errorMessage = 'No se pudo inicializar el modelo local: $error';
+      _notifyListeners();
+    }
+  }
+
+  /// Abre un selector de archivos nativo para elegir un .gguf, lo copia a
+  /// almacenamiento propio de la app y lo carga. Cualquier fallo (usuario
+  /// cancela, archivo invalido, error de carga) deja [state] en
+  /// [LocalModelState.error] sin lanzar una excepcion no controlada.
+  Future<void> selectAndImportModel() async {
+    try {
+      // iOS's file_selector_ios requires a non-empty uniformTypeIdentifiers
+      // list (extensions alone are not enough on iOS, unlike other
+      // platforms); 'public.data' is the closest system UTI for an
+      // unregistered custom extension like .gguf, and extensions is kept so
+      // non-iOS platforms still filter by it.
+      const typeGroup = XTypeGroup(
+        label: 'GGUF',
+        extensions: ['gguf'],
+        uniformTypeIdentifiers: ['public.data'],
+      );
+      final picked = await openFile(acceptedTypeGroups: [typeGroup]);
+      if (picked == null) {
+        return;
+      }
+
+      _state = LocalModelState.loading;
+      _errorMessage = null;
+      _notifyListeners();
+
+      await unloadModel();
+
+      final sourceBytes = await picked.readAsBytes();
+      final destination = await _modelFile();
+      await destination.writeAsBytes(sourceBytes, flush: true);
+
+      _modelFileNameLabel = picked.name;
+      final metaFile = await _metaFile();
+      await metaFile.writeAsString(picked.name, flush: true);
+
+      await loadModel();
+    } catch (error) {
+      _state = LocalModelState.error;
+      _errorMessage = 'No se pudo importar el modelo: $error';
+      _notifyListeners();
+    }
+  }
+
+  /// Carga el modelo ya copiado en almacenamiento propio de la app. No hace
+  /// ninguna llamada de red: solo lee el archivo local.
+  Future<void> loadModel() {
+    final active = _activeLoad;
+    if (active != null) return active;
+
+    final operation = _loadModelOnce();
+    _activeLoad = operation;
+    return operation.whenComplete(() {
+      if (identical(_activeLoad, operation)) _activeLoad = null;
+    });
+  }
+
+  Future<void> _loadModelOnce() async {
+    try {
+      _state = LocalModelState.loading;
+      _errorMessage = null;
+      _notifyListeners();
+
+      final modelFile = await _modelFile();
+      if (!await modelFile.exists()) {
+        _state = LocalModelState.notConfigured;
+        _notifyListeners();
+        return;
+      }
+
+      await _disposeCurrentEngine();
+
+      Object? primaryError;
+      try {
+        await _loadCandidate(modelFile.path);
+      } catch (error) {
+        primaryError = error;
+      }
+
+      if (primaryError != null) {
+        try {
+          await _loadCandidate(
+            modelFile.path,
+            modelParams: const ModelParams(
+              preferredBackend: GpuBackend.cpu,
+            ),
+          );
+        } catch (fallbackError) {
+          _state = LocalModelState.error;
+          _errorMessage =
+              'No se pudo cargar el modelo: $fallbackError';
+          _notifyListeners();
+          return;
+        }
+      }
+
+      _state = LocalModelState.ready;
+      _notifyListeners();
+    } catch (error) {
+      await _disposeCurrentEngine();
+      _state = LocalModelState.error;
+      _errorMessage = 'No se pudo cargar el modelo: $error';
+      _notifyListeners();
+    }
+  }
+
+  Future<void> _loadCandidate(
+    String path, {
+    ModelParams? modelParams,
+  }) async {
+    LocalModelEngineHandle? candidate;
+    try {
+      candidate = _engineFactory();
+      _engine = candidate;
+      await candidate.loadModel(path, modelParams: modelParams);
+    } catch (_) {
+      if (identical(_engine, candidate)) _engine = null;
+      if (candidate != null) {
+        try {
+          await candidate.dispose();
+        } catch (_) {
+          // The failed candidate is detached even if native cleanup reports.
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _disposeCurrentEngine() async {
+    final engine = _engine;
+    _engine = null;
+    if (engine == null) return;
+    try {
+      await engine.dispose();
+    } catch (_) {
+      // The manager must drop failed native resources even if cleanup reports.
+    }
+  }
+
+  Future<void> unloadModel() async {
+    final active = _activeLoad;
+    if (active != null) {
+      try {
+        await active;
+      } catch (_) {
+        // The load path owns its error state and candidate cleanup.
+      }
+    }
+    await _disposeCurrentEngine();
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    unawaited(unloadModel());
+    super.dispose();
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'local_model_manager.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_local_llm_command_extractor(self, base_path):
+        """Genera lib/assistant/local_llm_command_extractor.dart (generico:
+        construye el prompt a partir de AppSchema en tiempo de ejecucion, sin
+        ningun nombre de entidad especifico del proyecto en este generador).
+        Devuelve un BusinessCommand propuesto o un fallo; NUNCA ejecuta nada
+        directamente ni llama a CommandRouter/EntityServiceAdapter."""
+        content = '''import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:llamadart/llamadart.dart';
+
+import 'app_schema.dart';
+import 'business_command.dart';
+import 'command_parser.dart';
+import 'local_model_manager.dart';
+
+/// Resultado de intentar extraer un comando usando el modelo local. Misma
+/// forma que ParsedCommandResult (CommandParser) a proposito: ambos caminos
+/// producen, en caso de exito, exactamente el mismo BusinessCommand que
+/// CommandValidator/CommandRouter ya saben consumir sin cambios.
+class LocalLlmExtractionResult {
+  final BusinessCommand? command;
+  final String? error;
+
+  const LocalLlmExtractionResult.success(BusinessCommand command)
+      : command = command,
+        error = null;
+
+  const LocalLlmExtractionResult.failure(String error)
+      : command = null,
+        error = error;
+
+  bool get isSuccess => command != null;
+}
+
+/// Resultado interno de _normalizeByAction: data/filters ya filtrados segun
+/// el esquema real y la accion declarada.
+class _NormalizedCommandFields {
+  final Map<String, dynamic> data;
+  final Map<String, dynamic> filters;
+
+  const _NormalizedCommandFields(this.data, this.filters);
+}
+
+/// Funcion de inferencia cruda inyectable: unicamente para pruebas, permite
+/// sustituir la llamada real al motor local por un doble de prueba
+/// (respuesta valida, JSON malformado, excepcion, o una promesa que nunca
+/// resuelve dentro del timeout de prueba) sin necesitar un archivo .gguf
+/// real ni el motor nativo.
+typedef LocalLlmRawInference = Future<String> Function(String prompt);
+
+/// Convierte texto (escrito o transcrito) en un BusinessCommand propuesto,
+/// usando el modelo GGUF cargado en [modelManager] y el esquema real de la
+/// app (AppSchema) para construir el prompt. Nunca hardcodea el nombre de
+/// ninguna entidad: itera AppSchema.entities en tiempo de ejecucion, por lo
+/// que funciona igual para cualquier esquema UML generado.
+///
+/// Esta clase SOLO propone un comando: no valida contra reglas de negocio
+/// (eso lo hace CommandValidator, sin cambios) ni ejecuta nada (eso lo hace
+/// CommandRouter, sin cambios). Ante cualquier fallo — timeout, JSON
+/// malformado, forma invalida, excepcion del motor, modelo no listo —
+/// devuelve un fallo limpio; nunca lanza una excepcion no controlada y nunca
+/// produce un BusinessCommand parcial.
+class LocalLlmCommandExtractor {
+  final LocalModelManager modelManager;
+  final LocalLlmRawInference? _rawInferenceOverride;
+  final Duration _timeout;
+
+  const LocalLlmCommandExtractor(
+    this.modelManager, {
+    @visibleForTesting LocalLlmRawInference? rawInferenceOverride,
+    Duration timeout = const Duration(seconds: 8),
+  })  : _rawInferenceOverride = rawInferenceOverride,
+        _timeout = timeout;
+
+  static const List<String> _allowedActions = [
+    'create',
+    'read',
+    'update',
+    'delete',
+    'unknown',
+  ];
+
+  Future<LocalLlmExtractionResult> extract(String rawText) async {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return const LocalLlmExtractionResult.failure('Escribe o di un comando.');
+    }
+    if (modelManager.state != LocalModelState.ready && _rawInferenceOverride == null) {
+      return const LocalLlmExtractionResult.failure('El modelo local no esta listo.');
+    }
+
+    final prompt = _buildPrompt(trimmed);
+
+    try {
+      final raw = await _runInference(prompt).timeout(_timeout);
+      return _parseAndBuildCommand(raw, trimmed);
+    } on TimeoutException {
+      return const LocalLlmExtractionResult.failure(
+          'La inferencia local tardo demasiado.');
+    } catch (error) {
+      return LocalLlmExtractionResult.failure(
+          'Error de inferencia local: $error');
+    }
+  }
+
+  Future<String> _runInference(String prompt) {
+    final override = _rawInferenceOverride;
+    if (override != null) {
+      return override(prompt);
+    }
+    return _runRealInference(prompt);
+  }
+
+  /// Camino real (no usado en pruebas): pide JSON estricto (cualquier objeto
+  /// JSON valido, forzado por el grammar constraint del motor) y devuelve el
+  /// texto ya decodificado como String para que _parseAndBuildCommand lo
+  /// procese exactamente igual que la salida de una funcion de prueba
+  /// inyectada.
+  Future<String> _runRealInference(String prompt) async {
+    final engine = modelManager.engine;
+    if (engine == null) {
+      throw StateError('El modelo local no esta listo.');
+    }
+    final result = await engine.createStructuredJson<Map<String, dynamic>>(
+      [
+        LlamaChatMessage.fromText(
+          role: LlamaChatRole.system,
+          text: _systemInstructions(),
+        ),
+        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: prompt),
+      ],
+      output: LlamaStructuredOutput<Map<String, dynamic>>.jsonObject(
+        decoder: (json) => json,
+      ),
+      params: const GenerationParams(temp: 0.1, maxTokens: 256),
+    );
+    return jsonEncode(result);
+  }
+
+  String _systemInstructions() {
+    return 'Traduces instrucciones en espanol a un unico objeto JSON con '
+        'EXACTAMENTE estas claves: "action" (uno de create, read, update, '
+        'delete, unknown), "entity" (nombre de una entidad conocida; es el '
+        'tipo de registro o tabla, nunca el valor de un registro), '
+        '"data" (objeto con los campos a escribir) y "filters" (objeto con '
+        'los campos para ubicar el registro objetivo). Para read, data debe '
+        'estar vacio y el valor buscado debe ir en filters. No respondas '
+        'nada mas que ese objeto JSON.';
+  }
+
+  /// Construye el prompt a partir de AppSchema.entities en tiempo de
+  /// ejecucion. A proposito no contiene ningun literal de entidad/campo de
+  /// ningun proyecto: describe lo que el esquema actual tenga, sea el que
+  /// sea.
+  String _buildPrompt(String rawText) {
+    final buffer = StringBuffer();
+    buffer.writeln('Entidades disponibles:');
+    for (final entity in AppSchema.entities) {
+      final fieldDescriptions = entity.allWritableFields
+          .map((f) => '${f.name}:${f.dartType}${f.isPrimaryKey ? " (pk)" : ""}')
+          .join(', ');
+      final nameFieldDescription = entity.nameField == null
+          ? 'sin campo de nombre'
+          : 'campo de nombre: ${entity.nameField}';
+      buffer.writeln(
+          '- ${entity.name}: $fieldDescriptions; $nameFieldDescription');
+    }
+    buffer.writeln();
+    buffer.writeln(
+        '"entity" debe ser EXACTAMENTE una de las entidades disponibles: '
+        '${AppSchema.entities.map((entity) => entity.name).join(", ")}.');
+    buffer.writeln(
+        '"entity" identifica el tipo de registro o tabla; nunca es el valor '
+        'de un registro. Un nombre, codigo u otro valor solicitado debe ir '
+        'en "filters" bajo un campo real de la entidad elegida.');
+    buffer.writeln(
+        'Si una lectura no nombra el tipo explicitamente, infiere cual de '
+        'las entidades disponibles describe mejor el valor solicitado, pero '
+        'mantiene ese valor dentro de "filters".');
+    buffer.writeln('Para READ usa "data": {}. Formas READ validas:');
+    for (final entity in AppSchema.entities) {
+      final nameField = entity.nameField;
+      if (nameField == null) continue;
+      buffer.writeln('- ${jsonEncode({
+        'action': 'read',
+        'entity': entity.name,
+        'data': <String, dynamic>{},
+        'filters': {nameField: '<valor solicitado>'},
+      })}');
+    }
+    buffer.writeln(
+        'En esas formas reemplaza <valor solicitado> por el valor real de '
+        'la instruccion; no lo copies en "entity".');
+    buffer.writeln();
+    buffer.writeln('Instruccion del usuario: "$rawText"');
+    buffer.writeln(
+        'Responde SOLO el objeto JSON descrito, sin texto adicional ni '
+        'bloques de codigo.');
+    return buffer.toString();
+  }
+
+  LocalLlmExtractionResult _parseAndBuildCommand(String raw, String rawText) {
+    final decoded = _extractJsonObject(raw);
+    if (decoded == null) {
+      return const LocalLlmExtractionResult.failure(
+          'El modelo local no devolvio JSON valido.');
+    }
+
+    final actionRaw = decoded['action'];
+    if (actionRaw is! String || !_allowedActions.contains(actionRaw)) {
+      return const LocalLlmExtractionResult.failure(
+          'El modelo local devolvio una accion no reconocida.');
+    }
+
+    final entityRaw = decoded['entity'];
+    if (entityRaw is! String || entityRaw.trim().isEmpty) {
+      return const LocalLlmExtractionResult.failure(
+          'El modelo local no indico una entidad.');
+    }
+
+    final data = _asStringKeyedMap(decoded['data']);
+    final filters = _asStringKeyedMap(decoded['filters']);
+    if (data == null || filters == null) {
+      return const LocalLlmExtractionResult.failure(
+          'El modelo local devolvio "data"/"filters" con una forma invalida.');
+    }
+
+    final action = CommandAction.values.firstWhere(
+      (a) => a.name == actionRaw,
+      orElse: () => CommandAction.unknown,
+    );
+    final entity = AppSchema.resolveEntity(entityRaw);
+
+    final normalized = _normalizeByAction(
+      action: action,
+      entity: entity,
+      data: data,
+      filters: filters,
+      rawText: rawText,
+    );
+    if (normalized == null) {
+      // El modelo local no propuso un comando confiable para esta accion
+      // (ver _normalizeByAction): en vez de dejar pasar un BusinessCommand
+      // potencialmente inseguro o incompleto, esto se trata igual que
+      // cualquier otro fallo de extraccion -- el llamador (AssistantView)
+      // cae automaticamente al CommandParser determinista existente, que ya
+      // sabe interpretar texto en espanol (incluida la accion de lectura)
+      // de forma segura y sin inventar datos.
+      return const LocalLlmExtractionResult.failure(
+          'El modelo local no propuso un comando confiable.');
+    }
+
+    return LocalLlmExtractionResult.success(BusinessCommand(
+      action: action,
+      entity: entity!.name,
+      data: normalized.data,
+      filters: normalized.filters,
+      rawText: rawText,
+    ));
+  }
+
+  /// Normaliza data/filters segun la accion declarada, usando unicamente el
+  /// esquema real (AssistantEntitySchema) -- nunca un nombre de
+  /// campo/entidad fijo de ningun proyecto -- y devuelve null cuando la
+  /// salida del modelo local no es confiable para esa accion, en cuyo caso
+  /// [extract] falla limpiamente (ver arriba) en vez de proponer un
+  /// BusinessCommand inseguro. Reglas por accion:
+  /// - READ/DELETE: [data] nunca participa, siempre queda vacio; [filters]
+  ///   solo conserva claves que sean campos reales del esquema, sin valores
+  ///   nulos/vacios (un filtro nulo no es una restriccion real del usuario).
+  /// - UPDATE: [data] solo conserva campos escribibles reales que no sean
+  ///   la clave primaria; [filters] igual que arriba. Si alguno queda vacio,
+  ///   se rechaza antes de llegar al validador.
+  /// - CREATE: [data] solo conserva campos escribibles reales (la clave
+  ///   primaria autoincremental nunca se acepta, aunque el modelo la
+  ///   incluya); TODO campo requerido en creacion debe estar presente (si
+  ///   falta o vino nulo, se rechaza -- visto fisicamente: el modelo a
+  ///   veces envia null en vez de omitir el campo); y cada valor propuesto
+  ///   (salvo booleano, dificil de mapear a texto libre de forma generica)
+  ///   debe tener respaldo textual real en lo que el usuario efectivamente
+  ///   escribio o dijo -- el modelo no puede inventar un precio/cantidad/
+  ///   etc. que no aparece en absoluto en la entrada (visto fisicamente: el
+  ///   modelo alucino precio/stock completos para una entrada que no los
+  ///   mencionaba en absoluto). El respaldo textual se limita a valores
+  ///   numericos, que son el patron fisicamente reproducido.
+  /// Toda accion mutante (CREATE/UPDATE/DELETE) debe coincidir con la
+  /// intencion explicita que CommandParser reconoce en el primer verbo del
+  /// texto crudo. Una entidad desconocida o una mutacion no respaldada se
+  /// rechaza para activar el fallback determinista sin ejecutar nada.
+  _NormalizedCommandFields? _normalizeByAction({
+    required CommandAction action,
+    required AssistantEntitySchema? entity,
+    required Map<String, dynamic> data,
+    required Map<String, dynamic> filters,
+    required String rawText,
+  }) {
+    if (entity == null) return null;
+
+    final isMutation = action == CommandAction.create ||
+        action == CommandAction.update ||
+        action == CommandAction.delete;
+    if (isMutation && CommandParser.recognizeAction(rawText) != action) {
+      return null;
+    }
+
+    Map<String, dynamic> keepKnownNonEmptyFields(
+      Map<String, dynamic> source, {
+      bool writableOnly = false,
+    }) {
+      final result = <String, dynamic>{};
+      for (final entry in source.entries) {
+        if (entry.value == null) continue;
+        if (entry.value is String && (entry.value as String).trim().isEmpty) continue;
+        final field = entity.fieldByName(entry.key);
+        if (field != null && (!writableOnly || field.writable)) {
+          result[entry.key] = entry.value;
+        }
+      }
+      return result;
+    }
+
+    switch (action) {
+      case CommandAction.read:
+        return _NormalizedCommandFields(const {}, keepKnownNonEmptyFields(filters));
+
+      case CommandAction.delete:
+        final cleanFilters = keepKnownNonEmptyFields(filters);
+        if (cleanFilters.isEmpty) return null;
+        return _NormalizedCommandFields(const {}, cleanFilters);
+
+      case CommandAction.update:
+        final cleanData = <String, dynamic>{};
+        for (final entry in keepKnownNonEmptyFields(data, writableOnly: true).entries) {
+          if (entity.fieldByName(entry.key)!.isPrimaryKey) continue;
+          cleanData[entry.key] = entry.value;
+        }
+        final cleanFilters = keepKnownNonEmptyFields(filters);
+        if (cleanData.isEmpty || cleanFilters.isEmpty) return null;
+        return _NormalizedCommandFields(cleanData, cleanFilters);
+
+      case CommandAction.create:
+        final cleanData = <String, dynamic>{};
+        for (final entry in keepKnownNonEmptyFields(data, writableOnly: true).entries) {
+          final field = entity.fieldByName(entry.key)!;
+          if (field.isPrimaryKey && field.isAutoIncrement) continue;
+          cleanData[entry.key] = entry.value;
+        }
+        for (final field in entity.allWritableFields) {
+          if (!field.requiredOnCreate) continue;
+          if (field.isPrimaryKey && field.isAutoIncrement) continue;
+          if (!cleanData.containsKey(field.name)) return null;
+        }
+        // El respaldo textual solo se exige para campos numericos: es
+        // exactamente el patron de alucinacion observado fisicamente
+        // (precio/stock inventados de la nada). Un campo de texto (p.ej. el
+        // nombre) no se exige aqui -- ya viene acotado por otras vias (debe
+        // coincidir con un campo real del esquema) y exigirle respaldo
+        // textual literal seria fragil (variantes de formato/orden) para un
+        // patron de alucinacion que la evidencia fisica no mostro en texto.
+        final rawNumbers = RegExp(r'-?\\d+(?:[.,]\\d+)?')
+            .allMatches(rawText)
+            .map((match) => match.group(0)!.replaceAll(',', '.'))
+            .map(num.tryParse)
+            .whereType<num>()
+            .toList();
+        for (final entry in cleanData.entries) {
+          final field = entity.fieldByName(entry.key)!;
+          if (field.dartType != 'int' && field.dartType != 'double') continue;
+          final proposed = entry.value is num
+              ? entry.value as num
+              : num.tryParse(entry.value.toString().replaceAll(',', '.'));
+          if (proposed == null) return null;
+          final grounded = rawNumbers.any((candidate) => candidate == proposed);
+          if (!grounded) return null;
+        }
+        return _NormalizedCommandFields(cleanData, const {});
+
+      case CommandAction.unknown:
+        return _NormalizedCommandFields(const {}, const {});
+    }
+  }
+
+  Map<String, dynamic>? _asStringKeyedMap(dynamic value) {
+    if (value == null) return <String, dynamic>{};
+    if (value is Map) {
+      return value.map((key, v) => MapEntry(key.toString(), v));
+    }
+    return null;
+  }
+
+  /// Extrae y decodifica el primer objeto JSON valido de una respuesta de
+  /// texto libre: tolera cercas de markdown (```json ... ```), texto
+  /// sobrante antes/despues, y recorta al primer '{' .. ultimo '}'
+  /// balanceado antes de rendirse. El camino real ya pide JSON estricto via
+  /// grammar constraint, pero esta funcion es la misma para el camino real
+  /// y para las funciones de inferencia de prueba, que pueden devolver
+  /// deliberadamente salidas mal formadas.
+  Map<String, dynamic>? _extractJsonObject(String raw) {
+    final direct = _tryDecodeObject(raw);
+    if (direct != null) return direct;
+
+    final fenced = raw.replaceAll(RegExp(r'```(json)?'), '');
+    final fencedResult = _tryDecodeObject(fenced);
+    if (fencedResult != null) return fencedResult;
+
+    final start = raw.indexOf('{');
+    final end = raw.lastIndexOf('}');
+    if (start == -1 || end == -1 || end <= start) return null;
+    return _tryDecodeObject(raw.substring(start, end + 1));
+  }
+
+  Map<String, dynamic>? _tryDecodeObject(String candidate) {
+    try {
+      final decoded = jsonDecode(candidate.trim());
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) {
+        return decoded.map((key, v) => MapEntry(key.toString(), v));
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'local_llm_command_extractor.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_local_llm_tests(self, base_path, original_classes):
+        """Genera test/assistant/local_llm_command_extractor_test.dart. Usa
+        SIEMPRE un backend de inferencia falso inyectado (rawInferenceOverride):
+        ninguna prueba automatizada requiere un archivo .gguf real ni el motor
+        nativo. Adaptado al esquema UML real igual que _generate_assistant_tests,
+        para no hardcodear ningun nombre de entidad de ningun proyecto
+        especifico en este generador."""
+        manager_test_content = '''import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/assistant_view.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+import 'package:llamadart/llamadart.dart';
+
+class _FakeEngine implements LocalModelEngineHandle {
+  _FakeEngine({this.loadError, this.loadGate});
+
+  final Object? loadError;
+  final Completer<void>? loadGate;
+  int loadCalls = 0;
+  int disposeCalls = 0;
+  ModelParams? receivedParams;
+  String? receivedPath;
+
+  @override
+  LlamaEngine? get engine => null;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) async {
+    loadCalls++;
+    receivedPath = path;
+    receivedParams = modelParams;
+    if (loadGate != null) await loadGate!.future;
+    if (loadError != null) throw loadError!;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposeCalls++;
+  }
+}
+
+void main() {
+  late Directory directory;
+
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp('local-model-manager-');
+  });
+
+  tearDown(() async {
+    if (await directory.exists()) await directory.delete(recursive: true);
+  });
+
+  Future<void> seedPersistedModel() async {
+    await File('${directory.path}/local_model.gguf').writeAsBytes([1, 2, 3]);
+    await File('${directory.path}/local_model.meta').writeAsString('model.gguf');
+  }
+
+  LocalModelManager managerFor(List<_FakeEngine> engines) {
+    var nextEngine = 0;
+    return LocalModelManager(
+      engineFactory: () => engines[nextEngine++],
+      modelDirectoryProvider: () async => directory,
+    );
+  }
+
+  test('failed primary is disposed and one CPU fallback ends ready', () async {
+    await seedPersistedModel();
+    final primary = _FakeEngine(loadError: Exception('primary failed'));
+    final fallback = _FakeEngine();
+    final manager = managerFor([primary, fallback]);
+
+    await manager.initialize();
+
+    expect(manager.state, LocalModelState.ready);
+    expect(primary.loadCalls, 1);
+    expect(primary.receivedParams, isNull);
+    expect(primary.disposeCalls, 1);
+    expect(fallback.loadCalls, 1);
+    expect(fallback.receivedParams!.preferredBackend, GpuBackend.cpu);
+    expect(fallback.disposeCalls, 0);
+    expect(fallback.receivedPath, '${directory.path}/local_model.gguf');
+  });
+
+  test('primary and CPU fallback failure end error and dispose both', () async {
+    await seedPersistedModel();
+    final primary = _FakeEngine(loadError: Exception('primary failed'));
+    final fallback = _FakeEngine(loadError: Exception('fallback failed'));
+    final manager = managerFor([primary, fallback]);
+
+    await manager.initialize();
+
+    expect(manager.state, LocalModelState.error);
+    expect(primary.loadCalls, 1);
+    expect(fallback.loadCalls, 1);
+    expect(primary.disposeCalls, 1);
+    expect(fallback.disposeCalls, 1);
+  });
+
+  test('concurrent load calls share one primary attempt', () async {
+    await seedPersistedModel();
+    final gate = Completer<void>();
+    final primary = _FakeEngine(loadGate: gate);
+    final manager = managerFor([primary]);
+
+    final first = manager.loadModel();
+    final second = manager.loadModel();
+    while (primary.loadCalls == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(primary.loadCalls, 1);
+    gate.complete();
+    await Future.wait([first, second]);
+    expect(manager.state, LocalModelState.ready);
+  });
+
+  test('persisted model autoload needs no import or copy', () async {
+    await seedPersistedModel();
+    final primary = _FakeEngine();
+    final manager = managerFor([primary]);
+
+    await manager.initialize();
+
+    expect(manager.state, LocalModelState.ready);
+    expect(primary.loadCalls, 1);
+    expect(await File('${directory.path}/local_model.gguf').readAsBytes(), [1, 2, 3]);
+  });
+
+  test('manager disposal releases the successful engine', () async {
+    await seedPersistedModel();
+    final primary = _FakeEngine();
+    final manager = managerFor([primary]);
+    await manager.initialize();
+
+    manager.dispose();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(primary.disposeCalls, 1);
+  });
+
+  testWidgets('AssistantView disposes its owned manager and engine', (tester) async {
+    await seedPersistedModel();
+    final primary = _FakeEngine();
+    final manager = managerFor([primary]);
+
+    await tester.pumpWidget(MaterialApp(
+      home: AssistantView(modelManagerFactory: () => manager),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(manager.state, LocalModelState.ready);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump();
+
+    expect(primary.disposeCalls, 1);
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'local_model_manager_test.dart').write_text(
+            self._sanitize(manager_test_content), encoding="utf-8", newline="\n"
+        )
+
+        metas = [self._assistant_entity_metadata(c) for c in original_classes]
+        def supports_complete_create(meta):
+            fields = meta['fields']
+            if not meta['name_field'] or not fields or fields[0]['dart_type'] == 'double':
+                return False
+            required = [
+                *[field for field in fields if field['required_on_create']],
+                *[rel for rel in meta['relations'] if rel['required_on_create']],
+            ]
+            return all(field['writable'] for field in required)
+
+        create_subjects = [m for m in metas if supports_complete_create(m)]
+        subject = next(
+            (
+                m for m in create_subjects
+                if any(
+                    field['required_on_create']
+                    and not field['is_primary_key']
+                    and field['dart_type'] in ('int', 'double')
+                    for field in m['fields']
+                )
+            ),
+            create_subjects[0] if create_subjects else None,
+        )
+        if subject is None:
+            content = (
+                "import 'package:flutter_test/flutter_test.dart';\n\n"
+                "void main() {\n"
+                "  test('no assistant-writable entity in this schema', () {\n"
+                "    expect(true, isTrue);\n"
+                "  });\n"
+                "}\n"
+            )
+            (base_path / 'test' / 'assistant' / 'local_llm_command_extractor_test.dart').write_text(
+                self._sanitize(content), encoding="utf-8", newline="\n"
+            )
+            return
+
+        entity_name = subject['name']
+        entity_literal = self._assistant_dart_string_literal(entity_name)
+        name_field = subject['name_field']
+        writable_extra = [
+            f for f in subject['fields']
+            if f['writable'] and not f['is_primary_key'] and f['name'] != name_field
+        ]
+        update_field = writable_extra[0]['name'] if writable_extra else name_field
+        pk_dart_type = subject['fields'][0]['dart_type']
+        pk_json_literal = "1" if pk_dart_type == 'int' else "'seed-1'"
+
+        content = '''import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/app_schema.dart';
+import 'package:generated_crud_app/assistant/business_command.dart';
+import 'package:generated_crud_app/assistant/command_parser.dart';
+import 'package:generated_crud_app/assistant/command_router.dart';
+import 'package:generated_crud_app/assistant/command_validator.dart';
+import 'package:generated_crud_app/assistant/entity_service_adapter.dart';
+import 'package:generated_crud_app/assistant/local_llm_command_extractor.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+
+class _FakeAdapter extends EntityServiceAdapter {
+  _FakeAdapter(super.schema, this.rows);
+  final List<Map<String, dynamic>> rows;
+  int deleteCalls = 0;
+  Map<String, dynamic>? lastCreatedMap;
+
+  @override
+  Future<List<Map<String, dynamic>>> list() async => rows;
+
+  @override
+  Future<Map<String, dynamic>> create(Map<String, dynamic> jsonData) async {
+    lastCreatedMap = jsonData;
+    return jsonData;
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateFromMap(String id, Map<String, dynamic> mergedJsonData) async =>
+      mergedJsonData;
+
+  @override
+  Future<void> deleteById(String id) async {
+    deleteCalls++;
+  }
+}
+
+dynamic _sampleRequiredValue(AssistantFieldSchema field, int seed) {
+  return switch (field.dartType) {
+    'int' => 10 + seed,
+    'double' => 10.5 + seed,
+    'bool' => true,
+    _ => 'Ejemplo $seed',
+  };
+}
+
+Map<String, dynamic> _completeCreateData(AssistantEntitySchema schema) {
+  final result = <String, dynamic>{};
+  var seed = 1;
+  for (final field in schema.allWritableFields) {
+    if (!field.requiredOnCreate) continue;
+    if (field.isPrimaryKey && field.isAutoIncrement) continue;
+    result[field.name] = _sampleRequiredValue(field, seed++);
+  }
+  return result;
+}
+
+String _groundedCreateText(
+  AssistantEntitySchema schema,
+  Map<String, dynamic> data, {
+  Set<String> omittedFields = const {},
+}) {
+  final values = data.entries
+      .where((entry) => !omittedFields.contains(entry.key))
+      .map((entry) => entry.value)
+      .join(' ');
+  return 'agrega ${schema.name.toLowerCase()} $values';
+}
+
+void main() {
+  final schema = AppSchema.entities.firstWhere((e) => e.name == __ENTITY__);
+  final pkJsonKey = schema.pkField.jsonKey;
+  final nameJsonKey = schema.fieldByName(__NAME_FIELD__)!.jsonKey;
+
+  test('with no model ready and no fake backend injected, behaves exactly like having no local AI at all', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(manager);
+    final result = await extractor.extract('cualquier texto');
+    expect(result.isSuccess, isFalse);
+  });
+
+  test('extracts a valid CREATE JSON into a BusinessCommand', () async {
+    final manager = LocalModelManager();
+    final createData = _completeCreateData(schema);
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async {
+        // The prompt must be schema-driven: it names the entity under test
+        // because AppSchema.entities says so at runtime, never because the
+        // generator hardcoded it.
+        expect(prompt, contains(__ENTITY__));
+        return jsonEncode({
+          'action': 'create',
+          'entity': __ENTITY__,
+          'data': createData,
+          'filters': <String, dynamic>{},
+        });
+      },
+    );
+    final result = await extractor.extract(_groundedCreateText(schema, createData));
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.create);
+    expect(result.command!.entity, __ENTITY__);
+    expect(result.command!.data, createData);
+  });
+
+  test('strips a hallucinated auto-increment primary key from CREATE data before it reaches CommandValidator', () async {
+    final manager = LocalModelManager();
+    final pkFieldName = schema.pkField.name;
+    if (!schema.pkField.isAutoIncrement) return;
+    final createData = _completeCreateData(schema)..[pkFieldName] = __PK_JSON__;
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': createData,
+        'filters': <String, dynamic>{},
+      }),
+    );
+    final result = await extractor.extract(_groundedCreateText(
+      schema,
+      createData,
+      omittedFields: {pkFieldName},
+    ));
+    expect(result.isSuccess, isTrue, reason: result.error);
+    // The auto-increment primary key must never reach the validator/router,
+    // even though the local model hallucinated it in its own JSON output.
+    expect(result.command!.data.containsKey(pkFieldName), isFalse);
+
+    final validated = CommandValidator().validate(result.command!);
+    expect(validated.isValid, isTrue, reason: validated.error);
+  });
+
+  test('extracts a valid READ JSON into a BusinessCommand', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"read","entity":__ENTITY_JSON__,"data":{},"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno"}}',
+    );
+    final result = await extractor.extract('muestrame ese');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.read);
+    expect(result.command!.filters[__NAME_FIELD__], 'Ejemplo Uno');
+  });
+
+  test('READ keeps the schema entity separate from the requested record value', () async {
+    final nameField = schema.nameField;
+    if (nameField == null) return;
+    const recordValue = 'Registro Objetivo';
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async {
+        final expectedShape = jsonEncode({
+          'action': 'read',
+          'entity': schema.name,
+          'data': <String, dynamic>{},
+          'filters': {nameField: '<valor solicitado>'},
+        });
+        expect(prompt, contains(expectedShape));
+        expect(prompt, contains('nunca es el valor de un registro'));
+        return jsonEncode({
+          'action': 'read',
+          'entity': schema.name,
+          'data': <String, dynamic>{},
+          'filters': {nameField: recordValue},
+        });
+      },
+    );
+
+    final result = await extractor.extract('busca $recordValue');
+
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.read);
+    expect(result.command!.entity, schema.name);
+    expect(result.command!.data, isEmpty);
+    expect(result.command!.filters, {nameField: recordValue});
+  });
+
+  test('entity aliases are canonicalized through AppSchema', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'read',
+        'entity': schema.name.toLowerCase(),
+        'data': <String, dynamic>{},
+        'filters': <String, dynamic>{},
+      }),
+    );
+
+    final result = await extractor.extract('lista ${schema.name.toLowerCase()}');
+
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.entity, schema.name);
+  });
+
+  test('a record value emitted as entity is rejected instead of becoming a command', () async {
+    const recordValue = 'Registro Objetivo';
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'read',
+        'entity': recordValue,
+        'data': <String, dynamic>{},
+        'filters': <String, dynamic>{},
+      }),
+    );
+
+    final result = await extractor.extract('busca $recordValue');
+
+    expect(result.isSuccess, isFalse);
+    expect(result.command, isNull);
+  });
+
+  test('extracts a valid UPDATE JSON into a BusinessCommand', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"update","entity":__ENTITY_JSON__,"data":{__UPDATE_FIELD_JSON__:"nuevo"},"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno"}}',
+    );
+    final result = await extractor.extract('actualiza ese');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.update);
+    expect(result.command!.data[__UPDATE_FIELD__], 'nuevo');
+  });
+
+  test('extracts a valid DELETE JSON, and CommandRouter still requires explicit two-phase confirmation before deleting anything', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"delete","entity":__ENTITY_JSON__,"data":{},"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno"}}',
+    );
+    final result = await extractor.extract('elimina ese');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.delete);
+
+    final validated = CommandValidator().validate(result.command!);
+    expect(validated.isValid, isTrue, reason: validated.error);
+
+    final adapter = _FakeAdapter(schema, [
+      {pkJsonKey: __PK_JSON__, nameJsonKey: 'Ejemplo Uno'},
+    ]);
+    final router = CommandRouter(registry: {__ENTITY__: adapter});
+    final outcome = await router.execute(validated.command!);
+
+    // Phase 1 only: a pending delete is proposed, nothing was deleted yet.
+    expect(outcome.success, isTrue);
+    expect(outcome.pendingDelete, isNotNull);
+    expect(adapter.deleteCalls, 0);
+
+    // Phase 2: only an explicit confirmDelete(pending) call — using the
+    // exact PendingDelete already returned above, never re-derived from
+    // filters — actually deletes.
+    final confirmed = await router.confirmDelete(outcome.pendingDelete!);
+    expect(confirmed.success, isTrue);
+    expect(adapter.deleteCalls, 1);
+  });
+
+  test('falls back cleanly when the local model returns malformed JSON', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async => 'esto no es JSON en absoluto',
+    );
+    final result = await extractor.extract('cualquier texto');
+    expect(result.isSuccess, isFalse);
+    expect(result.error, isNotNull);
+  });
+
+  test('extracts JSON even when wrapped in a markdown code fence with extra prose', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          'Claro, aqui esta:\\n```json\\n{"action":"read","entity":__ENTITY_JSON__,"data":{},"filters":{}}\\n```\\nEspero que ayude.',
+    );
+    final result = await extractor.extract('lista todos');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.read);
+  });
+
+  test('falls back cleanly when local inference throws', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async => throw Exception('simulated engine failure'),
+    );
+    final result = await extractor.extract('cualquier texto');
+    expect(result.isSuccess, isFalse);
+    expect(result.error, isNotNull);
+  });
+
+  test('falls back cleanly when local inference times out', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) => Future.delayed(const Duration(seconds: 5), () => '{}'),
+      timeout: const Duration(milliseconds: 20),
+    );
+    final result = await extractor.extract('cualquier texto');
+    expect(result.isSuccess, isFalse);
+    expect(result.error, isNotNull);
+  });
+
+  test('rejects an unknown action string in the model output (shape check)', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"teleport","entity":__ENTITY_JSON__,"data":{},"filters":{}}',
+    );
+    final result = await extractor.extract('cualquier texto');
+    expect(result.isSuccess, isFalse);
+  });
+
+  test('an unresolvable entity is rejected by extraction so AppSchema remains authoritative', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"create","entity":"NoExisteEnEsteEsquema","data":{},"filters":{}}',
+    );
+    final result = await extractor.extract('crea un marciano');
+    expect(result.isSuccess, isFalse);
+    expect(result.command, isNull);
+  });
+
+  test('an unknown field from the model is dropped by extractor normalization; with no real required data left, extraction now fails closed instead of reaching CommandValidator', () async {
+    final manager = LocalModelManager();
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"create","entity":__ENTITY_JSON__,"data":{"campoInventadoXYZ":"1"},"filters":{}}',
+    );
+    final result = await extractor.extract('crea uno con un campo inventado');
+    // The unknown field is stripped by _normalizeByAction (it is not a real
+    // schema field), which leaves no real required CREATE data behind, so
+    // this is now correctly rejected at the extraction layer -- the same
+    // outcome (this command never mutates anything) as before, just caught
+    // one layer earlier, and with the existing deterministic-parser
+    // fallback available to the caller instead of a doomed command reaching
+    // CommandValidator.
+    expect(result.isSuccess, isFalse);
+    expect(result.error, isNotNull);
+  });
+
+  test('CREATE with a fabricated value that has no grounding in the raw user text is rejected at extraction (physically reproduced: model hallucinated precio/stock for input that never mentioned them)', () async {
+    final manager = LocalModelManager();
+    final numericFields = schema.allWritableFields.where((field) =>
+        field.requiredOnCreate &&
+        !field.isPrimaryKey &&
+        (field.dartType == 'int' || field.dartType == 'double')).toList();
+    if (numericFields.isEmpty) return;
+    final fabricatedField = numericFields.first;
+    final createData = _completeCreateData(schema)
+      ..[fabricatedField.name] = 989898989;
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': createData,
+        'filters': <String, dynamic>{},
+      }),
+    );
+    final result = await extractor.extract(_groundedCreateText(
+      schema,
+      createData,
+      omittedFields: {fabricatedField.name},
+    ));
+    expect(result.isSuccess, isFalse);
+    expect(result.error, isNotNull);
+  });
+
+  test('numeric grounding compares complete values instead of accepting a substring match', () async {
+    final numericFields = schema.allWritableFields.where((field) =>
+        field.requiredOnCreate &&
+        !field.isPrimaryKey &&
+        (field.dartType == 'int' || field.dartType == 'double')).toList();
+    if (numericFields.isEmpty) return;
+    final numericField = numericFields.first;
+    const proposedValue = 989898989;
+    final createData = _completeCreateData(schema)
+      ..[numericField.name] = proposedValue;
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': createData,
+        'filters': <String, dynamic>{},
+      }),
+    );
+    final result = await extractor.extract(
+      '${_groundedCreateText(schema, createData, omittedFields: {numericField.name})} '
+      '${proposedValue}0',
+    );
+    expect(result.isSuccess, isFalse);
+  });
+
+  test('CREATE is rejected at extraction when a required field is present but null (physically reproduced: model sent null instead of omitting the field)', () async {
+    final manager = LocalModelManager();
+    final requiredFields = schema.allWritableFields.where((field) =>
+        field.requiredOnCreate &&
+        !(field.isPrimaryKey && field.isAutoIncrement)).toList();
+    if (requiredFields.isEmpty) return;
+    final requiredField = requiredFields.last;
+    final createData = _completeCreateData(schema)..[requiredField.name] = null;
+    final extractor = LocalLlmCommandExtractor(
+      manager,
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': createData,
+        'filters': <String, dynamic>{},
+      }),
+    );
+    final result = await extractor.extract(_groundedCreateText(
+      schema,
+      createData,
+      omittedFields: {requiredField.name},
+    ));
+    expect(result.isSuccess, isFalse);
+    expect(result.error, isNotNull);
+  });
+
+  test('READ never lets data participate and drops hallucinated/unknown/empty filters', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"read","entity":__ENTITY_JSON__,'
+          '"data":{__NAME_FIELD_JSON__:"no deberia importar"},'
+          '"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno","campoInventadoXYZ":"1",'
+          '"otroCampo":null}}',
+    );
+    final result = await extractor.extract(
+        'muestra ${schema.name.toLowerCase()} Ejemplo Uno');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.data, isEmpty);
+    expect(result.command!.filters, {__NAME_FIELD__: 'Ejemplo Uno'});
+  });
+
+  test('a supported Spanish READ falls back to CommandParser when the LLM proposes CREATE', () async {
+    final createData = _completeCreateData(schema);
+    final rawText = 'muestra ${schema.name.toLowerCase()} Ejemplo Uno';
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': createData,
+        'filters': <String, dynamic>{},
+      }),
+    );
+
+    final llmResult = await extractor.extract(rawText);
+    expect(llmResult.isSuccess, isFalse);
+
+    final fallback = CommandParser().parse(rawText);
+    expect(fallback.isSuccess, isTrue, reason: fallback.error);
+    expect(fallback.command!.action, CommandAction.read);
+    expect(fallback.command!.data, isEmpty);
+  });
+
+  test('an ambiguous request cannot become CREATE, UPDATE, or DELETE', () async {
+    final createData = _completeCreateData(schema);
+    final rawText = 'consulta ${schema.name.toLowerCase()} Ejemplo Uno';
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': createData,
+        'filters': <String, dynamic>{},
+      }),
+    );
+
+    final llmResult = await extractor.extract(rawText);
+    final fallback = CommandParser().parse(rawText);
+    expect(llmResult.command, isNull);
+    expect(fallback.command, isNull);
+  });
+}
+'''
+        content = (
+            content
+            # JSON-text placeholders MUST be substituted before the
+            # Dart-expression placeholders below, since e.g. __ENTITY_JSON__
+            # contains __ENTITY__ as a substring and would otherwise be
+            # corrupted by the broader replacement running first.
+            .replace('__ENTITY_JSON__', json.dumps(entity_name))
+            .replace('__NAME_FIELD_JSON__', json.dumps(name_field))
+            .replace('__UPDATE_FIELD_JSON__', json.dumps(update_field))
+            .replace('__ENTITY__', entity_literal)
+            .replace('__NAME_FIELD__', self._assistant_dart_string_literal(name_field))
+            .replace('__UPDATE_FIELD__', self._assistant_dart_string_literal(update_field))
+            .replace('__PK_JSON__', pk_json_literal)
+        )
+        (base_path / 'test' / 'assistant' / 'local_llm_command_extractor_test.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
     def _generate_assistant_view(self, base_path):
         """Genera lib/assistant/assistant_view.dart (genérico)."""
-        content = '''import 'package:flutter/foundation.dart';
+        content = '''import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'business_command.dart';
 import 'command_parser.dart';
 import 'command_router.dart';
 import 'command_validator.dart';
+import 'local_llm_command_extractor.dart';
+import 'local_model_manager.dart';
 import 'voice_input_controller.dart';
 
 class AssistantHistoryEntry {
   final String text;
   final bool isError;
-  const AssistantHistoryEntry(this.text, {this.isError = false});
+
+  /// Solo true para el mensaje de RESULTADO de un comando que realmente se
+  /// interpreto con el modelo local (no el eco del texto del usuario, ni un
+  /// resultado producido por el parser determinista). Nunca se marca en
+  /// true para un fallback, sin importar la razon del fallback.
+  final bool usedLocalAi;
+
+  const AssistantHistoryEntry(
+    this.text, {
+    this.isError = false,
+    this.usedLocalAi = false,
+  });
 }
 
 /// Punto de entrada global del asistente consciente del esquema. Acepta
@@ -3548,6 +5163,16 @@ class AssistantHistoryEntry {
 /// compatibles, entrada hablada que se transcribe a texto y se procesa por
 /// exactamente el mismo pipeline de interpretación — la voz nunca se salta
 /// la validación.
+///
+/// Si hay un modelo GGUF local listo (LocalModelManager), se intenta
+/// primero interpretar el texto con LocalLlmCommandExtractor; ante
+/// CUALQUIER fallo (modelo no configurado, error de carga, timeout, JSON
+/// malformado, forma invalida) se cae automaticamente al CommandParser
+/// determinista existente, que sigue siendo el camino obligatorio cuando no
+/// hay modelo local. Todo lo que ocurre despues de obtener un
+/// BusinessCommand — validacion, ejecucion, confirmacion de DELETE en dos
+/// fases — es exactamente el mismo camino sin cambios, sin importar de cual
+/// de los dos caminos vino el comando.
 class AssistantView extends StatefulWidget {
   /// Only meant for tests: injects a CommandRouter (e.g. backed by fake
   /// adapters) instead of the real one, so failure paths can be exercised
@@ -3555,7 +5180,21 @@ class AssistantView extends StatefulWidget {
   /// this.
   final CommandRouter? router;
 
-  const AssistantView({super.key, this.router});
+  /// Only meant for tests: injects a LocalModelManager (e.g. one whose
+  /// state/engine is fully controlled by the test) instead of the real one.
+  /// Production code should never pass this.
+  final LocalModelManager? modelManager;
+
+  /// Only meant for tests: creates an owned manager whose disposal can be
+  /// observed without exposing production internals.
+  final LocalModelManager Function()? modelManagerFactory;
+
+  const AssistantView({
+    super.key,
+    this.router,
+    this.modelManager,
+    this.modelManagerFactory,
+  });
 
   @override
   State<AssistantView> createState() => _AssistantViewState();
@@ -3566,6 +5205,13 @@ class _AssistantViewState extends State<AssistantView> {
   final _parser = CommandParser();
   final _validator = CommandValidator();
   late final CommandRouter _router = widget.router ?? CommandRouter();
+  late final bool _ownsModelManager = widget.modelManager == null;
+  late final LocalModelManager _modelManager =
+      widget.modelManager ??
+      widget.modelManagerFactory?.call() ??
+      LocalModelManager();
+  late final LocalLlmCommandExtractor _localLlmExtractor =
+      LocalLlmCommandExtractor(_modelManager);
   final _voice = VoiceInputController();
   final List<AssistantHistoryEntry> _history = [];
   bool _voiceAvailable = false;
@@ -3576,6 +5222,12 @@ class _AssistantViewState extends State<AssistantView> {
   void initState() {
     super.initState();
     _initVoice();
+    _modelManager.addListener(_onModelManagerChanged);
+    unawaited(_modelManager.initialize());
+  }
+
+  void _onModelManagerChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _initVoice() async {
@@ -3586,6 +5238,8 @@ class _AssistantViewState extends State<AssistantView> {
 
   @override
   void dispose() {
+    _modelManager.removeListener(_onModelManagerChanged);
+    if (_ownsModelManager) _modelManager.dispose();
     _voice.dispose();
     _controller.dispose();
     super.dispose();
@@ -3601,23 +5255,42 @@ class _AssistantViewState extends State<AssistantView> {
     _controller.clear();
 
     try {
-      final parsed = _parser.parse(text);
-      if (!parsed.isSuccess) {
-        _appendResult(parsed.error!, isError: true);
-        return;
+      BusinessCommand? command;
+      var usedLocalAi = false;
+
+      if (_modelManager.state == LocalModelState.ready) {
+        final llmResult = await _localLlmExtractor.extract(text);
+        if (llmResult.isSuccess) {
+          command = llmResult.command;
+          usedLocalAi = true;
+        }
+        // Cualquier fallo del modelo local (incluido llmResult.error) cae
+        // silenciosamente al parser determinista debajo: nunca se le
+        // muestra al usuario un error de inferencia local por separado del
+        // resultado final.
       }
 
-      final validated = _validator.validate(parsed.command!);
+      final parsed = command == null ? _parser.parse(text) : null;
+      if (command == null) {
+        if (!parsed!.isSuccess) {
+          _appendResult(parsed.error!, isError: true);
+          return;
+        }
+        command = parsed.command!;
+        usedLocalAi = false;
+      }
+
+      final validated = _validator.validate(command);
       if (!validated.isValid) {
-        _appendResult(validated.error!, isError: true);
+        _appendResult(validated.error!, isError: true, usedLocalAi: usedLocalAi);
         return;
       }
 
-      final command = validated.command!;
-      if (command.action == CommandAction.delete) {
-        final outcome = await _router.execute(command);
+      final validCommand = validated.command!;
+      if (validCommand.action == CommandAction.delete) {
+        final outcome = await _router.execute(validCommand);
         if (!outcome.success || outcome.pendingDelete == null) {
-          _appendResult(outcome.message, isError: !outcome.success);
+          _appendResult(outcome.message, isError: !outcome.success, usedLocalAi: usedLocalAi);
           return;
         }
         if (!mounted) return;
@@ -3627,12 +5300,12 @@ class _AssistantViewState extends State<AssistantView> {
           return;
         }
         final result = await _router.confirmDelete(outcome.pendingDelete!);
-        _appendResult(result.message, isError: !result.success);
+        _appendResult(result.message, isError: !result.success, usedLocalAi: usedLocalAi);
         return;
       }
 
-      final outcome = await _router.execute(command);
-      _appendResult(outcome.message, isError: !outcome.success);
+      final outcome = await _router.execute(validCommand);
+      _appendResult(outcome.message, isError: !outcome.success, usedLocalAi: usedLocalAi);
     } catch (_) {
       // Nunca se muestra el detalle/stack trace real: solo un mensaje
       // genérico. El comando pudo fallar por cualquier excepción no
@@ -3648,10 +5321,10 @@ class _AssistantViewState extends State<AssistantView> {
     }
   }
 
-  void _appendResult(String message, {bool isError = false}) {
+  void _appendResult(String message, {bool isError = false, bool usedLocalAi = false}) {
     if (!mounted) return;
     setState(() {
-      _history.add(AssistantHistoryEntry(message, isError: isError));
+      _history.add(AssistantHistoryEntry(message, isError: isError, usedLocalAi: usedLocalAi));
       _isBusy = false;
     });
   }
@@ -3695,22 +5368,114 @@ class _AssistantViewState extends State<AssistantView> {
     );
   }
 
+  Widget _buildLocalAiStatus() {
+    final theme = Theme.of(context);
+    final compactStyle = theme.textTheme.bodySmall;
+    switch (_modelManager.state) {
+      case LocalModelState.notConfigured:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            children: [
+              Text('Local AI: Not configured', style: compactStyle),
+              const SizedBox(width: 8),
+              TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: _modelManager.selectAndImportModel,
+                child: const Text('Select GGUF model', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        );
+      case LocalModelState.loading:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 8),
+              Text('Local AI: Loading...', style: compactStyle),
+            ],
+          ),
+        );
+      case LocalModelState.ready:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Local AI: Ready — ${_modelManager.modelFileNameLabel ?? ""}',
+                  style: compactStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: _modelManager.selectAndImportModel,
+                child: const Text('Change model', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        );
+      case LocalModelState.error:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Local AI: Unavailable',
+                  style: compactStyle?.copyWith(color: Colors.red),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: _modelManager.selectAndImportModel,
+                child: const Text('Select GGUF model', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Asistente')),
       body: Column(
         children: [
+          _buildLocalAiStatus(),
+          const Divider(height: 1),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: _history.length,
               itemBuilder: (context, index) {
                 final entry = _history[index];
+                final text = entry.usedLocalAi ? 'IA local: ${entry.text}' : entry.text;
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
-                    entry.text,
+                    text,
                     style: TextStyle(color: entry.isError ? Colors.red : null),
                   ),
                 );
@@ -4286,6 +6051,80 @@ class _AssistantViewState extends State<AssistantView> {
     expect(adapter.lastCreatedMap, isNotNull);
     expect(adapter.lastCreatedMap![nameJsonKey], 'Ejemplo Uno');
     expect(adapter.lastCreatedMap!.containsKey(pkJsonKey), isFalse);
+  }});""")
+
+            router_test_blocks.append(f"""  test('READ result message shows the actual matched field values dynamically, not just a count', () async {{
+    // Seed a row using every scalar field the real schema defines for this
+    // entity (besides the PK and name field, already set) with a distinct
+    // sample value each -- so this proves the message is built dynamically
+    // from AssistantEntitySchema/the returned row data, never from a fixed
+    // field/entity name of any specific project.
+    final row = <String, dynamic>{{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Ejemplo Uno'}};
+    final expectedSnippets = <String>['Ejemplo Uno'];
+    var sampleNumber = 1;
+    for (final field in schema.fields) {{
+      if (field.isPrimaryKey || field.name == {self._assistant_dart_string_literal(name_field)}) continue;
+      final dynamic value = switch (field.dartType) {{
+        'int' => sampleNumber,
+        'double' => sampleNumber.toDouble(),
+        'bool' => true,
+        _ => 'Valor$sampleNumber',
+      }};
+      row[field.jsonKey] = value;
+      expectedSnippets.add('$value');
+      sampleNumber++;
+    }}
+
+    final adapter = _FakeAdapter(schema, [row]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+    final outcome = await router.execute(BusinessCommand(
+      action: CommandAction.read,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: {self._assistant_render_dart_map([(name_field, 'Ejemplo Uno')])},
+      rawText: 'test',
+    ));
+
+    expect(outcome.success, isTrue);
+    for (final snippet in expectedSnippets) {{
+      expect(outcome.message, contains(snippet));
+    }}
+  }});""")
+
+            router_test_blocks.append(f"""  test('READ result message handles zero and multiple matches compactly', () async {{
+    final adapter = _FakeAdapter(schema, [
+      {{pkJsonKey: {pk_seed_1}, nameJsonKey: 'Ejemplo Uno'}},
+      {{pkJsonKey: {pk_seed_2}, nameJsonKey: 'Ejemplo Dos'}},
+      {{pkJsonKey: 3, nameJsonKey: 'Ejemplo Tres'}},
+      {{pkJsonKey: 4, nameJsonKey: 'Ejemplo Cuatro'}},
+      {{pkJsonKey: 5, nameJsonKey: 'Ejemplo Cinco'}},
+      {{pkJsonKey: 6, nameJsonKey: 'Ejemplo Seis'}},
+    ]);
+    final router = CommandRouter(registry: {{{entity_literal}: adapter}});
+
+    final noMatch = await router.execute(BusinessCommand(
+      action: CommandAction.read,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: {self._assistant_render_dart_map([(name_field, 'No Existe')])},
+      rawText: 'test',
+    ));
+    expect(noMatch.success, isTrue);
+    expect(noMatch.message, 'Sin resultados.');
+
+    final allRows = await router.execute(BusinessCommand(
+      action: CommandAction.read,
+      entity: {entity_literal},
+      data: const {{}},
+      filters: const {{}},
+      rawText: 'test',
+    ));
+    expect(allRows.success, isTrue);
+    expect(allRows.message, contains('Ejemplo Uno'));
+    expect(allRows.message, contains('Ejemplo Dos'));
+    expect(allRows.message, contains('Ejemplo Cinco'));
+    expect(allRows.message, isNot(contains('Ejemplo Seis')));
+    expect(allRows.message, contains('… y 1 más.'));
   }});""")
 
             if extra_fields:
