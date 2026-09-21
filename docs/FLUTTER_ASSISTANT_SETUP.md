@@ -67,15 +67,13 @@ working normally (this is the intended fail-safe, not a bug).
 - Verified by build: `flutter analyze`, `flutter test`, `flutter build web`,
   `flutter build apk`, and `flutter build ios --no-codesign` all succeed
   with `speech_to_text: ^7.5.0` present and these permissions applied.
-- **Not verified**: actual microphone/speech behavior on a physical iPhone.
-  Voice availability depends on platform and runtime support, and on which
-  speech-recognition service is installed. **Offline/on-device speech
-  recognition is NOT guaranteed** — `speech_to_text` may use a
-  network-backed recognizer depending on the OS, device, and language pack
-  installed; nothing in this codebase can currently detect or report which
-  one was actually used. `VoiceInputController` does not claim otherwise
-  anywhere in its code or in the UI; the mic button only appears when
-  `initialize()` succeeds at runtime, on native platforms only.
+- **Physically validated on iPhone 12**: the generated application runs; CRUD,
+  offline SQLite persistence, and the deterministic schema-aware text CRUD
+  assistant work; voice input works in airplane/offline conditions; and voice
+  UPDATE plus two-phase DELETE passed.
+- The assistant uses deterministic schema-aware regex/keyword CRUD parsing,
+  and voice uses `speech_to_text`. Qwen, `llama.rn`, Whisper RN, and genuine
+  local LLM inference are not integrated or claimed.
 - Voice is intentionally never initialized on Web
   (`VoiceInputController.initialize()` returns `false` immediately when
   `kIsWeb` is true) — Web behavior for the assistant is typed-text only.
