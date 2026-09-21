@@ -447,6 +447,8 @@ export class DiagramService {
       relationType: 'association',    // 👈 tipo por defecto
       source: sourceId ? { id: sourceId } : undefined,
       target: targetId ? { id: targetId } : undefined,
+      router: { name: 'manhattan' },
+      connector: { name: 'rounded' },
       attrs: {
         '.connection': { stroke: '#333333', 'stroke-width': 2 },
         '.marker-target': { fill: '#333333', d: 'M 10 0 L 0 5 L 10 10 z' }
@@ -520,6 +522,8 @@ export class DiagramService {
       relationType: type,             // 👈 guarda el tipo
       source: { id: sourceId },
       target: { id: targetId },
+      router: { name: 'manhattan' },
+      connector: { name: 'rounded' },
       attrs
     });
 
@@ -785,6 +789,8 @@ export class DiagramService {
       name: 'Relacion',
       source: sourceId ? { id: sourceId } : undefined,
       target: targetId ? { id: targetId } : undefined,
+      router: { name: 'manhattan' },
+      connector: { name: 'rounded' },
       attrs: {
         '.connection': { stroke: '#333333', 'stroke-width': 2 },
         '.marker-target': { fill: '#333333', d: 'M 10 0 L 0 5 L 10 10 z' },
@@ -1801,6 +1807,17 @@ export class DiagramService {
     this.updateRelationship(editedRel, originalRelationships, originalClasses);
   }
 
+  private drawExportImage(
+    ctx: CanvasRenderingContext2D,
+    image: CanvasImageSource,
+    width: number,
+    height: number
+  ) {
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0);
+  }
+
   exportToImage(fileName: string = 'diagram.png') {
     if (!this.paper) {
       console.error('❌ Paper no inicializado');
@@ -1835,7 +1852,9 @@ export class DiagramService {
       canvas.height = bbox.height;
 
       const ctx = canvas.getContext("2d");
-      if (ctx) ctx.drawImage(img, 0, 0);
+      if (ctx) {
+        this.drawExportImage(ctx, img, canvas.width, canvas.height);
+      }
 
       canvas.toBlob((blob) => {
         if (!blob) return;

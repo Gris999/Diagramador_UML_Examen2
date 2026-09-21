@@ -244,6 +244,60 @@ describe('DiagramService AI edit regressions', () => {
     expect(addLinkBroadcasts[0][0].payload.labels.map((l: any) => l.attrs.text.text)).toEqual(['1', '0..*']);
   });
 
+  it('uses Manhattan routing and a rounded connector for every relationship type', () => {
+    const service = createService();
+    (service as any).joint = { dia: { Link: FakeLink } };
+
+    const relationshipTypes = [
+      'association',
+      'generalization',
+      'aggregation',
+      'composition',
+      'dependency'
+    ];
+
+    relationshipTypes.forEach(type => {
+      const link = service.createTypedRelationship('source', 'target', type, true);
+
+      expect(link.get('relationType')).toBe(type);
+      expect(link.get('router')).toEqual({ name: 'manhattan' });
+      expect(link.get('connector')).toEqual({ name: 'rounded' });
+      expect(link.get('attrs')).toBe((service as any).relationAttrs[type]);
+    });
+  });
+
+  it('uses the same routing for default and remote relationship builders', () => {
+    const service = createService();
+    (service as any).joint = { dia: { Link: FakeLink } };
+
+    const links = [
+      (service as any).buildRelationship('source', 'target'),
+      (service as any).buildLinkForRemote('source', 'target')
+    ];
+
+    links.forEach(link => {
+      expect(link.get('router')).toEqual({ name: 'manhattan' });
+      expect(link.get('connector')).toEqual({ name: 'rounded' });
+    });
+  });
+
+  it('fills the export canvas before drawing the diagram image', () => {
+    const service = createService();
+    const calls: string[] = [];
+    const ctx = {
+      fillStyle: '',
+      fillRect: jasmine.createSpy('fillRect').and.callFake(() => calls.push('fill')),
+      drawImage: jasmine.createSpy('drawImage').and.callFake(() => calls.push('draw'))
+    };
+
+    (service as any).drawExportImage(ctx, {} as CanvasImageSource, 640, 480);
+
+    expect(ctx.fillStyle).toBe('#f8f9fa');
+    expect(ctx.fillRect).toHaveBeenCalledOnceWith(0, 0, 640, 480);
+    expect(ctx.drawImage).toHaveBeenCalledOnceWith(jasmine.any(Object), 0, 0);
+    expect(calls).toEqual(['fill', 'draw']);
+  });
+
   class FakeUMLClass {
     id: string;
     private state: any;

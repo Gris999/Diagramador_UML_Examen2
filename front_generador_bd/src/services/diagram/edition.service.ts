@@ -189,11 +189,35 @@ export class EditionService {
     try { return node ? node.getBBox().height : 0; } catch { return 0; }
   }
 
+  private getTextWidth(model: any, paper: any, selector: string): number {
+    const view = paper.findViewByModel(model);
+    const node = view?.findBySelector(selector)?.[0] as SVGTextContentElement | undefined;
+    if (!node) return 0;
+
+    const tspans = Array.from(node.querySelectorAll('tspan')) as SVGTextContentElement[];
+    const renderedLines = tspans.length > 0 ? tspans : [node];
+
+    return renderedLines.reduce((maxWidth, line) => {
+      try {
+        const width = line.getComputedTextLength?.() || line.getBBox().width || 0;
+        return Math.max(maxWidth, width);
+      } catch {
+        return maxWidth;
+      }
+    }, 0);
+  }
+
   // ========= Auto-ajusta el tamaño del diagrama UML de clase al contenido =========
   autoResizeUmlClass(model: any, paper: any) {
     if (!model?.isElement?.()) return;
 
-    const width  = Math.max(this.MIN_W, (model.get('size')?.width) || this.MIN_W);
+    const currentWidth = Math.max(this.MIN_W, (model.get('size')?.width) || this.MIN_W);
+    const contentWidth = Math.max(
+      this.getTextWidth(model, paper, '.uml-class-name-text'),
+      this.getTextWidth(model, paper, '.uml-class-attrs-text'),
+      this.getTextWidth(model, paper, '.uml-class-methods-text')
+    );
+    const width = Math.max(currentWidth, Math.ceil(contentWidth + 20));
     const nameH  = this.NAME_H;
 
     const attrsHText = this.getTextBBox(model, paper, '.uml-class-attrs-text');

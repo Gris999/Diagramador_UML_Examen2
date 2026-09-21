@@ -47,6 +47,7 @@ describe('ParticipantsPanel', () => {
     ) as HTMLButtonElement;
 
     expect(text).toContain('Host');
+    expect(text).toContain('Participantes (2)');
     expect(text).toContain('(Tú)');
     expect(removeButton.disabled).toBeFalse();
 
@@ -88,5 +89,25 @@ describe('ParticipantsPanel', () => {
     expect(fixture.nativeElement.querySelector(
       '[data-testid="remove-participant"]'
     )).not.toBeNull();
+  });
+
+  it('bounds and scrolls a long participant list', () => {
+    participants.set(Array.from({ length: 12 }, (_, index) => ({
+      peer: `peer-${index}`,
+      role: index === 0 ? 'host' : 'participant'
+    })));
+    fixture.detectChanges();
+
+    const list = fixture.nativeElement.querySelector(
+      '[data-testid="participants-list"]'
+    ) as HTMLElement;
+    const entries = fixture.nativeElement.querySelectorAll(
+      '[data-testid="participant-entry"]'
+    );
+
+    expect(fixture.nativeElement.textContent).toContain('Participantes (12)');
+    expect(entries.length).toBe(12);
+    expect(list.classList).toContain('max-h-48');
+    expect(list.classList).toContain('overflow-y-auto');
   });
 });
