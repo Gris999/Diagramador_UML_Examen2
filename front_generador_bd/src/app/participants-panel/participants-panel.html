@@ -1,0 +1,46 @@
+<section
+  class="ml-auto min-w-64 rounded border border-gray-300 bg-white px-3 py-2 shadow-sm"
+  aria-label="Participantes conectados"
+  data-testid="participants-panel"
+>
+  <div class="mb-1 flex items-center justify-between gap-3">
+    <h3 class="text-sm font-semibold text-gray-800">Participantes</h3>
+    <span class="text-xs text-gray-500">{{ participants().length }}</span>
+  </div>
+
+  @if (participants().length === 0) {
+    <p class="text-xs text-gray-500">Conectando...</p>
+  } @else {
+    <ul class="space-y-1">
+      @for (participant of participants(); track participant.peer; let index = $index) {
+        <li
+          class="flex items-center gap-2 text-xs"
+          data-testid="participant-entry"
+        >
+          <span class="min-w-0 flex-1 truncate text-gray-700">
+            Usuario {{ index + 1 }}
+            @if (isCurrent(participant.peer)) {
+              <strong class="text-purple-700">(Tú)</strong>
+            }
+          </span>
+          <span
+            class="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700"
+            data-testid="participant-role"
+          >
+            {{ participant.role === 'host' ? 'Host' : 'Participante' }}
+          </span>
+          @if (isHost() && !isCurrent(participant.peer)) {
+            <button
+              type="button"
+              class="rounded bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700"
+              data-testid="remove-participant"
+              (click)="remove(participant.peer)"
+            >
+              Expulsar
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

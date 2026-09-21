@@ -1,5 +1,10 @@
-import { Injectable } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { SignalingService } from './signaling.service';
+
+export type CollaborationParticipant = {
+  peer: string;
+  role: 'host' | 'participant';
+};
 
 type Peer = {
   pc: RTCPeerConnection;
@@ -10,7 +15,11 @@ type Peer = {
 @Injectable({ providedIn: 'root' })
 export class P2PService {
   private peers = new Map<string, Peer>();
-  private localId = ''; // mi channel_name (lo asigna el servidor en presence)
+  private localId = signal(''); // mi channel_name (lo asigna el servidor en presence)
+  readonly participants = signal<CollaborationParticipant[]>([]);
+  readonly isHost = computed(() => this.participants().some(
+    participant => participant.peer === this.localId() && participant.role === 'host'
+  ));
   public onData?: (from: string, data: any) => void;
 
   constructor(private signaling: SignalingService) {}
@@ -90,8 +99,12 @@ export class P2PService {
   private async handleSignaling(msg: any) {
 
     if (msg.type === 'presence') {
-      if (msg.peer && !this.localId) {
-        this.localId = msg.peer;
+      if (msg.action === 'state' && Array.isArray(msg.members)) {
+        this.participants.set(msg.members);
+        return;
+      }
+      if (msg.peer && !this.localId()) {
+        this.localId.set(msg.peer);
         //console.log('[P2P] Mi localId:', this.localId);
       }
       if (msg.action === 'join') {
@@ -107,7 +120,7 @@ export class P2PService {
       if (this.peers.has(remoteId)) return;
 
       // regla: el que tiene ID menor inicia
-      const isInitiator = this.localId < remoteId;
+      const isInitiator = this.localId() < remoteId;
       this.newPeer(remoteId, isInitiator);
       return;
     }
@@ -147,6 +160,15 @@ export class P2PService {
     }
   }
 
+  isCurrentParticipant(peer: string) {
+    return this.localId() === peer;
+  }
+
+  removeParticipant(peer: string) {
+    if (!this.isHost() || this.isCurrentParticipant(peer)) return;
+    this.signaling.removeParticipant(peer);
+  }
+
   sendToAll(data: any) {
   const json = JSON.stringify(data);
   for (const [id, p] of this.peers) {
@@ -168,7 +190,8 @@ export class P2PService {
       } catch {}
     }
     this.peers.clear();
-    this.localId = '';
+    this.localId.set('');
+    this.participants.set([]);
 
     // Cerrar signaling
     this.signaling.close();

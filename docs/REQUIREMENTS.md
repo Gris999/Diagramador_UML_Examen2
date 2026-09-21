@@ -30,6 +30,15 @@ It should support:
 - reconnect;
 - state recovery.
 
+### Live room roles
+
+- The first active connection in a room is the host; later connections are participants.
+- Host and participants keep the same diagram editing permissions.
+- Only the current host may remove another participant, and the server verifies that permission.
+- When the host disconnects, the longest-connected remaining participant becomes host.
+- A reconnect is a new connection and does not restore a prior role or identity.
+- Roles exist only for the live room session; they require no account or persistent ownership.
+
 ## Interoperability
 
 The system must support bidirectional XMI interoperability with Enterprise Architect.

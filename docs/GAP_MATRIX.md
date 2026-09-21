@@ -16,8 +16,8 @@ Status values:
 | Voice → UML/editing | VERIFY | Browser recording, Gemini transcription, contextual UML edits, and mocked endpoint coverage are implemented; needs live validation |
 | Real-time collaboration | PARTIAL | Channels/WebSocket/P2P infrastructure exists |
 | 2-3 collaborative users | VERIFY | Needs end-to-end multi-client test |
-| Host/participant roles | MISSING | No complete formal role model confirmed |
-| Collaboration permissions | PARTIAL | Needs explicit semantics and testing |
+| Host/participant roles | DONE | Real Redis-backed 3-client validation confirmed first-host assignment, ordered participant state, longest-connected promotion, and reconnect as participant |
+| Collaboration permissions | DONE | Real 3-client validation confirmed participant removal denial, host-only kick with socket closure, correct UI controls, and continued collaboration afterward |
 | Reconnection | PARTIAL | Infrastructure exists; behavior must be verified |
 | State recovery | PARTIAL | BackupUML exists; reconnect recovery must be integrated/tested |
 | XMI export | DONE | Backend and Angular export verified; CASE-specific XMI extension preserves class position and size |

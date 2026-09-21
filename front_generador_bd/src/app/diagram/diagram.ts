@@ -12,13 +12,14 @@ import { ChatbotService } from '../../services/IA/chatbot.service';
 import { UmlValidationService } from '../../services/colaboration/uml-validation.service';
 import { ActivatedRoute } from '@angular/router';
 import { XmiService } from '../../services/interop/xmi.service';
+import { ParticipantsPanel } from '../participants-panel/participants-panel';
 
 @Component({
   selector: 'app-diagram',
   standalone: true,
   templateUrl: './diagram.html',
   styleUrls: ['./diagram.css'],
-  imports: [SidePanel, CdkDropListGroup, CdkDropList]
+  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel]
 })
 export class Diagram implements AfterViewInit {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;

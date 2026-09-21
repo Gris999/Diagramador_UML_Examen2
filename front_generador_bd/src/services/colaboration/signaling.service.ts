@@ -1,9 +1,22 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
+
+type CollaborationParticipant = {
+  peer: string;
+  role: 'host' | 'participant';
+};
+
 type Msg =
-  | { type: 'presence'; action: 'join' | 'leave'; peer: string }
+  | {
+      type: 'presence';
+      action: 'join' | 'leave' | 'remove' | 'state';
+      peer?: string;
+      members?: CollaborationParticipant[];
+    }
   | { type: 'signal'; from: string; payload: any }
-  | { type: 'broadcast'; from: string; payload: any };
+  | { type: 'broadcast'; from: string; payload: any }
+  | { type: 'removed'; by: string }
+  | { type: 'remove_rejected' };
 
 @Injectable({ providedIn: 'root' })
 export class SignalingService {
@@ -60,6 +73,10 @@ export class SignalingService {
 
   broadcast(payload: any) {
     this.socket?.send(JSON.stringify({ type: 'broadcast', payload }));
+  }
+
+  removeParticipant(peer: string) {
+    this.socket?.send(JSON.stringify({ type: 'remove_participant', peer }));
   }
 
   close() {

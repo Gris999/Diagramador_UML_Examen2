@@ -2,18 +2,23 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from uml_api.services.services_gemini import call_gemini_analysis
 import re
+from .roles import RedisGroupRoleStore
+
+
 class CanvasConsumer(AsyncWebsocketConsumer):
+    role_store_class = RedisGroupRoleStore
+
     async def connect(self):
         print("[CanvasConsumer.connect] scope:", self.scope)
         print("[CanvasConsumer.connect] url_route:", self.scope.get("url_route"))
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
         self.room_group_name = f"canvas_{self.room_name}"
-
-        # Unir al grupo
-        await self.channel_layer.group_add(
+        self.role_store = self.role_store_class(
+            self.channel_layer,
             self.room_group_name,
-            self.channel_name
         )
+
+        members = await self.role_store.join(self.channel_name)
         await self.accept()
 
         # Notificar presencia
@@ -25,13 +30,15 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 "peer": self.channel_name
             }
         )
+        await self._broadcast_presence_state(members)
 
     async def disconnect(self, close_code):
-        # Salir del grupo
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+        if not hasattr(self, "role_store"):
+            return
+
+        removed, members = await self.role_store.leave(self.channel_name)
+        if not removed:
+            return
 
         # Notificar salida
         await self.channel_layer.group_send(
@@ -42,12 +49,13 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 "peer": self.channel_name
             }
         )
+        await self._broadcast_presence_state(members)
 
     async def receive(self, text_data):
         data = json.loads(text_data)
 
         # Si es un broadcast → enviar a todos
-        if data["type"] == "broadcast":
+        if data.get("type") == "broadcast":
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -58,7 +66,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             )
 
         # Si es una señal directa → mandar a un peer específico
-        elif data["type"] == "signal":
+        elif data.get("type") == "signal":
             to = data["to"]
             await self.channel_layer.send(
                 to,
@@ -68,6 +76,58 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                     "payload": data["payload"]
                 }
             )
+
+        elif data.get("type") == "remove_participant":
+            target = data.get("peer")
+            if not isinstance(target, str):
+                await self._reject_removal()
+                return
+
+            authorized, members = await self.role_store.remove_by_host(
+                self.channel_name,
+                target,
+            )
+            if not authorized:
+                await self._reject_removal()
+                return
+
+            await self.channel_layer.send(
+                target,
+                {
+                    "type": "force_disconnect",
+                    "removed_by": self.channel_name,
+                },
+            )
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "presence",
+                    "action": "remove",
+                    "peer": target,
+                },
+            )
+            await self._broadcast_presence_state(members)
+
+    async def _reject_removal(self):
+        await self.send(text_data=json.dumps({
+            "type": "remove_rejected",
+        }))
+
+    async def _broadcast_presence_state(self, members):
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "presence",
+                "action": "state",
+                "members": [
+                    {
+                        "peer": peer,
+                        "role": "host" if index == 0 else "participant",
+                    }
+                    for index, peer in enumerate(members)
+                ],
+            },
+        )
 
     # Handlers para los eventos enviados
     async def broadcast_message(self, event):
@@ -84,12 +144,23 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             "payload": event["payload"]
         }))
 
-    async def presence(self, event):
+    async def force_disconnect(self, event):
         await self.send(text_data=json.dumps({
+            "type": "removed",
+            "by": event["removed_by"],
+        }))
+        await self.close(code=4003)
+
+    async def presence(self, event):
+        message = {
             "type": "presence",
             "action": event["action"],
-            "peer": event["peer"]
-        }))
+        }
+        if "peer" in event:
+            message["peer"] = event["peer"]
+        if "members" in event:
+            message["members"] = event["members"]
+        await self.send(text_data=json.dumps(message))
 
 
 
