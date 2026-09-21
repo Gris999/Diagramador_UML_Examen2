@@ -82,6 +82,58 @@ describe('DiagramService AI edit regressions', () => {
     expect(broadcast).not.toHaveBeenCalled();
   });
 
+  it('reports whether the graph contains UML elements', () => {
+    const service = createService();
+    const elements: any[] = [];
+    (service as any).graph = { getElements: () => elements };
+
+    expect(service.hasDiagramElements()).toBeFalse();
+
+    elements.push({ id: 'class-1' });
+    expect(service.hasDiagramElements()).toBeTrue();
+  });
+
+  it('replaces image UML through per-cell removal before loading the generated result', () => {
+    const service = createService();
+    const calls: string[] = [];
+    const cells: any[] = [];
+    const remove = (cell: any) => {
+      calls.push(`remove:${cell.id}`);
+      cells.splice(cells.indexOf(cell), 1);
+    };
+    const link = {
+      id: 'link-1',
+      remove: jasmine.createSpy('removeLink').and.callFake(() => remove(link))
+    };
+    const element = {
+      id: 'class-1',
+      remove: jasmine.createSpy('removeElement').and.callFake(() => remove(element))
+    };
+    cells.push(element, link);
+    const graph = {
+      getLinks: () => cells.filter(cell => cell === link),
+      getElements: () => cells.filter(cell => cell === element),
+      getCell: (id: string) => cells.find(cell => cell.id === id),
+      clear: jasmine.createSpy('clear')
+    };
+    (service as any).graph = graph;
+    (service as any).selectedCell = element;
+    const generated = {
+      classes: [{ id: 'generated-1', name: 'GeneratedClass' }],
+      relationships: []
+    };
+    spyOn(service, 'loadFromJson').and.callFake(() => calls.push('load'));
+
+    service.replaceDiagramFromImage(generated);
+
+    expect(calls).toEqual(['remove:link-1', 'remove:class-1', 'load']);
+    expect(link.remove).toHaveBeenCalledTimes(1);
+    expect(element.remove).toHaveBeenCalledTimes(1);
+    expect(graph.clear).not.toHaveBeenCalled();
+    expect(service.loadFromJson).toHaveBeenCalledOnceWith(generated, false, false);
+    expect((service as any).selectedCell).toBeNull();
+  });
+
   it('deletes only the relationship in the requested direction', () => {
     const service = createService();
     const remove = jasmine.createSpy('remove');

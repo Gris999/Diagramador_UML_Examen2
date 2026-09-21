@@ -555,6 +555,31 @@ export class DiagramService {
     this.selectedCell = null;
   }
 
+  hasDiagramElements(): boolean {
+    return Boolean(this.graph?.getElements?.().length);
+  }
+
+  replaceDiagramFromImage(json: any): void {
+    if (!this.graph) return;
+
+    // Use the same local removal path as manual deletion. The graph `remove`
+    // handler broadcasts each delete to collaborators; links go first so no
+    // relationship is left dangling while elements are removed.
+    const cells = [
+      ...this.graph.getLinks(),
+      ...this.graph.getElements()
+    ];
+
+    cells.forEach((cell: any) => {
+      if (this.graph.getCell(cell.id)) {
+        cell.remove();
+      }
+    });
+
+    this.selectedCell = null;
+    this.loadFromJson(json, false, false);
+  }
+
   // Copiar clase UML seleccionada
   private copyUmlClass(cell: any): UmlClass | null {
     if (!cell?.isElement?.()) return null;

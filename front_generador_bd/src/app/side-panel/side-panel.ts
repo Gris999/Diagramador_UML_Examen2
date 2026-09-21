@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, PLATFORM_ID, Inject, signal, inject } from '@angular/core';
+import { Component, Output, EventEmitter, PLATFORM_ID, Inject, signal, inject, HostListener } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { DragDropModule, CdkDragEnd, CdkDragStart } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
@@ -38,6 +38,8 @@ export class SidePanel {
   roomId: string | null = null;
   copied = signal<boolean>(false);
   recognizing = signal<boolean>(false);
+  imageImportDialogOpen = signal<boolean>(false);
+  private pendingImageImport: any | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
   private audioChunks: Blob[] = [];
@@ -353,10 +355,17 @@ export class SidePanel {
           return;
         }
 
-        this.diagramService.loadFromJson(umlJson);
         this.analyzingModel.set(false);
         this.umlImageService.loading.set(false);
         input.value = '';
+
+        if (this.diagramService.hasDiagramElements()) {
+          this.pendingImageImport = umlJson;
+          this.imageImportDialogOpen.set(true);
+          return;
+        }
+
+        this.diagramService.loadFromJson(umlJson);
       },
       error: (err) => {
         console.error('❌ Error al analizar imagen UML:', err);
@@ -364,6 +373,37 @@ export class SidePanel {
         this.umlImageService.loading.set(false);
       }
     });
+  }
+
+  replaceImageImport() {
+    const pendingImport = this.consumePendingImageImport();
+    if (!pendingImport) return;
+    this.diagramService.replaceDiagramFromImage(pendingImport);
+  }
+
+  mergeImageImport() {
+    const pendingImport = this.consumePendingImageImport();
+    if (!pendingImport) return;
+    this.diagramService.loadFromJson(pendingImport);
+  }
+
+  cancelImageImport() {
+    this.pendingImageImport = null;
+    this.imageImportDialogOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  cancelImageImportOnEscape() {
+    if (this.imageImportDialogOpen()) {
+      this.cancelImageImport();
+    }
+  }
+
+  private consumePendingImageImport(): any | null {
+    const pendingImport = this.pendingImageImport;
+    this.pendingImageImport = null;
+    this.imageImportDialogOpen.set(false);
+    return pendingImport;
   }
 
   onGenerateFrontend() {
