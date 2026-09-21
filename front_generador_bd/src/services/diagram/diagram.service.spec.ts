@@ -249,7 +249,11 @@ describe('DiagramService AI edit regressions', () => {
     private state: any;
     constructor(opts: any) {
       this.id = opts.id || 'new';
-      this.state = { ...opts };
+      this.state = {
+        position: { x: 0, y: 0 },
+        size: { width: 180, height: 110 },
+        ...opts
+      };
     }
     set(k: any, v: any) {
       this.state[k] = v;
@@ -259,6 +263,16 @@ describe('DiagramService AI edit regressions', () => {
     listeners: any = {};
     on(evt: string, cb: any) { this.listeners[evt] = cb; }
     trigger(evt: string) { if (this.listeners[evt]) this.listeners[evt](); }
+    position(x?: number, y?: number) {
+      if (x !== undefined && y !== undefined) {
+        this.state.position = { x, y };
+      }
+      return this.state.position;
+    }
+    size() { return this.state.size; }
+    resize(width: number, height: number) {
+      this.state.size = { width, height };
+    }
     addPort() {}
     toFront() {}
     isElement() { return true; }
@@ -302,6 +316,86 @@ describe('DiagramService AI edit regressions', () => {
     expect(addClassBroadcasts[0][0].id).toBe('c1');
     expect(graph.addCellCalls.length).toBe(1);
     expect(graph.addCellCalls[0].cell.get('name')).toBe('LocalClass');
+  });
+
+  it('updates an existing AI snapshot class without moving or duplicating it', () => {
+    const service = createService();
+    const graph = new FakeGraph();
+    const producto = new FakeUMLClass({
+      id: 'producto-1',
+      name: 'Producto',
+      position: { x: 125, y: 210 },
+      size: { width: 220, height: 140 },
+      attributes: 'id: int\nnombre: string',
+      methods: 'buscar(): Producto;'
+    });
+    graph.cells.push(producto);
+    (service as any).graph = graph;
+
+    service.loadFromJson({
+      classes: [{
+        id: 'producto-1',
+        name: 'Producto',
+        attributes: [
+          { name: 'id', type: 'int' },
+          { name: 'nombre', type: 'string' },
+          { name: 'precio', type: 'decimal' }
+        ],
+        methods: [{
+          name: 'actualizarPrecio',
+          parameters: 'valor: decimal',
+          returnType: 'void'
+        }]
+      }],
+      relationships: []
+    }, true);
+
+    expect(graph.getElements()).toEqual([producto]);
+    expect(producto.id).toBe('producto-1');
+    expect(producto.position()).toEqual({ x: 125, y: 210 });
+    expect(producto.get('attributes').split('\n')).toEqual([
+      'id: int',
+      'nombre: string',
+      'precio: decimal'
+    ]);
+    expect(producto.get('methods')).toBe(
+      'actualizarPrecio(valor: decimal): void;'
+    );
+  });
+
+  it('restores explicit storage layout and content on the same class identity', () => {
+    const service = createService();
+    const graph = new FakeGraph();
+    const storedClass = new FakeUMLClass({
+      id: 'stored-1',
+      name: 'Draft',
+      position: { x: 10, y: 20 },
+      size: { width: 180, height: 110 },
+      attributes: 'legacy: string',
+      methods: ''
+    });
+    graph.cells.push(storedClass);
+    (service as any).graph = graph;
+
+    service.loadFromJson({
+      classes: [{
+        id: 'stored-1',
+        name: 'Producto',
+        position: { x: 320, y: 180 },
+        size: { width: 260, height: 190 },
+        attributes: [{ name: 'id', type: 'int' }],
+        methods: [{ name: 'guardar', returnType: 'void' }]
+      }],
+      relationships: []
+    }, true);
+
+    expect(graph.getElements()).toEqual([storedClass]);
+    expect(storedClass.id).toBe('stored-1');
+    expect(storedClass.get('name')).toBe('Producto');
+    expect(storedClass.get('attributes')).toBe('id: int');
+    expect(storedClass.get('methods')).toBe('guardar(): void;');
+    expect(storedClass.position()).toEqual({ x: 320, y: 180 });
+    expect(storedClass.size()).toEqual({ width: 260, height: 190 });
   });
 
   it('loadFromJson remote/full_state load does NOT broadcast add_class or duplicate relationship', () => {

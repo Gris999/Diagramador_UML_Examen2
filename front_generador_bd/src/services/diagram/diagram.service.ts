@@ -839,11 +839,38 @@ export class DiagramService {
 
     json.classes.forEach((cls: any, index: number) => {
       const existing = this.graph.getCells().find((c: any) => {
-        return c.isElement?.() && c.get('name') === cls.name;
+        return c.isElement?.() && (
+          (cls.id && (c.id === cls.id || c.get('id') === cls.id)) ||
+          c.get('name') === cls.name
+        );
       });
 
       if (existing && isStorageLoad) {
         idMap[cls.id] = existing.id;
+
+        if (cls.name !== undefined) {
+          existing.set('name', cls.name);
+        }
+
+        if (cls.attributes !== undefined) {
+          const attributesText = Array.isArray(cls.attributes)
+            ? cls.attributes.map((attribute: any) =>
+              `${attribute.name}: ${attribute.type}`
+            ).join('\n')
+            : (cls.attributes || '');
+          existing.set('attributes', attributesText);
+        }
+
+        if (cls.methods !== undefined) {
+          const methodsText = Array.isArray(cls.methods)
+            ? cls.methods.map((method: any) => {
+              const params = method.parameters ? `(${method.parameters})` : '()';
+              const returnType = method.returnType ? `: ${method.returnType}` : '';
+              return `${method.name}${params}${returnType};`;
+            }).join('\n')
+            : (cls.methods || '');
+          existing.set('methods', methodsText);
+        }
 
         // Restaurar posición/tamaño si vino del storage.
         if (cls.position) {

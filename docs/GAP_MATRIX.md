@@ -11,9 +11,9 @@ Status values:
 |---|---|---|
 | Manual UML editor | DONE | Existing Angular + JointJS editor |
 | UML 2.5 class/data modeling | PARTIAL | Existing class modeling; formal UML 2.5 coverage must be validated |
-| Text → UML/editing | VERIFY | Gemini receives the current UML snapshot for contextual edits; needs live API validation |
-| Image/photo → UML | VERIFY | Gemini image flow now validates MIME type/size and sanitizes provider failures; needs live API validation |
-| Voice → UML/editing | VERIFY | Browser recording, Gemini transcription, contextual UML edits, and mocked endpoint coverage are implemented; needs live validation |
+| Text → UML/editing | DONE | Real Google Gemini runtime validated class creation plus existing-class attribute and method edits with stable JointJS identity, no duplication, and preserved layout |
+| Image/photo → UML | VERIFY | The UI/backend/Gemini image path exists with MIME/size validation and sanitized failures; live image understanding remains NOT_VERIFIED without a controlled fixture |
+| Voice → UML/editing | VERIFY | The MediaRecorder → backend → Gemini contextual-edit pipeline is implemented; physical microphone input remains MANUAL_REQUIRED |
 | Real-time collaboration | PARTIAL | Channels/WebSocket/P2P infrastructure exists |
 | 2-3 collaborative users | VERIFY | Needs end-to-end multi-client test |
 | Host/participant roles | DONE | Real Redis-backed 3-client validation confirmed first-host assignment, ordered participant state, longest-connected promotion, and reconnect as participant |
