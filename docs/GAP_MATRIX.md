@@ -13,7 +13,7 @@ Status values:
 | UML 2.5 class/data modeling | PARTIAL | Existing class modeling; formal UML 2.5 coverage must be validated |
 | Text → UML/editing | DONE | Real Google Gemini runtime validated class creation plus existing-class attribute and method edits with stable JointJS identity, no duplication, and preserved layout |
 | Image/photo → UML | VERIFY | The UI/backend/Gemini image path exists with MIME/size validation and sanitized failures; live image understanding remains NOT_VERIFIED without a controlled fixture |
-| Voice → UML/editing | VERIFY | The MediaRecorder → backend → Gemini contextual-edit pipeline is implemented; physical microphone input remains MANUAL_REQUIRED |
+| Voice → UML/editing | DONE | Physical Chrome microphone validation passed class creation plus same-class attribute and method edits with prior content retained and no duplicate class |
 | Real-time collaboration | PARTIAL | Channels/WebSocket/P2P infrastructure exists |
 | 2-3 collaborative users | VERIFY | Needs end-to-end multi-client test |
 | Host/participant roles | DONE | Real Redis-backed 3-client validation confirmed first-host assignment, ordered participant state, longest-connected promotion, and reconnect as participant |
