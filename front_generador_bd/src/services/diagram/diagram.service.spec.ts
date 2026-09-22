@@ -603,3 +603,92 @@ describe('DiagramService AI edit regressions', () => {
     });
   });
 });
+
+describe('DiagramService backup persistence and room lifecycle', () => {
+  function createServiceWithMocks() {
+    const collab = { closeSocketRTC: jasmine.createSpy('closeSocketRTC') };
+    const exportService = {
+      export: jasmine.createSpy('export').and.returnValue({
+        classes: [{ id: 'c1' }],
+        relationships: []
+      })
+    };
+    const backup = {
+      setBackupUml: jasmine.createSpy('setBackupUml').and.returnValue({
+        // Simula un observable que nunca emite (equivalente a RxJS EMPTY),
+        // que es justo el caso que dejaba el socket abierto antes del fix.
+        subscribe: (_handlers?: any) => undefined
+      })
+    };
+    const service = new DiagramService(
+      {} as any,
+      collab as any,
+      exportService as any,
+      {} as any,
+      backup as any
+    );
+    (service as any).graph = { clear: jasmine.createSpy('clear') };
+    (service as any).roomId = 'room-1';
+    return { service, collab, exportService, backup };
+  }
+
+  beforeEach(() => jasmine.clock().install());
+  afterEach(() => jasmine.clock().uninstall());
+
+  it('debounces backend autosave so rapid diagram edits do not flood the backend', () => {
+    const { service, backup } = createServiceWithMocks();
+
+    service.persistState();
+    service.persistState();
+    service.persistState();
+    expect(backup.setBackupUml).not.toHaveBeenCalled();
+
+    jasmine.clock().tick(1500);
+
+    expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
+    expect(backup.setBackupUml).toHaveBeenCalledWith('room-1', jasmine.objectContaining({ classes: [{ id: 'c1' }] }));
+  });
+
+  it('does not autosave before the debounce window elapses', () => {
+    const { service, backup } = createServiceWithMocks();
+
+    service.persistState();
+    jasmine.clock().tick(1000);
+    expect(backup.setBackupUml).not.toHaveBeenCalled();
+
+    jasmine.clock().tick(600);
+    expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the collaboration socket on leaveRoom even when the backend backup never emits (empty diagram)', () => {
+    const { service, collab } = createServiceWithMocks();
+
+    // Regresión: BackupService.setBackupUml devuelve RxJS EMPTY para un
+    // diagrama vacío, por lo que el cierre del socket NO puede depender del
+    // callback `next` de esa suscripción o el usuario queda como fantasma.
+    service.leaveRoom('room-1');
+
+    expect(collab.closeSocketRTC).toHaveBeenCalled();
+  });
+
+  it('leaveRoom is idempotent: a second call does not re-close the socket or resend the backup', () => {
+    const { service, collab, backup } = createServiceWithMocks();
+
+    service.leaveRoom('room-1');
+    service.leaveRoom('room-1');
+
+    expect(collab.closeSocketRTC).toHaveBeenCalledTimes(1);
+    expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaveRoom cancels a pending debounced autosave instead of letting it fire later', () => {
+    const { service, backup } = createServiceWithMocks();
+
+    service.persistState(); // agenda un autosave a los 1500ms
+    service.leaveRoom('room-1'); // debe cancelar el timer y enviar su propio backup final
+
+    jasmine.clock().tick(5000);
+
+    expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
+  });
+});
