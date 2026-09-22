@@ -1,5 +1,5 @@
 const wsPort = 8000;
-const portJava = 7000;
+const portJava = 7001;
 export const environment = {
     production: false,
     wsPort,                // 👈 puerto configurable
