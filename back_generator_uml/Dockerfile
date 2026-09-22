@@ -25,8 +25,8 @@ WORKDIR /app
 # Copia el jar generado desde el contenedor anterior
 COPY --from=builder /app/target/*.jar app.jar
 
-# Expón el puerto (ajústalo si usas otro)
-EXPOSE 7000
+# Expón el puerto (debe coincidir con server.port y con SERVER_PORT en docker-compose.app.yml)
+EXPOSE 7001
 
 # Comando para ejecutar la aplicación
 ENTRYPOINT ["java", "-jar", "app.jar"]

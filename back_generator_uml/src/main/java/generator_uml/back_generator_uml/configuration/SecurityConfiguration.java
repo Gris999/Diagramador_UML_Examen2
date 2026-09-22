@@ -36,7 +36,8 @@ public class SecurityConfiguration {
                 "http://localhost:4200",
                 "http://localhost:4000",
                 "http://ec2-3-84-241-46.compute-1.amazonaws.com:4000",
-                "https://front-sw1.fournext.me"
+                "https://front-sw1.fournext.me",
+                "http://18.188.167.127:4200"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
