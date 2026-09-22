@@ -65,6 +65,22 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- Sin <parent>spring-boot-starter-parent</parent>, Maven no fija una
+                     versión por defecto para este plugin ni enlaza automáticamente el
+                     goal "repackage" a la fase package (eso solo ocurre vía el
+                     pluginManagement heredado del starter-parent). Se declara aquí
+                     explícitamente para producir un jar ejecutable real. -->
+                <version>${spring.boot.version}</version>
+                <configuration>
+                    <mainClass>{{basePackage}}.GenAppApplication</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
