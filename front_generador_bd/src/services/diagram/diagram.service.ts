@@ -417,9 +417,6 @@ export class DiagramService {
 
       this.collab.init(roomId);
       console.log('JointJS inicializado en room:', roomId);
-      if (this.graph.getCells().length === 0) {
-        this.collab.broadcast({ t: 'request_full_state' });
-      }
       return Promise.resolve();
     } catch (error) {
       console.error('Error al inicializar JointJS:', error);

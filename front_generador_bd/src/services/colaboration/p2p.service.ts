@@ -21,6 +21,7 @@ export class P2PService {
     participant => participant.peer === this.localId() && participant.role === 'host'
   ));
   public onData?: (from: string, data: any) => void;
+  public onReady?: () => void;
 
   constructor(private signaling: SignalingService) {}
 
@@ -80,19 +81,6 @@ export class P2PService {
       return;
     }
     p.dc = dc;
-    dc.onopen = () => {
-      if (this.onData) {
-        this.onData(remoteId, { t: 'request_full_state' } as any);
-        
-      }
-    };
-    dc.onmessage = (ev) => {
-      try {
-        this.onData && this.onData(remoteId, JSON.parse(ev.data));
-      } catch (e) {
-        console.error('[P2P] Error parsing mensaje remoto:', e);
-      }
-    };
   }
 
 
@@ -105,6 +93,7 @@ export class P2PService {
       }
       if (msg.peer && !this.localId()) {
         this.localId.set(msg.peer);
+        this.onReady?.();
         //console.log('[P2P] Mi localId:', this.localId);
       }
       if (msg.action === 'join') {
@@ -115,8 +104,15 @@ export class P2PService {
       return;
     }
 
-    if (msg.type === 'broadcast' && msg.payload?.type === 'announce') {
+    if (msg.type === 'broadcast') {
       const remoteId = msg.from;
+      if (!remoteId || remoteId === this.localId()) return;
+
+      if (msg.payload?.type !== 'announce') {
+        this.onData?.(remoteId, msg.payload);
+        return;
+      }
+
       if (this.peers.has(remoteId)) return;
 
       // regla: el que tiene ID menor inicia
@@ -170,13 +166,8 @@ export class P2PService {
   }
 
   sendToAll(data: any) {
-  const json = JSON.stringify(data);
-  for (const [id, p] of this.peers) {
-    if (p.dc?.readyState === 'open') {
-      p.dc.send(json);
-    }
+    this.signaling.broadcast(data);
   }
-}
 
   closeSocketRTC() {
     // Cerrar WebRTC peers
