@@ -25,6 +25,13 @@ export class SignalingService {
   public onMessage?: (msg: Msg) => void;
 
   connect(roomId: string) {
+    // Evita conexiones fantasma: si ya había un socket abierto (por ejemplo,
+    // el componente anterior no cerró la sala correctamente), se cierra antes
+    // de abrir uno nuevo para no dejarlo registrado como miembro en el backend.
+    if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
+      this.socket.onclose = null;
+      this.socket.close();
+    }
     this._roomId = roomId;
 
     // Detecta ws:// o wss:// correctamente

@@ -24,6 +24,10 @@ export class DiagramService {
   private isPanning = false;
   private lastPos = { x: 0, y: 0 };
   public clipboard: any = null;
+  private roomId = '';
+  private roomLeft = false;
+  private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly AUTOSAVE_DEBOUNCE_MS = 1500;
 
 
   constructor(
@@ -41,6 +45,8 @@ export class DiagramService {
     try {
       // Configura la clave de almacenamiento local
       this.storageKey = `diagram-${roomId}`;
+      this.roomId = roomId;
+      this.roomLeft = false;
       // Importamos JointJS
       this.joint = await import('jointjs');
       // Creamos el grafo
@@ -1725,11 +1731,12 @@ export class DiagramService {
     if (!this.graph) return null;
     return this.exportService.export(this.graph);
   }
-  // Guarda el estado actual del diagrama en localStorages
+  // Guarda el estado actual del diagrama en localStorage y agenda el respaldo remoto
   private persist() {
     if (!this.graph) return;
     const json = this.exportService.export(this.graph);
     localStorage.setItem(this.storageKey, JSON.stringify(json));
+    this.scheduleBackendBackup();
   }
 
   // Exponer persistencia públicamente para que servicios externos (collab)
@@ -1737,24 +1744,64 @@ export class DiagramService {
   public persistState(): void {
     this.persist();
   }
+
+  // Agenda un guardado remoto con debounce para no saturar al backend
+  // en cada evento de arrastre/edición.
+  private scheduleBackendBackup(): void {
+    if (!this.roomId) return;
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => {
+      this.autosaveTimer = null;
+      this.sendBackupNow();
+    }, DiagramService.AUTOSAVE_DEBOUNCE_MS);
+  }
+
+  // Envía el snapshot actual al backend de inmediato (sin esperar el debounce).
+  private sendBackupNow(): void {
+    if (!this.roomId) return;
+    const snapshot = this.exportToJson();
+    if (!snapshot) return;
+    this.backup.setBackupUml(this.roomId, snapshot).subscribe({
+      next: () => console.log('✅ Backup enviado al backend'),
+      error: (err) => console.error('❌ Error enviando backup:', err)
+    });
+  }
+
   // Limpia el diagrama guardado en localStorage
   clearStorage() {
     localStorage.removeItem(this.storageKey);
   }
-  closeDiagram(roomId: string) {
-    const snapshot = this.exportToJson();
-    if (snapshot) {
-      this.backup.setBackupUml(roomId, snapshot).subscribe({
-        next: () => {
-          console.log('✅ Backup enviado al backend');
-          this.collab.closeSocketRTC();
-          this.graph?.clear();
-          this.selectedCell = null;
-        },
-        error: (err) => console.error('❌ Error enviando backup:', err)
-      });
-    }
 
+  // Se debe invocar siempre que el usuario abandona la sala (botón Home,
+  // navegación del router o cierre del componente) para garantizar que el
+  // socket de colaboración se cierre y no queden conexiones fantasma.
+  leaveRoom(roomId: string = this.roomId): void {
+    if (this.roomLeft) return;
+    this.roomLeft = true;
+    if (this.autosaveTimer) {
+      clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
+    }
+    if (roomId) {
+      const snapshot = this.exportToJson();
+      if (snapshot) {
+        this.backup.setBackupUml(roomId, snapshot).subscribe({
+          next: () => console.log('✅ Backup final enviado al backend'),
+          error: (err) => console.error('❌ Error enviando backup final:', err)
+        });
+      }
+    }
+    // El cierre del socket NO depende del resultado del backup: de lo
+    // contrario un diagrama vacío (backup.setBackupUml devuelve EMPTY) o una
+    // petición fallida dejaban la conexión WebSocket abierta indefinidamente,
+    // generando usuarios fantasma al reingresar a la sala.
+    this.collab.closeSocketRTC();
+    this.graph?.clear();
+    this.selectedCell = null;
+  }
+
+  closeDiagram(roomId: string) {
+    this.leaveRoom(roomId);
   }
   zoomIn() {
     this.currentScale = Math.min(this.currentScale + this.zoomStep, this.maxScale);

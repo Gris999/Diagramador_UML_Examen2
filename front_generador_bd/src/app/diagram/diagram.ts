@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, HostListener, Inject, NgZone, PLATFORM_ID, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, Inject, NgZone, OnDestroy, PLATFORM_ID, ViewChild } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { CdkDragEnd, CdkDropListGroup, CdkDropList } from '@angular/cdk/drag-drop';
 import { SidePanel } from "../side-panel/side-panel";
@@ -21,12 +21,14 @@ import { ParticipantsPanel } from '../participants-panel/participants-panel';
   styleUrls: ['./diagram.css'],
   imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel]
 })
-export class Diagram implements AfterViewInit {
+export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;
   @ViewChild(SidePanel) sidePanel!: SidePanel;
 
   private lastMousePos: { x: number; y: number } | null = null;
-  
+  private roomId: string | null = null;
+  private roomLeft = false;
+
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private ngZone: NgZone,
@@ -46,6 +48,7 @@ export class Diagram implements AfterViewInit {
       this.ngZone.run(async () => {
         try {
           const roomId = this.route.snapshot.paramMap.get('roomId') || 'default-room';
+          this.roomId = roomId;
           await this.diagramService.initialize(this.paperContainer.nativeElement, roomId);
           
           this.sidePanel.elementDragged.subscribe((event: CdkDragEnd) => {
@@ -319,6 +322,17 @@ export class Diagram implements AfterViewInit {
 
     });
   }
+  ngOnDestroy(): void {
+    // Red de seguridad: si el usuario abandona la sala por cualquier vía que
+    // no sea el botón "Home" (back button, otro enlace, cierre de pestaña
+    // detectado por Angular al destruir la ruta), esto garantiza que el
+    // backup final se envíe y el socket de colaboración se cierre, evitando
+    // usuarios fantasma en la sala.
+    if (this.roomId) {
+      this.diagramService.leaveRoom(this.roomId);
+    }
+  }
+
   zoomIn() {
     this.diagramService.zoomIn();
   }
