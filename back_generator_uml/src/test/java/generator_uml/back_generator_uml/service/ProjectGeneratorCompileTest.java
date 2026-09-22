@@ -56,6 +56,74 @@ class ProjectGeneratorCompileTest {
         verifyPostmanCollection(extractDir);
     }
 
+    /**
+     * Regression coverage for two bugs found by manual audit:
+     * <ul>
+     *   <li>BUG 1: a class with no numeric/String/char attribute (e.g. only {@code boolean}/
+     *       {@code double}) had no eligible primary key, leaving Repository.mustache to render
+     *       {@code JpaRepository<Producto, >} — invalid Java.</li>
+     *   <li>BUG 2: a class whose primary key is {@code String} (first attribute is a string,
+     *       e.g. {@code idUsuario}) participating in a relationship caused the *other* side's
+     *       generated Service/Controller to declare {@code findUsuarioById(Long id)} instead of
+     *       {@code findUsuarioById(String id)} — a type mismatch against
+     *       {@code JpaRepository<Usuario, String>}.
+     * </ul>
+     * Both are exercised together and the resulting project is actually compiled with Maven.
+     */
+    @Test
+    @Timeout(value = 6, unit = TimeUnit.MINUTES)
+    void generatedProjectWithMissingPkAndStringPkCompiles() throws Exception {
+        // Producto: sin atributo elegible como PK (nombre:string SÍ sería elegible, así que
+        // se usa solo double/boolean para forzar el fallback de PK sintética).
+        UmlClass producto = umlClass("producto", "Producto",
+                attr("precio", "double"), attr("activo", "boolean"));
+
+        // Usuario: PK real de tipo String (idUsuario es el primer atributo).
+        UmlClass usuario = umlClass("usuario", "Usuario",
+                attr("idUsuario", "string"), attr("nombre", "string"));
+
+        // Pedido: PK Long normal, con ManyToOne hacia Usuario (PK String).
+        UmlClass pedido = umlClass("pedido", "Pedido",
+                attr("id", "int"), attr("fecha", "string"), attr("total", "double"));
+
+        // Usuario 1 -- * Pedido
+        UmlRelationship usuarioToPedido = relationship("r1", "association", "usuario", "pedido", "1", "*");
+
+        UmlSchema schema = new UmlSchema();
+        schema.setClasses(List.of(producto, usuario, pedido));
+        schema.setRelationships(List.of(usuarioToPedido));
+
+        ProjectGenerator projectGenerator =
+                new ProjectGenerator(new DefaultMustacheFactory(), new PostmanCollectionGenerator());
+
+        Path zip = projectGenerator.generate(schema, "com.example.pkcheck", "pk-check-app");
+        Path extractDir = Files.createTempDirectory("pk-check-extract-");
+        ZipUtil.unpack(zip.toFile(), extractDir.toFile());
+
+        Path modelDir = extractDir.resolve("src/main/java/com/example/pkcheck/model");
+        Path repoDir = extractDir.resolve("src/main/java/com/example/pkcheck/repository");
+        Path svcDir = extractDir.resolve("src/main/java/com/example/pkcheck/service");
+
+        // BUG 1: Producto debe tener una PK Long sintética, y el repository debe usarla.
+        String productoEntity = Files.readString(modelDir.resolve("Producto.java"));
+        assertTrue(productoEntity.contains("@GeneratedValue(strategy = GenerationType.IDENTITY)")
+                        && productoEntity.contains("private Long id;"),
+                "Producto sin PK elegible debe recibir un id Long autogenerado");
+        String productoRepo = Files.readString(repoDir.resolve("ProductoRepository.java"));
+        assertTrue(productoRepo.contains("JpaRepository<Producto, Long>"),
+                "ProductoRepository debe quedar tipado con la PK sintética Long, nunca vacío");
+
+        // BUG 2: PedidoService debe buscar Usuario por String, no por Long.
+        String pedidoService = Files.readString(svcDir.resolve("PedidoService.java"));
+        assertTrue(pedidoService.contains("findUsuarioById(String id)"),
+                "PedidoService debe usar el tipo real de la PK de Usuario (String), no Long");
+        assertTrue(!pedidoService.contains("findUsuarioById(Long id)"),
+                "PedidoService no debe seguir usando Long para una relación hacia una PK String");
+
+        int exitCode = runMavenPackage(extractDir.resolve("pom.xml"));
+        assertEquals(0, exitCode, "El proyecto generado con PK faltante y PK String debe compilar");
+    }
+
     // ===================== schema =====================
 
     private UmlSchema buildSampleSchema() {

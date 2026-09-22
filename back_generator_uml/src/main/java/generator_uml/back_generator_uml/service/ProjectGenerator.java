@@ -3,6 +3,7 @@ package generator_uml.back_generator_uml.service;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
 import generator_uml.back_generator_uml.entity.UmlClass;
+import generator_uml.back_generator_uml.entity.UmlRelationship;
 import generator_uml.back_generator_uml.entity.UmlSchema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,41 @@ public class ProjectGenerator {
 
         // normalizar
         schema = JsonNormalizer.normalize(schema);
+
+        // ====== PRE-CALCULAR TIPO DE PK REAL POR ENTIDAD ======
+        // Necesario para que las relaciones (ManyToOne/OneToOne, incluida la entidad
+        // intermedia de ManyToMany) generen find<Entity>ById con el tipo real de PK
+        // (Long, String, etc.) en vez de asumir siempre Long. Duplica intencionalmente
+        // la misma regla de detección de PK que el bucle principal de abajo (primer
+        // atributo numérico -> Long, primer atributo String/char -> String, si no hay
+        // ninguno -> Long autogenerado sintético) para no reestructurar ese bucle.
+        Map<String, String> pkTypeByClassId = new HashMap<>();
+        for (UmlClass c : schema.getClasses()) {
+            boolean hasParent = schema.getRelationships() != null && schema.getRelationships().stream()
+                    .anyMatch(r -> "generalization".equals(r.getType()) && r.getSourceId().equals(c.getId()));
+            if (hasParent) continue; // se resuelve en la segunda pasada, heredando del padre
+
+            String resolvedType = null;
+            for (var attr : c.getAttributes()) {
+                String type = TypeMapper.toJava(attr.getType());
+                if (isNumericType(type)) {
+                    resolvedType = "Long";
+                    break;
+                } else if (type.equalsIgnoreCase("String") || type.equalsIgnoreCase("char") || type.equalsIgnoreCase("Character")) {
+                    resolvedType = "String";
+                    break;
+                }
+            }
+            pkTypeByClassId.put(c.getId(), resolvedType != null ? resolvedType : "Long");
+        }
+        for (UmlClass c : schema.getClasses()) {
+            if (pkTypeByClassId.containsKey(c.getId())) continue; // ya resuelta (no es hija)
+            String parentId = schema.getRelationships().stream()
+                    .filter(r -> "generalization".equals(r.getType()) && r.getSourceId().equals(c.getId()))
+                    .map(UmlRelationship::getTargetId)
+                    .findFirst().orElse(null);
+            pkTypeByClassId.put(c.getId(), parentId != null ? pkTypeByClassId.getOrDefault(parentId, "Long") : "Long");
+        }
 
         // ====== DETECTAR RELACIONES MUCHOS A MUCHOS Y CREAR ENTIDADES INTERMEDIAS ======
         List<Map<String, Object>> intermediateEntities = new ArrayList<>();
@@ -136,16 +172,20 @@ public class ProjectGenerator {
                             intermediateCtx.put("attributes", intermediateAttrs);
                             
                             // Dos relaciones ManyToOne con configuración para evitar loops
+                            String firstEntityId = sourceEntity.equals(firstEntity) ? rel.getSourceId() : rel.getTargetId();
+                            String secondEntityId = sourceEntity.equals(firstEntity) ? rel.getTargetId() : rel.getSourceId();
                             List<Map<String, Object>> intermediateManyToOne = new ArrayList<>();
                             intermediateManyToOne.add(Map.of(
                                 "TargetEntity", firstEntity,
                                 "targetField", firstEntityField,
-                                "ignoreBackReference", NamingUtil.toField(intermediateEntityName)
+                                "ignoreBackReference", NamingUtil.toField(intermediateEntityName),
+                                "targetPkType", pkTypeByClassId.getOrDefault(firstEntityId, "Long")
                             ));
                             intermediateManyToOne.add(Map.of(
                                 "TargetEntity", secondEntity,
                                 "targetField", secondEntityField,
-                                "ignoreBackReference", NamingUtil.toField(intermediateEntityName)
+                                "ignoreBackReference", NamingUtil.toField(intermediateEntityName),
+                                "targetPkType", pkTypeByClassId.getOrDefault(secondEntityId, "Long")
                             ));
                             intermediateCtx.put("manyToOne", intermediateManyToOne);
                             intermediateCtx.put("hasManyToOne", true);
@@ -244,6 +284,27 @@ public class ProjectGenerator {
                 attrs.add(a);
             }
 
+            // ====== FALLBACK: PK SINTÉTICA SI NINGÚN ATRIBUTO ES ELEGIBLE ======
+            // Sin esto, una clase sin atributo numérico/String/char (ej. solo
+            // boolean/double) queda con pkAssigned=false y Repository/Service/
+            // Controller.mustache generan código inválido (JpaRepository<Entidad, >).
+            if (!isChild && !pkAssigned) {
+                boolean idNameTaken = attrs.stream()
+                        .anyMatch(a -> "id".equalsIgnoreCase((String) a.get("name")));
+                String syntheticPkName = idNameTaken ? "generatedId" : "id";
+
+                Map<String, Object> syntheticPk = new HashMap<>();
+                syntheticPk.put("isId", true);
+                syntheticPk.put("type", "Long");
+                syntheticPk.put("generated", true);
+                syntheticPk.put("name", syntheticPkName);
+                attrs.add(0, syntheticPk);
+
+                pkAssigned = true;
+                pkName = syntheticPkName;
+                pkType = "Long";
+            }
+
             // ====== RELACIONES ======
             List<Map<String, Object>> oneToMany = new ArrayList<>();
             List<Map<String, Object>> manyToOne = new ArrayList<>();
@@ -320,7 +381,8 @@ public class ProjectGenerator {
                                 // source *..1 target => Source tiene ManyToOne hacia Target
                                 manyToOne.add(Map.of(
                                         "TargetEntity", targetEntity,
-                                        "targetField", NamingUtil.toField(targetEntity)
+                                        "targetField", NamingUtil.toField(targetEntity),
+                                        "targetPkType", pkTypeByClassId.getOrDefault(rel.getTargetId(), "Long")
                                 ));
                             } else if (!sourceIsMany && !targetIsMany) {
                                 // 1..1 => OneToOne
@@ -328,7 +390,8 @@ public class ProjectGenerator {
                                 oneToOne.add(Map.of(
                                         "TargetEntity", targetEntity,
                                         "targetField", NamingUtil.toField(targetEntity),
-                                        "composition", isComposition
+                                        "composition", isComposition,
+                                        "targetPkType", pkTypeByClassId.getOrDefault(rel.getTargetId(), "Long")
                                 ));
                                 if (isComposition) {
                                     needsOnDeleteImport = true;
@@ -368,7 +431,8 @@ public class ProjectGenerator {
                                 // source 1..* target => Target tiene ManyToOne hacia Source
                                 manyToOne.add(Map.of(
                                         "TargetEntity", sourceEntity,
-                                        "targetField", NamingUtil.toField(sourceEntity)
+                                        "targetField", NamingUtil.toField(sourceEntity),
+                                        "targetPkType", pkTypeByClassId.getOrDefault(rel.getSourceId(), "Long")
                                 ));
                             } else if (targetIsMany && sourceIsMany) {
                                 // source *..* target => Target también tiene OneToMany hacia entidad intermedia
