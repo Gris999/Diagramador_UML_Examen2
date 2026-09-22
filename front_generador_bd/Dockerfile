@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Construir Angular Universal (SSR) sin agotar recursos en hosts pequeños
-RUN NG_BUILD_MAX_WORKERS=1 npm run build
+RUN NG_BUILD_MAX_WORKERS=1 NG_BUILD_PARALLEL_TS=0 npm run build
 
 # Etapa 2: Imagen final (solo runtime)
 FROM node:20-alpine
