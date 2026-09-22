@@ -37,9 +37,13 @@ export class CollaborationService {
       if (!this.api?.getGraph()) return;
       this.applyRemoteOp(data);
     };
+    this.p2p.onReady = () => {
+      if (!this.api?.getGraph()?.getCells()?.length) {
+        this.broadcast({ t: 'request_full_state' });
+      }
+    };
     this.p2p.init(roomId);
     this.ready = true;
-    //this.broadcast({ t: 'request_full_state' });
     setTimeout(() => {
       if (!this.api?.getGraph()?.getCells()?.length) {
         console.log('[Collab] Nadie respondió, cargo backup de BD...');

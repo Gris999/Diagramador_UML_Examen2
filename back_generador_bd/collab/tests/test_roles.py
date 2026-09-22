@@ -224,3 +224,33 @@ class CanvasRoleTests(SimpleTestCase):
 
         await receiver.disconnect()
         await sender.disconnect()
+
+    async def test_room_broadcast_payload_reaches_other_client_unchanged(self):
+        sender, sender_id, _ = await self.connect_client()
+        receiver, _, _ = await self.connect_client()
+        await self.receive_state(sender, 2)
+        payload = {
+            "t": "move",
+            "id": "class-1",
+            "x": 40,
+            "y": 60,
+        }
+
+        await sender.send_json_to({
+            "type": "broadcast",
+            "payload": payload,
+        })
+
+        broadcast = await self.receive_until(
+            receiver,
+            lambda message: message.get("type") == "broadcast"
+            and message.get("payload") == payload,
+        )
+        self.assertEqual(broadcast, {
+            "type": "broadcast",
+            "from": sender_id,
+            "payload": payload,
+        })
+
+        await receiver.disconnect()
+        await sender.disconnect()
