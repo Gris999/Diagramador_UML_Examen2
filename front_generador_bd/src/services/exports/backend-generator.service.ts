@@ -1,10 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { saveAs } from 'file-saver';
-
-// Puerto fijo del generador Spring (back_generator_uml), publicado tal cual
-// en docker-compose.app.yml (SERVER_PORT=7001, "7001:7001").
-const SPRING_GENERATOR_PORT = 7001;
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class BackendGeneratorService {
@@ -19,11 +16,18 @@ export class BackendGeneratorService {
    * SignalingService para el WebSocket de colaboración, en vez de depender
    * de un dominio fijo en environment.ts (que se rompe en cada despliegue
    * distinto: local, EC2, dominio, etc.).
+   *
+   * El puerto es configurable via environment.springPort: en despliegues
+   * directos (sin proxy) es 7001, tal cual publica docker-compose.app.yml.
+   * Detrás de un reverse proxy de un solo origen (p.ej. Cloudflare Tunnel),
+   * environment.springPort se deja vacío y se usa la ruta relativa
+   * /generate, que nginx reenvía a 127.0.0.1:7001.
    */
   generateBackend(json: any, filename: string = 'backend.zip') {
     const protocol = window.location.protocol;
     const host = window.location.hostname;
-    const url = `${protocol}//${host}:${SPRING_GENERATOR_PORT}/generate`;
+    const port = environment.springPort ? `:${environment.springPort}` : '';
+    const url = `${protocol}//${host}${port}/generate`;
 
     this.loading.set(true);
     this.http.post(url, json, {
