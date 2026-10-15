@@ -5,7 +5,6 @@ import com.github.mustachejava.MustacheFactory;
 import generator_uml.back_generator_uml.entity.UmlClass;
 import generator_uml.back_generator_uml.entity.UmlRelationship;
 import generator_uml.back_generator_uml.entity.UmlSchema;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.zeroturnaround.zip.ZipUtil;
 
@@ -15,11 +14,18 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ProjectGenerator {
 
     private final MustacheFactory mustacheFactory;
     private final PostmanCollectionGenerator postmanCollectionGenerator;
+
+    // Constructor explícito a propósito: @RequiredArgsConstructor provoca un falso error en
+    // VS Code ("Flexible Constructor Bodies", vscode-java #4521) aunque Maven compile bien.
+    public ProjectGenerator(MustacheFactory mustacheFactory,
+                            PostmanCollectionGenerator postmanCollectionGenerator) {
+        this.mustacheFactory = mustacheFactory;
+        this.postmanCollectionGenerator = postmanCollectionGenerator;
+    }
 
     public Path generate(UmlSchema schema, String basePackage, String artifactId) throws Exception {
         Path root = Files.createTempDirectory("gen-" + artifactId);

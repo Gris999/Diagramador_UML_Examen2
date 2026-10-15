@@ -2,7 +2,6 @@ package generator_uml.back_generator_uml.controller;
 
 import generator_uml.back_generator_uml.entity.UmlSchema;
 import generator_uml.back_generator_uml.service.ProjectGenerator;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,10 +10,14 @@ import java.nio.file.Path;
 
 @RestController
 @RequestMapping("/generate")
-@RequiredArgsConstructor
 public class GenerateController {
 
     private final ProjectGenerator projectGenerator;
+
+    // Constructor explícito a propósito: ver ProjectGenerator (falso error de VS Code con Lombok).
+    public GenerateController(ProjectGenerator projectGenerator) {
+        this.projectGenerator = projectGenerator;
+    }
 
     @PostMapping(produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<byte[]> generate(@RequestBody UmlSchema schema,
