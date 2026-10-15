@@ -52,7 +52,7 @@ Este plan cierra primero la línea base (I0) y después construye la IA particip
 | H6 | Existe una revisión por IA (`/ws/uml/`, `validate_model`), pero solo evalúa relaciones y responde solo a quien la pidió. | Ampliarla y publicarla (I3). |
 | H7 | No existe vista móvil de seguimiento. Las apps Flutter generadas son CRUD del sistema modelado, otra cosa. | Vista de solo lectura (I5). |
 | H8 | `back_generador_bd/docker-compose.yml` tiene una **contraseña de Postgres escrita en el archivo, versionada desde el primer commit del baseline (2025-10-20), en un repositorio público**. | Quitarla y rotarla (I0). |
-| H9 | `environment.ts` apunta a `django-sw1.fournext.me` y `spring-sw1.fournext.me`. | Confirmar que sigan siendo tuyos (I0, I7). |
+| H9 | `environment.ts` apunta a `django-sw1.fournext.me` y `spring-sw1.fournext.me`, dominios que **hoy no resuelven** (comprobado el 2026-10-14). El sitio desplegado en el túnel llama a Django en el mismo origen (`endpoint_python:"/"`), lo que difiere de lo que hay en el repositorio. | Fijar los endpoints en el repositorio y rehacer el build desplegado (I0, I7). |
 | H10 | `docker-compose.app.yml` ejecuta `makemigrations` al arrancar, monta el código como volumen y publica Redis (6379), Postgres (5433) y pgAdmin (5050) hacia afuera. Es una configuración de desarrollo. | Compose de producción (I7). |
 | H11 | No hay CI: `.github/` solo contiene hooks de `modernize`. | Pipeline en I7. |
 | H12 | `develop` tiene 1 commit sin subir (`4319942`) y 13 archivos en staging sin commit. GitHub registra el último push el 2026-09-22. | Cerrar en I0. |
@@ -381,6 +381,15 @@ Esfuerzo en horas para una persona. La suma sin I6 es de unas **78–110 h**; co
 ### 11.1 Estado actual *(verificado)*
 Docker Compose en dos archivos (`docker-compose.db.yml` con Postgres y pgAdmin; `docker-compose.app.yml` con Django, Redis, Spring y Angular). La red `backend` es externa y hay que crearla antes. Hubo un despliegue manual en EC2 y un túnel de Cloudflare para demostración. No hay CI ni infraestructura como código.
 
+**Sitio desplegado hoy** *(comprobado el 2026-10-14 con peticiones HTTP; no se probó la generación de backend ni la IA en esas URLs)*:
+
+| URL | Estado | Observación |
+|---|---|---|
+| https://spectrum-opinion-yeast-permanent.trycloudflare.com/ | Responde 200; sirve la app Angular y Django en el mismo origen | Es un *Quick Tunnel* de Cloudflare: la dirección **desaparece cuando se detiene el proceso `cloudflared`** y cambia al reiniciarlo. No está instalado en el Mac de Pedro, así que corre en otra máquina |
+| http://18.188.167.127:4200/ | Responde 200; Angular en el puerto 4200 (Django en el 8000) | Parece ser la instancia EC2, sin HTTPS ni dominio |
+| `front-sw1`, `django-sw1`, `spring-sw1` en `fournext.me` | No resuelven (DNS) | Dominios del equipo original, fuera de uso |
+| Hosts `ec2-3-84-241-46…` y `ec2-34-228-19-253…` | Sin respuesta | Instancias antiguas |
+
 ### 11.2 Opciones
 
 | Opción | Descripción | Esfuerzo | Uso |
@@ -449,7 +458,7 @@ Un modelo local no es práctico en una máquina virtual pequeña sin GPU. En pro
 | R6 | Cuota o caída de Gemini durante la demo | Media | Alto | Reintento y modelo alterno ya existentes; IA local como respaldo; demo grabada |
 | R7 | El registro hace lenta la edición | Baja | Medio | Lista blanca, agrupar ediciones de texto, escritura asíncrona |
 | R8 | Credencial ya expuesta en el repositorio público | Alta (ya ocurrió) | Medio | Quitarla del archivo y cambiarla (I0) |
-| R9 | Los dominios `fournext.me` no son controlados por Pedro | Media | Alto | Verificar en I0; variables de entorno por despliegue |
+| R9 | Los dominios `fournext.me` ya no resuelven y el sitio desplegado depende de un túnel temporal | Alta (ya ocurrió) | Alto | Endpoints por variable de entorno; dominio propio o IP fija en I7 |
 | R10 | Un modelo local pequeño rinde mal | Alta | Bajo | Es opcional; se documenta la comparación |
 | R11 | El build de Angular consume demasiada memoria en una instancia pequeña | Media | Medio | Construir imágenes en CI o con límites de procesos (ya hay ajustes) |
 
@@ -524,6 +533,8 @@ Un modelo local no es práctico en una máquina virtual pequeña sin GPU. En pro
 | Rama de integración | https://github.com/Gris999/Diagramador_UML_Examen2/tree/develop |
 | Repositorio original (upstream) | https://github.com/Fournext/Diagramador_UML_Examen2 |
 | Clonar | `git clone https://github.com/Gris999/Diagramador_UML_Examen2.git` |
+| Sitio desplegado (túnel, temporal) | https://spectrum-opinion-yeast-permanent.trycloudflare.com/ |
+| Sitio desplegado (EC2, sin HTTPS) | http://18.188.167.127:4200/ |
 
 ## 18. Documentos relacionados
 `AGENTS.md`, `docs/REQUIREMENTS.md`, `docs/GAP_MATRIX.md`, `docs/AI_CONTEXT.md`, `docs/FLUTTER_ASSISTANT_SETUP.md`, `tasks/`.
