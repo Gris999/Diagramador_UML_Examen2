@@ -87,7 +87,7 @@ export class Diagram implements AfterViewInit, OnDestroy {
       }
   }
   saveDiagram() {
-    const json = this.exportService.export(this.diagramService.getGraph());
+    const json = this.diagramService.exportForGenerators();
     console.log('JSON exportado:', JSON.stringify(json, null, 2));
 
     // luego lo puedes enviar a backend
@@ -311,7 +311,7 @@ export class Diagram implements AfterViewInit, OnDestroy {
         }
       }
 
-      if (['association','generalization','aggregation','composition','dependency'].includes(type)) {
+      if (['association','generalization','aggregation','composition','dependency','association-class'].includes(type)) {
         this.relationshipService.startLinkCreation(
           this.diagramService['paper'],
           this.paperContainer.nativeElement,

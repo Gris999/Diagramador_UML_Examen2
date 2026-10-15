@@ -323,7 +323,7 @@ export class SidePanel {
     this.diagramService.exportToImage('diagrama.png');
   }
   exportSql() {
-    const umlJson = this.diagramService.exportToJson();
+    const umlJson = this.diagramService.exportForGenerators();
     this.sqlExportService.downloadSql(umlJson, 'diagrama.sql');
   }
 
@@ -407,7 +407,7 @@ export class SidePanel {
   }
 
   onGenerateFrontend() {
-    const umlJson = this.diagramService.exportToJson();
+    const umlJson = this.diagramService.exportForGenerators();
     this.frontendGeneratorService.generateFrontend(umlJson);
   }
 

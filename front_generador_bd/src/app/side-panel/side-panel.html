@@ -121,6 +121,19 @@
         <span class="font-semibold text-base text-gray-900">Dependencia</span>
       </div>
     </div>
+    <div
+      class="palette-item cursor-pointer bg-white border rounded-lg shadow-sm px-3 py-2 hover:bg-purple-50 transition flex items-center"
+      cdkDrag [cdkDragData]="{ type: 'association-class' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="flex items-center gap-4 w-full justify-center py-1">
+        <span class="inline-block align-middle" style="width:100px;height:28px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="110%" height="100%" viewBox="20 5 165 20">
+            <path d="M 32 18 L 170 18" fill="none" stroke="#888" stroke-width="2" stroke-miterlimit="10"
+              stroke-dasharray="2 3" pointer-events="stroke" />
+          </svg>
+        </span>
+        <span class="font-semibold text-base text-gray-900">Clase Asociativa</span>
+      </div>
+    </div>
   </div>
   }
 

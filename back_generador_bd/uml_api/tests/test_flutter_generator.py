@@ -616,6 +616,42 @@ class FlutterGeneratorApiTests(SimpleTestCase):
             self.assertIn("personaid INTEGER", db_content)
             self.assertIn("carroid INTEGER", db_content)
 
+    def test_pre_split_many_to_many_does_not_duplicate_intermediate_table(self):
+        """Caso 7 (entidad intermedia visual M:N): cuando el frontend ya envía
+        la relación M:N reemplazada por una clase intermedia real + 2
+        relaciones 1:N (en vez de una única relación con '*' en ambos
+        extremos), el generador no debe activar también su propia detección
+        M:N ni crear una segunda tabla intermedia: debe tratar la clase
+        intermedia como una clase normal y usar su lógica 1:N genérica para
+        las 2 FKs. Nota: esa ruta genérica no infiere el mismo tipo INTEGER
+        que la rama M:N dedicada (aquí produce TEXT); es una diferencia de
+        tipado preexistente de esa ruta 1:N genérica, no introducida por esta
+        prueba, y no afecta la aserción central: exactamente una tabla
+        intermedia, sin duplicados."""
+        import tempfile
+        from pathlib import Path
+        from uml_api.services.flutter_generator import FlutterCRUDGenerator
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir)
+            uml = {
+                "classes": [
+                    {"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]},
+                    {"id": "cls_2", "name": "carro", "attributes": [{"name": "id", "type": "int"}]},
+                    {"id": "cls_3", "name": "carropersona", "attributes": [], "generated": True}
+                ],
+                "relationships": [
+                    {"sourceId": "cls_1", "targetId": "cls_3", "type": "association", "labels": ["1", "0..*"], "generated": True},
+                    {"sourceId": "cls_2", "targetId": "cls_3", "type": "association", "labels": ["1", "0..*"], "generated": True}
+                ]
+            }
+            FlutterCRUDGenerator(uml).generate_project(base_path)
+            db_file = base_path / 'lib' / 'database' / 'database_helper.dart'
+            db_content = db_file.read_text(encoding='utf-8')
+
+            self.assertEqual(db_content.count('CREATE TABLE carropersona'), 1)
+            self.assertIn("personaid", db_content)
+            self.assertIn("carroid", db_content)
+
     def test_boolean_normalization_in_db_helper(self):
         """9. boolean fields are normalized in DatabaseHelper"""
         import tempfile

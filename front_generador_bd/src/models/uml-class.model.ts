@@ -16,4 +16,7 @@ export interface UmlClass {
   methods: Method[];
   position: { x: number; y: number };
   size?: { width: number; height: number };
+  // true cuando la clase es la entidad intermedia generada automáticamente
+  // para representar visualmente una asociación muchos-a-muchos.
+  generated?: boolean;
 }

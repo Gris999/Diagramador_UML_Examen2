@@ -7,6 +7,11 @@ export interface UmlClassDTO {
   methods: { name: string; parameters?: string; returnType?: string }[];
   position: { x: number; y: number };
   size: { width: number; height: number };
+  // true = entidad intermedia generada automáticamente para una asociación M:N.
+  // Los generadores backend no necesitan leer este campo (lo ignoran como
+  // cualquier campo desconocido): la clase ya llega como una clase regular con
+  // sus propias relaciones 1:N, así que se genera correctamente sin cambios.
+  generated?: boolean;
 }
 
 export interface UmlRelationshipDTO {
@@ -16,6 +21,9 @@ export interface UmlRelationshipDTO {
   targetId: string;
   labels?: string[];
   vertices?: { x: number; y: number }[];
+  // true = es una de las 2 relaciones 1:N generadas automáticamente hacia una
+  // entidad intermedia M:N (ver UmlClassDTO.generated).
+  generated?: boolean;
 }
 
 export interface UmlExportDTO {
@@ -51,7 +59,8 @@ export class DiagramExportService {
           attributes,
           methods,
           position: cell.position(),  // 👈 posición
-          size: cell.size()           // 👈 tamaño
+          size: cell.size(),          // 👈 tamaño
+          ...(cell.get('generatedJunction') ? { generated: true } : {})
         });
       } else if (cell.isLink?.()) {
         relationships.push({
@@ -60,7 +69,8 @@ export class DiagramExportService {
           sourceId: cell.get('source')?.id,
           targetId: cell.get('target')?.id,
           labels: (cell.get('labels') || []).map((lbl: any) => lbl.attrs?.text?.text),
-          vertices: cell.get('vertices') || []   
+          vertices: cell.get('vertices') || [],
+          ...(cell.get('generatedJunctionLeg') ? { generated: true } : {})
         });
       }
     });
