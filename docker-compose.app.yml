@@ -32,6 +32,8 @@ services:
     container_name: spring_backend
     environment:
       - SERVER_PORT=7001
+      # Origenes CORS extra, separados por coma (se suman a los del codigo). Se toma del .env junto a este archivo.
+      - APP_CORS_ALLOWED_ORIGINS=${APP_CORS_ALLOWED_ORIGINS:-}
     ports:
       - "7001:7001"
 
