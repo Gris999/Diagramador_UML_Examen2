@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { resolveWsHost } from './ws-host.util';
 
 type CollaborationParticipant = {
   peer: string;
@@ -38,10 +39,7 @@ export class SignalingService {
     //const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
     //const wsUrl = `${scheme}://${location.hostname}:8000/ws/canvas/${roomId}/`;
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const host =
-      window.location.protocol === 'https:'
-        ? environment.WebSocket_python
-        : window.location.hostname;
+    const host = resolveWsHost(window.location, environment.WebSocket_python);
 
     const port =
 

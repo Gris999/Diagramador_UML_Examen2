@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { resolveWsHost } from './ws-host.util';
 
 @Injectable({ providedIn: 'root' })
 export class UmlValidationService {
@@ -7,10 +8,7 @@ export class UmlValidationService {
 
   connect(onResult: (data: any) => void) {
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const host =
-      window.location.protocol === 'https:'
-        ? environment.WebSocket_python
-        : window.location.hostname;
+    const host = resolveWsHost(window.location, environment.WebSocket_python);
 
     const port =
       window.location.protocol === 'https:'
