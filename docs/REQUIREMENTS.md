@@ -39,6 +39,29 @@ It should support:
 - **RF-16** — A reconnect is a new connection and does not restore a prior role or identity.
 - **RF-17** — Roles exist only for the live room session; they require no account or persistent ownership.
 
+## AI as a room participant
+
+Requested by the instructor on 2026-10-13: the AI becomes one more member of the collaborative board. It does nothing until someone asks, its ideas are visible, it knows what everyone did, and sessions can be resumed. Details and design in `docs/PLAN_PUDS_IA_PARTICIPANTE.md`.
+
+- **RF-23** — Each participant has a visible name and an anonymous identifier kept in their browser.
+- **RF-24** — The AI appears as a member in the participants panel.
+- **RF-25** — Each room has an activity log, visible to everyone, with author, type and summary of each meaningful action.
+- **RF-26** — Each participant has an individual chat with the AI; no other participant can read it.
+- **RF-27** — The AI answers about any member's activity using the log.
+- **RF-28** — The AI changes the diagram only when a participant explicitly orders it; its ideas are shown as suggestions anyone can apply.
+- **RF-29** — AI changes are applied and propagated to everyone, labeled "IA, a pedido de X".
+- **RF-30** — On request, the AI reviews classes, attributes, methods and relationships.
+- **RF-31** — On returning to a room, the diagram, the activity log and the participant's own chat are recovered.
+- **RF-32** — A mobile follow-along view exists (live, read-only).
+- **RF-33** — *(Optional)* The AI provider is configurable: Gemini or local (Ollama/Qwen).
+
+Additional non-functional requirements:
+
+- **RNF-04** — Privacy: a person's chat is not accessible to others.
+- **RNF-05** — Resilience: if the AI fails, a clear message is shown and the diagram is neither lost nor corrupted.
+- **RNF-06** — The activity log must not degrade editing: continuous actions (move, resize) are not logged.
+- **RNF-07** — Deployment is reproducible and has a smoke test.
+
 ## Interoperability
 
 **RF-18** — The system must support bidirectional XMI interoperability with Enterprise Architect.
