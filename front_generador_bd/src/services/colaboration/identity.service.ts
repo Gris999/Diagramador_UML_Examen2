@@ -44,7 +44,9 @@ export class IdentityService {
 
     const requested = this.requestName();
     this.memoryName = requested || 'Usuario';
-    this.writeStorage(IDENTITY_NAME_STORAGE_KEY, this.memoryName);
+    // El nombre por defecto no se guarda: si cancelan el aviso, se vuelve a
+    // preguntar la próxima vez en lugar de quedarse como "Usuario" para siempre.
+    if (requested) this.writeStorage(IDENTITY_NAME_STORAGE_KEY, requested);
     return this.memoryName;
   }
 

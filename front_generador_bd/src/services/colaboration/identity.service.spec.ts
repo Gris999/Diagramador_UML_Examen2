@@ -44,6 +44,14 @@ describe('IdentityService', () => {
     expect(first.name).toBe('Beatriz');
   });
 
+  it('does not persist the fallback name when the prompt is cancelled', () => {
+    spyOn(window, 'prompt').and.returnValue(null);
+    const service = new IdentityService('browser');
+
+    expect(service.getIdentity().name).toBe('Usuario');
+    expect(localStorage.getItem(IDENTITY_NAME_STORAGE_KEY)).toBeNull();
+  });
+
   it('uses memory only and never touches browser APIs during SSR', () => {
     const getItem = spyOn(localStorage, 'getItem');
     const setItem = spyOn(localStorage, 'setItem');
