@@ -84,6 +84,6 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | Django sin base de datos | **74 correctas**, 0 fallos (colaboración 20, Gemini 7, XMI 14, diseño de XMI 1, Flutter 32) | ver procedimiento 2 |
 | Django con base de datos (SQLite en memoria, `settings_test`) | **55 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
 | Spring | Cubierto por `ProjectGeneratorCompileTest` y las pruebas de CORS | Verificado en iteraciones anteriores; se vuelve a ejecutar antes del congelamiento |
-| Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados | Pruebas de humo del 2026-10-21 |
+| Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados; identidad, actividad, chat, revisión y aplicar idea verificados con dos navegadores en https://diagramador.dev | Pruebas de humo y prueba manual del 2026-10-21 |
 
 **Pendiente antes de la entrega:** repetir toda la evaluación sobre la versión congelada (≈ 2026-11-02), añadir las pruebas de I4 e I5 y repetir la prueba física con tres navegadores y con el móvil.
