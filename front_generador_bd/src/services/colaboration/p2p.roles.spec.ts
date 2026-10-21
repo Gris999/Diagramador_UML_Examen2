@@ -22,14 +22,14 @@ describe('P2PService collaboration roles', () => {
       type: 'presence',
       action: 'state',
       members: [
-        { peer: 'peer-a', role: 'host' },
-        { peer: 'peer-b', role: 'participant' }
+        { peer: 'peer-a', role: 'host', name: 'Ana' },
+        { peer: 'peer-b', role: 'participant', name: 'Beatriz' }
       ]
     });
 
     expect(service.participants()).toEqual([
-      { peer: 'peer-a', role: 'host' },
-      { peer: 'peer-b', role: 'participant' }
+      { peer: 'peer-a', role: 'host', name: 'Ana' },
+      { peer: 'peer-b', role: 'participant', name: 'Beatriz' }
     ]);
     expect(service.isHost()).toBeTrue();
   });

@@ -5,41 +5,12 @@ from channels.testing import WebsocketCommunicator
 
 from collab.consumers import CanvasConsumer
 from collab.routing import websocket_urlpatterns
-
-
-class InMemoryRoleStore:
-    rooms = {}
-
-    def __init__(self, channel_layer, group_name):
-        self.channel_layer = channel_layer
-        self.group_name = group_name
-
-    async def join(self, channel_name):
-        await self.channel_layer.group_add(self.group_name, channel_name)
-        members = self.rooms.setdefault(self.group_name, [])
-        if channel_name not in members:
-            members.append(channel_name)
-        return list(members)
-
-    async def leave(self, channel_name):
-        await self.channel_layer.group_discard(self.group_name, channel_name)
-        members = self.rooms.get(self.group_name, [])
-        if channel_name not in members:
-            return False, list(members)
-        members.remove(channel_name)
-        if not members:
-            self.rooms.pop(self.group_name, None)
-        return True, list(members)
-
-    async def remove_by_host(self, requester, target):
-        members = self.rooms.get(self.group_name, [])
-        if not members or members[0] != requester or target == requester:
-            return False, list(members)
-        if target not in members:
-            return False, list(members)
-        members.remove(target)
-        await self.channel_layer.group_discard(self.group_name, target)
-        return True, list(members)
+from collab.tests.fakes import (
+    InMemoryActivityStore,
+    InMemoryIdentityStore,
+    InMemoryRoleStore,
+    reset_stores,
+)
 
 
 @override_settings(CHANNEL_LAYERS={
@@ -49,12 +20,18 @@ class CanvasRoleTests(SimpleTestCase):
     application = URLRouter(websocket_urlpatterns)
 
     def setUp(self):
-        InMemoryRoleStore.rooms.clear()
+        reset_stores()
         self.original_role_store = CanvasConsumer.role_store_class
+        self.original_identity_store = CanvasConsumer.identity_store_class
+        self.original_activity_store = CanvasConsumer.activity_store_class
         CanvasConsumer.role_store_class = InMemoryRoleStore
+        CanvasConsumer.identity_store_class = InMemoryIdentityStore
+        CanvasConsumer.activity_store_class = InMemoryActivityStore
 
     def tearDown(self):
         CanvasConsumer.role_store_class = self.original_role_store
+        CanvasConsumer.identity_store_class = self.original_identity_store
+        CanvasConsumer.activity_store_class = self.original_activity_store
 
     async def connect_client(self, room="roles"):
         communicator = WebsocketCommunicator(

@@ -1,10 +1,13 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { ActivityEvent } from './activity-event';
+import { IdentityService } from './identity.service';
 import { resolveWsHost } from './ws-host.util';
 
 type CollaborationParticipant = {
   peer: string;
   role: 'host' | 'participant';
+  name?: string | null;
 };
 
 type Msg =
@@ -16,6 +19,7 @@ type Msg =
     }
   | { type: 'signal'; from: string; payload: any }
   | { type: 'broadcast'; from: string; payload: any }
+  | { type: 'activity'; event: ActivityEvent }
   | { type: 'removed'; by: string }
   | { type: 'remove_rejected' };
 
@@ -24,6 +28,8 @@ export class SignalingService {
   private socket!: WebSocket;
   private _roomId!: string;
   public onMessage?: (msg: Msg) => void;
+
+  constructor(private readonly identity: IdentityService) {}
 
   connect(roomId: string) {
     // Evita conexiones fantasma: si ya había un socket abierto (por ejemplo,
@@ -58,10 +64,15 @@ export class SignalingService {
     const wsUrl = `${scheme}://${host}${port}${environment.wsPath}${roomId}/`;
 
     console.log('[Signaling] Connecting to', wsUrl);
-    this.socket = new WebSocket(wsUrl);
+    const socket = new WebSocket(wsUrl);
+    this.socket = socket;
 
-    this.socket.onopen = () => console.log('[Signaling] Connected to', wsUrl);
-    this.socket.onmessage = (ev) => {
+    socket.onopen = () => {
+      console.log('[Signaling] Connected to', wsUrl);
+      const identity = this.identity.getIdentity();
+      socket.send(JSON.stringify({ type: 'hello', ...identity }));
+    };
+    socket.onmessage = (ev) => {
       try {
         const msg: Msg = JSON.parse(ev.data);
         if (this.onMessage) this.onMessage(msg);
@@ -69,7 +80,7 @@ export class SignalingService {
         console.error('[Signaling] Error parsing message', e);
       }
     };
-    this.socket.onclose = () => console.log('[Signaling] Disconnected');
+    socket.onclose = () => console.log('[Signaling] Disconnected');
   }
 
   sendSignal(to: string, payload: any) {

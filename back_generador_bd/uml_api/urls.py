@@ -8,6 +8,7 @@ from .views import (
     generar_flutter,
     export_xmi,
     import_xmi,
+    get_room_activity,
 )
 
 
@@ -22,4 +23,5 @@ urlpatterns = [
 
     path("xmi/export/", export_xmi, name="xmi-export"),
     path("xmi/import/", import_xmi, name="xmi-import"),
+    path("rooms/<str:room>/activity/", get_room_activity, name="room-activity"),
 ]

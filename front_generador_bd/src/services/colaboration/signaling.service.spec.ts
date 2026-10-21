@@ -11,6 +11,7 @@ describe('SignalingService connection lifecycle', () => {
     onmessage: ((ev: any) => void) | null = null;
     onclose: (() => void) | null = null;
     closeSpy = jasmine.createSpy('close');
+    send = jasmine.createSpy('send');
 
     constructor(public url: string) {
       createdSockets.push(this);
@@ -35,7 +36,7 @@ describe('SignalingService connection lifecycle', () => {
   });
 
   it('closes a still-open previous socket before opening a new one for the same or another room', () => {
-    const service = new SignalingService();
+    const service = new SignalingService({ getIdentity: () => ({ token: 'token', name: 'Ana' }) } as any);
 
     service.connect('room-1');
     expect(createdSockets.length).toBe(1);
@@ -52,7 +53,7 @@ describe('SignalingService connection lifecycle', () => {
   });
 
   it('does not attempt to close an already-closed previous socket', () => {
-    const service = new SignalingService();
+    const service = new SignalingService({ getIdentity: () => ({ token: 'token', name: 'Ana' }) } as any);
 
     service.connect('room-1');
     const firstSocket = createdSockets[0];
@@ -61,5 +62,28 @@ describe('SignalingService connection lifecycle', () => {
     service.connect('room-2');
 
     expect(firstSocket.closeSpy).not.toHaveBeenCalled();
+  });
+
+  it('sends the remembered identity only after the socket opens', () => {
+    const identity = {
+      getIdentity: jasmine.createSpy('getIdentity').and.returnValue({
+        token: '8edc7cac-cfe2-45f7-9142-84671025d21a',
+        name: 'Ana'
+      })
+    };
+    const service = new SignalingService(identity as any);
+
+    service.connect('room-1');
+    const socket = createdSockets[0];
+    expect(socket.send).not.toHaveBeenCalled();
+
+    socket.onopen();
+
+    expect(identity.getIdentity).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(socket.send.calls.mostRecent().args[0])).toEqual({
+      type: 'hello',
+      token: '8edc7cac-cfe2-45f7-9142-84671025d21a',
+      name: 'Ana'
+    });
   });
 });
