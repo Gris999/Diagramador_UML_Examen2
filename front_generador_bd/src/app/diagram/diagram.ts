@@ -14,13 +14,14 @@ import { ActivatedRoute } from '@angular/router';
 import { XmiService } from '../../services/interop/xmi.service';
 import { ParticipantsPanel } from '../participants-panel/participants-panel';
 import { ActivityPanel } from '../activity-panel/activity-panel';
+import { IaChatPanel } from '../ia-chat-panel/ia-chat-panel';
 
 @Component({
   selector: 'app-diagram',
   standalone: true,
   templateUrl: './diagram.html',
   styleUrls: ['./diagram.css'],
-  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel]
+  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel]
 })
 export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;

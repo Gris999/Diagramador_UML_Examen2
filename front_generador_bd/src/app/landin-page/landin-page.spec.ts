@@ -1,4 +1,6 @@
+import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { LandinPage } from './landin-page';
 
@@ -8,7 +10,8 @@ describe('LandinPage', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LandinPage]
+      imports: [LandinPage],
+      providers: [provideZonelessChangeDetection(), provideRouter([])]
     })
     .compileComponents();
 

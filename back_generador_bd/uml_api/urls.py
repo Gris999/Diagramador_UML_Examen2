@@ -1,4 +1,5 @@
 from django.urls import path
+from .chat_views import chat_history, ia_chat
 from .views import (
     GenerateUMLView,
     set_backupUML,
@@ -24,4 +25,6 @@ urlpatterns = [
     path("xmi/export/", export_xmi, name="xmi-export"),
     path("xmi/import/", import_xmi, name="xmi-import"),
     path("rooms/<str:room>/activity/", get_room_activity, name="room-activity"),
+    path("rooms/<str:room>/chat/", chat_history, name="room-chat-history"),
+    path("rooms/<str:room>/ia/chat/", ia_chat, name="room-ia-chat"),
 ]

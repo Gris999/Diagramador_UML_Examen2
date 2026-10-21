@@ -1,0 +1,85 @@
+<div class="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2" data-testid="ia-chat">
+  @if (open()) {
+    <section
+      class="flex h-96 w-80 max-w-full flex-col rounded border border-gray-300 bg-white shadow-lg"
+      aria-label="Chat privado con la IA"
+    >
+      <header class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+        <div>
+          <h3 class="text-sm font-semibold text-gray-800">Chat con la IA</h3>
+          <p class="text-[10px] text-gray-500">Privado: solo tú ves esta conversación</p>
+        </div>
+        <button
+          type="button"
+          class="rounded px-2 text-gray-500 hover:bg-gray-100"
+          aria-label="Cerrar el chat"
+          data-testid="ia-chat-close"
+          (click)="toggle()"
+        >
+          ✕
+        </button>
+      </header>
+
+      <div #messageList class="flex-1 space-y-2 overflow-y-auto px-3 py-2" data-testid="ia-chat-messages">
+        @if (messages().length === 0 && !sending()) {
+          <p class="text-xs text-gray-500">
+            Pregúntale algo a la IA, por ejemplo: «¿Qué hizo Beto?» o «Explícame este diagrama».
+          </p>
+        }
+        @for (message of messages(); track message.id) {
+          <div
+            class="flex"
+            [class.justify-end]="message.role === 'user'"
+            data-testid="ia-chat-message"
+          >
+            <p
+              class="max-w-[85%] whitespace-pre-wrap break-words rounded px-2 py-1 text-xs"
+              [class.bg-purple-600]="message.role === 'user'"
+              [class.text-white]="message.role === 'user'"
+              [class.bg-gray-100]="message.role === 'ia'"
+              [class.text-gray-800]="message.role === 'ia'"
+            >{{ message.content }}</p>
+          </div>
+        }
+        @if (sending()) {
+          <p class="text-xs italic text-gray-500" data-testid="ia-chat-thinking">La IA está pensando…</p>
+        }
+      </div>
+
+      @if (error()) {
+        <p class="px-3 pb-1 text-xs text-red-600" role="alert" data-testid="ia-chat-error">{{ error() }}</p>
+      }
+
+      <form class="flex gap-2 border-t border-gray-200 p-2" (submit)="$event.preventDefault(); send()">
+        <textarea
+          class="h-14 min-w-0 flex-1 resize-none rounded border border-gray-300 px-2 py-1 text-xs"
+          placeholder="Escribe tu pregunta…"
+          aria-label="Mensaje para la IA"
+          [maxLength]="maxChars"
+          [value]="draft()"
+          (input)="onDraftInput($event)"
+          (keydown)="onKeydown($event)"
+          data-testid="ia-chat-input"
+        ></textarea>
+        <button
+          type="submit"
+          class="self-end rounded bg-purple-600 px-3 py-1 text-xs text-white hover:bg-purple-700 disabled:opacity-50"
+          [disabled]="sending() || draft().trim().length === 0"
+          data-testid="ia-chat-send"
+        >
+          Enviar
+        </button>
+      </form>
+    </section>
+  }
+
+  <button
+    type="button"
+    class="rounded-full bg-purple-600 px-4 py-2 text-sm text-white shadow-lg hover:bg-purple-700"
+    [attr.aria-expanded]="open()"
+    data-testid="ia-chat-toggle"
+    (click)="toggle()"
+  >
+    🤖 Chat con la IA
+  </button>
+</div>
