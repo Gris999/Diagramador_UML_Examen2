@@ -73,4 +73,25 @@ describe('P2PService WebSocket operation transport', () => {
 
     expect(service.onReady).toHaveBeenCalledTimes(1);
   });
+
+  it('captures activity messages without forwarding them as diagram operations', async () => {
+    service.onData = jasmine.createSpy('onData');
+    const event = {
+      id: 7,
+      room: 'room-1',
+      actor: null,
+      actor_name: 'Ana',
+      actor_kind: 'user',
+      type: 'add_class',
+      target_id: 'class-1',
+      summary: 'añadió la clase Cliente',
+      data: {},
+      created_at: '2026-10-21T12:00:00Z'
+    };
+
+    await receive({ type: 'activity', event });
+
+    expect(service.liveActivityEvents()).toEqual([event]);
+    expect(service.onData).not.toHaveBeenCalled();
+  });
 });

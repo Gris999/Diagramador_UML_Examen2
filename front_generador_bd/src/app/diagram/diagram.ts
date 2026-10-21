@@ -13,13 +13,14 @@ import { UmlValidationService } from '../../services/colaboration/uml-validation
 import { ActivatedRoute } from '@angular/router';
 import { XmiService } from '../../services/interop/xmi.service';
 import { ParticipantsPanel } from '../participants-panel/participants-panel';
+import { ActivityPanel } from '../activity-panel/activity-panel';
 
 @Component({
   selector: 'app-diagram',
   standalone: true,
   templateUrl: './diagram.html',
   styleUrls: ['./diagram.css'],
-  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel]
+  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel]
 })
 export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;

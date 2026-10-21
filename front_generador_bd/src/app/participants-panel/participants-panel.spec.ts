@@ -110,4 +110,18 @@ describe('ParticipantsPanel', () => {
     expect(list.classList).toContain('max-h-48');
     expect(list.classList).toContain('overflow-y-auto');
   });
+
+  it('shows supplied names and keeps the positional fallback for legacy members', () => {
+    participants.set([
+      { peer: 'peer-a', role: 'host', name: 'Ana' },
+      { peer: 'peer-b', role: 'participant' }
+    ]);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Ana');
+    expect(text).toContain('Usuario 2');
+    expect(text).toContain('(Tú)');
+    expect(text).toContain('Host');
+  });
 });

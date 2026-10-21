@@ -1,9 +1,11 @@
 import { computed, Injectable, signal } from '@angular/core';
+import { ActivityEvent } from './activity-event';
 import { SignalingService } from './signaling.service';
 
 export type CollaborationParticipant = {
   peer: string;
   role: 'host' | 'participant';
+  name?: string | null;
 };
 
 type Peer = {
@@ -17,6 +19,7 @@ export class P2PService {
   private peers = new Map<string, Peer>();
   private localId = signal(''); // mi channel_name (lo asigna el servidor en presence)
   readonly participants = signal<CollaborationParticipant[]>([]);
+  readonly liveActivityEvents = signal<ActivityEvent[]>([]);
   readonly isHost = computed(() => this.participants().some(
     participant => participant.peer === this.localId() && participant.role === 'host'
   ));
@@ -85,6 +88,15 @@ export class P2PService {
 
 
   private async handleSignaling(msg: any) {
+
+    if (msg.type === 'activity' && msg.event) {
+      const event = msg.event as ActivityEvent;
+      this.liveActivityEvents.update(events => [
+        event,
+        ...events.filter(existing => existing.id !== event.id)
+      ].slice(0, 200));
+      return;
+    }
 
     if (msg.type === 'presence') {
       if (msg.action === 'state' && Array.isArray(msg.members)) {
@@ -183,6 +195,7 @@ export class P2PService {
     this.peers.clear();
     this.localId.set('');
     this.participants.set([]);
+    this.liveActivityEvents.set([]);
 
     // Cerrar signaling
     this.signaling.close();

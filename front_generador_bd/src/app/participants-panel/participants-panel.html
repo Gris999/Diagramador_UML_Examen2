@@ -22,7 +22,7 @@
           data-testid="participant-entry"
         >
           <span class="min-w-0 flex-1 truncate text-gray-700">
-            Usuario {{ index + 1 }}
+            {{ participant.name || 'Usuario ' + (index + 1) }}
             @if (isCurrent(participant.peer)) {
               <strong class="text-purple-700">(Tú)</strong>
             }
