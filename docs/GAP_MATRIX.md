@@ -40,7 +40,7 @@ Status values:
 | Private per-person AI chat (RF-26, RF-27, RNF-04) | DONE | `POST /api/rooms/<room>/ia/chat/` and `GET /api/rooms/<room>/chat/` identified by `X-Participant-Token`; context = diagram + room activity + only the requester's own history. Privacy covered by tests (including a mutation check) |
 | AI changes on request (RF-28, RF-29) | DONE | `Pedir cambio` mode: the requester's browser applies the changes through the normal edit path; operations carry `via_ia` and the log shows "IA … (a pedido de X)". `Preguntar`/`Revisar` never return changes (tested with a provider that returns a diagram) |
 | AI review and shared suggestions (RF-30) | DONE | `Revisar` publishes an event for the whole room with up to 5 ideas; anyone can apply one (applied by the clicker, marked as applied for everyone) |
-| Resume a session (RF-31) | PARTIAL | Diagram snapshot (auto-saved), activity history and own chat are recovered on return; pending: explicit end-to-end validation after closing every tab (I4) |
+| Resume a session (RF-31) | DONE | Verified locally on 2026-10-21: after every participant left, reopening the room restored the diagram (auto-saved snapshot), the activity history and the participant's own AI chat (token kept in the browser). Privacy of other people's chats is covered by tests |
 | Mobile follow-along view (RF-32) | MISSING | Planned for I5 (read-only live view) |
 | Configurable AI provider / local model (RF-33) | MISSING | Optional; the chat already goes through an `AIProvider` interface (I6) |
 | AWS deployment | PARTIAL | Desplegado en AWS EC2 con Docker Compose, nginx y HTTPS (Let's Encrypt) en https://diagramador.dev; procedimiento manual y repetible en `docs/DESPLIEGUE.md`. Faltan infraestructura como código y CI/CD |

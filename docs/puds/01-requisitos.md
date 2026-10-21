@@ -69,7 +69,7 @@ flowchart LR
 | CU-04 | Pedirle a la IA un cambio en el diagrama | RF-28, RF-29 | ✅ I3 |
 | CU-05 | Pedirle a la IA una revisión | RF-30 | ✅ I3 |
 | CU-06 | Ver las ideas de la IA y aplicar una | RF-28 | ✅ I3 |
-| CU-07 | Retomar una sesión anterior | RF-31 | 🔄 I4 |
+| CU-07 | Retomar una sesión anterior | RF-31 | ✅ I4 |
 | CU-08 | Seguir la sala desde el móvil | RF-32 | 📋 I5 |
 | CU-09 | Configurar el proveedor de IA | RF-33 | 📋 I6 (opcional) |
 
