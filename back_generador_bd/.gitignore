@@ -37,7 +37,7 @@ db.sqlite3-journal
 # Migraciones (opcional: puedes versionarlas si quieres)
 */migrations/*
 !*/migrations/__init__.py
-!collab/migrations/0001_initial.py
+!collab/migrations/0*.py
 
 # Archivos de entorno
 .env

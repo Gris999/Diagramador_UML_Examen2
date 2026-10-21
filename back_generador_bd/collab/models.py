@@ -44,3 +44,31 @@ class ActivityEvent(models.Model):
                 name="activity_room_created_idx",
             ),
         ]
+
+
+class ChatMessage(models.Model):
+    """Mensaje del chat privado entre un participante y la IA.
+
+    Solo su dueño puede leerlo: la API siempre filtra por participante.
+    """
+
+    ROLE_USER = "user"
+    ROLE_IA = "ia"
+
+    room = models.CharField(max_length=64)
+    participant = models.ForeignKey(
+        Participant,
+        on_delete=models.CASCADE,
+        related_name="chat_messages",
+    )
+    role = models.CharField(max_length=8)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=("participant", "id"),
+                name="chat_participant_id_idx",
+            ),
+        ]
