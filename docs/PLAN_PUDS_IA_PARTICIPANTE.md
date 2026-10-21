@@ -381,14 +381,14 @@ Esfuerzo en horas para una persona. La suma sin I6 es de unas **78–110 h**; co
 ### 11.1 Estado actual *(verificado)*
 Docker Compose en dos archivos (`docker-compose.db.yml` con Postgres y pgAdmin; `docker-compose.app.yml` con Django, Redis, Spring y Angular). La red `backend` es externa y hay que crearla antes. Hubo un despliegue manual en EC2 y un túnel de Cloudflare para demostración. No hay CI ni infraestructura como código.
 
-**Sitio desplegado hoy** *(comprobado el 2026-10-14 con peticiones HTTP; no se probó la generación de backend ni la IA en esas URLs)*:
+**Sitio desplegado hoy** *(comprobado el 2026-10-21; el procedimiento completo está en [`docs/DESPLIEGUE.md`](DESPLIEGUE.md))*:
 
 | URL | Estado | Observación |
 |---|---|---|
-| https://spectrum-opinion-yeast-permanent.trycloudflare.com/ | Responde 200; sirve la app Angular y Django en el mismo origen | Es un *Quick Tunnel* de Cloudflare: la dirección **desaparece cuando se detiene el proceso `cloudflared`** y cambia al reiniciarlo. No está instalado en el Mac de Pedro, así que corre en otra máquina |
-| http://18.188.167.127:4200/ | Responde 200; Angular en el puerto 4200 (Django en el 8000) | Parece ser la instancia EC2, sin HTTPS ni dominio |
-| `front-sw1`, `django-sw1`, `spring-sw1` en `fournext.me` | No resuelven (DNS) | Dominios del equipo original, fuera de uso |
-| Hosts `ec2-3-84-241-46…` y `ec2-34-228-19-253…` | Sin respuesta | Instancias antiguas |
+| https://diagramador.dev/ | Responde 200 con HTTPS (Let's Encrypt, renovación automática); Angular, Django y el WebSocket de colaboración salen por el mismo origen vía nginx | Dominio propio registrado hasta 2027-10-21 (renovación manual) |
+| `18.188.167.127` (EC2, us-east-2) | Solo están abiertos los puertos 22, 80 y 443; 4200, 7001 y 8000 quedaron cerrados al exterior el 2026-10-21 | Los servicios siguen escuchando solo en la propia instancia, detrás de nginx |
+| Túnel de Cloudflare (`trycloudflare.com`) | Temporal; cambia al reiniciar `cloudflared` | Ya no es la vía principal |
+| `front-sw1`, `django-sw1`, `spring-sw1` en `fournext.me`; hosts `ec2-3-84-241-46…` y `ec2-34-228-19-253…` | Sin respuesta | Dominios e instancias del equipo original, fuera de uso |
 
 ### 11.2 Opciones
 
@@ -533,8 +533,8 @@ Un modelo local no es práctico en una máquina virtual pequeña sin GPU. En pro
 | Rama de integración | https://github.com/Gris999/Diagramador_UML_Examen2/tree/develop |
 | Repositorio original (upstream) | https://github.com/Fournext/Diagramador_UML_Examen2 |
 | Clonar | `git clone https://github.com/Gris999/Diagramador_UML_Examen2.git` |
-| Sitio desplegado (túnel, temporal) | https://spectrum-opinion-yeast-permanent.trycloudflare.com/ |
-| Sitio desplegado (EC2, sin HTTPS) | http://18.188.167.127:4200/ |
+| Sitio desplegado (EC2, HTTPS) | https://diagramador.dev/ |
+| Runbook de despliegue | [`docs/DESPLIEGUE.md`](DESPLIEGUE.md) |
 
 ## 18. Documentos relacionados
 `AGENTS.md`, `docs/REQUIREMENTS.md`, `docs/GAP_MATRIX.md`, `docs/AI_CONTEXT.md`, `docs/FLUTTER_ASSISTANT_SETUP.md`, `tasks/`.
