@@ -79,12 +79,19 @@ describe('DiagramService: entidad intermedia visual para asociaciones M:N', () =
     return service;
   }
 
-  function addManyToManyLink(service: DiagramService, sourceId: string, targetId: string) {
+  function addManyToManyLink(
+    service: DiagramService,
+    sourceId: string,
+    targetId: string,
+    options: { id?: string; vertices?: Array<{ x: number; y: number }> } = {}
+  ) {
     const graph = (service as any).graph as FakeGraph;
     const link = new FakeLink({
+      id: options.id,
       relationType: 'association',
       source: { id: sourceId },
       target: { id: targetId },
+      vertices: options.vertices || [],
       labels: [
         { attrs: { text: { text: '0..*' } } },
         { attrs: { text: { text: '0..*' } } }
@@ -114,6 +121,7 @@ describe('DiagramService: entidad intermedia visual para asociaciones M:N', () =
     const junctions = graph.getElements().filter((e: any) => e.get('generatedJunction'));
     expect(junctions.length).toBe(1);
     expect(junctions[0].get('name')).toBe('Curso_Estudiante'); // orden alfabético determinista
+    expect(junctions[0].get('attributes')).toBe('id: int');
 
     const mtomLinksRemaining = graph.getLinks().filter((l: any) => {
       const labels = (l.get('labels') || []).map((x: any) => x.attrs?.text?.text);
@@ -192,17 +200,17 @@ describe('DiagramService: entidad intermedia visual para asociaciones M:N', () =
     expect(graph.getLinks().length).toBe(1); // la relación 1:N original sigue existiendo, intacta
   });
 
-  it('el nombre y el id de la entidad intermedia son deterministas sin importar cuál lado es source', () => {
+  it('el nombre y el id de la entidad intermedia son deterministas para el mismo link sin importar cuál lado es source', () => {
     const serviceAB = createService();
     const a1 = makeClass(serviceAB, 'a-1', 'Alumno');
     const b1 = makeClass(serviceAB, 'b-1', 'Materia');
-    addManyToManyLink(serviceAB, a1.id, b1.id);
+    addManyToManyLink(serviceAB, a1.id, b1.id, { id: 'rel-alumno-materia' });
     (serviceAB as any).persist();
 
     const serviceBA = createService();
     const a2 = makeClass(serviceBA, 'a-1', 'Alumno');
     const b2 = makeClass(serviceBA, 'b-1', 'Materia');
-    addManyToManyLink(serviceBA, b2.id, a2.id); // orden invertido: target/source cambiados
+    addManyToManyLink(serviceBA, b2.id, a2.id, { id: 'rel-alumno-materia' }); // orden invertido
     (serviceBA as any).persist();
 
     const graphAB = (serviceAB as any).graph as FakeGraph;
@@ -235,6 +243,72 @@ describe('DiagramService: entidad intermedia visual para asociaciones M:N', () =
     expect(graph.getElements().filter((e: any) => e.get('generatedJunction')).length).toBe(0);
     expect(graph.getLinks().length).toBe(1);
     expect(graph.getLinks()[0]).toBe(link);
+  });
+
+  it('no transforma agregación, composición ni dependencia aunque ambas multiplicidades sean many', () => {
+    for (const relationType of ['aggregation', 'composition', 'dependency']) {
+      const service = createService();
+      const graph = (service as any).graph as FakeGraph;
+      const source = makeClass(service, `${relationType}-source`, 'Source');
+      const target = makeClass(service, `${relationType}-target`, 'Target');
+      const link = new FakeLink({
+        id: `${relationType}-link`,
+        relationType,
+        source: { id: source.id },
+        target: { id: target.id },
+        labels: [
+          { attrs: { text: { text: '*' } } },
+          { attrs: { text: { text: '*' } } }
+        ]
+      });
+      graph.addCell(link);
+
+      (service as any).persist();
+
+      expect(graph.getElements().filter((e: any) => e.get('generatedJunction')).length)
+        .withContext(relationType).toBe(0);
+      expect(graph.getLinks()).withContext(relationType).toEqual([link]);
+    }
+  });
+
+  it('mantiene separadas asociaciones M:N paralelas con ids y nombres deterministas', () => {
+    const service = createService();
+    const graph = (service as any).graph as FakeGraph;
+    const estudiante = makeClass(service, 'estudiante-1', 'Estudiante');
+    const curso = makeClass(service, 'curso-1', 'Curso');
+    addManyToManyLink(service, estudiante.id, curso.id, { id: 'rel-b' });
+    addManyToManyLink(service, estudiante.id, curso.id, { id: 'rel-a' });
+
+    (service as any).persist();
+
+    const junctions = graph.getElements()
+      .filter((e: any) => e.get('generatedJunction'))
+      .sort((a: any, b: any) => a.id.localeCompare(b.id));
+    expect(junctions.length).toBe(2);
+    expect(junctions.map((e: any) => e.get('name')).sort())
+      .toEqual(['Curso_Estudiante', 'Curso_Estudiante_2']);
+    expect(junctions.map((e: any) => e.id).sort())
+      .toEqual([
+        'junction:curso-1:estudiante-1:rel-a',
+        'junction:curso-1:estudiante-1:rel-b'
+      ]);
+    expect(graph.getLinks().filter((l: any) => l.get('generatedJunctionLeg')).length).toBe(4);
+  });
+
+  it('crea dos patas distintas para una asociación M:N reflexiva', () => {
+    const service = createService();
+    const graph = (service as any).graph as FakeGraph;
+    const persona = makeClass(service, 'persona-1', 'Persona');
+    addManyToManyLink(service, persona.id, persona.id, { id: 'rel-reflexiva' });
+
+    (service as any).persist();
+
+    const junction = graph.getElements().find((e: any) => e.get('generatedJunction'));
+    const legs = graph.getLinks().filter((l: any) => l.get('generatedJunctionLeg'));
+    expect(junction).toBeTruthy();
+    expect(junction.get('name')).toBe('Persona_Persona');
+    expect(legs.length).toBe(2);
+    expect(new Set(legs.map((l: any) => l.id)).size).toBe(2);
   });
 
   // Regresión del bug de recarga: loadFromJson() crea primero TODAS las
@@ -315,12 +389,15 @@ describe('DiagramService: entidad intermedia visual para asociaciones M:N', () =
   // Bug 2: degradar una pata ya generada (editar su multiplicidad para que
   // el lado hacia la junction deje de ser "muchos") debe desarmar la
   // junction; volver a crear una M:N válida debe regenerarla sin duplicar.
-  it('editar una pata generada para que deje de ser 1:N elimina la junction, y una nueva M:N la regenera', () => {
+  it('editar una pata generada restaura la asociación original antes de retirar la junction', () => {
     const service = createService();
     const graph = (service as any).graph as FakeGraph;
     const estudiante = makeClass(service, 'estudiante-1', 'Estudiante');
     const curso = makeClass(service, 'curso-1', 'Curso');
-    addManyToManyLink(service, estudiante.id, curso.id);
+    const original = addManyToManyLink(service, estudiante.id, curso.id, {
+      id: 'rel-original',
+      vertices: [{ x: 210, y: 160 }]
+    });
     (service as any).persist();
 
     expect(graph.getElements().filter((e: any) => e.get('generatedJunction')).length).toBe(1);
@@ -337,14 +414,43 @@ describe('DiagramService: entidad intermedia visual para asociaciones M:N', () =
     expect(graph.getElements().filter((e: any) => e.get('generatedJunction')).length).toBe(0);
     expect(graph.getLinks().filter((l: any) => l.get('generatedJunctionLeg')).length).toBe(0);
     expect(graph.getElements().map((e: any) => e.get('name')).sort()).toEqual(['Curso', 'Estudiante']);
+    const restored = graph.getLinks().find((l: any) => l.id === original.id);
+    expect(restored).toBeTruthy();
+    expect(restored.get('relationType')).toBe('association');
+    expect(restored.get('source')).toEqual({ id: estudiante.id });
+    expect(restored.get('target')).toEqual({ id: curso.id });
+    expect((restored.get('labels') || []).map((label: any) => label.attrs.text.text))
+      .toEqual(['0..*', '0..*']);
+    expect(restored.get('vertices')).toEqual([{ x: 210, y: 160 }]);
+  });
 
-    // Regenerar: una nueva asociación M:N entre las mismas clases.
-    addManyToManyLink(service, estudiante.id, curso.id);
-    (service as any).persist();
+  it('difunde la metadata de una junction generada al crear la clase', () => {
+    const service = createService();
+    const collab = (service as any).collab;
+    const junctionOrigin = {
+      id: 'rel-origin',
+      type: 'association',
+      sourceId: 'a',
+      targetId: 'b',
+      labels: [],
+      vertices: []
+    };
 
-    const junctionsAfterRegen = graph.getElements().filter((e: any) => e.get('generatedJunction'));
-    expect(junctionsAfterRegen.length).toBe(1);
-    expect(graph.getLinks().filter((l: any) => l.get('generatedJunctionLeg')).length).toBe(2);
+    service.createUmlClass({
+      id: 'junction:a:b:rel-origin',
+      name: 'A_B',
+      attributes: [{ name: 'id', type: 'int' }],
+      methods: [],
+      position: { x: 0, y: 0 },
+      generated: true,
+      junctionOrigin
+    } as any);
+
+    expect(collab.broadcast).toHaveBeenCalledWith(jasmine.objectContaining({
+      t: 'add_class',
+      id: 'junction:a:b:rel-origin',
+      payload: jasmine.objectContaining({ generated: true, junctionOrigin })
+    }));
   });
 
   // Clase asociativa: si Detalle ya está enlazada a Venta y a Producto por

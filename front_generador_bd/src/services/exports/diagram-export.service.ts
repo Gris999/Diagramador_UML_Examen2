@@ -12,6 +12,14 @@ export interface UmlClassDTO {
   // cualquier campo desconocido): la clase ya llega como una clase regular con
   // sus propias relaciones 1:N, así que se genera correctamente sin cambios.
   generated?: boolean;
+  junctionOrigin?: {
+    id: string;
+    type: string;
+    sourceId: string;
+    targetId: string;
+    labels: any[];
+    vertices: { x: number; y: number }[];
+  };
 }
 
 export interface UmlRelationshipDTO {
@@ -24,6 +32,9 @@ export interface UmlRelationshipDTO {
   // true = es una de las 2 relaciones 1:N generadas automáticamente hacia una
   // entidad intermedia M:N (ver UmlClassDTO.generated).
   generated?: boolean;
+  // Impide que una M:N restaurada después de editar una pata vuelva a
+  // materializarse automáticamente como junction en la siguiente mutación.
+  junctionOptOut?: boolean;
 }
 
 export interface UmlExportDTO {
@@ -60,7 +71,8 @@ export class DiagramExportService {
           methods,
           position: cell.position(),  // 👈 posición
           size: cell.size(),          // 👈 tamaño
-          ...(cell.get('generatedJunction') ? { generated: true } : {})
+          ...(cell.get('generatedJunction') ? { generated: true } : {}),
+          ...(cell.get('junctionOrigin') ? { junctionOrigin: cell.get('junctionOrigin') } : {})
         });
       } else if (cell.isLink?.()) {
         relationships.push({
@@ -70,7 +82,8 @@ export class DiagramExportService {
           targetId: cell.get('target')?.id,
           labels: (cell.get('labels') || []).map((lbl: any) => lbl.attrs?.text?.text),
           vertices: cell.get('vertices') || [],
-          ...(cell.get('generatedJunctionLeg') ? { generated: true } : {})
+          ...(cell.get('generatedJunctionLeg') ? { generated: true } : {}),
+          ...(cell.get('junctionOptOut') ? { junctionOptOut: true } : {})
         });
       }
     });

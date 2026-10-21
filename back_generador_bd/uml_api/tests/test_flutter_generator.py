@@ -637,7 +637,7 @@ class FlutterGeneratorApiTests(SimpleTestCase):
                 "classes": [
                     {"id": "cls_1", "name": "persona", "attributes": [{"name": "id", "type": "int"}, {"name": "is_active", "type": "bool"}]},
                     {"id": "cls_2", "name": "carro", "attributes": [{"name": "id", "type": "int"}]},
-                    {"id": "cls_3", "name": "carropersona", "attributes": [], "generated": True}
+                    {"id": "cls_3", "name": "carropersona", "attributes": [{"name": "id", "type": "int"}], "generated": True}
                 ],
                 "relationships": [
                     {"sourceId": "cls_1", "targetId": "cls_3", "type": "association", "labels": ["1", "0..*"], "generated": True},
@@ -649,8 +649,17 @@ class FlutterGeneratorApiTests(SimpleTestCase):
             db_content = db_file.read_text(encoding='utf-8')
 
             self.assertEqual(db_content.count('CREATE TABLE carropersona'), 1)
+            self.assertRegex(
+                db_content,
+                r'CREATE TABLE carropersona \(\s*id INTEGER PRIMARY KEY',
+            )
             self.assertIn("personaid", db_content)
             self.assertIn("carroid", db_content)
+            model_content = (
+                base_path / 'lib' / 'models' / 'carropersona.dart'
+            ).read_text(encoding='utf-8')
+            self.assertIn('final int id;', model_content)
+            self.assertIn('required this.id', model_content)
 
     def test_boolean_normalization_in_db_helper(self):
         """9. boolean fields are normalized in DatabaseHelper"""

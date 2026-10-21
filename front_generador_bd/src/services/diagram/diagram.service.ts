@@ -214,7 +214,12 @@ export class DiagramService {
             id: cell.id,
             sourceId: src,
             targetId: trg,
-            payload: { type, labels: cell.get('labels') }
+            payload: {
+              type,
+              labels: cell.get('labels'),
+              ...(cell.get('generatedJunctionLeg') ? { generated: true } : {}),
+              ...(cell.get('junctionOptOut') ? { junctionOptOut: true } : {})
+            }
           });
         }
       });
@@ -235,7 +240,12 @@ export class DiagramService {
             id: link.id,
             sourceId: src,
             targetId: trg,
-            payload: { type, labels: link.get('labels') }
+            payload: {
+              type,
+              labels: link.get('labels'),
+              ...(link.get('generatedJunctionLeg') ? { generated: true } : {}),
+              ...(link.get('junctionOptOut') ? { junctionOptOut: true } : {})
+            }
           });
         } else {
           this.collab.broadcast({ t: 'move_link', id: link.id, sourceId: src, targetId: trg });
@@ -690,6 +700,12 @@ export class DiagramService {
       if (classModel.generated) {
         umlClass.set('generatedJunction', true);
       }
+      if (classModel.junctionOrigin) {
+        umlClass.set('junctionOrigin', classModel.junctionOrigin);
+      }
+      if (classModel.pendingJunctionSync) {
+        umlClass.set('pendingJunctionSync', true);
+      }
       // 🔹 Añadimos 4 puertos (uno por cada lado)
       umlClass.addPort({ group: 'inout', id: 'top' });
       umlClass.addPort({ group: 'inout', id: 'bottom' });
@@ -712,6 +728,8 @@ export class DiagramService {
             size: classModel.size,
             attributes: classModel.attributes,
             methods: classModel.methods,
+            ...(classModel.generated ? { generated: true } : {}),
+            ...(classModel.junctionOrigin ? { junctionOrigin: classModel.junctionOrigin } : {})
           },
         });
       }
@@ -957,6 +975,9 @@ export class DiagramService {
         if (cls.generated) {
           existing.set('generatedJunction', true);
         }
+        if (cls.junctionOrigin) {
+          existing.set('junctionOrigin', cls.junctionOrigin);
+        }
       } else {
         const layoutIndex = existingElementCount + index;
 
@@ -976,7 +997,8 @@ export class DiagramService {
           size: cls.size || { width: 180, height: 110 },
           attributes: cls.attributes || [],
           methods: cls.methods || [],
-          generated: !!cls.generated
+          generated: !!cls.generated,
+          junctionOrigin: cls.junctionOrigin
         }, isRemoteSync);
 
         idMap[cls.id] = newCls.id;
@@ -1003,6 +1025,9 @@ export class DiagramService {
 
       if (rel.generated) {
         link.set('generatedJunctionLeg', true);
+      }
+      if (rel.junctionOptOut) {
+        link.set('junctionOptOut', true);
       }
 
       // 🔹 aplicar labels si vienen
@@ -1851,7 +1876,8 @@ export class DiagramService {
 
     for (const link of links) {
       if (link.get('generatedJunctionLeg')) continue; // ya es una pata generada
-      if (link.get('relationType') === 'generalization') continue; // nunca es M:N
+      if ((link.get('relationType') || 'association') !== 'association') continue;
+      if (link.get('junctionOptOut')) continue;
       if (associationClassAttachments.has(link.id)) continue; // tiene clase asociativa real
 
       const labels = (link.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text);
@@ -1866,26 +1892,37 @@ export class DiagramService {
       // generada, no se vuelve a transformar.
       if (sourceEl.get('generatedJunction') || targetEl.get('generatedJunction')) continue;
 
-      const junctionId = junctionElementId(sourceEl.id, targetEl.id);
+      const originId = String(link.id);
+      const junctionId = junctionElementId(sourceEl.id, targetEl.id, originId);
       let junctionEl = this.graph.getCell(junctionId);
       const junctionName = junctionDisplayName(sourceEl.get('name'), targetEl.get('name'));
+      const junctionOrigin = {
+        id: originId,
+        type: link.get('relationType') || 'association',
+        sourceId,
+        targetId,
+        labels: this.cloneGraphValue(link.get('labels') || []),
+        vertices: this.cloneGraphValue(link.get('vertices') || [])
+      };
 
       if (!junctionEl) {
         junctionEl = this.createUmlClass({
           id: junctionId,
           name: junctionName,
           position: this.computeJunctionPosition(sourceEl, targetEl),
-          attributes: [],
+          attributes: [{ name: 'id', type: 'int' }],
           methods: [],
-          generated: true
+          generated: true,
+          junctionOrigin
         });
         junctionEl.set('generatedJunction', true);
       } else if (junctionEl.get('name') !== junctionName) {
         junctionEl.set('name', junctionName);
       }
+      junctionEl.set('junctionOrigin', junctionOrigin);
 
-      this.ensureJunctionLeg(sourceEl, junctionEl);
-      this.ensureJunctionLeg(targetEl, junctionEl);
+      this.ensureJunctionLeg(sourceEl, junctionEl, 'source');
+      this.ensureJunctionLeg(targetEl, junctionEl, 'target');
 
       link.remove();
     }
@@ -1898,6 +1935,7 @@ export class DiagramService {
     // patas cuyo extremo hacia la entidad intermedia sigue siendo "muchos".
     const junctions = this.graph.getElements().filter((el: any) => el.get('generatedJunction'));
     for (const junctionEl of junctions) {
+      if (junctionEl.get('pendingJunctionSync')) continue;
       const allLegs = this.graph.getLinks().filter((l: any) =>
         l.get('generatedJunctionLeg') && l.get('target')?.id === junctionEl.id
       );
@@ -1906,14 +1944,26 @@ export class DiagramService {
         return labels.length >= 2 && isManyMultiplicity(labels[1]);
       });
       if (validLegs.length < 2) {
+        // Una pata todavía presente pero editada dejó de representar la M:N.
+        // Eso no es una eliminación explícita: se restaura la asociación
+        // original exacta antes de retirar las celdas derivadas.
+        if (allLegs.length >= 2) {
+          this.restoreJunctionOrigin(junctionEl);
+        }
         allLegs.forEach((l: any) => l.remove());
         junctionEl.remove();
       }
     }
+
+    this.refreshJunctionDisplayNames();
   }
 
-  private ensureJunctionLeg(originEl: any, junctionEl: any): void {
-    const legId = junctionLegId(originEl.id, junctionEl.id);
+  private ensureJunctionLeg(
+    originEl: any,
+    junctionEl: any,
+    role: 'source' | 'target'
+  ): void {
+    const legId = junctionLegId(originEl.id, junctionEl.id, role);
     if (this.graph.getCell(legId)) return;
 
     const leg = this.createTypedRelationship(originEl.id, junctionEl.id, 'association', true);
@@ -1932,6 +1982,58 @@ export class DiagramService {
       }
     ]);
     this.graph.addCell(leg);
+  }
+
+  private restoreJunctionOrigin(junctionEl: any): void {
+    const origin = junctionEl.get('junctionOrigin');
+    if (!origin?.id || this.graph.getCell(origin.id)) return;
+    if (!this.graph.getCell(origin.sourceId) || !this.graph.getCell(origin.targetId)) return;
+
+    const restored = this.createTypedRelationship(
+      origin.sourceId,
+      origin.targetId,
+      origin.type || 'association',
+      true
+    );
+    restored.set('id', origin.id);
+    restored.set('labels', this.cloneGraphValue(origin.labels || []));
+    restored.set('vertices', this.cloneGraphValue(origin.vertices || []));
+    restored.set('junctionOptOut', true);
+    this.graph.addCell(restored);
+  }
+
+  private refreshJunctionDisplayNames(): void {
+    const groups = new Map<string, any[]>();
+    const junctions = this.graph.getElements().filter((el: any) =>
+      el.get('generatedJunction') && el.get('junctionOrigin')
+    );
+
+    for (const junction of junctions) {
+      const origin = junction.get('junctionOrigin');
+      const endpointIds = [origin.sourceId, origin.targetId].sort();
+      const key = endpointIds.join('\u0000');
+      const group = groups.get(key) || [];
+      group.push(junction);
+      groups.set(key, group);
+    }
+
+    groups.forEach(group => {
+      group.sort((a, b) => String(a.get('junctionOrigin').id)
+        .localeCompare(String(b.get('junctionOrigin').id)));
+      group.forEach((junction, index) => {
+        const origin = junction.get('junctionOrigin');
+        const source = this.graph.getCell(origin.sourceId);
+        const target = this.graph.getCell(origin.targetId);
+        if (!source || !target) return;
+        const baseName = junctionDisplayName(source.get('name'), target.get('name'));
+        const name = index === 0 ? baseName : `${baseName}_${index + 1}`;
+        if (junction.get('name') !== name) junction.set('name', name);
+      });
+    });
+  }
+
+  private cloneGraphValue<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value));
   }
 
   private computeJunctionPosition(sourceEl: any, targetEl: any): { x: number; y: number } {

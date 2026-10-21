@@ -14,9 +14,18 @@ export class XmiService {
   constructor(private http: HttpClient) {}
 
   exportXmi(uml: UmlExportDTO): Observable<Blob> {
+    // `association-class` es un conector visual auxiliar, no un tipo de
+    // relación UML soportado por el intercambio XMI. Se filtra únicamente en
+    // este borde: persistencia, colaboración y generadores aún lo necesitan.
+    const xmiUml: UmlExportDTO = {
+      ...uml,
+      relationships: uml.relationships.filter(
+        relationship => relationship.type !== 'association-class'
+      )
+    };
     return this.http.post(
       `${this.baseUrl}/export/`,
-      uml,
+      xmiUml,
       {
         responseType: 'blob'
       }

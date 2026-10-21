@@ -2,9 +2,9 @@
 // muchos-a-muchos y calcular identificadores/nombres deterministas para la
 // entidad intermedia visual que las representa en el canvas.
 //
-// El nombre/id se deriva siempre por orden alfabético de nombre/id de clase,
-// nunca por cuál de las dos clases es "source" o "target" en la relación, para
-// que invertir el sentido en que se dibujó la asociación no cambie el resultado.
+// El nombre/id se deriva por orden alfabético de nombre/id de clase. El id de
+// la entidad incluye además el id de la relación original, y cada pata incluye
+// su rol source/target, para conservar paralelas y asociaciones reflexivas.
 
 export function isManyMultiplicity(label: string | undefined | null): boolean {
   return !!label && label.includes('*');
@@ -15,12 +15,17 @@ export function isManyToManyLabels(labels: Array<string | undefined | null> | un
   return isManyMultiplicity(labels[0]) && isManyMultiplicity(labels[1]);
 }
 
-export function junctionElementId(classIdA: string, classIdB: string): string {
+export function junctionElementId(classIdA: string, classIdB: string, relationshipId: string): string {
   const [first, second] = [classIdA, classIdB].sort();
-  return `junction:${first}:${second}`;
+  return `junction:${first}:${second}:${relationshipId}`;
 }
 
-export function junctionLegId(originClassId: string, junctionId: string): string {
+export function junctionLegId(
+  originClassId: string,
+  junctionId: string,
+  role?: 'source' | 'target'
+): string {
+  if (role) return `junction-link:${junctionId}:${role}`;
   return `junction-link:${originClassId}:${junctionId}`;
 }
 
