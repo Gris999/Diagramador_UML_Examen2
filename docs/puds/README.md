@@ -15,15 +15,15 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 | Fase | Hito PUDS | Qué significa en este proyecto | Estado |
 |---|---|---|---|
 | **Inicio** | Objetivos del ciclo de vida | Alcance acordado (RF-01…RF-33), plan, riesgos, línea base de `develop` limpia | ✅ cerrada (I0) |
-| **Elaboración** | Arquitectura del ciclo de vida | Arquitectura validada con un caso de uso de punta a punta (nombre → acción → registro de actividad visible para todos) | 🔄 I1 en curso |
-| **Construcción** | Capacidad operativa inicial | RF-23…RF-32 implementados y probados; sistema estable para usar | 📋 I2–I5 |
+| **Elaboración** | Arquitectura del ciclo de vida | Arquitectura validada con un caso de uso de punta a punta (nombre → acción → registro de actividad visible para todos) | ✅ cerrada (I1), verificada en dos navegadores y en el sitio desplegado |
+| **Construcción** | Capacidad operativa inicial | RF-23…RF-32 implementados y probados; sistema estable para usar | 🔄 I2, I3 e I4 listas; falta I5 (móvil) |
 | **Transición** | Lanzamiento del producto | Sistema desplegado, documentación final, demostración ensayada | 📋 I7 (congelamiento ≈ 2026-11-02) |
 
 ## 2. Mapa de artefactos (tabla del PDF → este proyecto)
 
 | Disciplina | Artefactos PUDS | Documento | Estado |
 |---|---|---|---|
-| Requisitos | Modelo de casos de uso, glosario, requisitos adicionales, casos de uso detallados | [`01-requisitos.md`](01-requisitos.md) y [`../REQUIREMENTS.md`](../REQUIREMENTS.md) | ✅ base · 🔄 RF-23…RF-33 |
+| Requisitos | Modelo de casos de uso, glosario, requisitos adicionales, casos de uso detallados | [`01-requisitos.md`](01-requisitos.md) y [`../REQUIREMENTS.md`](../REQUIREMENTS.md) | ✅ |
 | Análisis | Clases de análisis, realización de casos de uso (análisis), paquetes | [`02-analisis.md`](02-analisis.md) | ✅ base · 🔄 IA participante |
 | Diseño | Descripción de la arquitectura, clases de diseño, subsistemas, interfaces, realización de casos de uso (diseño), **modelo de despliegue** | [`03-diseno.md`](03-diseno.md), [`../DESPLIEGUE.md`](../DESPLIEGUE.md) | ✅ base · 🔄 IA participante |
 | Implementación | Componentes, modelo de implementación, plan de integración de construcciones | [`04-implementacion.md`](04-implementacion.md) | ✅ |
@@ -35,10 +35,10 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 | Iteración | Fase | Resultado | Estado |
 |---|---|---|---|
 | I0 — Cierre de la línea base | Inicio | Todo lo del primer parcial funcionando (editor, IA por texto/imagen/voz, colaboración, XMI con Enterprise Architect, Spring/Postman, Flutter); entidad intermedia visual para M:N; despliegue en AWS con dominio y HTTPS; documentación de despliegue | ✅ |
-| I1 — Identidad y registro de actividad | Elaboración | Nombre visible por participante, registro de actividad compartido, panel de actividad | 🔄 |
-| I2 — Chat individual con contexto | Construcción | Chat privado con la IA que conoce la actividad de todos | 📋 |
-| I3 — Acciones, sugerencias y revisión | Construcción | La IA cambia el diagrama solo a pedido; ideas visibles; revisión | 📋 |
-| I4 — Sesiones continuas | Construcción | Recuperar diagrama, actividad y chat propio al volver | 📋 |
+| I1 — Identidad y registro de actividad | Elaboración | Nombre visible por participante, registro de actividad compartido, panel de actividad | ✅ |
+| I2 — Chat individual con contexto | Construcción | Chat privado con la IA que conoce la actividad de todos | ✅ |
+| I3 — Acciones, sugerencias y revisión | Construcción | La IA cambia el diagrama solo a pedido; ideas visibles; revisión; la IA como integrante de la sala | ✅ |
+| I4 — Sesiones continuas | Construcción | Recuperar diagrama, actividad y chat propio al volver | ✅ validado de punta a punta en local (2026-10-21); falta repetirlo en el sitio desplegado |
 | I5 — Vista móvil de seguimiento | Construcción | Vista de solo lectura en vivo | 📋 |
 | I6 — IA local (opcional) | Construcción | Proveedor configurable Gemini / local (Ollama, Qwen) | 📋 opcional |
 | I7 — Endurecimiento y entrega | Transición | Despliegue final, prueba de humo, documentación y demo | 📋 |

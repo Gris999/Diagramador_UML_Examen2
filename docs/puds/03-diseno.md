@@ -64,7 +64,9 @@ flowchart TB
 | Exportaciones | `front_generador_bd/src/services/exports/` | SQL, imagen PNG, respaldo, llamada al generador Spring |
 | Interoperabilidad | `front_generador_bd/src/services/interop/xmi.service.ts` y `back_generador_bd/uml_api/services/xmi_service.py` | `POST /api/xmi/export/`, `POST /api/xmi/import/` |
 | IA asistida | `front_generador_bd/src/services/IA/`, `imports/` y `back_generador_bd/uml_api/services/services_gemini.py` | `POST /api/chatbot/`, `/api/uml_from_image/`, `/api/uml_from_audio/` |
-| Colaboración (servidor) | `back_generador_bd/collab/` | WebSocket `/ws/canvas/<sala>/` con mensajes `broadcast`, `signal`, `remove_participant` y eventos `presence` |
+| Colaboración (servidor) | `back_generador_bd/collab/` | WebSocket `/ws/canvas/<sala>/` con mensajes `hello`, `broadcast`, `signal`, `remove_participant` y eventos `presence` (`self`, `join`, `leave`, `remove`, `state`) y `activity` |
+| Chat con la IA | `back_generador_bd/uml_api/chat_views.py`, `services/ai_provider.py`, `services/ia_context.py`; cliente: `services/IA/ia-chat.service.ts`, `ia-actions.service.ts`, `app/ia-chat-panel` | `POST /api/rooms/<sala>/ia/chat/` (`mode`: `ask`, `change`, `review`) y `GET /api/rooms/<sala>/chat/`, ambos con la cabecera `X-Participant-Token` |
+| Actividad | `back_generador_bd/collab/activity.py`, `uml_api/views.py`; cliente: `app/activity-panel` | `GET /api/rooms/<sala>/activity/?since=&limit=` |
 | Respaldo | `back_generador_bd/uml_api/` (`BackupUML`) | `POST /api/set_backup_uml/<sala>/`, `GET /api/get_backup_uml/<sala>/` |
 | Generador Flutter | `back_generador_bd/uml_api/services/flutter_generator.py` | `POST /api/generar_flutter/` |
 | Generador Spring | `back_generator_uml/` (`ProjectGenerator`, `PostmanCollectionGenerator`, plantillas Mustache) | `POST /generate` → `.zip` |
@@ -98,12 +100,23 @@ erDiagram
     json data
     datetime created_at
   }
-  PARTICIPANT ||--o{ ACTIVITYEVENT : "realiza"
+  CHATMESSAGE {
+    string room
+    int participant FK
+    string role
+    string mode
+    text content
+    datetime created_at
+  }
+  PARTICIPANT ||--o{ ACTIVITYEVENT : "realiza o pide"
+  PARTICIPANT ||--o{ CHATMESSAGE : "es dueño de"
 ```
 
 - `BackupUML` *(verificado)*: un respaldo por sala; `room_id` es UUID.
-- `Participant` y `ActivityEvent` *(🔄 I1, en la rama `feat/identidad-actividad`)*: la sala es un `CharField` de hasta 64 caracteres, **no** se asume UUID; `(room, token)` es único; índice por `(room, created_at)`.
-- `MensajeDeChat` y `Sugerencia` *(📋 I2/I3, propuesta en la sección 6.4 del plan)*.
+- `Participant`, `ActivityEvent` y `ChatMessage` *(✅ I1–I3, app `collab`, migraciones `0001`–`0003`)*: la sala es un `CharField` de hasta 64 caracteres, **no** se asume UUID; `(room, token)` es único; índice por `(room, created_at)`.
+- En `ActivityEvent`, `actor_kind` es `user` o `ia`. Para eventos de la IA, `actor` apunta a **quien lo pidió** y `actor_name` es "IA"; las revisiones llevan en `data.findings` las ideas (`text`, `prompt`).
+- `ChatMessage` guarda cada intercambio con su `mode` (`ask`, `change`, `review`) y siempre se consulta filtrando por el participante dueño.
+- Las sugerencias no tienen tabla propia: viven dentro del evento `ia_review`, así son visibles para toda la sala.
 
 ### 2.2 Modelo del diagrama en el cliente *(verificado)*
 
@@ -169,7 +182,7 @@ sequenceDiagram
   Note over N: Si nadie responde, usa el respaldo (GET /api/get_backup_uml/)
 ```
 
-### 3.3 Registro de actividad (CU-01, CU-02) *(🔄 I1)*
+### 3.3 Registro de actividad (CU-01, CU-02) *(✅ I1)*
 
 ```mermaid
 sequenceDiagram
@@ -185,9 +198,42 @@ sequenceDiagram
   N->>WS: GET /api/rooms/<sala>/activity/?since=<id>&limit=<n>
 ```
 
-### 3.4 Pedir cambio a la IA (CU-04) *(📋 I3, propuesta)*
+### 3.4 Pedir cambio a la IA (CU-04) *(✅ I3)*
 
-La IA actúa **desde el navegador de quien la invoca**: el cliente recibe las operaciones propuestas, las valida y las aplica por la ruta normal de edición, de modo que se propagan igual que un cambio manual y quedan etiquetadas "IA, a pedido de X". Detalle y alternativas descartadas en la sección 6.3 y las decisiones de la 6.6 del plan.
+La IA actúa **desde el navegador de quien la invoca**: el servidor devuelve los cambios propuestos, el cliente los aplica por la ruta normal de edición y cada operación viaja marcada `via_ia`. Así se propagan igual que un cambio manual y el servidor las registra como "IA … (a pedido de X)".
+
+```mermaid
+sequenceDiagram
+  actor A as Ana
+  participant CA as Navegador de Ana
+  participant API as Django (ia/chat)
+  participant IA as Proveedor de IA
+  participant WS as CanvasConsumer
+  participant CB as Navegador de Bruno
+  A->>CA: Pedir cambio: "agrega Factura"
+  CA->>WS: ia_status = pensando (a pedido de Ana)
+  WS-->>CB: la fila de la IA muestra "Pensando…"
+  CA->>API: POST mode=change, mensaje, diagrama (token de Ana)
+  API->>IA: instrucción + diagrama
+  IA-->>API: cambios
+  API-->>CA: reply + changes
+  CA->>CA: aplica con runAsIa (via_ia)
+  CA->>WS: broadcast add_class (via_ia)
+  WS-->>CB: add_class (Bruno ve la clase)
+  WS-->>CA: activity: IA añadió la clase Factura (a pedido de Ana)
+  WS-->>CB: activity (igual)
+  CA->>WS: ia_status = libre
+```
+
+Alternativas descartadas: IA del lado del servidor (exigiría una copia del diagrama en el servidor) y que el modelo decida si actuar (no verificable). En los modos `ask` y `review` el servidor **nunca** devuelve cambios; hay una prueba automática con un proveedor que devuelve un diagrama.
+
+### 3.5 Revisar y aplicar ideas (CU-05, CU-06) *(✅ I3)*
+
+`POST mode=review` pide al proveedor un JSON con observaciones; el servidor lo valida (máximo 5, solo texto), guarda un `ActivityEvent` de tipo `ia_review` y lo difunde a la sala por el canal. Cualquier participante puede pulsar **Aplicar** en una idea: eso ejecuta un `mode=change` con el pedido de la idea, a nombre de quien aplica, y marca la idea como aplicada para todos (`ia_suggestion_applied`).
+
+### 3.6 Identificación de cada conexión *(✅)*
+
+Lo primero que recibe una conexión es `{type: presence, action: self, peer}` con su propio identificador. Antes el cliente lo deducía del primer aviso de presencia, y si otra persona entraba en el mismo instante tomaba su identificador y descartaba sus cambios como "propios". Los clientes viejos siguen funcionando porque el mensaje nuevo usa la misma forma que un aviso `join`.
 
 ## 4. Modelo de despliegue *(verificado, 2026-10-21)*
 
@@ -209,8 +255,9 @@ flowchart LR
 
 | Decisión | Estado |
 |---|---|
-| El registro de actividad solo guarda acciones significativas y no bloquea la edición | 🔄 I1 |
-| Cada persona tiene su propio chat con la IA; las acciones son públicas y el texto de los chats es privado | 📋 I2 |
-| La IA actúa desde el navegador del invocador y por la misma ruta que la edición manual | 📋 I3 |
-| El proveedor de IA es intercambiable (Gemini; opcionalmente local con Ollama/Qwen) | 📋 I6 |
+| El registro de actividad solo guarda acciones significativas, con topes de tasa y tamaño, y no bloquea la edición | ✅ I1 |
+| Cada persona tiene su propio chat con la IA; las acciones son públicas y el texto de los chats es privado | ✅ I2 |
+| La IA actúa desde el navegador del invocador y por la misma ruta que la edición manual | ✅ I3 |
+| El proveedor de IA es intercambiable detrás de `AIProvider` (hoy Gemini; opcionalmente local con Ollama/Qwen) | ✅ interfaz · 📋 I6 proveedor local |
+| Los errores del proveedor de IA nunca incluyen la clave de la API (las excepciones de `requests` traen la URL con la clave) | ✅ |
 | Duplicación temporal aislada y documentada está permitida cerca de la entrega si evita refactorizar rutas estables de los generadores (`AGENTS.md`, regla 15) | ✅ |

@@ -63,13 +63,13 @@ flowchart LR
 | CU-18 | Generar backend Spring Boot + PostgreSQL y colección Postman | RF-19, RF-20 | ✅ |
 | CU-19 | Generar proyecto Flutter con persistencia SQLite offline | RF-21, RNF-01, RF-22 (parcial) | ✅ |
 | CU-20 | Exportar a SQL y a imagen PNG | RF-01 | ✅ |
-| CU-01 | Identificarse al entrar a una sala | RF-23 | 🔄 I1 |
-| CU-02 | Ver la actividad del equipo | RF-25 | 🔄 I1 |
-| CU-03 | Preguntar a la IA (incluye "¿qué hizo X?") | RF-26, RF-27 | 📋 I2 |
-| CU-04 | Pedirle a la IA un cambio en el diagrama | RF-28, RF-29 | 📋 I3 |
-| CU-05 | Pedirle a la IA una revisión | RF-30 | 📋 I3 |
-| CU-06 | Ver las ideas de la IA y aplicar una | RF-28 | 📋 I3 |
-| CU-07 | Retomar una sesión anterior | RF-31 | 📋 I4 |
+| CU-01 | Identificarse al entrar a una sala | RF-23 | ✅ I1 |
+| CU-02 | Ver la actividad del equipo | RF-25 | ✅ I1 |
+| CU-03 | Preguntar a la IA (incluye "¿qué hizo X?") | RF-26, RF-27 | ✅ I2 |
+| CU-04 | Pedirle a la IA un cambio en el diagrama | RF-28, RF-29 | ✅ I3 |
+| CU-05 | Pedirle a la IA una revisión | RF-30 | ✅ I3 |
+| CU-06 | Ver las ideas de la IA y aplicar una | RF-28 | ✅ I3 |
+| CU-07 | Retomar una sesión anterior | RF-31 | ✅ I4 |
 | CU-08 | Seguir la sala desde el móvil | RF-32 | 📋 I5 |
 | CU-09 | Configurar el proveedor de IA | RF-33 | 📋 I6 (opcional) |
 
@@ -123,16 +123,16 @@ Siguiendo el material de la cátedra (el arquitecto parte de un conjunto reducid
 - **Flujo básico:** el cliente envía el diagrama al generador (`POST /generate`); este devuelve un `.zip` con proyecto Spring Boot (Java 21) + PostgreSQL y una colección Postman.
 - **Postcondición:** el proyecto descomprimido compila con el Maven Wrapper incluido.
 
-### CU-04 — Pedirle a la IA un cambio en el diagrama *(📋 I3)*
+### CU-04 — Pedirle a la IA un cambio en el diagrama *(✅ I3)*
 
 - **Actor:** Participante. **Actor secundario:** Proveedor de IA.
 - **Precondición:** el participante tiene nombre y está en la sala.
 - **Flujo básico:**
   1. En su chat, el participante elige el modo **Pedir cambio** y escribe el pedido.
-  2. El sistema arma el contexto: diagrama actual, actividad reciente de todos y el historial de **ese** chat.
-  3. El proveedor responde con las operaciones propuestas.
-  4. El navegador del participante las valida y las aplica con la misma ruta de edición manual; se propagan a todos con la etiqueta "IA, a pedido de X".
-  5. Se agrega un evento al registro de actividad.
+  2. `POST /api/rooms/<sala>/ia/chat/` con `mode=change`: el servidor identifica al participante por su token, limita la tasa de pedidos y llama al proveedor de IA.
+  3. El proveedor devuelve los cambios en el formato que ya entiende el editor (crear, editar o eliminar).
+  4. El navegador del participante los aplica con la misma ruta de edición manual; cada operación viaja marcada `via_ia` y se propaga a todos.
+  5. El servidor registra cada operación en la actividad como "IA … (a pedido de X)".
 - **Alternos:** el proveedor falla → mensaje claro y el diagrama no cambia (RNF-05). Modo **Preguntar** → la IA responde sin tocar el diagrama (RF-28).
 
 ## 4. Requisitos adicionales (no funcionales)
@@ -142,9 +142,9 @@ Siguiendo el material de la cátedra (el arquitecto parte de un conjunto reducid
 | RNF-01 | Persistencia local offline en el proyecto móvil generado (SQLite) | Prueba física con CRUD sin red |
 | RNF-02 | Arquitectura desplegable, con documentación de AWS | [`../DESPLIEGUE.md`](../DESPLIEGUE.md); prueba de humo |
 | RNF-03 | Documentación de ingeniería suficiente (arquitectura, requisitos, proceso, decisiones, trazabilidad, pruebas) | Este directorio |
-| RNF-04 | Privacidad: el chat de una persona no es accesible por otras | 📋 Pruebas de privacidad (I2) |
-| RNF-05 | Resiliencia: si la IA falla, el diagrama no se pierde | 📋 Prueba con fallo del proveedor (I2/I3) |
-| RNF-06 | El registro de actividad no degrada la edición | 🔄 Prueba: mover/redimensionar no registra (I1) |
+| RNF-04 | Privacidad: el chat de una persona no es accesible por otras | ✅ Pruebas de privacidad, con comprobación de que fallan si se filtra (I2) |
+| RNF-05 | Resiliencia: si la IA falla, el diagrama no se pierde | ✅ Pruebas con fallo del proveedor: 502, nada guardado, el diagrama no cambia (I2/I3) |
+| RNF-06 | El registro de actividad no degrada la edición | ✅ Mover/redimensionar no se registra; tope de tasa y tamaño; un fallo de la base no frena el relé (I1) |
 | RNF-07 | Despliegue reproducible con prueba de humo | ✅ Runbook; 📋 script (I7) |
 | RNF-08 | Seguridad de XMI: sin lectura de archivos locales ni red al importar (XXE) | ✅ Pruebas dedicadas de XMI |
 | RNF-09 | HTTPS y sin puertos internos expuestos al exterior | ✅ Solo 22, 80 y 443 abiertos (2026-10-21) |

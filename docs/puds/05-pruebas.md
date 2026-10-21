@@ -42,15 +42,19 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | CP-15 | CU-19 | Generar Flutter con M:N y entidad intermedia | El código generado es coherente (sin referencias a campos inexistentes) | `test_flutter_generator.py` |
 | CP-16 | CU-19 | Ejecutar la app Flutter generada sin red | El CRUD funciona y los datos persisten | Validación física en dispositivo |
 | CP-17 | CU-20 | Exportar a imagen | Fondo claro, diagrama visible y sin elementos de la aplicación | Validación física |
-| CP-18 | CU-01 | Entrar con nombre; un tercero entra después | Los nombres aparecen para todos, incluido el que llega tarde | 🔄 Pruebas de `hello` y presencia (I1) |
-| CP-19 | CU-02 | Un participante agrega una clase | El evento aparece en la actividad de todos | 🔄 Aceptación I1 |
-| CP-20 | CU-02 | Mover/redimensionar; editar texto repetido en 5 s | No se registran; la edición repetida es un solo evento | 🔄 Pruebas de lista blanca y fusión (I1) |
-| CP-21 | CU-01 | `hello` inválido o cliente sin `hello` | Se ignora sin cerrar el socket; el cliente sigue funcionando | 🔄 Pruebas (I1) |
-| CP-22 | CU-03 | Dos personas usan su chat con la IA | Ninguna lee el chat de la otra | 📋 I2 |
-| CP-23 | CU-03…05 | El proveedor de IA falla | Mensaje claro; el diagrama no cambia | 📋 I2/I3 |
-| CP-24 | CU-04 | Modo Preguntar | El diagrama no cambia | 📋 I3 |
-| CP-25 | CU-04 | Modo Pedir cambio | Cambio aplicado y visible para todos con la etiqueta "IA, a pedido de X" | 📋 I3 |
+| CP-18 | CU-01 | Entrar con nombre; un tercero entra después | Los nombres aparecen para todos, incluido el que llega tarde | ✅ `test_identity_activity.py`; navegador local y sitio desplegado |
+| CP-19 | CU-02 | Un participante agrega una clase | El evento aparece en la actividad de todos | ✅ `test_identity_activity.py`; dos navegadores en local y en el sitio desplegado |
+| CP-20 | CU-02 | Mover/redimensionar; editar texto repetido en 5 s | No se registran; la edición repetida es un solo evento | ✅ lista blanca y fusión; en el navegador, mover no generó evento y borrar sí |
+| CP-21 | CU-01 | `hello` inválido o cliente sin `hello` | Se ignora sin cerrar el socket; el cliente sigue funcionando | ✅ `test_identity_activity.py` |
+| CP-22 | CU-03 | Dos personas usan su chat con la IA | Ninguna lee el chat de la otra; el prompt de una no incluye los mensajes de la otra | ✅ `test_ia_chat_api.py` (con comprobación de mutación: la prueba falla si se filtra el chat) |
+| CP-23 | CU-03…05 | El proveedor de IA falla | Mensaje claro; el diagrama no cambia | ✅ 502 sin guardar nada (`test_ia_chat_api.py`); el cliente muestra el error y vuelve a "Disponible" |
+| CP-24 | CU-04 | Modo Preguntar y Revisar | El diagrama no cambia aunque el proveedor devuelva un diagrama | ✅ `test_ask_and_review_never_return_changes_to_apply`; `ia-actions.service.spec.ts` |
+| CP-25 | CU-04 | Modo Pedir cambio | Cambio aplicado y visible para todos con la etiqueta "IA, a pedido de X" | ✅ pruebas de unidad; en el navegador con Gemini real: la clase pedida por Ana apareció en el lienzo de Bruno y en la actividad |
 | CP-26 | — | Después de desplegar | HTTPS 200; WebSocket negocia (101); puertos 4200/7001/8000 cerrados al exterior | ✅ 2026-10-21 |
+| CP-27 | CU-05, CU-06 | Revisar el diagrama y aplicar una idea desde otro navegador | La revisión aparece para todos con sus ideas; aplicar una la cambia a nombre de quien la aplica y la marca como aplicada para todos | ✅ pruebas de unidad; en el navegador con Gemini real la revisión devolvió 2 ideas visibles en ambos navegadores |
+| CP-28 | CU-14 | Dos personas entran a la sala en el mismo instante | Cada una se reconoce a sí misma y los cambios se sincronizan | ✅ `test_a_new_connection_is_told_its_own_peer_id_before_anything_else`, `p2p.roles.spec.ts`; reproducido y corregido en el navegador |
+| CP-29 | CU-02 | Más de 100 eventos en la sala | El historial inicial trae los más recientes | ✅ `test_without_since_returns_the_latest_events_oldest_first` |
+| CP-30 | CU-02 | Un cliente envía operaciones enormes o en ráfaga | Se registra con tope de tamaño y de tasa; el relé sigue funcionando | ✅ `test_oversized_operation_data_is_not_stored_whole`, `test_activity_flood_is_capped_but_relay_keeps_working` |
 
 ## 3. Procedimientos de prueba
 
@@ -65,7 +69,9 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 
 | ID | Defecto | Impacto | Estado |
 |---|---|---|---|
-| D-01 | Tres pruebas del frontend fallan desde antes del trabajo actual: `App should render title`, `Diagram should create`, `LandinPage should create` (falta Zone.js en la configuración de pruebas / texto esperado desactualizado) | Ninguno en producción; ruido en el resultado | 📋 Por corregir |
+| D-01 | Tres pruebas del frontend fallaban desde antes: `App should render title`, `Diagram should create`, `LandinPage should create` (falta de detección de cambios sin Zone.js en la configuración de la prueba / texto esperado desactualizado) | Ninguno en producción; ruido en el resultado | ✅ Corregido el 2026-10-21 |
+| D-04 | Tras reiniciar el servidor de Django, las salas que estaban activas conservan en Redis a los participantes anteriores como "fantasmas" (nunca se desconectaron formalmente), con el host fantasma incluido, hasta que vence la expiración del grupo | Después de un despliegue hay que usar una sala nueva; no afecta a salas nuevas | 📋 Conocido; mitigación posible: limpiar los grupos al arrancar |
+| D-05 | La llamada a Gemini puede tardar si un intento se queda colgado (el chat limita a 30 s por intento y 2 intentos; el cliente corta a los 110 s) | Una respuesta puede tardar hasta ~1 min en casos raros | ✅ Acotado |
 | D-02 | La contraseña anterior de PostgreSQL sigue en el historial público de git | Riesgo si se reutiliza en otro sitio | Mitigado: ya no está en el compose; cambiar la contraseña si se usó en otro lugar |
 | D-03 | Las pruebas de Django que necesitan base de datos no corren en el host de macOS | Hay que correrlas en el contenedor | Documentado |
 
@@ -73,10 +79,11 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 
 | Suite | Resultado | Comando |
 |---|---|---|
-| Frontend (Karma) | 93 ejecutadas: **90 correctas**, 3 fallan (D-01) | `ng test` (rama `fix/junction-revision`, ya integrada) |
+| Frontend (Karma) | **139 correctas**, 0 fallos | `ng test` sobre `develop` |
 | Frontend (compilación) | Correcta, con 2 avisos de módulos CommonJS (`backbone`, `file-saver`) | `ng build` |
-| Django sin base de datos | **60 correctas**, 0 fallos (colaboración 6, Gemini 7, XMI 14, diseño de XMI 1, Flutter 32) | ver procedimiento 2 |
+| Django sin base de datos | **74 correctas**, 0 fallos (colaboración 20, Gemini 7, XMI 14, diseño de XMI 1, Flutter 32) | ver procedimiento 2 |
+| Django con base de datos (SQLite en memoria, `settings_test`) | **55 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
 | Spring | Cubierto por `ProjectGeneratorCompileTest` y las pruebas de CORS | Verificado en iteraciones anteriores; se vuelve a ejecutar antes del congelamiento |
-| Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados | Pruebas de humo del 2026-10-21 |
+| Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados; identidad, actividad, chat, revisión y aplicar idea verificados con dos navegadores en https://diagramador.dev | Pruebas de humo y prueba manual del 2026-10-21 |
 
-**Pendiente antes de la entrega:** repetir toda la evaluación sobre la versión congelada (≈ 2026-11-02), cerrar D-01, añadir las pruebas de I1–I4 y repetir la prueba física con tres navegadores y con el móvil.
+**Pendiente antes de la entrega:** repetir toda la evaluación sobre la versión congelada (≈ 2026-11-02), añadir las pruebas de I4 e I5 y repetir la prueba física con tres navegadores y con el móvil.
