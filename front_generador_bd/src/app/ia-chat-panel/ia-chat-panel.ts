@@ -1,9 +1,9 @@
 import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { DiagramService } from '../../services/diagram/diagram.service';
-import { IaChatMessage, IaChatService } from '../../services/IA/ia-chat.service';
+import { IaActionsService } from '../../services/IA/ia-actions.service';
+import { IaChatMessage, IaChatMode, IaChatService } from '../../services/IA/ia-chat.service';
 
 const MAX_MESSAGE_CHARS = 2000;
 
@@ -14,7 +14,7 @@ const MAX_MESSAGE_CHARS = 2000;
 })
 export class IaChatPanel implements OnInit {
   private readonly chat = inject(IaChatService);
-  private readonly diagram = inject(DiagramService);
+  private readonly actions = inject(IaActionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly platformId = inject(PLATFORM_ID);
 
@@ -26,6 +26,14 @@ export class IaChatPanel implements OnInit {
   readonly sending = signal(false);
   readonly error = signal('');
   readonly maxChars = MAX_MESSAGE_CHARS;
+  readonly mode = signal<IaChatMode>('ask');
+  readonly modes: { id: IaChatMode; label: string; hint: string }[] = [
+    { id: 'ask', label: 'Preguntar', hint: 'La IA solo responde: no toca el diagrama' },
+    { id: 'change', label: 'Pedir cambio', hint: 'La IA modifica el diagrama y todos lo ven' },
+    { id: 'review', label: 'Revisar', hint: 'La IA revisa el diagrama y publica sus ideas para todos' }
+  ];
+
+  readonly modeHint = computed(() => this.modes.find(option => option.id === this.mode())?.hint ?? '');
 
   private roomId: string | null = null;
   private historyLoaded = false;
@@ -54,8 +62,15 @@ export class IaChatPanel implements OnInit {
     }
   }
 
+  setMode(mode: IaChatMode): void {
+    this.mode.set(mode);
+  }
+
   send(): void {
-    const text = this.draft().trim();
+    const mode = this.mode();
+    const typed = this.draft().trim();
+    // Revisar no necesita texto: el servidor usa un pedido por defecto.
+    const text = typed || (mode === 'review' ? 'Revisa el diagrama' : '');
     if (!this.roomId || !text || this.sending()) return;
     if (text.length > MAX_MESSAGE_CHARS) {
       this.error.set(`El mensaje no puede superar ${MAX_MESSAGE_CHARS} caracteres.`);
@@ -64,12 +79,12 @@ export class IaChatPanel implements OnInit {
 
     this.error.set('');
     this.sending.set(true);
-    this.append({ role: 'user', content: text });
+    this.append({ role: 'user', content: text, mode });
     this.draft.set('');
 
-    this.chat.ask(this.roomId, text, this.diagram.exportToJson()).subscribe({
-      next: reply => {
-        this.append({ role: 'ia', content: reply });
+    this.actions.request(this.roomId, mode, text).subscribe({
+      next: response => {
+        this.append({ role: 'ia', content: response.reply, mode });
         this.sending.set(false);
       },
       error: (failure: unknown) => {
@@ -95,12 +110,13 @@ export class IaChatPanel implements OnInit {
     });
   }
 
-  private append(message: { role: 'user' | 'ia'; content: string }): void {
+  private append(message: { role: 'user' | 'ia'; content: string; mode?: IaChatMode }): void {
     this.messages.update(current => [
       ...current,
       {
         id: -(current.length + 1),
         role: message.role,
+        mode: message.mode,
         content: message.content,
         created_at: new Date().toISOString()
       }

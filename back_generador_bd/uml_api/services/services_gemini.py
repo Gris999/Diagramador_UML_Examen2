@@ -49,6 +49,7 @@ def _post_gemini(
     headers,
     params,
     max_attempts=3,
+    timeout=60,
 ):
     """
     Reintenta errores transitorios y, si persisten,
@@ -66,7 +67,7 @@ def _post_gemini(
                     headers=headers,
                     params=params,
                     json=data,
-                    timeout=60,
+                    timeout=timeout,
                 )
 
                 if (

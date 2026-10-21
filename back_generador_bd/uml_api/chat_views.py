@@ -2,11 +2,14 @@ import logging
 import uuid
 from datetime import timedelta
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from collab.activity import serialize_activity_event
 from collab.models import ActivityEvent, ChatMessage, Participant
 from .services.ai_provider import AIProviderError, get_ai_provider
 from .services.ia_context import (
@@ -14,11 +17,14 @@ from .services.ia_context import (
     MAX_HISTORY,
     MAX_MESSAGE_CHARS,
     build_chat_prompt,
+    build_review_prompt,
+    parse_review,
 )
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_MODES = {"ask"}
+SUPPORTED_MODES = {"ask", "change", "review"}
+DEFAULT_REVIEW_MESSAGE = "Revisa el diagrama"
 MAX_REQUESTS_PER_MINUTE = 12
 
 
@@ -43,50 +49,52 @@ def serialize_chat_message(message):
     return {
         "id": message.id,
         "role": message.role,
+        "mode": message.mode,
         "content": message.content,
         "created_at": message.created_at.isoformat(),
     }
 
 
-@api_view(["POST"])
-def ia_chat(request, room):
-    participant = _participant_for(request, room)
-    if participant is None:
-        return _forbidden()
+def _bad_request(message):
+    return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
 
-    body = request.data if hasattr(request.data, "get") else {}
-    mode = body.get("mode", "ask")
-    if mode not in SUPPORTED_MODES:
-        return Response(
-            {"error": "Modo no soportado."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
 
-    message = body.get("message")
-    if not isinstance(message, str) or not message.strip():
-        return Response(
-            {"error": "El mensaje es requerido."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    message = message.strip()
-    if len(message) > MAX_MESSAGE_CHARS:
-        return Response(
-            {"error": f"El mensaje no puede superar {MAX_MESSAGE_CHARS} caracteres."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+def _ia_unavailable():
+    return Response(
+        {"error": "La IA no pudo responder ahora. Intenta de nuevo."},
+        status=status.HTTP_502_BAD_GATEWAY,
+    )
 
-    recent_requests = ChatMessage.objects.filter(
+
+def _store_exchange(room, participant, mode, message, reply):
+    ChatMessage.objects.create(
+        room=room,
         participant=participant,
         role=ChatMessage.ROLE_USER,
-        created_at__gte=timezone.now() - timedelta(minutes=1),
-    ).count()
-    if recent_requests >= MAX_REQUESTS_PER_MINUTE:
-        return Response(
-            {"error": "Demasiadas preguntas seguidas. Espera un momento."},
-            status=status.HTTP_429_TOO_MANY_REQUESTS,
-        )
+        mode=mode,
+        content=message,
+    )
+    ChatMessage.objects.create(
+        room=room,
+        participant=participant,
+        role=ChatMessage.ROLE_IA,
+        mode=mode,
+        content=reply,
+    )
 
-    # Contexto: actividad de TODA la sala + solo el chat de quien pregunta.
+
+def _publish_activity(room, event):
+    """Avisa a la sala en vivo; si el canal falla, el evento igual queda guardado."""
+    try:
+        async_to_sync(get_channel_layer().group_send)(
+            f"canvas_{room}",
+            {"type": "activity", "event": serialize_activity_event(event)},
+        )
+    except Exception as exc:
+        logger.warning("No se pudo difundir la actividad de la IA (%s)", type(exc).__name__)
+
+
+def _answer(provider, room, participant, body, message):
     events = list(
         ActivityEvent.objects.filter(room=room).order_by("-id")[:MAX_EVENTS]
     )[::-1]
@@ -100,37 +108,97 @@ def ia_chat(request, room):
         history=history,
         message=message,
     )
+    reply = provider.chat(prompt)
+    _store_exchange(room, participant, "ask", message, reply)
+    return Response({"reply": reply})
+
+
+def _change(provider, room, participant, body, message):
+    changes = provider.change(message, body.get("uml"))
+    reply = "Listo, apliqué el cambio en el diagrama."
+    _store_exchange(room, participant, "change", message, reply)
+    return Response({"reply": reply, "changes": changes})
+
+
+def _review(provider, room, participant, body, message):
+    result = parse_review(provider.chat(build_review_prompt(uml=body.get("uml"))))
+    findings = result["findings"]
+
+    lines = [result["summary"]] if result["summary"] else []
+    lines += [f"{number}. {finding['text']}" for number, finding in enumerate(findings, 1)]
+    reply = "\n".join(lines) or "No encontré observaciones importantes."
+    _store_exchange(room, participant, "review", message, reply)
+
+    if not findings:
+        count = "sin observaciones"
+    elif len(findings) == 1:
+        count = "1 observación"
+    else:
+        count = f"{len(findings)} observaciones"
+    event = ActivityEvent.objects.create(
+        room=room,
+        actor=participant,
+        actor_name="IA",
+        actor_kind="ia",
+        type="ia_review",
+        summary=f"revisó el diagrama a pedido de {participant.display_name}: {count}"[:255],
+        data={"findings": findings, "requested_by": participant.display_name},
+    )
+    _publish_activity(room, event)
+
+    suggestions = [
+        {"id": index, "text": finding["text"], "prompt": finding["prompt"]}
+        for index, finding in enumerate(findings)
+    ]
+    return Response({"reply": reply, "suggestions": suggestions})
+
+
+MODE_HANDLERS = {"ask": _answer, "change": _change, "review": _review}
+
+
+@api_view(["POST"])
+def ia_chat(request, room):
+    participant = _participant_for(request, room)
+    if participant is None:
+        return _forbidden()
+
+    body = request.data if hasattr(request.data, "get") else {}
+    mode = body.get("mode", "ask")
+    if mode not in SUPPORTED_MODES:
+        return _bad_request("Modo no soportado.")
+
+    message = body.get("message")
+    if message is None and mode == "review":
+        message = DEFAULT_REVIEW_MESSAGE
+    if not isinstance(message, str) or not message.strip():
+        return _bad_request("El mensaje es requerido.")
+    message = message.strip()
+    if len(message) > MAX_MESSAGE_CHARS:
+        return _bad_request(
+            f"El mensaje no puede superar {MAX_MESSAGE_CHARS} caracteres."
+        )
+
+    recent_requests = ChatMessage.objects.filter(
+        participant=participant,
+        role=ChatMessage.ROLE_USER,
+        created_at__gte=timezone.now() - timedelta(minutes=1),
+    ).count()
+    if recent_requests >= MAX_REQUESTS_PER_MINUTE:
+        return Response(
+            {"error": "Demasiadas preguntas seguidas. Espera un momento."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
     try:
-        reply = get_ai_provider().chat(prompt)
+        return MODE_HANDLERS[mode](get_ai_provider(), room, participant, body, message)
     except AIProviderError as exc:
         logger.warning("La IA no pudo responder en la sala %s: %s", room, exc)
-        return Response(
-            {"error": "La IA no pudo responder ahora. Intenta de nuevo."},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+        return _ia_unavailable()
     except Exception as exc:
         logger.warning(
             "Fallo inesperado del proveedor de IA (%s)", type(exc).__name__
         )
-        return Response(
-            {"error": "La IA no pudo responder ahora. Intenta de nuevo."},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    ChatMessage.objects.create(
-        room=room,
-        participant=participant,
-        role=ChatMessage.ROLE_USER,
-        content=message,
-    )
-    ChatMessage.objects.create(
-        room=room,
-        participant=participant,
-        role=ChatMessage.ROLE_IA,
-        content=reply,
-    )
-    return Response({"reply": reply})
+        return _ia_unavailable()
 
 
 @api_view(["GET"])

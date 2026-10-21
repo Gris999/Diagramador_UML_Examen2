@@ -50,6 +50,14 @@ class CanvasConsumer(AsyncWebsocketConsumer):
 
         members = await self.role_store.join(self.channel_name)
         await self.accept()
+        # Lo primero que recibe una conexión es su propio identificador. Sin
+        # esto el cliente lo deducía del primer aviso de presencia, que puede
+        # ser el de otra persona que entró en el mismo instante.
+        await self.send(text_data=json.dumps({
+            "type": "presence",
+            "action": "self",
+            "peer": self.channel_name,
+        }))
 
         # Notificar presencia
         await self.channel_layer.group_send(
@@ -232,7 +240,17 @@ class CanvasConsumer(AsyncWebsocketConsumer):
 
         target_id = self._target_id(payload.get("id"))
         summary = self._activity_summary(event_type, payload)
-        actor_name = self.display_name or "Usuario anónimo"
+        requester = self.display_name or "Usuario anónimo"
+        # Los cambios que la IA aplica a pedido de alguien los envía el
+        # navegador de esa persona marcados con via_ia: se registran a nombre
+        # de la IA, indicando quién lo pidió.
+        if payload.get("via_ia") is True:
+            actor_kind = "ia"
+            actor_name = "IA"
+            summary = f"{summary} (a pedido de {requester})"[:255]
+        else:
+            actor_kind = "user"
+            actor_name = requester
 
         try:
             event = await self.activity_store.record(
@@ -243,6 +261,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 target_id=target_id,
                 summary=summary,
                 data=self._activity_data(payload),
+                actor_kind=actor_kind,
             )
         except Exception:
             logger.exception("Could not persist collaboration activity")

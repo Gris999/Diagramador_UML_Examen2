@@ -48,20 +48,37 @@ describe('IaChatService', () => {
     expect(result).toEqual([]);
   });
 
-  it('asks in ask mode, sending the diagram and the participant token', () => {
-    let reply = '';
-    service.ask('sala 1', '¿Qué hizo Beto?', { classes: [] }).subscribe(value => (reply = value));
+  it('sends the mode, the message and the diagram with the participant token', () => {
+    let result: unknown;
+    service
+      .send('sala 1', 'change', 'agrega Factura', { classes: [] })
+      .subscribe(value => (result = value));
 
     const request = http.expectOne(`${base}ia/chat/`);
     expect(request.request.method).toBe('POST');
     expect(request.request.headers.get('X-Participant-Token')).toBe(token);
     expect(request.request.body).toEqual({
-      mode: 'ask',
-      message: '¿Qué hizo Beto?',
+      mode: 'change',
+      message: 'agrega Factura',
       uml: { classes: [] }
     });
-    request.flush({ reply: 'Beto añadió la clase Pedido.' });
+    request.flush({ reply: 'Listo', changes: { classes: [] } });
 
-    expect(reply).toBe('Beto añadió la clase Pedido.');
+    expect(result).toEqual({ reply: 'Listo', changes: { classes: [] } });
+  });
+
+  it('fails with a timeout instead of waiting forever for the IA', () => {
+    jasmine.clock().install();
+    try {
+      let failure: unknown;
+      service.send('sala 1', 'ask', 'hola', null).subscribe({ error: error => (failure = error) });
+      http.expectOne(`${base}ia/chat/`);
+
+      jasmine.clock().tick(110_001);
+
+      expect((failure as Error).name).toBe('TimeoutError');
+    } finally {
+      jasmine.clock().uninstall();
+    }
   });
 });

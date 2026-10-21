@@ -237,6 +237,94 @@ class CanvasIdentityActivityTests(SimpleTestCase):
         self.assertEqual(len(InMemoryActivityStore.events), 1)
         await client.disconnect()
 
+    async def test_a_new_connection_is_told_its_own_peer_id_before_anything_else(self):
+        first, first_id, _ = await self.connect_client()
+        second = WebsocketCommunicator(self.application, "/ws/canvas/activity-room/")
+        connected, _ = await second.connect()
+        self.assertTrue(connected)
+
+        welcome = await second.receive_json_from(timeout=1)
+
+        # Aunque otro participante haya entrado justo antes, el primer mensaje
+        # identifica a esta conexión y no a la del otro.
+        self.assertEqual(welcome["type"], "presence")
+        self.assertEqual(welcome["action"], "self")
+        self.assertNotEqual(welcome["peer"], first_id)
+        own_join = await self.receive_until(
+            second,
+            lambda message: message.get("action") == "join"
+            and message.get("peer") == welcome["peer"],
+        )
+        self.assertEqual(own_join["peer"], welcome["peer"])
+        await second.disconnect()
+        await first.disconnect()
+
+    async def test_operations_applied_by_the_ia_are_logged_on_behalf_of_the_requester(self):
+        client, _, _ = await self.connect_client()
+        await self.send_hello(client, str(uuid.uuid4()), "Ana")
+        await self.receive_state(
+            client,
+            lambda members: members[0].get("name") == "Ana",
+        )
+
+        await client.send_json_to({
+            "type": "broadcast",
+            "payload": {
+                "t": "add_class",
+                "id": "c9",
+                "payload": {"name": "Factura"},
+                "via_ia": True,
+            },
+        })
+        ia_activity = await self.receive_until(
+            client,
+            lambda message: message.get("type") == "activity",
+        )
+        await client.send_json_to({
+            "type": "broadcast",
+            "payload": {"t": "add_class", "id": "c10", "payload": {"name": "Pago"}},
+        })
+        user_activity = await self.receive_until(
+            client,
+            lambda message: message.get("type") == "activity",
+        )
+
+        self.assertEqual(ia_activity["event"]["actor_kind"], "ia")
+        self.assertEqual(ia_activity["event"]["actor_name"], "IA")
+        self.assertEqual(
+            ia_activity["event"]["summary"],
+            "añadió la clase Factura (a pedido de Ana)",
+        )
+        self.assertEqual(
+            InMemoryActivityStore.events[0]["actor"],
+            InMemoryActivityStore.participants[
+                next(iter(InMemoryActivityStore.participants))
+            ]["id"],
+        )
+        self.assertEqual(user_activity["event"]["actor_kind"], "user")
+        self.assertEqual(user_activity["event"]["actor_name"], "Ana")
+        await client.disconnect()
+
+    async def test_only_a_literal_true_marks_an_operation_as_ia(self):
+        client, _, _ = await self.connect_client()
+        await self.send_hello(client, str(uuid.uuid4()), "Ana")
+
+        for flag in ("true", 1, "yes"):
+            await client.send_json_to({
+                "type": "broadcast",
+                "payload": {"t": "delete", "id": f"c-{flag}", "via_ia": flag},
+            })
+            await self.receive_until(
+                client,
+                lambda message: message.get("type") == "activity",
+            )
+
+        self.assertEqual(
+            {event["actor_kind"] for event in InMemoryActivityStore.events},
+            {"user"},
+        )
+        await client.disconnect()
+
     async def test_oversized_operation_data_is_not_stored_whole(self):
         client, _, _ = await self.connect_client()
         payload = {

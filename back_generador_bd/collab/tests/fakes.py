@@ -87,13 +87,14 @@ class InMemoryActivityStore:
         target_id,
         summary,
         data,
+        actor_kind="user",
     ):
         event = {
             "id": len(self.events) + 1,
             "room": room,
             "actor": actor_id,
             "actor_name": actor_name,
-            "actor_kind": "user",
+            "actor_kind": actor_kind,
             "type": event_type,
             "target_id": target_id,
             "summary": summary,

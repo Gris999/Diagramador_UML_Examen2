@@ -16,6 +16,20 @@ describe('P2PService collaboration roles', () => {
     await (service as any).handleSignaling(message);
   }
 
+  it('takes its own id from the server welcome even when another peer joined first', async () => {
+    await receive({ type: 'presence', action: 'self', peer: 'peer-me' });
+    await receive({ type: 'presence', action: 'join', peer: 'peer-other' });
+
+    expect(service.isCurrentParticipant('peer-me')).toBeTrue();
+    expect(service.isCurrentParticipant('peer-other')).toBeFalse();
+  });
+
+  it('keeps working with servers that do not send the welcome (first join is its own)', async () => {
+    await receive({ type: 'presence', action: 'join', peer: 'peer-me' });
+
+    expect(service.isCurrentParticipant('peer-me')).toBeTrue();
+  });
+
   it('updates local role state from presence snapshots', async () => {
     await receive({ type: 'presence', action: 'join', peer: 'peer-a' });
     await receive({

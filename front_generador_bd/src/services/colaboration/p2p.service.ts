@@ -103,6 +103,15 @@ export class P2PService {
         this.participants.set(msg.members);
         return;
       }
+      // El servidor le dice a cada conexión quién es antes que cualquier otro
+      // aviso; así no se confunde con otra persona que entró a la vez.
+      if (msg.action === 'self' && msg.peer) {
+        if (!this.localId()) {
+          this.localId.set(msg.peer);
+          this.onReady?.();
+        }
+        return;
+      }
       if (msg.peer && !this.localId()) {
         this.localId.set(msg.peer);
         this.onReady?.();

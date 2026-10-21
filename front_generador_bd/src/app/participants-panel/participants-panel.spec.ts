@@ -1,5 +1,6 @@
 import { computed, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { P2PService } from '../../services/colaboration/p2p.service';
 import { ParticipantsPanel } from './participants-panel';
 
@@ -8,11 +9,13 @@ describe('ParticipantsPanel', () => {
   let participants: ReturnType<typeof signal<any[]>>;
   let localPeer: ReturnType<typeof signal<string>>;
   let removeParticipant: jasmine.Spy;
+  let iaStatus: ReturnType<typeof signal<{ state: 'thinking' | 'idle'; by: string }>>;
 
   beforeEach(async () => {
     participants = signal<any[]>([]);
     localPeer = signal('peer-a');
     removeParticipant = jasmine.createSpy('removeParticipant');
+    iaStatus = signal<{ state: 'thinking' | 'idle'; by: string }>({ state: 'idle', by: '' });
     const p2p = {
       participants,
       isHost: computed(() => participants().some(
@@ -27,7 +30,8 @@ describe('ParticipantsPanel', () => {
       imports: [ParticipantsPanel],
       providers: [
         provideZonelessChangeDetection(),
-        { provide: P2PService, useValue: p2p }
+        { provide: P2PService, useValue: p2p },
+        { provide: CollaborationService, useValue: { iaStatus } }
       ]
     }).compileComponents();
 
@@ -123,5 +127,22 @@ describe('ParticipantsPanel', () => {
     expect(text).toContain('Usuario 2');
     expect(text).toContain('(Tú)');
     expect(text).toContain('Host');
+  });
+
+  it('always lists the IA as a room member and shows who it is working for', () => {
+    participants.set([{ peer: 'peer-a', role: 'host' }]);
+    fixture.detectChanges();
+    const status = () => fixture.nativeElement
+      .querySelector('[data-testid="ia-participant-status"]').textContent.replace(/\s+/g, ' ').trim();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="ia-participant"]').textContent)
+      .toContain('IA');
+    expect(status()).toBe('Disponible');
+    expect(fixture.nativeElement.textContent).toContain('Participantes (1)');
+
+    iaStatus.set({ state: 'thinking', by: 'Ana' });
+    fixture.detectChanges();
+
+    expect(status()).toContain('Pensando (a pedido de Ana)');
   });
 });

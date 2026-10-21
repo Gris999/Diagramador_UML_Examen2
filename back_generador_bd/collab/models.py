@@ -62,6 +62,7 @@ class ChatMessage(models.Model):
         related_name="chat_messages",
     )
     role = models.CharField(max_length=8)
+    mode = models.CharField(max_length=8, default="ask")
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
