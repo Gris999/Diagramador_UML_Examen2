@@ -5,7 +5,10 @@ describe('DiagramService AI edit regressions', () => {
     return new DiagramService(
       { scheduleAutoResize: jasmine.createSpy('scheduleAutoResize') } as any,
       { broadcast: jasmine.createSpy('broadcast') } as any,
-      {} as any,
+      // loadFromJson() llama a persist() una vez al terminar de cargar el
+      // lote completo (fix de la reconciliación de junctions M:N), y
+      // persist() usa exportService.export() para el snapshot guardado.
+      { export: () => ({ classes: [], relationships: [] }) } as any,
       {} as any,
       {} as any
     );

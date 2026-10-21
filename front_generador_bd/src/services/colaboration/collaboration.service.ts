@@ -74,7 +74,11 @@ export class CollaborationService {
       switch (op.t) {
         case 'add_class': {
           if (graph.getCell(op.id)) break;
-          this.api!.createUmlClass({ ...op.payload, id: op.id }, true);
+          this.api!.createUmlClass({
+            ...op.payload,
+            id: op.id,
+            pendingJunctionSync: !!op.payload?.generated
+          }, true);
           break;
         }
         case 'edit_text': {
@@ -126,9 +130,22 @@ export class CollaborationService {
           link.set('id', op.id);
           link.set('relationType', type);
           if (op.payload?.labels) link.set('labels', op.payload.labels);
+          if (op.payload?.generated) link.set('generatedJunctionLeg', true);
+          if (op.payload?.junctionOptOut) link.set('junctionOptOut', true);
 
           // agregar una única vez, marcado como remoto
           graph.addCell(link, { collab: true });
+
+          if (op.payload?.generated) {
+            const junction = graph.getCell(op.targetId);
+            const generatedLegs = graph.getLinks?.().filter((candidate: any) =>
+              candidate.get('generatedJunctionLeg') &&
+              candidate.get('target')?.id === op.targetId
+            ) || [];
+            if (junction?.get?.('pendingJunctionSync') && generatedLegs.length >= 2) {
+              junction.set('pendingJunctionSync', false, { silent: true });
+            }
+          }
           break;
         }
 

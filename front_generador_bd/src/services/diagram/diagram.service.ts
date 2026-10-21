@@ -7,6 +7,8 @@ import { RemoteApplicationService } from '../colaboration/remote-application.ser
 import { DiagramExportService, UmlExportDTO } from '../exports/diagram-export.service';
 import { UmlValidationService } from '../colaboration/uml-validation.service';
 import { BackupService } from '../exports/backup.service';
+import { isManyToManyLabels, isManyMultiplicity, junctionElementId, junctionLegId, junctionDisplayName } from './junction-naming.util';
+import { findAssociationClassAttachments, resolveAssociationClassesForGenerators, RelationshipLike } from './association-class.util';
 
 @Injectable({ providedIn: 'root' })
 export class DiagramService {
@@ -28,6 +30,11 @@ export class DiagramService {
   private roomLeft = false;
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly AUTOSAVE_DEBOUNCE_MS = 1500;
+  private reconcilingJunctions = false;
+  // >0 mientras loadFromJson() está creando clases y relaciones en lote
+  // (los dos bucles todavía no terminaron); reconcileGeneratedJunctions() se
+  // suspende mientras tanto para no ver clases intermedias con 0 relaciones.
+  private loadBatchDepth = 0;
 
 
   constructor(
@@ -207,7 +214,12 @@ export class DiagramService {
             id: cell.id,
             sourceId: src,
             targetId: trg,
-            payload: { type, labels: cell.get('labels') }
+            payload: {
+              type,
+              labels: cell.get('labels'),
+              ...(cell.get('generatedJunctionLeg') ? { generated: true } : {}),
+              ...(cell.get('junctionOptOut') ? { junctionOptOut: true } : {})
+            }
           });
         }
       });
@@ -228,7 +240,12 @@ export class DiagramService {
             id: link.id,
             sourceId: src,
             targetId: trg,
-            payload: { type, labels: link.get('labels') }
+            payload: {
+              type,
+              labels: link.get('labels'),
+              ...(link.get('generatedJunctionLeg') ? { generated: true } : {}),
+              ...(link.get('junctionOptOut') ? { junctionOptOut: true } : {})
+            }
           });
         } else {
           this.collab.broadcast({ t: 'move_link', id: link.id, sourceId: src, targetId: trg });
@@ -506,6 +523,14 @@ export class DiagramService {
         d: 'M 10 0 L 0 5 L 10 10 z',
         fill: '#333'
       }
+    },
+    // Conector de clase asociativa (UML): línea punteada sin flechas, sin
+    // semántica de multiplicidad propia. Une una clase con uno de los dos
+    // extremos de la asociación M:N que documenta.
+    'association-class': {
+      '.connection': { stroke: '#666', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' },
+      '.marker-source': { d: 'M 0 0 z', fill: 'none' },
+      '.marker-target': { d: 'M 0 0 z', fill: 'none' }
     }
   };
 
@@ -530,7 +555,8 @@ export class DiagramService {
       attrs
     });
 
-    link.set('labels', [
+    // El conector de clase asociativa no lleva cardinalidad propia.
+    link.set('labels', type === 'association-class' ? [] : [
       {
         position: { distance: 20, offset: -10 },
         attrs: { text: { text: '0..1', fill: '#333', fontSize: 12 } },
@@ -670,6 +696,16 @@ export class DiagramService {
       } else {
         umlClass.set('id', uuid());
       }
+      // 🔹 Marca de entidad intermedia generada automáticamente (M:N)
+      if (classModel.generated) {
+        umlClass.set('generatedJunction', true);
+      }
+      if (classModel.junctionOrigin) {
+        umlClass.set('junctionOrigin', classModel.junctionOrigin);
+      }
+      if (classModel.pendingJunctionSync) {
+        umlClass.set('pendingJunctionSync', true);
+      }
       // 🔹 Añadimos 4 puertos (uno por cada lado)
       umlClass.addPort({ group: 'inout', id: 'top' });
       umlClass.addPort({ group: 'inout', id: 'bottom' });
@@ -692,6 +728,8 @@ export class DiagramService {
             size: classModel.size,
             attributes: classModel.attributes,
             methods: classModel.methods,
+            ...(classModel.generated ? { generated: true } : {}),
+            ...(classModel.junctionOrigin ? { junctionOrigin: classModel.junctionOrigin } : {})
           },
         });
       }
@@ -858,6 +896,25 @@ export class DiagramService {
       return;
     }
 
+    // Las clases se cargan primero y las relaciones después (dos bucles
+    // separados, más abajo). persist() se dispara en cada 'add' individual,
+    // así que sin esta suspensión, la clase intermedia de una M:N ya
+    // persistida quedaría un instante con 0 relaciones (las suyas todavía no
+    // se cargaron) y reconcileGeneratedJunctions() la borraría por huérfana
+    // antes de que sus 2 relaciones lleguen a crearse. Se reconcilia una sola
+    // vez, al final, cuando clases Y relaciones ya están completas.
+    this.loadBatchDepth++;
+    try {
+      this.loadFromJsonBatch(json, isStorageLoad, isRemoteSync);
+    } finally {
+      this.loadBatchDepth--;
+      if (this.loadBatchDepth === 0) {
+        this.persist();
+      }
+    }
+  }
+
+  private loadFromJsonBatch(json: any, isStorageLoad: boolean, isRemoteSync: boolean): void {
     const idMap: Record<string, string> = {};
     // mapea el id original del JSON -> id real en el canvas
 
@@ -914,6 +971,13 @@ export class DiagramService {
         if (cls.size) {
           existing.resize(cls.size.width, cls.size.height);
         }
+
+        if (cls.generated) {
+          existing.set('generatedJunction', true);
+        }
+        if (cls.junctionOrigin) {
+          existing.set('junctionOrigin', cls.junctionOrigin);
+        }
       } else {
         const layoutIndex = existingElementCount + index;
 
@@ -932,7 +996,9 @@ export class DiagramService {
           position: cls.position || defaultPosition,
           size: cls.size || { width: 180, height: 110 },
           attributes: cls.attributes || [],
-          methods: cls.methods || []
+          methods: cls.methods || [],
+          generated: !!cls.generated,
+          junctionOrigin: cls.junctionOrigin
         }, isRemoteSync);
 
         idMap[cls.id] = newCls.id;
@@ -956,6 +1022,13 @@ export class DiagramService {
 
       const link = this.createTypedRelationship(srcId, trgId, rel.type, true);
       link.set('id', rel.id);
+
+      if (rel.generated) {
+        link.set('generatedJunctionLeg', true);
+      }
+      if (rel.junctionOptOut) {
+        link.set('junctionOptOut', true);
+      }
 
       // 🔹 aplicar labels si vienen
       if (rel.labels) {
@@ -1731,12 +1804,245 @@ export class DiagramService {
     if (!this.graph) return null;
     return this.exportService.export(this.graph);
   }
+
+  /**
+   * Exporta el diagrama para los generadores de código (SQL/Spring/Flutter).
+   * A diferencia de exportToJson() (usado para persistencia/XMI/colaboración,
+   * que debe reflejar fielmente lo que el usuario dibujó), aquí cada M:N con
+   * una clase asociativa real enlazada se resuelve al par de relaciones 1:N
+   * equivalente que esos generadores ya saben convertir en FKs — sin duplicar
+   * lógica en SQL/Spring/Flutter y sin alterar el grafo visual.
+   */
+  exportForGenerators() {
+    if (!this.graph) return null;
+    const dto = this.exportService.export(this.graph);
+    return resolveAssociationClassesForGenerators(dto);
+  }
   // Guarda el estado actual del diagrama en localStorage y agenda el respaldo remoto
   private persist() {
     if (!this.graph) return;
+    // graph.on('add remove change', ...) dispara persist() en CUALQUIER mutación
+    // del grafo (carga inicial, edición interactiva de multiplicidad, sync remoto,
+    // deshacer una relación, etc.), así que es el único punto que garantiza cubrir
+    // todas las formas en que una relación puede volverse/dejar de ser M:N.
+    // La reconciliación en sí muta el grafo (agrega/quita celdas), lo que dispararía
+    // 'add'/'remove'/'change' de nuevo; el guard evita reentrar en un bucle.
+    if (!this.reconcilingJunctions && this.loadBatchDepth === 0) {
+      this.reconcilingJunctions = true;
+      try {
+        this.reconcileGeneratedJunctions();
+      } finally {
+        this.reconcilingJunctions = false;
+      }
+    }
     const json = this.exportService.export(this.graph);
     localStorage.setItem(this.storageKey, JSON.stringify(json));
     this.scheduleBackendBackup();
+  }
+
+  /**************************************************************************************************
+   * ENTIDAD INTERMEDIA VISUAL PARA ASOCIACIONES MUCHOS-A-MUCHOS
+   *
+   * Cuando una asociación tiene multiplicidad "muchos" en ambos extremos, se
+   * reemplaza en el propio grafo por: una clase intermedia (con id/nombre
+   * deterministas, para que recargar o que dos colaboradores la generen a la vez
+   * no produzca duplicados) + dos relaciones 1:N normales (extremo original "1",
+   * extremo intermedio "0..*"). La relación M:N original se elimina.
+   *
+   * Al ya no quedar ninguna relación con "*" en ambos extremos, los generadores
+   * existentes (SQL export, Spring, Flutter) nunca activan su propia detección de
+   * M:N para este par: ven una clase más + dos relaciones 1:N corrientes, que su
+   * lógica ya probada convierte en las FKs correspondientes sin duplicar tablas.
+   ***************************************************************************************************/
+  private reconcileGeneratedJunctions(): void {
+    if (!this.graph) return;
+    if (typeof this.graph.getLinks !== 'function' || typeof this.graph.getElements !== 'function') {
+      return; // grafo mínimo/mock (p.ej. en tests de otras áreas) sin API completa de JointJS
+    }
+
+    // 1) Transformar cada relación M:N viva en clase intermedia + 2 relaciones 1:N,
+    // salvo las que ya tienen una clase asociativa real enlazada (ver
+    // association-class.util.ts): esas deben permanecer como asociación M:N
+    // directa, con la clase asociativa colgando aparte vía conectores punteados.
+    const links = this.graph.getLinks();
+    const normalizedLinks: RelationshipLike[] = links.map((l: any) => ({
+      id: l.id,
+      type: l.get('relationType') || 'association',
+      sourceId: l.get('source')?.id,
+      targetId: l.get('target')?.id,
+      labels: (l.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text)
+    }));
+    const associationClassAttachments = findAssociationClassAttachments(normalizedLinks);
+
+    for (const link of links) {
+      if (link.get('generatedJunctionLeg')) continue; // ya es una pata generada
+      if ((link.get('relationType') || 'association') !== 'association') continue;
+      if (link.get('junctionOptOut')) continue;
+      if (associationClassAttachments.has(link.id)) continue; // tiene clase asociativa real
+
+      const labels = (link.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text);
+      if (!isManyToManyLabels(labels)) continue;
+
+      const sourceId = link.get('source')?.id;
+      const targetId = link.get('target')?.id;
+      const sourceEl = sourceId ? this.graph.getCell(sourceId) : null;
+      const targetEl = targetId ? this.graph.getCell(targetId) : null;
+      if (!sourceEl || !targetEl) continue;
+      // Evita anidar: si alguno de los extremos ya es una entidad intermedia
+      // generada, no se vuelve a transformar.
+      if (sourceEl.get('generatedJunction') || targetEl.get('generatedJunction')) continue;
+
+      const originId = String(link.id);
+      const junctionId = junctionElementId(sourceEl.id, targetEl.id, originId);
+      let junctionEl = this.graph.getCell(junctionId);
+      const junctionName = junctionDisplayName(sourceEl.get('name'), targetEl.get('name'));
+      const junctionOrigin = {
+        id: originId,
+        type: link.get('relationType') || 'association',
+        sourceId,
+        targetId,
+        labels: this.cloneGraphValue(link.get('labels') || []),
+        vertices: this.cloneGraphValue(link.get('vertices') || [])
+      };
+
+      if (!junctionEl) {
+        junctionEl = this.createUmlClass({
+          id: junctionId,
+          name: junctionName,
+          position: this.computeJunctionPosition(sourceEl, targetEl),
+          attributes: [{ name: 'id', type: 'int' }],
+          methods: [],
+          generated: true,
+          junctionOrigin
+        });
+        junctionEl.set('generatedJunction', true);
+      } else if (junctionEl.get('name') !== junctionName) {
+        junctionEl.set('name', junctionName);
+      }
+      junctionEl.set('junctionOrigin', junctionOrigin);
+
+      this.ensureJunctionLeg(sourceEl, junctionEl, 'source');
+      this.ensureJunctionLeg(targetEl, junctionEl, 'target');
+
+      link.remove();
+    }
+
+    // 2) Eliminar entidades intermedias huérfanas: les falta alguna de sus 2
+    // patas (p.ej. el usuario borró una relación derivada), o alguna pata ya
+    // no representa el lado "muchos" hacia la entidad intermedia (p.ej. el
+    // usuario editó manualmente la cardinalidad de esa relación, con lo cual
+    // deja de significar la M:N original). Solo cuentan como válidas las
+    // patas cuyo extremo hacia la entidad intermedia sigue siendo "muchos".
+    const junctions = this.graph.getElements().filter((el: any) => el.get('generatedJunction'));
+    for (const junctionEl of junctions) {
+      if (junctionEl.get('pendingJunctionSync')) continue;
+      const allLegs = this.graph.getLinks().filter((l: any) =>
+        l.get('generatedJunctionLeg') && l.get('target')?.id === junctionEl.id
+      );
+      const validLegs = allLegs.filter((l: any) => {
+        const labels = (l.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text);
+        return labels.length >= 2 && isManyMultiplicity(labels[1]);
+      });
+      if (validLegs.length < 2) {
+        // Una pata todavía presente pero editada dejó de representar la M:N.
+        // Eso no es una eliminación explícita: se restaura la asociación
+        // original exacta antes de retirar las celdas derivadas.
+        if (allLegs.length >= 2) {
+          this.restoreJunctionOrigin(junctionEl);
+        }
+        allLegs.forEach((l: any) => l.remove());
+        junctionEl.remove();
+      }
+    }
+
+    this.refreshJunctionDisplayNames();
+  }
+
+  private ensureJunctionLeg(
+    originEl: any,
+    junctionEl: any,
+    role: 'source' | 'target'
+  ): void {
+    const legId = junctionLegId(originEl.id, junctionEl.id, role);
+    if (this.graph.getCell(legId)) return;
+
+    const leg = this.createTypedRelationship(originEl.id, junctionEl.id, 'association', true);
+    leg.set('id', legId);
+    leg.set('generatedJunctionLeg', true);
+    leg.set('labels', [
+      {
+        position: { distance: 20, offset: -10 },
+        attrs: { text: { text: '1', fill: '#333', fontSize: 12 } },
+        markup: [{ tagName: 'text', selector: 'text' }]
+      },
+      {
+        position: { distance: -20, offset: -10 },
+        attrs: { text: { text: '0..*', fill: '#333', fontSize: 12 } },
+        markup: [{ tagName: 'text', selector: 'text' }]
+      }
+    ]);
+    this.graph.addCell(leg);
+  }
+
+  private restoreJunctionOrigin(junctionEl: any): void {
+    const origin = junctionEl.get('junctionOrigin');
+    if (!origin?.id || this.graph.getCell(origin.id)) return;
+    if (!this.graph.getCell(origin.sourceId) || !this.graph.getCell(origin.targetId)) return;
+
+    const restored = this.createTypedRelationship(
+      origin.sourceId,
+      origin.targetId,
+      origin.type || 'association',
+      true
+    );
+    restored.set('id', origin.id);
+    restored.set('labels', this.cloneGraphValue(origin.labels || []));
+    restored.set('vertices', this.cloneGraphValue(origin.vertices || []));
+    restored.set('junctionOptOut', true);
+    this.graph.addCell(restored);
+  }
+
+  private refreshJunctionDisplayNames(): void {
+    const groups = new Map<string, any[]>();
+    const junctions = this.graph.getElements().filter((el: any) =>
+      el.get('generatedJunction') && el.get('junctionOrigin')
+    );
+
+    for (const junction of junctions) {
+      const origin = junction.get('junctionOrigin');
+      const endpointIds = [origin.sourceId, origin.targetId].sort();
+      const key = endpointIds.join('\u0000');
+      const group = groups.get(key) || [];
+      group.push(junction);
+      groups.set(key, group);
+    }
+
+    groups.forEach(group => {
+      group.sort((a, b) => String(a.get('junctionOrigin').id)
+        .localeCompare(String(b.get('junctionOrigin').id)));
+      group.forEach((junction, index) => {
+        const origin = junction.get('junctionOrigin');
+        const source = this.graph.getCell(origin.sourceId);
+        const target = this.graph.getCell(origin.targetId);
+        if (!source || !target) return;
+        const baseName = junctionDisplayName(source.get('name'), target.get('name'));
+        const name = index === 0 ? baseName : `${baseName}_${index + 1}`;
+        if (junction.get('name') !== name) junction.set('name', name);
+      });
+    });
+  }
+
+  private cloneGraphValue<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  private computeJunctionPosition(sourceEl: any, targetEl: any): { x: number; y: number } {
+    const a = sourceEl.position();
+    const b = targetEl.position();
+    return {
+      x: Math.round((a.x + b.x) / 2),
+      y: Math.max(a.y, b.y) + 170
+    };
   }
 
   // Exponer persistencia públicamente para que servicios externos (collab)
