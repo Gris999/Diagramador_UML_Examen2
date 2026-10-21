@@ -50,6 +50,14 @@ class CanvasConsumer(AsyncWebsocketConsumer):
 
         members = await self.role_store.join(self.channel_name)
         await self.accept()
+        # Lo primero que recibe una conexión es su propio identificador. Sin
+        # esto el cliente lo deducía del primer aviso de presencia, que puede
+        # ser el de otra persona que entró en el mismo instante.
+        await self.send(text_data=json.dumps({
+            "type": "presence",
+            "action": "self",
+            "peer": self.channel_name,
+        }))
 
         # Notificar presencia
         await self.channel_layer.group_send(

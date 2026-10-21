@@ -237,6 +237,28 @@ class CanvasIdentityActivityTests(SimpleTestCase):
         self.assertEqual(len(InMemoryActivityStore.events), 1)
         await client.disconnect()
 
+    async def test_a_new_connection_is_told_its_own_peer_id_before_anything_else(self):
+        first, first_id, _ = await self.connect_client()
+        second = WebsocketCommunicator(self.application, "/ws/canvas/activity-room/")
+        connected, _ = await second.connect()
+        self.assertTrue(connected)
+
+        welcome = await second.receive_json_from(timeout=1)
+
+        # Aunque otro participante haya entrado justo antes, el primer mensaje
+        # identifica a esta conexión y no a la del otro.
+        self.assertEqual(welcome["type"], "presence")
+        self.assertEqual(welcome["action"], "self")
+        self.assertNotEqual(welcome["peer"], first_id)
+        own_join = await self.receive_until(
+            second,
+            lambda message: message.get("action") == "join"
+            and message.get("peer") == welcome["peer"],
+        )
+        self.assertEqual(own_join["peer"], welcome["peer"])
+        await second.disconnect()
+        await first.disconnect()
+
     async def test_operations_applied_by_the_ia_are_logged_on_behalf_of_the_requester(self):
         client, _, _ = await self.connect_client()
         await self.send_hello(client, str(uuid.uuid4()), "Ana")

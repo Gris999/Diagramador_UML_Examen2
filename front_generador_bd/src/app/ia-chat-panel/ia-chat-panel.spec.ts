@@ -3,16 +3,14 @@ import { PLATFORM_ID, provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { Observable, of, Subject, throwError } from 'rxjs';
-import { DiagramService } from '../../services/diagram/diagram.service';
-import { IaChatMessage, IaChatService } from '../../services/IA/ia-chat.service';
+import { IaActionsService } from '../../services/IA/ia-actions.service';
+import { IaChatMessage, IaChatMode, IaChatResponse, IaChatService } from '../../services/IA/ia-chat.service';
 import { IaChatPanel } from './ia-chat-panel';
 
 describe('IaChatPanel', () => {
   let fixture: ComponentFixture<IaChatPanel>;
   let history: jasmine.Spy<(room: string) => Observable<IaChatMessage[]>>;
-  let ask: jasmine.Spy<(room: string, message: string, uml: unknown) => Observable<string>>;
-
-  const uml = { classes: [{ id: 'c1', name: 'Cliente' }], relationships: [] };
+  let request: jasmine.Spy<(room: string, mode: IaChatMode, message: string) => Observable<IaChatResponse>>;
 
   function element(selector: string): HTMLElement | null {
     return (fixture.nativeElement as HTMLElement).querySelector(selector);
@@ -28,6 +26,11 @@ describe('IaChatPanel', () => {
     await fixture.whenStable();
   }
 
+  function click(testId: string): void {
+    element(`[data-testid="${testId}"]`)!.click();
+    fixture.detectChanges();
+  }
+
   async function type(text: string): Promise<void> {
     const input = element('[data-testid="ia-chat-input"]') as HTMLTextAreaElement;
     input.value = text;
@@ -37,7 +40,7 @@ describe('IaChatPanel', () => {
 
   beforeEach(async () => {
     history = jasmine.createSpy('history').and.returnValue(of([]));
-    ask = jasmine.createSpy('ask').and.returnValue(of('Respuesta de la IA'));
+    request = jasmine.createSpy('request').and.returnValue(of({ reply: 'Respuesta de la IA' }));
 
     await TestBed.configureTestingModule({
       imports: [IaChatPanel],
@@ -45,8 +48,8 @@ describe('IaChatPanel', () => {
         provideZonelessChangeDetection(),
         { provide: PLATFORM_ID, useValue: 'browser' },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'sala-1' } } } },
-        { provide: IaChatService, useValue: { history, ask } },
-        { provide: DiagramService, useValue: { exportToJson: () => uml } }
+        { provide: IaChatService, useValue: { history } },
+        { provide: IaActionsService, useValue: { request } }
       ]
     }).compileComponents();
 
@@ -83,15 +86,15 @@ describe('IaChatPanel', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(ask).toHaveBeenCalledOnceWith('sala-1', '¿Qué hizo Beto?', uml);
+    expect(request).toHaveBeenCalledOnceWith('sala-1', 'ask', '¿Qué hizo Beto?');
     const texts = elements('[data-testid="ia-chat-message"]').map(row => row.textContent!.trim());
     expect(texts).toEqual(['¿Qué hizo Beto?', 'Respuesta de la IA']);
     expect((element('[data-testid="ia-chat-input"]') as HTMLTextAreaElement).value).toBe('');
   });
 
   it('blocks a second question while waiting and shows the thinking state', async () => {
-    const pending = new Subject<string>();
-    ask.and.returnValue(pending);
+    const pending = new Subject<IaChatResponse>();
+    request.and.returnValue(pending);
     await openChat();
     await type('primera');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
@@ -100,16 +103,16 @@ describe('IaChatPanel', () => {
     expect(element('[data-testid="ia-chat-thinking"]')).not.toBeNull();
     await type('segunda');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
-    expect(ask).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
 
-    pending.next('lista');
+    pending.next({ reply: 'lista' });
     pending.complete();
     fixture.detectChanges();
     expect(element('[data-testid="ia-chat-thinking"]')).toBeNull();
   });
 
   it('shows a clear message when the AI fails and keeps the chat usable', async () => {
-    ask.and.returnValue(throwError(() => new HttpErrorResponse({ status: 502 })));
+    request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 502 })));
     await openChat();
     await type('hola');
 
@@ -125,17 +128,60 @@ describe('IaChatPanel', () => {
   it('explains when the participant is not identified or is throttled', async () => {
     await openChat();
 
-    ask.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+    request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
     await type('uno');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('identificaste');
 
-    ask.and.returnValue(throwError(() => new HttpErrorResponse({ status: 429 })));
+    request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 429 })));
     await type('dos');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('Demasiadas preguntas');
+  });
+
+  it('starts in ask mode and explains what each mode does', async () => {
+    await openChat();
+
+    expect(element('[data-testid="ia-mode-hint"]')!.textContent).toContain('solo responde');
+    click('ia-mode-change');
+    expect(element('[data-testid="ia-mode-hint"]')!.textContent).toContain('modifica el diagrama');
+    click('ia-mode-review');
+    expect(element('[data-testid="ia-mode-hint"]')!.textContent).toContain('publica sus ideas');
+  });
+
+  it('sends the selected mode with the message', async () => {
+    await openChat();
+    click('ia-mode-change');
+    await type('agrega la clase Factura');
+
+    (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(request).toHaveBeenCalledOnceWith('sala-1', 'change', 'agrega la clase Factura');
+  });
+
+  it('lets the user ask for a review without typing anything', async () => {
+    await openChat();
+    click('ia-mode-review');
+    fixture.detectChanges();
+    const send = element('[data-testid="ia-chat-send"]') as HTMLButtonElement;
+
+    expect(send.disabled).toBeFalse();
+    send.click();
+    fixture.detectChanges();
+
+    expect(request).toHaveBeenCalledOnceWith('sala-1', 'review', 'Revisa el diagrama');
+  });
+
+  it('keeps ask and change from being sent empty', async () => {
+    await openChat();
+
+    expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeTrue();
+    click('ia-mode-change');
+    fixture.detectChanges();
+    expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeTrue();
   });
 
   it('keeps working when the history cannot be loaded', async () => {

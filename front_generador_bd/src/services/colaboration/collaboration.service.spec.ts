@@ -1,3 +1,4 @@
+import { of } from 'rxjs';
 import { CollaborationService } from './collaboration.service';
 
 describe('CollaborationService full-state readiness', () => {
@@ -134,5 +135,80 @@ describe('CollaborationService full-state readiness', () => {
     expect(cells.get(targetLinkOp.id).get('generatedJunctionLeg')).toBeTrue();
     expect(cells.get(classOp.id).get('pendingJunctionSync')).toBeFalse();
     expect(cells.size).toBe(3);
+  });
+});
+
+
+describe('CollaborationService IA signals', () => {
+  let p2p: any;
+  let service: CollaborationService;
+
+  beforeEach(() => {
+    jasmine.clock().install();
+    p2p = {
+      closeSocketRTC: jasmine.createSpy('closeSocketRTC'),
+      init: jasmine.createSpy('init'),
+      sendToAll: jasmine.createSpy('sendToAll')
+    };
+    service = new CollaborationService(p2p, { getBackup: () => of(null) } as any);
+    service.registerDiagramApi({
+      getGraph: () => undefined,
+      getJoint: () => ({}),
+      createUmlClass: () => undefined,
+      loadFromJson: () => undefined,
+      exportToJson: () => ({ classes: [], relationships: [] })
+    } as any);
+    service.init('room-1');
+  });
+
+  afterEach(() => {
+    jasmine.clock().uninstall();
+  });
+
+  it('marks as IA every operation broadcast while the action runs, and only then', () => {
+    service.runAsIa(() => service.broadcast({ t: 'delete', id: 'c1' }));
+    service.broadcast({ t: 'delete', id: 'c2' });
+
+    expect(p2p.sendToAll.calls.allArgs()).toEqual([
+      [{ t: 'delete', id: 'c1', via_ia: true }],
+      [{ t: 'delete', id: 'c2' }]
+    ]);
+  });
+
+  it('stops marking operations as IA even when the action throws', () => {
+    expect(() => service.runAsIa(() => { throw new Error('falló'); })).toThrowError('falló');
+
+    service.broadcast({ t: 'delete', id: 'c3' });
+
+    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'delete', id: 'c3' });
+  });
+
+  it('shares the IA status with the room and shows the remote one without needing a graph', () => {
+    service.setIaStatus('thinking', 'Ana');
+    expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Ana' });
+    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'ia_status', state: 'thinking', by: 'Ana' });
+
+    p2p.onData('peer-2', { t: 'ia_status', state: 'idle', by: '' });
+
+    expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
+  });
+
+  it('clears a thinking status by itself if the requester never reports back', () => {
+    p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto' });
+    expect(service.iaStatus().state).toBe('thinking');
+
+    jasmine.clock().tick(90_001);
+
+    expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
+  });
+
+  it('tracks applied suggestions locally and from other participants', () => {
+    service.markSuggestionApplied(7, 0);
+    p2p.onData('peer-2', { t: 'ia_suggestion_applied', eventId: 7, index: 2 });
+
+    expect(service.appliedSuggestions().has('7:0')).toBeTrue();
+    expect(service.appliedSuggestions().has('7:2')).toBeTrue();
+    expect(service.appliedSuggestions().has('7:1')).toBeFalse();
+    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'ia_suggestion_applied', eventId: 7, index: 0 });
   });
 });

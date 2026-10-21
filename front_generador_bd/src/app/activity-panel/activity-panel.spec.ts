@@ -1,17 +1,22 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { PLATFORM_ID, provideZonelessChangeDetection, signal } from '@angular/core';
+import { of, throwError } from 'rxjs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { ActivityEvent } from '../../services/colaboration/activity-event';
+import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { P2PService } from '../../services/colaboration/p2p.service';
+import { IaActionsService } from '../../services/IA/ia-actions.service';
 import { ActivityPanel } from './activity-panel';
 
 describe('ActivityPanel', () => {
   let fixture: ComponentFixture<ActivityPanel>;
   let http: HttpTestingController;
   let liveActivityEvents: ReturnType<typeof signal<ActivityEvent[]>>;
+  let appliedSuggestions: ReturnType<typeof signal<ReadonlySet<string>>>;
+  let applySuggestion: jasmine.Spy;
   const historyUrl = `${environment.endpoint_python}api/rooms/room%20one/activity/?limit=100`;
 
   function event(id: number, createdAt: string, overrides: Partial<ActivityEvent> = {}): ActivityEvent {
@@ -32,6 +37,8 @@ describe('ActivityPanel', () => {
 
   beforeEach(async () => {
     liveActivityEvents = signal<ActivityEvent[]>([]);
+    appliedSuggestions = signal<ReadonlySet<string>>(new Set());
+    applySuggestion = jasmine.createSpy('applySuggestion').and.returnValue(of('Listo'));
     await TestBed.configureTestingModule({
       imports: [ActivityPanel],
       providers: [
@@ -43,7 +50,9 @@ describe('ActivityPanel', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => 'room one' } } }
         },
-        { provide: P2PService, useValue: { liveActivityEvents } }
+        { provide: P2PService, useValue: { liveActivityEvents } },
+        { provide: CollaborationService, useValue: { appliedSuggestions } },
+        { provide: IaActionsService, useValue: { applySuggestion } }
       ]
     }).compileComponents();
 
@@ -99,12 +108,98 @@ describe('ActivityPanel', () => {
 
   it('formats recent timestamps as relative time', () => {
     http.expectOne(historyUrl).flush({ events: [] });
-    jasmine.clock().install();
-    try {
-      jasmine.clock().mockDate(new Date('2026-10-21T12:02:30Z'));
-      expect(fixture.componentInstance.relativeTime('2026-10-21T12:00:00Z')).toBe('hace 2 min');
-    } finally {
-      jasmine.clock().uninstall();
+    const panel = fixture.componentInstance;
+    const now = Date.parse('2026-10-21T12:02:30Z');
+
+    expect(panel.relativeTime('2026-10-21T12:02:00Z', now)).toBe('ahora');
+    expect(panel.relativeTime('2026-10-21T12:00:00Z', now)).toBe('hace 2 min');
+    expect(panel.relativeTime('2026-10-21T09:00:00Z', now)).toBe('hace 3 h');
+    expect(panel.relativeTime('2026-10-20T12:00:00Z', now)).toBe('hace 1 día');
+    expect(panel.relativeTime('no es una fecha', now)).toBe('');
+  });
+
+  describe('IA events', () => {
+    function reviewEvent(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
+      return event(9, '2026-10-21T12:00:00Z', {
+        actor_name: 'IA',
+        actor_kind: 'ia',
+        type: 'ia_review',
+        summary: 'revisó el diagrama a pedido de Ana: 2 observaciones',
+        data: {
+          findings: [
+            { text: 'Cliente no tiene clave <b>primaria</b>', prompt: 'agrega id: int a Cliente' },
+            { text: 'Pedido está aislado', prompt: '' }
+          ]
+        },
+        ...overrides
+      });
     }
+
+    function load(events: ActivityEvent[]): void {
+      http.expectOne(historyUrl).flush({ events });
+      fixture.detectChanges();
+    }
+
+    function buttons(): HTMLButtonElement[] {
+      return Array.from(fixture.nativeElement.querySelectorAll('[data-testid="apply-suggestion"]'));
+    }
+
+    it('marks IA events as such and shows who asked for them', () => {
+      load([reviewEvent()]);
+
+      const entry = fixture.nativeElement.querySelector('[data-testid="activity-entry"]');
+      expect(entry.textContent).toContain('🤖 IA');
+      expect(entry.textContent).toContain('a pedido de Ana');
+    });
+
+    it('lists the review findings as plain text and only offers Apply when there is something to apply', () => {
+      load([reviewEvent()]);
+
+      const suggestions = fixture.nativeElement.querySelectorAll('[data-testid="ia-suggestion"]');
+      expect(suggestions.length).toBe(2);
+      expect(suggestions[0].textContent).toContain('<b>primaria</b>');
+      expect(suggestions[0].querySelector('b')).toBeNull();
+      expect(buttons().length).toBe(1);
+    });
+
+    it('applies a suggestion through the IA on behalf of whoever clicks it', () => {
+      load([reviewEvent()]);
+
+      buttons()[0].click();
+
+      expect(applySuggestion).toHaveBeenCalledOnceWith('room one', 9, 0, 'agrega id: int a Cliente');
+    });
+
+    it('shows an idea as applied, for everyone, once someone applied it', () => {
+      load([reviewEvent()]);
+
+      appliedSuggestions.set(new Set(['9:0']));
+      fixture.detectChanges();
+
+      expect(buttons()[0].textContent).toContain('Aplicada');
+      expect(buttons()[0].disabled).toBeTrue();
+      buttons()[0].click();
+      expect(applySuggestion).not.toHaveBeenCalled();
+    });
+
+    it('tells the user when the IA could not apply an idea and lets them retry', () => {
+      applySuggestion.and.returnValue(throwError(() => new Error('502')));
+      load([reviewEvent()]);
+
+      buttons()[0].click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="suggestion-error"]').textContent)
+        .toContain('no pudo aplicar');
+      expect(buttons()[0].disabled).toBeFalse();
+    });
+
+    it('ignores malformed findings instead of failing', () => {
+      load([reviewEvent({ data: { findings: [null, 5, { nope: true }, { text: 'Válida', prompt: 7 }] } })]);
+
+      const suggestions = fixture.nativeElement.querySelectorAll('[data-testid="ia-suggestion"]');
+      expect(suggestions.length).toBe(1);
+      expect(buttons().length).toBe(0);
+    });
   });
 });

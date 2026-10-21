@@ -37,10 +37,14 @@ class GeminiProvider(AIProvider):
 
         data = {"contents": [{"parts": [{"text": prompt}]}]}
         try:
+            # En el chat se espera una respuesta corta: se corta antes que en
+            # las demás llamadas para no dejar a la sala esperando minutos.
             response = _post_gemini(
                 data,
                 {"Content-Type": "application/json"},
                 {"key": api_key},
+                max_attempts=2,
+                timeout=30,
             )
             text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as exc:

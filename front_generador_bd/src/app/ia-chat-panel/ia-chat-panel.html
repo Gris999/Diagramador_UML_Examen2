@@ -20,6 +20,27 @@
         </button>
       </header>
 
+      <div class="flex gap-1 border-b border-gray-200 px-2 py-1.5" role="radiogroup" aria-label="Qué quieres que haga la IA">
+        @for (option of modes; track option.id) {
+          <button
+            type="button"
+            role="radio"
+            class="rounded px-2 py-0.5 text-[11px] font-medium"
+            [class.bg-purple-600]="mode() === option.id"
+            [class.text-white]="mode() === option.id"
+            [class.bg-gray-100]="mode() !== option.id"
+            [class.text-gray-700]="mode() !== option.id"
+            [attr.aria-checked]="mode() === option.id"
+            [attr.data-testid]="'ia-mode-' + option.id"
+            [title]="option.hint"
+            (click)="setMode(option.id)"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+      <p class="px-3 pt-1 text-[10px] text-gray-500" data-testid="ia-mode-hint">{{ modeHint() }}</p>
+
       <div #messageList class="flex-1 space-y-2 overflow-y-auto px-3 py-2" data-testid="ia-chat-messages">
         @if (messages().length === 0 && !sending()) {
           <p class="text-xs text-gray-500">
@@ -53,7 +74,7 @@
       <form class="flex gap-2 border-t border-gray-200 p-2" (submit)="$event.preventDefault(); send()">
         <textarea
           class="h-14 min-w-0 flex-1 resize-none rounded border border-gray-300 px-2 py-1 text-xs"
-          placeholder="Escribe tu pregunta…"
+          [placeholder]="mode() === 'change' ? 'Describe el cambio que quieres…' : mode() === 'review' ? 'Opcional: qué quieres que revise…' : 'Escribe tu pregunta…'"
           aria-label="Mensaje para la IA"
           [maxLength]="maxChars"
           [value]="draft()"
@@ -64,10 +85,10 @@
         <button
           type="submit"
           class="self-end rounded bg-purple-600 px-3 py-1 text-xs text-white hover:bg-purple-700 disabled:opacity-50"
-          [disabled]="sending() || draft().trim().length === 0"
+          [disabled]="sending() || (draft().trim().length === 0 && mode() !== 'review')"
           data-testid="ia-chat-send"
         >
-          Enviar
+          {{ mode() === 'review' ? 'Revisar' : mode() === 'change' ? 'Aplicar' : 'Enviar' }}
         </button>
       </form>
     </section>

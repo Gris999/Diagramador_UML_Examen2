@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { P2PService } from './p2p.service';
 import { DiagramApi } from './diagram-api';
 import { BackupService } from '../exports/backup.service';
@@ -17,12 +17,27 @@ type Op =
   | { t: 'update_vertices'; id: string; vertices: any[] }
   | { t: 'delete'; id: string }
   | { t: 'request_full_state' }
-  | { t: 'full_state'; payload: any };
+  | { t: 'full_state'; payload: any }
+  | { t: 'ia_status'; state: 'thinking' | 'idle'; by: string }
+  | { t: 'ia_suggestion_applied'; eventId: number; index: number };
+
+export type IaStatus = { state: 'thinking' | 'idle'; by: string };
+
+// Si quien pidió algo a la IA se desconecta antes de terminar, los demás no
+// deben ver "pensando…" para siempre.
+const IA_THINKING_TIMEOUT_MS = 90_000;
 
 @Injectable({ providedIn: 'root' })
 export class CollaborationService {
   private api?: DiagramApi;
   private ready = false;
+  private viaIa = false;
+  private iaThinkingTimer?: ReturnType<typeof setTimeout>;
+
+  /** Estado de la IA en la sala: quién le pidió algo y si está trabajando. */
+  readonly iaStatus = signal<IaStatus>({ state: 'idle', by: '' });
+  /** Ideas de la IA ya aplicadas por alguien (`eventId:índice`), compartido en vivo. */
+  readonly appliedSuggestions = signal<ReadonlySet<string>>(new Set());
   constructor(
     private p2p: P2PService,
     private backup: BackupService
@@ -34,6 +49,7 @@ export class CollaborationService {
 
   init(roomId: string) {
     this.p2p.onData = (_: string | undefined, data: Op) => {
+      if (this.handleIaSignal(data)) return;
       if (!this.api?.getGraph()) return;
       this.applyRemoteOp(data);
     };
@@ -59,7 +75,56 @@ export class CollaborationService {
 
   broadcast(op: Op) {
     if (!this.ready) return;
-    this.p2p.sendToAll(op);
+    // Los cambios que la IA aplica a pedido de alguien viajan marcados para que
+    // el servidor los registre como "IA, a pedido de X".
+    this.p2p.sendToAll(this.viaIa ? { ...op, via_ia: true } : op);
+  }
+
+  /** Ejecuta `action` marcando como de la IA todas las operaciones que emita. */
+  runAsIa<T>(action: () => T): T {
+    this.viaIa = true;
+    try {
+      return action();
+    } finally {
+      this.viaIa = false;
+    }
+  }
+
+  setIaStatus(state: IaStatus['state'], by: string): void {
+    this.applyIaStatus({ state, by });
+    this.broadcast({ t: 'ia_status', state, by });
+  }
+
+  markSuggestionApplied(eventId: number, index: number): void {
+    this.addAppliedSuggestion(eventId, index);
+    this.broadcast({ t: 'ia_suggestion_applied', eventId, index });
+  }
+
+  private handleIaSignal(op: Op): boolean {
+    if (op?.t === 'ia_status') {
+      this.applyIaStatus({ state: op.state === 'thinking' ? 'thinking' : 'idle', by: String(op.by ?? '') });
+      return true;
+    }
+    if (op?.t === 'ia_suggestion_applied') {
+      this.addAppliedSuggestion(op.eventId, op.index);
+      return true;
+    }
+    return false;
+  }
+
+  private applyIaStatus(status: IaStatus): void {
+    clearTimeout(this.iaThinkingTimer);
+    this.iaStatus.set(status);
+    if (status.state === 'thinking') {
+      this.iaThinkingTimer = setTimeout(
+        () => this.iaStatus.set({ state: 'idle', by: '' }),
+        IA_THINKING_TIMEOUT_MS
+      );
+    }
+  }
+
+  private addAppliedSuggestion(eventId: number, index: number): void {
+    this.appliedSuggestions.update(current => new Set(current).add(`${eventId}:${index}`));
   }
 
   closeSocketRTC() {

@@ -47,4 +47,21 @@
       }
     </ul>
   }
+
+  <div
+    class="mt-1 flex items-center gap-1.5 border-t border-gray-100 pt-1 text-xs"
+    data-testid="ia-participant"
+  >
+    <span class="min-w-0 flex-1 truncate text-purple-700">🤖 IA</span>
+    <span
+      class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800"
+      data-testid="ia-participant-status"
+    >
+      @if (iaStatus().state === 'thinking') {
+        Pensando{{ iaStatus().by ? ' (a pedido de ' + iaStatus().by + ')' : '' }}…
+      } @else {
+        Disponible
+      }
+    </span>
+  </div>
 </section>

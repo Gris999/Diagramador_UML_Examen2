@@ -420,6 +420,39 @@ class IaChatApiTests(APITestCase):
         self.assertEqual([m["mode"] for m in history.data["messages"]], ["change", "change"])
 
 
+class GeminiProviderTests(SimpleTestCase):
+    def test_chat_uses_a_short_timeout_and_few_attempts(self):
+        from django.test import override_settings
+        from uml_api.services.ai_provider import GeminiProvider
+
+        response = mock.Mock()
+        response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": " hola "}]}}]
+        }
+        with override_settings(GEMINI_API_KEY="clave-real"), mock.patch(
+            "uml_api.services.ai_provider._post_gemini", return_value=response
+        ) as post:
+            reply = GeminiProvider().chat("pregunta")
+
+        self.assertEqual(reply, "hola")
+        self.assertEqual(post.call_args.kwargs["timeout"], 30)
+        self.assertEqual(post.call_args.kwargs["max_attempts"], 2)
+
+    def test_errors_never_leak_the_api_key(self):
+        from django.test import override_settings
+        from uml_api.services.ai_provider import GeminiProvider
+
+        with override_settings(GEMINI_API_KEY="clave-secreta-123"), mock.patch(
+            "uml_api.services.ai_provider._post_gemini",
+            side_effect=RuntimeError("https://x/?key=clave-secreta-123"),
+        ):
+            with self.assertRaises(AIProviderError) as caught:
+                GeminiProvider().chat("pregunta")
+
+        self.assertNotIn("clave-secreta-123", str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+
 class SummarizeUmlTests(SimpleTestCase):
     def test_summarizes_classes_and_relationships_by_name(self):
         summary = summarize_uml({
