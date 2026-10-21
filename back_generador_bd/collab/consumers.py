@@ -232,7 +232,17 @@ class CanvasConsumer(AsyncWebsocketConsumer):
 
         target_id = self._target_id(payload.get("id"))
         summary = self._activity_summary(event_type, payload)
-        actor_name = self.display_name or "Usuario anónimo"
+        requester = self.display_name or "Usuario anónimo"
+        # Los cambios que la IA aplica a pedido de alguien los envía el
+        # navegador de esa persona marcados con via_ia: se registran a nombre
+        # de la IA, indicando quién lo pidió.
+        if payload.get("via_ia") is True:
+            actor_kind = "ia"
+            actor_name = "IA"
+            summary = f"{summary} (a pedido de {requester})"[:255]
+        else:
+            actor_kind = "user"
+            actor_name = requester
 
         try:
             event = await self.activity_store.record(
@@ -243,6 +253,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 target_id=target_id,
                 summary=summary,
                 data=self._activity_data(payload),
+                actor_kind=actor_kind,
             )
         except Exception:
             logger.exception("Could not persist collaboration activity")

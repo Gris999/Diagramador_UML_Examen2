@@ -43,11 +43,13 @@ class ORMActivityStore:
         target_id,
         summary,
         data,
+        actor_kind="user",
     ):
         event = ActivityEvent.objects.create(
             room=room,
             actor_id=actor_id,
             actor_name=actor_name,
+            actor_kind=actor_kind,
             type=event_type,
             target_id=target_id,
             summary=summary,

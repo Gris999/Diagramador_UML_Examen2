@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import timedelta
 from unittest import mock
@@ -15,15 +16,35 @@ class FakeProvider:
     def __init__(self, reply="Respuesta de prueba"):
         self.reply = reply
         self.prompts = []
+        self.change_calls = []
+        self.change_result = {
+            "classes": [{"name": "Factura", "attributes": [{"name": "total", "type": "float"}]}],
+            "relationships": [],
+        }
 
     def chat(self, prompt):
         self.prompts.append(prompt)
         return self.reply
 
+    def change(self, instruction, uml):
+        self.change_calls.append((instruction, uml))
+        return self.change_result
+
 
 class FailingProvider:
     def chat(self, prompt):
         raise AIProviderError("proveedor caído")
+
+    def change(self, instruction, uml):
+        raise AIProviderError("proveedor caído")
+
+
+class FakeChannelLayer:
+    def __init__(self):
+        self.sent = []
+
+    async def group_send(self, group, message):
+        self.sent.append((group, message))
 
 
 class IaChatApiTests(APITestCase):
@@ -43,6 +64,13 @@ class IaChatApiTests(APITestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.layer = FakeChannelLayer()
+        layer_patcher = mock.patch(
+            "uml_api.chat_views.get_channel_layer",
+            return_value=self.layer,
+        )
+        layer_patcher.start()
+        self.addCleanup(layer_patcher.stop)
 
     def chat_url(self, room=None):
         return f"/api/rooms/{room or self.room}/ia/chat/"
@@ -50,8 +78,8 @@ class IaChatApiTests(APITestCase):
     def history_url(self, room=None):
         return f"/api/rooms/{room or self.room}/chat/"
 
-    def ask(self, participant, message, **extra):
-        body = {"mode": "ask", "message": message, **extra}
+    def ask(self, participant, message, mode="ask", **extra):
+        body = {"mode": mode, "message": message, **extra}
         return self.client.post(
             self.chat_url(),
             body,
@@ -260,6 +288,136 @@ class IaChatApiTests(APITestCase):
         prompt = self.provider.prompts[0]
         self.assertIn("añadió la clase C44", prompt)
         self.assertNotIn("añadió la clase C0\n", prompt)
+
+
+    def test_change_mode_returns_the_changes_for_the_client_to_apply(self):
+        response = self.ask(self.ana, "agrega la clase Factura", mode="change", uml={"classes": []})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["changes"], self.provider.change_result)
+        self.assertTrue(response.data["reply"])
+        self.assertEqual(
+            self.provider.change_calls,
+            [("agrega la clase Factura", {"classes": []})],
+        )
+        stored = ChatMessage.objects.filter(participant=self.ana).order_by("id")
+        self.assertEqual([m.mode for m in stored], ["change", "change"])
+        self.assertEqual([m.role for m in stored], ["user", "ia"])
+
+    def test_change_mode_failure_returns_502_and_stores_nothing(self):
+        with mock.patch(
+            "uml_api.chat_views.get_ai_provider",
+            return_value=FailingProvider(),
+        ):
+            response = self.ask(self.ana, "agrega X", mode="change")
+
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn("changes", response.data)
+        self.assertEqual(ChatMessage.objects.count(), 0)
+
+    def test_ask_and_review_never_return_changes_to_apply(self):
+        diagram = json.dumps({"classes": [{"name": "Intrusa"}], "relationships": []})
+        self.provider.reply = diagram
+
+        ask_response = self.ask(self.ana, "¿qué ves?")
+        review_response = self.ask(self.ana, "revisa", mode="review")
+
+        self.assertNotIn("changes", ask_response.data)
+        self.assertNotIn("changes", review_response.data)
+        self.assertEqual(self.provider.change_calls, [])
+
+    def review_reply(self, observations, summary="Hay detalles por mejorar."):
+        return json.dumps({"resumen": summary, "observaciones": observations})
+
+    def test_review_returns_suggestions_and_publishes_an_event_for_the_room(self):
+        self.provider.reply = self.review_reply([
+            {"texto": "Cliente no tiene clave primaria", "pedido": "agrega el atributo id: int a Cliente"},
+            {"texto": "Pedido no se relaciona con nadie", "pedido": ""},
+        ])
+
+        response = self.ask(self.ana, "revisa el diagrama", mode="review", uml={"classes": []})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [s["text"] for s in response.data["suggestions"]],
+            ["Cliente no tiene clave primaria", "Pedido no se relaciona con nadie"],
+        )
+        self.assertEqual(response.data["suggestions"][0]["prompt"], "agrega el atributo id: int a Cliente")
+        self.assertIn("Hay detalles por mejorar.", response.data["reply"])
+
+        event = ActivityEvent.objects.get(room=self.room, type="ia_review")
+        self.assertEqual(event.actor_kind, "ia")
+        self.assertEqual(event.actor_name, "IA")
+        self.assertIn("a pedido de Ana", event.summary)
+        self.assertIn("2 observaciones", event.summary)
+        self.assertEqual(len(event.data["findings"]), 2)
+        self.assertEqual(
+            event.data["findings"][0],
+            {"text": "Cliente no tiene clave primaria", "prompt": "agrega el atributo id: int a Cliente"},
+        )
+
+        group, message = self.layer.sent[0]
+        self.assertEqual(group, f"canvas_{self.room}")
+        self.assertEqual(message["type"], "activity")
+        self.assertEqual(message["event"]["id"], event.id)
+        self.assertEqual(message["event"]["actor_kind"], "ia")
+
+    def test_review_accepts_an_answer_wrapped_in_a_markdown_fence(self):
+        self.provider.reply = "```json\n" + self.review_reply([{"texto": "Falta una clave", "pedido": "agrega id"}]) + "\n```"
+
+        response = self.ask(self.ana, "revisa", mode="review")
+
+        self.assertEqual(len(response.data["suggestions"]), 1)
+
+    def test_review_with_a_plain_text_answer_has_no_suggestions(self):
+        self.provider.reply = "Todo se ve bien."
+
+        response = self.ask(self.ana, "revisa", mode="review")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["suggestions"], [])
+        self.assertIn("Todo se ve bien.", response.data["reply"])
+        self.assertIn(
+            "sin observaciones",
+            ActivityEvent.objects.get(type="ia_review").summary,
+        )
+
+    def test_review_keeps_at_most_five_suggestions_and_skips_empty_ones(self):
+        self.provider.reply = self.review_reply(
+            [{"texto": f"Observación {n}", "pedido": f"cambio {n}"} for n in range(8)]
+            + [{"texto": "", "pedido": "x"}, "no-es-dict", None]
+        )
+
+        response = self.ask(self.ana, "revisa", mode="review")
+
+        self.assertEqual(len(response.data["suggestions"]), 5)
+
+    def test_review_prompt_carries_the_diagram_and_asks_for_json(self):
+        uml = {"classes": [{"id": "c1", "name": "Cliente", "attributes": [], "methods": []}], "relationships": []}
+
+        self.ask(self.ana, "revisa", mode="review", uml=uml)
+
+        prompt = self.provider.prompts[0]
+        self.assertIn("Cliente", prompt)
+        self.assertIn("observaciones", prompt)
+        self.assertIn("atributos", prompt)
+
+    def test_review_works_without_a_message(self):
+        response = self.client.post(
+            self.chat_url(),
+            {"mode": "review", "uml": {"classes": []}},
+            format="json",
+            HTTP_X_PARTICIPANT_TOKEN=str(self.ana.token),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_history_exposes_the_mode_of_each_message(self):
+        self.ask(self.ana, "agrega X", mode="change")
+
+        history = self.own_history(self.ana)
+
+        self.assertEqual([m["mode"] for m in history.data["messages"]], ["change", "change"])
 
 
 class SummarizeUmlTests(SimpleTestCase):
