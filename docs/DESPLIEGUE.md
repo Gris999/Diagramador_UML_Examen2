@@ -17,7 +17,7 @@ flowchart LR
   T[Quick Tunnel de Cloudflare<br/>respaldo, nginx :8080] -.-> N
 ```
 
-El frontend decide sus direcciones al abrirse la página (`front_generador_bd/src/environments/environment.ts`): con HTTPS usa el mismo origen (`/api`, `/ws`, `/generate`), con HTTP directo usa los puertos 8000 y 7001. Por eso un mismo build sirve para el dominio, el túnel y el acceso directo.
+El frontend decide sus direcciones al abrirse la página (`front_generador_bd/src/environments/environment.ts`): con HTTPS usa el mismo origen (`/api`, `/ws`, `/generate`), con HTTP directo (solo en local, donde esos puertos están publicados) usa los puertos 8000 y 7001. Por eso un mismo build sirve para el dominio, el túnel y el acceso directo.
 
 ## 2. Componentes
 
@@ -85,7 +85,7 @@ WebSocket: una petición HTTP/1.1 con `Upgrade: websocket` a `/ws/canvas/<sala>/
 ## 7. Seguridad y estado conocido
 
 - `DEBUG=False` en Django. Los secretos viven en archivos `.env` fuera de git.
-- El grupo de seguridad deja abiertos 22, 80 y 443, y también 4200, 7001 y 8000 (acceso directo). **Recomendado:** cerrar 4200, 7001 y 8000 y limitar el 22 a la IP del administrador.
+- El grupo de seguridad deja abiertos **solo 22, 80 y 443** (los puertos directos 4200, 7001 y 8000 se cerraron el 2026-10-21; todo entra por nginx). **Pendiente recomendado:** limitar el 22 a la IP del administrador (riesgo: si esa IP cambia, hay que editar la regla desde la consola de AWS).
 - Redis, PostgreSQL y pgAdmin están publicados en el host (6379, 5433, 5050) pero el grupo de seguridad no los abre al exterior. No abrirlos.
 - No hay CI/CD ni infraestructura como código: el despliegue es manual y repetible con los pasos de la sección 4.
 - El **Quick Tunnel de Cloudflare** sigue como respaldo, pero es un proceso manual (no un servicio) y su dirección cambia si se reinicia. Si cambia, agregarla a `APP_CORS_ALLOWED_ORIGINS` y reiniciar Spring.
