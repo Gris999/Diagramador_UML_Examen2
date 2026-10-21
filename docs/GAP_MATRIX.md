@@ -33,8 +33,8 @@ Status values:
 | Flutter generation | DONE | Physical-device validation passed; the generated Flutter application ran successfully with CRUD validated |
 | SQLite/offline Flutter persistence | DONE | Physical offline SQLite CRUD and persistence validation passed with data retained |
 | Local/on-device mobile AI | PARTIAL | Generated Flutter apps now include a local schema-aware CRUD command assistant and speech-input integration. The command parser is deterministic, not an LLM/AI model; offline/on-device speech and genuine local model inference are still unverified/pending. |
-| AWS deployment | DEFERRED | Manual/ad-hoc EC2 groundwork exists, but there is no reproducible IaC/CI-CD production deployment; deferred unless required by the course |
+| AWS deployment | PARTIAL | Desplegado en AWS EC2 con Docker Compose, nginx y HTTPS (Let's Encrypt) en https://diagramador.dev; procedimiento manual y repetible en `docs/DESPLIEGUE.md`. Faltan infraestructura como código y CI/CD |
 | Automated tests | PARTIAL | Existing coverage is insufficient for final requirements |
 | PUDS/process documentation | PARTIAL | Needs final alignment |
-| Secrets/configuration hygiene | PARTIAL | Hard-coded settings remain |
+| Secrets/configuration hygiene | PARTIAL | Secretos en `.env` fuera de git, `DEBUG` apagado en producción y contraseña de Postgres retirada de `back_generador_bd/docker-compose.yml`. La contraseña anterior sigue en el historial de git (público): cambiarla si se usa en otro sitio |
 | Reproducible local startup | DONE | Baseline stack verified locally |
