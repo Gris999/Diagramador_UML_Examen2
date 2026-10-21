@@ -22,6 +22,10 @@ class CanvasConsumer(AsyncWebsocketConsumer):
     activity_store_class = ORMActivityStore
     activity_types = {"add_class", "delete", "add_link", "edit_text"}
     edit_coalesce_seconds = 5
+    # Tope del registro de actividad: no limita el relé, solo lo que se guarda.
+    activity_data_limit = 8192
+    activity_rate_limit = 60
+    activity_rate_window = 10
 
     async def connect(self):
         print("[CanvasConsumer.connect] scope:", self.scope)
@@ -40,6 +44,9 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         self.participant_id = None
         self.display_name = None
         self._edit_activity_times = {}
+        self._identity = None
+        self._activity_window_start = time.monotonic()
+        self._activity_window_count = 0
 
         members = await self.role_store.join(self.channel_name)
         await self.accept()
@@ -178,6 +185,11 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         name = self._clean_display_name(data.get("name"))
         if token is None or name is None:
             return
+        # Un hello repetido no cambia nada: se evita reescribir la base de datos
+        # y reemitir la presencia a toda la sala.
+        if self._identity == (token, name):
+            return
+        self._identity = (token, name)
 
         self.display_name = name
         try:
@@ -215,6 +227,8 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             return
         if event_type == "edit_text" and self._coalesce_edit(payload):
             return
+        if not self._within_activity_rate_limit():
+            return
 
         target_id = self._target_id(payload.get("id"))
         summary = self._activity_summary(event_type, payload)
@@ -228,7 +242,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 event_type=event_type,
                 target_id=target_id,
                 summary=summary,
-                data=payload,
+                data=self._activity_data(payload),
             )
         except Exception:
             logger.exception("Could not persist collaboration activity")
@@ -238,6 +252,28 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             {"type": "activity", "event": event},
         )
+
+    def _within_activity_rate_limit(self):
+        now = time.monotonic()
+        if now - self._activity_window_start >= self.activity_rate_window:
+            self._activity_window_start = now
+            self._activity_window_count = 0
+        self._activity_window_count += 1
+        return self._activity_window_count <= self.activity_rate_limit
+
+    @classmethod
+    def _activity_data(cls, payload):
+        try:
+            size = len(json.dumps(payload, ensure_ascii=False))
+        except (TypeError, ValueError):
+            size = cls.activity_data_limit + 1
+        if size <= cls.activity_data_limit:
+            return payload
+        return {
+            "t": payload.get("t"),
+            "id": cls._target_id(payload.get("id")),
+            "truncated": True,
+        }
 
     def _coalesce_edit(self, payload):
         now = time.monotonic()

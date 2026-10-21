@@ -91,6 +91,16 @@ class RoomActivityApiTests(APITestCase):
             [second.id, third.id],
         )
 
+    def test_without_since_returns_the_latest_events_oldest_first(self):
+        created = [self.create_event(number) for number in range(150)]
+
+        response = self.client.get(f"/api/rooms/{self.room}/activity/?limit=100")
+
+        self.assertEqual(
+            [event["id"] for event in response.data["events"]],
+            [event.id for event in created[-100:]],
+        )
+
     def test_limit_defaults_to_100_and_is_capped_at_200(self):
         for number in range(205):
             self.create_event(number)

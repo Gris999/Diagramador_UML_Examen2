@@ -67,8 +67,10 @@ class InMemoryIdentityStore:
 class InMemoryActivityStore:
     participants = {}
     events = []
+    identify_calls = 0
 
     async def identify(self, room, token, name):
+        type(self).identify_calls += 1
         actor_id = self.participants.get((room, token), {}).get("id")
         if actor_id is None:
             actor_id = len(self.participants) + 1
@@ -112,3 +114,4 @@ def reset_stores():
     InMemoryIdentityStore.rooms.clear()
     InMemoryActivityStore.participants.clear()
     InMemoryActivityStore.events.clear()
+    InMemoryActivityStore.identify_calls = 0

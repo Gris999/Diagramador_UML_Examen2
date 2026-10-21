@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from channels.routing import URLRouter
@@ -234,6 +235,69 @@ class CanvasIdentityActivityTests(SimpleTestCase):
         )
 
         self.assertEqual(len(InMemoryActivityStore.events), 1)
+        await client.disconnect()
+
+    async def test_oversized_operation_data_is_not_stored_whole(self):
+        client, _, _ = await self.connect_client()
+        payload = {
+            "t": "add_class",
+            "id": "big-class",
+            "payload": {"name": "Cliente", "junk": "x" * 50_000},
+        }
+
+        await client.send_json_to({"type": "broadcast", "payload": payload})
+        activity = await self.receive_until(
+            client,
+            lambda message: message.get("type") == "activity",
+        )
+
+        stored = InMemoryActivityStore.events[0]
+        self.assertLessEqual(len(json.dumps(stored["data"])), 8192)
+        self.assertEqual(stored["data"]["id"], "big-class")
+        self.assertEqual(activity["event"]["summary"], "añadió la clase Cliente")
+        await client.disconnect()
+
+    async def test_activity_flood_is_capped_but_relay_keeps_working(self):
+        original_limit = CanvasConsumer.activity_rate_limit
+        CanvasConsumer.activity_rate_limit = 3
+        try:
+            sender, _, _ = await self.connect_client()
+            receiver, _, _ = await self.connect_client()
+            await self.receive_state(sender, lambda members: len(members) == 2)
+
+            for number in range(6):
+                await sender.send_json_to({
+                    "type": "broadcast",
+                    "payload": {"t": "delete", "id": f"class-{number}"},
+                })
+            relayed = []
+            while len(relayed) < 6:
+                message = await self.receive_until(
+                    receiver,
+                    lambda item: item.get("type") == "broadcast",
+                )
+                relayed.append(message["payload"]["id"])
+
+            self.assertEqual(relayed, [f"class-{number}" for number in range(6)])
+            self.assertEqual(len(InMemoryActivityStore.events), 3)
+            await receiver.disconnect()
+            await sender.disconnect()
+        finally:
+            CanvasConsumer.activity_rate_limit = original_limit
+
+    async def test_repeated_identical_hello_is_not_persisted_again(self):
+        client, _, _ = await self.connect_client()
+        token = str(uuid.uuid4())
+
+        for _ in range(3):
+            await self.send_hello(client, token, "Dora")
+        await self.send_hello(client, token, "Dora Ruiz")
+        await self.receive_state(
+            client,
+            lambda members: members[0].get("name") == "Dora Ruiz",
+        )
+
+        self.assertEqual(InMemoryActivityStore.identify_calls, 2)
         await client.disconnect()
 
     async def test_activity_persistence_failure_does_not_break_relay(self):

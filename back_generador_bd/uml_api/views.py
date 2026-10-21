@@ -75,11 +75,14 @@ def get_room_activity(request, room):
 
     events = ActivityEvent.objects.filter(room=room)
     if since > 0:
-        events = events.filter(id__gt=since)
-    events = events.order_by("created_at", "id")[:limit]
+        # Seguimiento incremental: los eventos nuevos desde el último conocido.
+        page = list(events.filter(id__gt=since).order_by("id")[:limit])
+    else:
+        # Historial inicial: los más recientes, de más viejo a más nuevo.
+        page = list(events.order_by("-id")[:limit])[::-1]
 
     return Response({
-        "events": [serialize_activity_event(event) for event in events],
+        "events": [serialize_activity_event(event) for event in page],
     })
 
 
