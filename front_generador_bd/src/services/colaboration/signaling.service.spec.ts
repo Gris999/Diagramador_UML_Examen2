@@ -86,4 +86,25 @@ describe('SignalingService connection lifecycle', () => {
       name: 'Ana'
     });
   });
+
+  it('opens a read-only connection for viewers, without introducing itself', () => {
+    const identity = { getIdentity: jasmine.createSpy('getIdentity') };
+    const service = new SignalingService(identity as any);
+
+    service.connect('room-1', true);
+    const socket = createdSockets[0];
+    socket.onopen();
+
+    expect(socket.url).toMatch(/\/room-1\/\?mode=viewer$/);
+    expect(socket.send).not.toHaveBeenCalled();
+    expect(identity.getIdentity).not.toHaveBeenCalled();
+  });
+
+  it('keeps the plain room URL for editors', () => {
+    const service = new SignalingService({ getIdentity: () => ({ token: 't', name: 'Ana' }) } as any);
+
+    service.connect('room-1');
+
+    expect(createdSockets[0].url).toMatch(/\/room-1\/$/);
+  });
 });

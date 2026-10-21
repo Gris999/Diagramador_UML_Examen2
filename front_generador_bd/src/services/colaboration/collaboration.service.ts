@@ -32,6 +32,7 @@ export class CollaborationService {
   private api?: DiagramApi;
   private ready = false;
   private viaIa = false;
+  private viewer = false;
   private iaThinkingTimer?: ReturnType<typeof setTimeout>;
 
   /** Estado de la IA en la sala: quién le pidió algo y si está trabajando. */
@@ -47,7 +48,12 @@ export class CollaborationService {
     this.api = api;
   }
 
-  init(roomId: string) {
+  /**
+   * `viewer`: la conexión solo observa (vista móvil). No emite ninguna
+   * operación salvo pedir el estado completo, y el servidor también lo exige.
+   */
+  init(roomId: string, options: { viewer?: boolean } = {}) {
+    this.viewer = !!options.viewer;
     this.p2p.onData = (_: string | undefined, data: Op) => {
       if (this.handleIaSignal(data)) return;
       if (!this.api?.getGraph()) return;
@@ -58,7 +64,7 @@ export class CollaborationService {
         this.broadcast({ t: 'request_full_state' });
       }
     };
-    this.p2p.init(roomId);
+    this.p2p.init(roomId, this.viewer);
     this.ready = true;
     setTimeout(() => {
       if (!this.api?.getGraph()?.getCells()?.length) {
@@ -75,6 +81,7 @@ export class CollaborationService {
 
   broadcast(op: Op) {
     if (!this.ready) return;
+    if (this.viewer && op.t !== 'request_full_state') return;
     // Los cambios que la IA aplica a pedido de alguien viajan marcados para que
     // el servidor los registre como "IA, a pedido de X".
     this.p2p.sendToAll(this.viaIa ? { ...op, via_ia: true } : op);

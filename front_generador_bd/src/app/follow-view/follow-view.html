@@ -1,0 +1,46 @@
+<div class="flex h-dvh flex-col bg-gray-50" data-testid="follow-view">
+  <header class="flex items-center justify-between gap-2 bg-slate-800 px-3 py-2 text-white">
+    <div class="min-w-0">
+      <h1 class="truncate text-sm font-semibold">Siguiendo la sala</h1>
+      <p class="truncate text-[11px] text-slate-300" data-testid="follow-room">
+        Solo lectura · {{ roomId }}
+      </p>
+    </div>
+    <span
+      class="shrink-0 rounded bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800"
+      data-testid="follow-ia-status"
+    >
+      @if (iaStatus().state === 'thinking') {
+        🤖 Pensando{{ iaStatus().by ? ' (a pedido de ' + iaStatus().by + ')' : '' }}…
+      } @else {
+        🤖 IA disponible
+      }
+    </span>
+  </header>
+
+  <div
+    #scroll
+    class="relative min-h-[40vh] flex-1 overflow-auto bg-white"
+    style="touch-action: pan-x pan-y pinch-zoom"
+    data-testid="follow-canvas"
+  >
+    <!-- El lienzo no recibe ningún toque: solo se mira. -->
+    <div #paperContainer class="pointer-events-none"></div>
+    @if (failed()) {
+      <p class="absolute inset-x-0 top-4 px-4 text-center text-sm text-red-600" role="alert">
+        No se pudo abrir la sala. Revisa el enlace e inténtalo de nuevo.
+      </p>
+    } @else if (!hasContent()) {
+      <p
+        class="pointer-events-none absolute inset-x-0 top-4 px-4 text-center text-sm text-gray-500"
+        data-testid="follow-empty"
+      >
+        Esperando el diagrama de la sala…
+      </p>
+    }
+  </div>
+
+  <section class="max-h-[40vh] overflow-y-auto border-t border-gray-300 bg-white p-2">
+    <app-activity-panel [readOnly]="true" [fluid]="true"></app-activity-panel>
+  </section>
+</div>

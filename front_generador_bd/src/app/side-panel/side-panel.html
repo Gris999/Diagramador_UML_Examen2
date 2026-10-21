@@ -267,6 +267,15 @@
       </svg>
       Copiar código de sala
     </button>
+    <button
+      type="button"
+      class="mt-2 w-full rounded border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-800 hover:bg-teal-50"
+      data-testid="copy-follow-link"
+      title="Abre este enlace en el celular para seguir la sala en vivo, sin poder editar"
+      (click)="copyFollowLink()"
+    >
+      📱 Copiar enlace para seguir desde el celular
+    </button>
     @if (copied() == true) {
     <small class="text-green-600 mt-1 block text-center">¡Copiado!</small>
     }

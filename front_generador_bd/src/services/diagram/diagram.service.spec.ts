@@ -695,3 +695,103 @@ describe('DiagramService backup persistence and room lifecycle', () => {
     expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('DiagramService read-only mode (follow view)', () => {
+  function createService(overrides: { backup?: any; collab?: any } = {}) {
+    const backup = overrides.backup ?? { setBackupUml: jasmine.createSpy('setBackupUml') };
+    const collab = overrides.collab ?? {
+      broadcast: jasmine.createSpy('broadcast'),
+      closeSocketRTC: jasmine.createSpy('closeSocketRTC')
+    };
+    const service = new DiagramService(
+      {} as any,
+      collab as any,
+      { export: () => ({ classes: [{ id: 'c1' }], relationships: [] }) } as any,
+      {} as any,
+      backup as any
+    );
+    return { service, backup, collab };
+  }
+
+  it('never saves locally or to the server, even after changes', () => {
+    jasmine.clock().install();
+    const setItem = spyOn(localStorage, 'setItem');
+    try {
+      const { service, backup } = createService();
+      (service as any).readOnly = true;
+      (service as any).roomId = 'sala';
+      (service as any).graph = { getLinks: () => [], getElements: () => [] };
+
+      service.persistState();
+      (service as any).scheduleBackendBackup();
+      jasmine.clock().tick(10_000);
+
+      expect(setItem).not.toHaveBeenCalled();
+      expect(backup.setBackupUml).not.toHaveBeenCalled();
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('does not send a final backup or empty the graph when leaving, but closes the socket', () => {
+    const { service, backup, collab } = createService();
+    const clear = jasmine.createSpy('clear');
+    (service as any).readOnly = true;
+    (service as any).graph = { clear };
+
+    service.leaveRoom('sala');
+
+    expect(backup.setBackupUml).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(collab.closeSocketRTC).toHaveBeenCalled();
+  });
+
+  it('still saves and cleans up normally in editor mode', () => {
+    const backup = { setBackupUml: jasmine.createSpy('setBackupUml').and.returnValue({ subscribe: () => undefined }) };
+    const { service } = createService({ backup });
+    const clear = jasmine.createSpy('clear');
+    (service as any).graph = { clear };
+
+    service.leaveRoom('sala');
+
+    expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
+    expect(clear).toHaveBeenCalled();
+  });
+
+  it('fits the diagram to the width of the screen and keeps the page scrollable', () => {
+    const { service } = createService();
+    const paper = {
+      setDimensions: jasmine.createSpy('setDimensions'),
+      scale: jasmine.createSpy('scale'),
+      translate: jasmine.createSpy('translate')
+    };
+    (service as any).paper = paper;
+    (service as any).graph = { getBBox: () => ({ x: 100, y: 50, width: 800, height: 600 }) };
+
+    service.fitToViewport({ clientWidth: 432, clientHeight: 300 } as HTMLElement);
+
+    const scale = (432 - 32) / 800;
+    expect(paper.scale).toHaveBeenCalledOnceWith(scale, scale);
+    expect(paper.setDimensions).toHaveBeenCalledOnceWith(432, 600 * scale + 32);
+    expect(paper.translate).toHaveBeenCalledOnceWith(16 - 100 * scale, 16 - 50 * scale);
+  });
+
+  it('never zooms in beyond real size and handles an empty diagram', () => {
+    const { service } = createService();
+    const paper = {
+      setDimensions: jasmine.createSpy('setDimensions'),
+      scale: jasmine.createSpy('scale'),
+      translate: jasmine.createSpy('translate')
+    };
+    (service as any).paper = paper;
+    (service as any).graph = { getBBox: () => ({ x: 0, y: 0, width: 100, height: 80 }) };
+
+    service.fitToViewport({ clientWidth: 900, clientHeight: 300 } as HTMLElement);
+    expect(paper.scale).toHaveBeenCalledOnceWith(1, 1);
+
+    paper.scale.calls.reset();
+    (service as any).graph = { getBBox: () => null };
+    service.fitToViewport({ clientWidth: 900, clientHeight: 300 } as HTMLElement);
+    expect(paper.scale).toHaveBeenCalledOnceWith(1, 1);
+  });
+});

@@ -13,7 +13,7 @@ type CollaborationParticipant = {
 type Msg =
   | {
       type: 'presence';
-      action: 'join' | 'leave' | 'remove' | 'state';
+      action: 'self' | 'join' | 'leave' | 'remove' | 'state';
       peer?: string;
       members?: CollaborationParticipant[];
     }
@@ -31,7 +31,8 @@ export class SignalingService {
 
   constructor(private readonly identity: IdentityService) {}
 
-  connect(roomId: string) {
+  /** `viewer`: conexión de solo lectura (vista móvil); no entra al orden de roles de la sala. */
+  connect(roomId: string, viewer = false) {
     // Evita conexiones fantasma: si ya había un socket abierto (por ejemplo,
     // el componente anterior no cerró la sala correctamente), se cierra antes
     // de abrir uno nuevo para no dejarlo registrado como miembro en el backend.
@@ -61,7 +62,7 @@ export class SignalingService {
         : environment.wsPort
           ? `:${environment.wsPort}`
           : '';
-    const wsUrl = `${scheme}://${host}${port}${environment.wsPath}${roomId}/`;
+    const wsUrl = `${scheme}://${host}${port}${environment.wsPath}${roomId}/${viewer ? '?mode=viewer' : ''}`;
 
     console.log('[Signaling] Connecting to', wsUrl);
     const socket = new WebSocket(wsUrl);
@@ -69,6 +70,8 @@ export class SignalingService {
 
     socket.onopen = () => {
       console.log('[Signaling] Connected to', wsUrl);
+      // Quien solo observa no se identifica ni pide nombre.
+      if (viewer) return;
       const identity = this.identity.getIdentity();
       socket.send(JSON.stringify({ type: 'hello', ...identity }));
     };

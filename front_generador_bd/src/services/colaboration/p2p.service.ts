@@ -28,9 +28,9 @@ export class P2PService {
 
   constructor(private signaling: SignalingService) {}
 
-  init(roomId: string) {
+  init(roomId: string, viewer = false) {
     this.signaling.onMessage = (msg) => this.handleSignaling(msg);
-    this.signaling.connect(roomId);
+    this.signaling.connect(roomId, viewer);
   }
 
   private iceServers: RTCIceServer[] = [

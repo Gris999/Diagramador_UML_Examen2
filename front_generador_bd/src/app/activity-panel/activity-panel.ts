@@ -1,6 +1,6 @@
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, computed, inject, OnDestroy, OnInit, PLATFORM_ID, signal } from '@angular/core';
+import { Component, computed, inject, input, OnDestroy, OnInit, PLATFORM_ID, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { ActivityEvent } from '../../services/colaboration/activity-event';
@@ -29,6 +29,11 @@ export class ActivityPanel implements OnInit, OnDestroy {
   /** "Ahora" como señal: así el tiempo relativo cambia de forma controlada y no en pleno ciclo de detección. */
   private readonly now = signal(Date.now());
   private clock?: ReturnType<typeof setInterval>;
+
+  /** Vista de seguimiento: se ven las ideas de la IA pero no se pueden aplicar. */
+  readonly readOnly = input(false);
+  /** Ocupa todo el ancho disponible (celular) en lugar del ancho fijo del editor. */
+  readonly fluid = input(false);
 
   readonly applying = signal<string | null>(null);
   readonly suggestionError = signal('');
@@ -77,7 +82,7 @@ export class ActivityPanel implements OnInit, OnDestroy {
 
   /** Cualquiera puede aplicar una idea: el cambio queda a nombre de quien la aplica. */
   apply(event: ActivityEvent, index: number, finding: { prompt: string }): void {
-    if (!this.roomId || !finding.prompt || this.applying() || this.isApplied(event, index)) return;
+    if (this.readOnly() || !this.roomId || !finding.prompt || this.applying() || this.isApplied(event, index)) return;
 
     this.suggestionError.set('');
     this.applying.set(`${event.id}:${index}`);

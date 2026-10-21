@@ -118,6 +118,44 @@ describe('ActivityPanel', () => {
     expect(panel.relativeTime('no es una fecha', now)).toBe('');
   });
 
+  describe('follow view (read only)', () => {
+    it('shows the ideas but offers no way to apply them', () => {
+      fixture.componentRef.setInput('readOnly', true);
+      http.expectOne(historyUrl).flush({
+        events: [event(9, '2026-10-21T12:00:00Z', {
+          actor_name: 'IA',
+          actor_kind: 'ia',
+          type: 'ia_review',
+          summary: 'revisó el diagrama a pedido de Ana: 1 observación',
+          data: { findings: [{ text: 'Falta una clave', prompt: 'agrega id' }] }
+        })]
+      });
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelectorAll('[data-testid="ia-suggestion"]').length).toBe(1);
+      expect(fixture.nativeElement.querySelector('[data-testid="apply-suggestion"]')).toBeNull();
+
+      fixture.componentInstance.apply(
+        event(9, '2026-10-21T12:00:00Z'),
+        0,
+        { prompt: 'agrega id' }
+      );
+      expect(applySuggestion).not.toHaveBeenCalled();
+    });
+
+    it('can use the full width of a phone instead of the fixed editor width', () => {
+      http.expectOne(historyUrl).flush({ events: [] });
+      const section = fixture.nativeElement.querySelector('[data-testid="activity-panel"]') as HTMLElement;
+      expect(section.classList).toContain('w-72');
+
+      fixture.componentRef.setInput('fluid', true);
+      fixture.detectChanges();
+
+      expect(section.classList).toContain('w-full');
+      expect(section.classList).not.toContain('w-72');
+    });
+  });
+
   describe('IA events', () => {
     function reviewEvent(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
       return event(9, '2026-10-21T12:00:00Z', {
