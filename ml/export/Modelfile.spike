@@ -1,0 +1,3 @@
+FROM ../models/fused-spike
+PARAMETER temperature 0
+PARAMETER num_ctx 4096

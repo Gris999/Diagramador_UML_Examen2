@@ -1,0 +1,8 @@
+ffb6318eac141b7d8af3684946a799bc6ef05d57189a89662e331f595c7ebe87  ml/runs/spike/adapters/0000050_adapters.safetensors
+6e0a27f52a888b0e9dbecc251ffc3d42b5e3c68e2e5511764bd8b97426da0719  ml/runs/spike/adapters/0000100_adapters.safetensors
+6e0a27f52a888b0e9dbecc251ffc3d42b5e3c68e2e5511764bd8b97426da0719  ml/runs/spike/adapters/adapters.safetensors
+total 344920
+-rw-r--r--@ 1 pedroalaca  staff  58744712 Oct 22 09:54 0000050_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  58744712 Oct 22 09:58 0000100_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff      1060 Oct 22 09:49 adapter_config.json
+-rw-r--r--@ 1 pedroalaca  staff  58744712 Oct 22 09:58 adapters.safetensors

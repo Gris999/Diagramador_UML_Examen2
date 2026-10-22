@@ -1,0 +1,625 @@
+{
+  "resumen": {
+    "nombre": "qwen3-4b + LoRA (100 iter, prueba de viabilidad)",
+    "modelo": "/Users/pedroalaca/.lmstudio/models/lmstudio-community/Qwen3-4B-Instruct-2507-MLX-4bit",
+    "adaptador": "ml/runs/spike/adapters",
+    "fecha": "2026-10-22T10:03:00",
+    "equipo": "arm64 / macOS-26.5.2-arm64-arm-64bit",
+    "ejemplos": 60,
+    "json_valido": 55,
+    "correctos": 35,
+    "segundos_promedio": 4.03,
+    "segundos_total": 241.9,
+    "por_operacion": {
+      "agregar_atributo": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 4
+      },
+      "agregar_metodo": {
+        "total": 5,
+        "json_valido": 4,
+        "correctos": 2
+      },
+      "crear_clase": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 4
+      },
+      "crear_dos_con_relacion": {
+        "total": 5,
+        "json_valido": 4,
+        "correctos": 0
+      },
+      "editar_tipo": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 4
+      },
+      "eliminar_atributo": {
+        "total": 5,
+        "json_valido": 4,
+        "correctos": 2
+      },
+      "eliminar_clase": {
+        "total": 5,
+        "json_valido": 4,
+        "correctos": 4
+      },
+      "eliminar_metodo": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 0
+      },
+      "eliminar_relacion": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 5
+      },
+      "herencia": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 5
+      },
+      "relacion": {
+        "total": 5,
+        "json_valido": 5,
+        "correctos": 5
+      },
+      "renombrar_atributo": {
+        "total": 5,
+        "json_valido": 4,
+        "correctos": 0
+      }
+    },
+    "reescorado": {
+      "motivo": "La plantilla de chat de Qwen3 antepone un bloque <think></think> vacío a la respuesta; se quita antes de interpretar el JSON",
+      "antes": {
+        "json_valido": 0,
+        "correctos": 0
+      }
+    }
+  },
+  "resultados": [
+    {
+      "n": 1,
+      "op": "eliminar_clase",
+      "pedido": "Saca Vehiculo del diagrama",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.8,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 2,
+      "op": "agregar_atributo",
+      "pedido": "Sumale a Cancion un campo cantidad: int",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.98,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"cantidad\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 3,
+      "op": "herencia",
+      "pedido": "La clase Producto debe ser hija de Sucursal",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.04,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 4,
+      "op": "crear_clase",
+      "pedido": "Pon una clase llamada Producto con precio: float, codigo: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.49,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"precio\",\"type\":\"float\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 5,
+      "op": "renombrar_atributo",
+      "pedido": "Llama notas al atributo pagada de la clase Factura",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.93,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"nota\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 6,
+      "op": "relacion",
+      "pedido": "Conecta Sucursal con Autor usando una composición",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.93,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 7,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Estudiante el campo carrera",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.58,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"carrera\",\"type\":\"string\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 8,
+      "op": "relacion",
+      "pedido": "Quiero una agregación que vaya de Cliente a Libro",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.06,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 9,
+      "op": "eliminar_clase",
+      "pedido": "Saca Producto del diagrama",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 1.57,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"eliminar\":true}"
+    },
+    {
+      "n": 10,
+      "op": "renombrar_atributo",
+      "pedido": "Empleado: id se renombra como cantidad",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.85,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"cantidad\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"registrar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 11,
+      "op": "eliminar_relacion",
+      "pedido": "Deshaz la relación que une Producto con Paciente",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.58,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"id\":\"r1\",\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 12,
+      "op": "agregar_metodo",
+      "pedido": "Dale a Sucursal la operación notificar",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 32.21,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"direccion\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actual\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name\":\"actualar\",\"name"
+    },
+    {
+      "n": 13,
+      "op": "crear_clase",
+      "pedido": "Quiero tener la clase Autor, con estos campos: id: int, nacionalidad: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.66,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c2\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nacionalidad\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 14,
+      "op": "agregar_atributo",
+      "pedido": "Curso debe tener además observaciones de tipo string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.99,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"observaciones\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 15,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Autor y Proveedor en el diagrama, con una asociación que parta de Autor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.78,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 16,
+      "op": "eliminar_clase",
+      "pedido": "Deshazte de la clase Sucursal",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.79,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 17,
+      "op": "editar_tipo",
+      "pedido": "Haz que nombre en Curso sea de tipo int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.53,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"notificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 18,
+      "op": "relacion",
+      "pedido": "Quiero una composición que vaya de Cancion a Vehiculo",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.98,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 19,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Modela Paciente y Libro y conéctalas con una agregación de Paciente a Libro",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.62,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c2\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 20,
+      "op": "agregar_metodo",
+      "pedido": "Dale a Mascota la operación exportar",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.13,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"exportar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 21,
+      "op": "agregar_atributo",
+      "pedido": "Autor debe tener además version de tipo int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.32,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"nacionalidad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"version\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 22,
+      "op": "herencia",
+      "pedido": "Pon a Estudiante como subclase de Cliente",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.9,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 23,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Modela Reserva y Empleado y conéctalas con una agregación de Reserva a Empleado",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.72,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 24,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Empleado el campo nombre",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.41,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 25,
+      "op": "relacion",
+      "pedido": "Quiero una composición que vaya de Pedido a Cliente",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.02,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 26,
+      "op": "eliminar_clase",
+      "pedido": "Saca Autor del diagrama",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.78,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 27,
+      "op": "editar_tipo",
+      "pedido": "numero de Factura tiene que pasar a ser Date",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.57,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"numero\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"notificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 28,
+      "op": "editar_tipo",
+      "pedido": "Haz que codigo en Producto sea de tipo int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.59,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 29,
+      "op": "eliminar_atributo",
+      "pedido": "Ya no quiero matricula en Estudiante",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.29,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 30,
+      "op": "relacion",
+      "pedido": "Quiero una composición que vaya de Autor a Estudiante",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.02,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 31,
+      "op": "agregar_metodo",
+      "pedido": "Pedido también debe poder hacer registrar()",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.74,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"registrar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 32,
+      "op": "agregar_metodo",
+      "pedido": "Cancion también debe poder hacer comprar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.19,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"calificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 33,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime la relación Pedido-Vehiculo",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.44,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"id\":\"r1\",\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 34,
+      "op": "eliminar_relacion",
+      "pedido": "Deshaz la relación que une Mascota con Proveedor",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.65,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"id\":\"r1\",\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 35,
+      "op": "herencia",
+      "pedido": "Pon a Cliente como subclase de Libro",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.06,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 36,
+      "op": "agregar_atributo",
+      "pedido": "Sumale a Doctor un campo puntaje: float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.49,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\":\"string\"},{\"name\":\"puntaje\",\"type\":\"float\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 37,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Producto y Libro en el diagrama, con una composición que parta de Producto",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.02,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"precio\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"cantidad\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 38,
+      "op": "editar_tipo",
+      "pedido": "anio de Vehiculo tiene que pasar a ser float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.13,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"float\"},{\"name\":\"marca\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"confirmar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 39,
+      "op": "eliminar_metodo",
+      "pedido": "Elimina de Sucursal el método calcularTotal()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.76,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 40,
+      "op": "renombrar_atributo",
+      "pedido": "Cliente: nombre se renombra como cantidad",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.43,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"cantidad\",\"attributes\":[{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"registrar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 41,
+      "op": "eliminar_metodo",
+      "pedido": "Ya no quiero la operación cancelar en Paciente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.6,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"cancelar\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 42,
+      "op": "herencia",
+      "pedido": "La clase Pedido debe ser hija de Paciente",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.96,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 43,
+      "op": "agregar_metodo",
+      "pedido": "Doctor también debe poder hacer registrar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.11,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"registrar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 44,
+      "op": "eliminar_relacion",
+      "pedido": "Deshaz la relación que une Mascota con Doctor",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.61,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"id\":\"r1\",\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 45,
+      "op": "editar_tipo",
+      "pedido": "personas de Reserva tiene que pasar a ser string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.77,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"personas\",\"type\":\"string\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"confirmada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 46,
+      "op": "renombrar_atributo",
+      "pedido": "Vehiculo: anio se renombra como version",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.4,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"version\",\"type\":\"string\"},{\"name\":\"marca\",\"type\":\"string\"},{\"name\":\"anio\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 47,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Vehiculo y Factura en el diagrama, con una asociación que parta de Vehiculo",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 32.48,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"modelo\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"pag\",\"ada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\"type\":\"string\"},{\"name\":\"pagada\",\""
+    },
+    {
+      "n": 48,
+      "op": "eliminar_metodo",
+      "pedido": "Ya no quiero la operación calcularTotal en Paciente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.02,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 49,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Doctor el campo especialidad",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.84,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 50,
+      "op": "crear_clase",
+      "pedido": "Quiero tener la clase Libro, con estos campos: disponible: boolean, paginas: int, titulo: string, isbn: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.4,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"paginas\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"isbn\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 51,
+      "op": "eliminar_atributo",
+      "pedido": "Ya no quiero seguro en Paciente",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 2.13,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"seguro\",\"type\":\"string\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 52,
+      "op": "crear_clase",
+      "pedido": "Quiero tener la clase Vehiculo, con estos campos: disponible: boolean, marca: string, placa: string, anio: int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.34,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"marca\",\"type\":\"string\"},{\"name\":\"placa\",\"type\":\"string\"},{\"name\":\"anio\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 53,
+      "op": "renombrar_atributo",
+      "pedido": "Llama creadoEn al atributo placa de la clase Vehiculo",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 13.07,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"direccion\",\"\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 54,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime la relación Cliente-Estudiante",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.46,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"id\":\"r1\",\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 55,
+      "op": "eliminar_clase",
+      "pedido": "Deshazte de la clase Vehiculo",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.89,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 56,
+      "op": "herencia",
+      "pedido": "Pon a Sucursal como subclase de Paciente",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.98,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 57,
+      "op": "eliminar_metodo",
+      "pedido": "Elimina de Cancion el método cancelar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.7,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"cancelar\",\"eliminar\":true}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 58,
+      "op": "agregar_atributo",
+      "pedido": "Sumale a Empleado un campo descuento: float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.95,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"sueldo\",\"type\":\"float\"},{\"name\":\"cargo\",\"type\":\"string\"},{\"name\":\"descuento\",\"type\":\"float\"}],\"methods\":[{\"name\":\"exportar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 59,
+      "op": "crear_clase",
+      "pedido": "Pon una clase llamada Pedido con id: int, total: float, estado: string, fecha: Date",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.35,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 60,
+      "op": "eliminar_metodo",
+      "pedido": "Elimina de Libro el método exportar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.7,
+      "respuesta": "<think>\n\n</think>\n\n{\"classes\":[{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"isbn\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"exportar\",\"eliminar\":true}]}],\"relationships\":[]}"
+    }
+  ]
+}

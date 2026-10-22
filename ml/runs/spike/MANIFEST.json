@@ -1,0 +1,80 @@
+{
+  "semilla": 42,
+  "conteos": {
+    "train": 240,
+    "valid": 36,
+    "test": 60
+  },
+  "operaciones": {
+    "train": {
+      "crear_dos_con_relacion": 20,
+      "crear_clase": 20,
+      "eliminar_atributo": 20,
+      "agregar_metodo": 20,
+      "eliminar_clase": 20,
+      "agregar_atributo": 20,
+      "eliminar_metodo": 20,
+      "herencia": 20,
+      "renombrar_atributo": 20,
+      "relacion": 20,
+      "eliminar_relacion": 20,
+      "editar_tipo": 20
+    },
+    "valid": {
+      "renombrar_atributo": 3,
+      "agregar_metodo": 3,
+      "editar_tipo": 3,
+      "eliminar_clase": 3,
+      "relacion": 3,
+      "herencia": 3,
+      "agregar_atributo": 3,
+      "eliminar_metodo": 3,
+      "crear_dos_con_relacion": 3,
+      "eliminar_atributo": 3,
+      "crear_clase": 3,
+      "eliminar_relacion": 3
+    },
+    "test": {
+      "eliminar_clase": 5,
+      "agregar_atributo": 5,
+      "herencia": 5,
+      "crear_clase": 5,
+      "renombrar_atributo": 5,
+      "relacion": 5,
+      "eliminar_atributo": 5,
+      "eliminar_relacion": 5,
+      "agregar_metodo": 5,
+      "crear_dos_con_relacion": 5,
+      "editar_tipo": 5,
+      "eliminar_metodo": 5
+    }
+  },
+  "entidades_entrenamiento": [
+    "Autor",
+    "Cliente",
+    "Curso",
+    "Empleado",
+    "Estudiante",
+    "Factura",
+    "Libro",
+    "Pedido",
+    "Producto",
+    "Proveedor",
+    "Reserva",
+    "Sucursal"
+  ],
+  "entidades_solo_prueba": [
+    "Cancion",
+    "Doctor",
+    "Mascota",
+    "Paciente",
+    "Vehiculo"
+  ],
+  "sin_fugas_train_valid_vs_test": true,
+  "sha256": {
+    "test.jsonl": "b6bac0e7b9af6b094b694c8e2161b37e706277fc0fda77bc9bcd4a71fb00d3f3",
+    "test_meta.jsonl": "642aacc04be0b8855f5264b40497a6ac5465043ba45142231ba9f5c2b8ab9c76",
+    "train.jsonl": "105c62d233339b3b85e2558ec20c6b11acf116558a78548cb0b7d8bd0cea2021",
+    "valid.jsonl": "6b91a50a40fb1156923879271a7a0ab34cfd701fb2898b6d97aba53c20e2ea8a"
+  }
+}
