@@ -29,14 +29,15 @@ BUILD = INFORME / "build"
 DOCS = RAIZ / "docs"
 
 # --- Datos de la carátula (completar lo marcado) ----------------------------------------------
-TITULO = ("Plataforma CASE colaborativa de modelado UML 2.5 con inteligencia artificial como "
-          "integrante de la sala, generación de backend (Spring Boot) y Flutter, e IA local reentrenada")
-GRUPO = "[N.° DE GRUPO]"
+TITULO = ("Plataforma CASE Colaborativa de Modelado UML 2.5 con Inteligencia Artificial como Integrante "
+          "de la Sala, Generación de Backend (Spring Boot) y Flutter, e IA Local Reentrenada")
+NUMERO = "[N.° DE GRUPO]"
 INTEGRANTES = [("Alaca Pedro", "[REGISTRO]"), ("Quenta Callejas Yohan Sebastian", "[REGISTRO]")]
-MATERIA = "Ingeniería de Software 1 (INF-422) SB"
-DOCENTE = "Ing. Rolando Antonio Martínez Canedo"
-GESTION = "Semestre 2 – 2026"
-LUGAR = "Santa Cruz – Bolivia"
+MATERIA = "Ingeniería de Software 1"
+SIGLA = "INF 422"
+DOCENTE = "Ing. Martínez Canedo Rolando Antonio"
+GESTION = "Semestre 2 - 2026"
+LUGAR = "Santa Cruz - Bolivia"
 
 REFERENCIAS = {
     "01-requisitos.md": "la sección 2.2", "02-analisis.md": "la sección 2.3", "03-diseno.md": "la sección 2.4",
@@ -256,6 +257,10 @@ class Constructor:
             agregar_inline(c, pie, tam=9, cursiva=True, color=RGBColor(0x55, 0x55, 0x55))
 
     def tabla(self, filas):
+        # Tabla de "ficha" (caso de uso): primera fila vacía = sin encabezado y primera columna sombreada.
+        ficha = all(not c.strip() for c in filas[0])
+        if ficha:
+            filas = filas[1:]
         columnas = max(len(f) for f in filas)
         tabla = self.doc.add_table(rows=0, cols=columnas)
         tabla.style = "Table Grid"
@@ -274,10 +279,14 @@ class Constructor:
                 parrafo = celda.paragraphs[0]
                 parrafo.paragraph_format.space_after = Pt(1)
                 parrafo.paragraph_format.line_spacing = 1.0
-                agregar_inline(parrafo, texto, tam=tam, negrita=(numero == 0))
-                if numero == 0:
+                agregar_inline(parrafo, texto, tam=tam, negrita=(numero == 0 and not ficha))
+                if numero == 0 and not ficha:
                     sombrear(celda._tc.get_or_add_tcPr(), "DDE3F0")
-            if numero == 0:
+                elif ficha and indice == 0:
+                    sombrear(celda._tc.get_or_add_tcPr(), "FCE4D6")
+                if ficha and numero < len(filas) - 1:
+                    parrafo.paragraph_format.keep_with_next = True  # la ficha no se parte entre páginas
+            if numero == 0 and not ficha:
                 fila_pr = tabla.rows[0]._tr.get_or_add_trPr()
                 cabecera = OxmlElement("w:tblHeader")
                 fila_pr.append(cabecera)
@@ -285,6 +294,26 @@ class Constructor:
             no_partir = OxmlElement("w:cantSplit")
             fila_xml._tr.get_or_add_trPr().append(no_partir)
         self.doc.add_paragraph().paragraph_format.space_after = Pt(2)
+
+    def plantuml(self, fuente):
+        """Diagrama UML con PlantUML; el tamaño final respeta el tamaño natural (150 dpi)."""
+        carpeta = BUILD / "uml"
+        carpeta.mkdir(parents=True, exist_ok=True)
+        huella = hashlib.sha1(fuente.encode()).hexdigest()[:10]
+        entrada, salida = carpeta / f"{huella}.puml", carpeta / f"{huella}.png"
+        if not salida.exists():
+            entrada.write_text(fuente.replace("skinparam shadowing false", "skinparam dpi 150\nskinparam shadowing false", 1),
+                               encoding="utf-8")
+            resultado = subprocess.run(["plantuml", "-tpng", "-charset", "UTF-8", "-DPLANTUML_LIMIT_SIZE=16384", str(entrada)],
+                                       capture_output=True, text=True, timeout=180)
+            if not salida.exists():
+                raise RuntimeError(f"PlantUML falló ({huella}): {resultado.stderr[-600:]}\n{fuente[:300]}")
+        self.diagramas += 1
+        with Image.open(salida) as im:
+            ancho_px = im.size[0]
+        dpi = 150 if "skinparam dpi 150" in entrada.read_text(encoding="utf-8") else 96
+        ancho_cm = min(ANCHO_UTIL_CM - 0.8, max(5.0, ancho_px / dpi * 2.54))
+        self.imagen(salida, pie=f"Diagrama {self.diagramas}", ancho_cm=ancho_cm)
 
     def mermaid(self, fuente):
         BUILD.joinpath("diagramas").mkdir(parents=True, exist_ok=True)
@@ -336,6 +365,8 @@ class Constructor:
                 i += 1
                 if lenguaje == "mermaid":
                     self.mermaid("\n".join(bloque))
+                elif lenguaje == "plantuml":
+                    self.plantuml("\n".join(bloque))
                 else:
                     self.codigo(bloque)
                 continue
@@ -421,7 +452,10 @@ class Constructor:
                    and not re.match(r"^(#{1,5}\s|```|\||>|!\[|\s*([-*]|\d+\.)\s+|---)", lineas[i + 1])):
                 parrafo.append(lineas[i + 1].strip())
                 i += 1
-            self.parrafo(" ".join(parrafo))
+            p = self.parrafo(" ".join(parrafo))
+            texto_parrafo = " ".join(parrafo)
+            if texto_parrafo.startswith("**") and texto_parrafo.endswith("**") or texto_parrafo.startswith("*Ciclo"):
+                p.paragraph_format.keep_with_next = True  # el rótulo no se separa de su diagrama o tabla
             i += 1
         vaciar_lista()
 
@@ -429,10 +463,10 @@ class Constructor:
     def caratula(self):
         doc = self.doc
 
-        def centrado(texto, tam, negrita=False, espacio_despues=6, color=None):
+        def linea(texto, tam, negrita=False, despues=6, alinear=WD_ALIGN_PARAGRAPH.CENTER, color=None):
             p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_after = Pt(espacio_despues)
+            p.alignment = alinear
+            p.paragraph_format.space_after = Pt(despues)
             r = p.add_run(texto)
             r.bold = negrita
             r.font.size = Pt(tam)
@@ -440,28 +474,40 @@ class Constructor:
                 r.font.color.rgb = color
             return p
 
-        centrado("UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO", 16, True, 4)
-        centrado("FACULTAD DE INGENIERÍA EN CIENCIAS DE LA COMPUTACIÓN Y TELECOMUNICACIONES", 12, True, 60)
-        centrado("PROYECTO", 13, False, 10, RGBColor(0x55, 0x55, 0x55))
-        centrado(f"“{TITULO}”", 17, True, 50, RGBColor(0x1F, 0x2A, 0x44))
-        centrado(f"GRUPO {GRUPO}", 13, True, 18)
-        centrado("Integrantes:", 12, True, 4)
-        for nombre, registro in INTEGRANTES:
+        linea("UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO", 15, True, 10)
+        linea("FACULTAD DE INGENIERÍA EN CIENCIAS DE LA COMPUTACIÓN Y TELECOMUNICACIONES", 12, False, 24,
+              color=RGBColor(0x1F, 0x4E, 0x5F))
+        logo = INFORME / "recursos" / "logo-facultad.png"
+        if logo.exists():
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_after = Pt(2)
-            p.add_run(f"{nombre}      ").font.size = Pt(12)
-            r = p.add_run(registro)
-            r.font.size = Pt(12)
-            if registro.startswith("["):
-                r.font.highlight_color = 7  # amarillo: dato por completar
-        centrado("", 8, False, 30)
-        centrado(f"Materia: {MATERIA}", 12, False, 4)
-        centrado(f"Docente: {DOCENTE}", 12, False, 4)
-        centrado(f"Gestión: {GESTION}", 12, False, 40)
-        centrado("Plataforma desplegada en https://diagramador.dev", 10, False, 4, RGBColor(0x55, 0x55, 0x55))
-        centrado("Código: https://github.com/Gris999/Diagramador_UML_Examen2 (etiqueta v1.0)", 10, False, 40, RGBColor(0x55, 0x55, 0x55))
-        centrado(LUGAR, 12, True)
+            p.paragraph_format.space_after = Pt(26)
+            p.add_run().add_picture(str(logo), width=Cm(4.6))
+        linea(f"“{TITULO}”", 17, True, 28)
+        linea(f"Número: {NUMERO}", 11, True, 12, WD_ALIGN_PARAGRAPH.LEFT)
+        linea("INTEGRANTES :", 11, True, 6, WD_ALIGN_PARAGRAPH.LEFT)
+        tabla = doc.add_table(rows=0, cols=2)
+        for nombre, registro in INTEGRANTES:
+            celdas = tabla.add_row().cells
+            celdas[0].width, celdas[1].width = Cm(11.5), Cm(4.5)
+            for celda, texto in ((celdas[0], f"❖  {nombre}"), (celdas[1], registro)):
+                parrafo = celda.paragraphs[0]
+                parrafo.paragraph_format.space_after = Pt(3)
+                run = parrafo.add_run(texto)
+                run.font.size = Pt(10.5)
+                if texto.startswith("["):
+                    run.font.highlight_color = 7  # amarillo: dato por completar
+        doc.add_paragraph().paragraph_format.space_after = Pt(12)
+        for etiqueta, valor in (("Materia: ", MATERIA), ("Sigla: ", SIGLA), ("Docente: ", DOCENTE), ("Gestión: ", GESTION)):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(3)
+            r = p.add_run(etiqueta)
+            r.bold = True
+            r.font.size = Pt(10.5)
+            r2 = p.add_run(valor)
+            r2.font.size = Pt(10.5)
+        doc.add_paragraph().paragraph_format.space_after = Pt(30)
+        linea(LUGAR, 12, True)
 
     def indice(self):
         self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
@@ -496,24 +542,12 @@ def main():
     b.markdown(leer(contenido / "00-introduccion.md"))
     b.markdown(leer(contenido / "01-fundamentacion.md"), desplazar=1)
 
-    # Parte 2: registro del proceso PUDS
-    b.titulo("2. Registro del proceso de desarrollo de software (PUDS)", 1, salto_pagina=True)
-    b.parrafo("Esta parte registra el proceso seguido, organizado según el Proceso Unificado de Desarrollo de "
-              "Software: las fases y las iteraciones, y los artefactos de cada flujo de trabajo (requisitos, análisis, "
-              "diseño, implementación y pruebas). La etapa de despliegue se documenta de forma resumida en el Anexo C.")
-    readme = leer(DOCS / "puds" / "README.md")
-    b.titulo("2.1 Cómo se aplicó PUDS", 2)
-    b.markdown(seccion_de(readme, "## 1. Cómo se aplica PUDS aquí", "## 4. Entrega y demostración"),
-               prefijo="2.1", renumerar=True)
-    partes = [
-        ("01-requisitos.md", "2.2", "Flujo de trabajo: captura de requisitos"),
-        ("02-analisis.md", "2.3", "Flujo de trabajo: análisis"),
-        ("03-diseno.md", "2.4", "Flujo de trabajo: diseño"),
-        ("04-implementacion.md", "2.5", "Flujo de trabajo: implementación"),
-        ("05-pruebas.md", "2.6", "Flujo de trabajo: pruebas"),
-    ]
-    for archivo, prefijo, nombre in partes:
-        b.markdown(leer(DOCS / "puds" / archivo), prefijo=prefijo, renumerar=True, titulo_h1=nombre)
+    # Parte 2: registro del proceso PUDS (estructura de los informes modelo)
+    import parte2
+
+    b.markdown(parte2.generar())
+    b.markdown(leer(DOCS / "puds" / "05-pruebas.md"), prefijo="2.5", renumerar=True,
+               titulo_h1="Flujo de trabajo: pruebas")
 
     # Parte 3: manual
     b.markdown(leer(contenido / "03-manual.md"))
