@@ -3,12 +3,14 @@ import logging
 import time
 import unicodedata
 import uuid
+from urllib.parse import parse_qs
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from uml_api.services.services_gemini import call_gemini_analysis
 import re
 
 from .activity import ORMActivityStore
+from .groups import room_group_name, viewers_group_name
 from .identity import RedisGroupIdentityStore
 from .roles import RedisGroupRoleStore
 
@@ -31,7 +33,12 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         print("[CanvasConsumer.connect] scope:", self.scope)
         print("[CanvasConsumer.connect] url_route:", self.scope.get("url_route"))
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
-        self.room_group_name = f"canvas_{self.room_name}"
+        self.room_group_name = room_group_name(self.room_name)
+        self.viewers_group_name = viewers_group_name(self.room_name)
+        self.is_viewer = self._requested_viewer()
+        if self.is_viewer:
+            await self._connect_viewer()
+            return
         self.role_store = self.role_store_class(
             self.channel_layer,
             self.room_group_name,
@@ -71,6 +78,12 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         await self._broadcast_presence_state(members)
 
     async def disconnect(self, close_code):
+        if getattr(self, "is_viewer", False):
+            await self.channel_layer.group_discard(
+                self.viewers_group_name,
+                self.channel_name,
+            )
+            return
         if not hasattr(self, "role_store"):
             return
 
@@ -97,14 +110,16 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             return
         if not isinstance(data, dict):
             return
+        if self.is_viewer:
+            await self._receive_from_viewer(data)
+            return
 
         # Si es un broadcast → enviar a todos
         if data.get("type") == "broadcast":
             if "payload" not in data:
                 return
             payload = data["payload"]
-            await self.channel_layer.group_send(
-                self.room_group_name,
+            await self._send_to_room(
                 {
                     "type": "broadcast_message",
                     "from": self.channel_name,
@@ -159,6 +174,44 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 },
             )
             await self._broadcast_presence_state(members)
+
+    def _requested_viewer(self):
+        query = parse_qs(self.scope.get("query_string", b"").decode("utf-8", "ignore"))
+        return "viewer" in query.get("mode", [])
+
+    async def _connect_viewer(self):
+        # Los observadores van en un grupo aparte: no entran al orden que define
+        # al host, no figuran en la presencia y no pueden expulsar ni ser
+        # expulsados. Solo reciben lo que ocurre en la sala.
+        await self.channel_layer.group_add(self.viewers_group_name, self.channel_name)
+        await self.accept()
+        await self.send(text_data=json.dumps({
+            "type": "presence",
+            "action": "self",
+            "peer": self.channel_name,
+        }))
+
+    async def _receive_from_viewer(self, data):
+        # Lo único que un observador puede pedir es el estado completo para
+        # dibujar el diagrama; cualquier otra cosa se ignora.
+        payload = data.get("payload")
+        if (
+            data.get("type") == "broadcast"
+            and isinstance(payload, dict)
+            and payload.get("t") == "request_full_state"
+        ):
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "broadcast_message",
+                    "from": self.channel_name,
+                    "payload": {"t": "request_full_state"},
+                },
+            )
+
+    async def _send_to_room(self, message):
+        await self.channel_layer.group_send(self.room_group_name, message)
+        await self.channel_layer.group_send(self.viewers_group_name, message)
 
     async def _reject_removal(self):
         await self.send(text_data=json.dumps({
@@ -267,10 +320,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             logger.exception("Could not persist collaboration activity")
             return
 
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {"type": "activity", "event": event},
-        )
+        await self._send_to_room({"type": "activity", "event": event})
 
     def _within_activity_rate_limit(self):
         now = time.monotonic()

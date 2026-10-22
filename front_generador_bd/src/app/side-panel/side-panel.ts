@@ -102,16 +102,26 @@ export class SidePanel {
   copyRoomCode() {
     const roomId = this.route.snapshot.paramMap.get('roomId');
     if (!roomId) return;
+    this.copyText(roomId);
+  }
 
+  /** Enlace de la vista de seguimiento (celular, solo lectura) de esta sala. */
+  copyFollowLink() {
+    const roomId = this.route.snapshot.paramMap.get('roomId');
+    if (!roomId) return;
+    this.copyText(`${window.location.origin}/sala/${encodeURIComponent(roomId)}/seguir`);
+  }
+
+  private copyText(text: string) {
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
 
     if (isSecure && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(roomId).then(() => {
+      navigator.clipboard.writeText(text).then(() => {
         this.copied.set(true);
         setTimeout(() => this.copied.set(false), 2000);
-      }).catch(() => this.fallbackCopy(roomId));
+      }).catch(() => this.fallbackCopy(text));
     } else {
-      this.fallbackCopy(roomId);
+      this.fallbackCopy(text);
     }
   }
 

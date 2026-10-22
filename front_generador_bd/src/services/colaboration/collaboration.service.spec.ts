@@ -212,3 +212,66 @@ describe('CollaborationService IA signals', () => {
     expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'ia_suggestion_applied', eventId: 7, index: 0 });
   });
 });
+
+describe('CollaborationService viewer mode', () => {
+  let p2p: any;
+  let service: CollaborationService;
+
+  beforeEach(() => {
+    p2p = {
+      closeSocketRTC: jasmine.createSpy('closeSocketRTC'),
+      init: jasmine.createSpy('init'),
+      sendToAll: jasmine.createSpy('sendToAll')
+    };
+    service = new CollaborationService(p2p, { getBackup: () => of(null) } as any);
+    service.registerDiagramApi({
+      getGraph: () => ({ getCells: () => [{ id: 'c1' }] }),
+      getJoint: () => ({}),
+      createUmlClass: () => undefined,
+      loadFromJson: () => undefined,
+      exportToJson: () => ({ classes: [], relationships: [] })
+    } as any);
+  });
+
+  it('connects as a viewer when asked to', () => {
+    service.init('room-1', { viewer: true });
+
+    expect(p2p.init).toHaveBeenCalledOnceWith('room-1', true);
+  });
+
+  it('connects as an editor by default', () => {
+    service.init('room-1');
+
+    expect(p2p.init).toHaveBeenCalledOnceWith('room-1', false);
+  });
+
+  it('never sends operations as a viewer, except asking for the full state', () => {
+    service.init('room-1', { viewer: true });
+
+    service.broadcast({ t: 'delete', id: 'c1' });
+    service.broadcast({ t: 'move', id: 'c1', x: 1, y: 2 });
+    service.broadcast({ t: 'ia_status', state: 'thinking', by: 'Ana' });
+    service.broadcast({ t: 'request_full_state' });
+
+    expect(p2p.sendToAll.calls.allArgs()).toEqual([[{ t: 'request_full_state' }]]);
+  });
+
+  it('still applies what the room sends to a viewer', () => {
+    const createUmlClass = jasmine.createSpy('createUmlClass');
+    service.registerDiagramApi({
+      getGraph: () => ({ getCells: () => [{ id: 'c1' }], getCell: () => undefined }),
+      getJoint: () => ({}),
+      createUmlClass,
+      loadFromJson: () => undefined,
+      exportToJson: () => ({ classes: [], relationships: [] })
+    } as any);
+    service.init('room-1', { viewer: true });
+
+    p2p.onData('peer-1', { t: 'add_class', id: 'c9', payload: { name: 'Factura' } });
+
+    expect(createUmlClass).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ id: 'c9', name: 'Factura' }),
+      true
+    );
+  });
+});

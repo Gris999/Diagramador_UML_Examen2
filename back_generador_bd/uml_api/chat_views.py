@@ -10,6 +10,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from collab.activity import serialize_activity_event
+from collab.groups import room_group_name, viewers_group_name
 from collab.models import ActivityEvent, ChatMessage, Participant
 from .services.ai_provider import AIProviderError, get_ai_provider
 from .services.ia_context import (
@@ -85,11 +86,11 @@ def _store_exchange(room, participant, mode, message, reply):
 
 def _publish_activity(room, event):
     """Avisa a la sala en vivo; si el canal falla, el evento igual queda guardado."""
+    message = {"type": "activity", "event": serialize_activity_event(event)}
     try:
-        async_to_sync(get_channel_layer().group_send)(
-            f"canvas_{room}",
-            {"type": "activity", "event": serialize_activity_event(event)},
-        )
+        layer = get_channel_layer()
+        for group in (room_group_name(room), viewers_group_name(room)):
+            async_to_sync(layer.group_send)(group, message)
     except Exception as exc:
         logger.warning("No se pudo difundir la actividad de la IA (%s)", type(exc).__name__)
 

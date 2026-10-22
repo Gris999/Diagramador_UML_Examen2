@@ -1,5 +1,7 @@
 <section
-  class="w-72 max-w-full shrink-0 rounded border border-gray-300 bg-white px-2 py-1.5 shadow-sm"
+  class="max-w-full shrink-0 rounded border border-gray-300 bg-white px-2 py-1.5 shadow-sm"
+  [class.w-72]="!fluid()"
+  [class.w-full]="fluid()"
   aria-label="Actividad de la sala"
   data-testid="activity-panel"
 >
@@ -30,7 +32,7 @@
               data-testid="ia-suggestion"
             >
               <span class="min-w-0 break-words text-gray-700">{{ finding.text }}</span>
-              @if (finding.prompt) {
+              @if (finding.prompt && !readOnly()) {
                 <button
                   type="button"
                   class="shrink-0 rounded bg-purple-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-purple-700 disabled:opacity-50"

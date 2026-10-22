@@ -30,6 +30,9 @@ export class DiagramService {
   private roomLeft = false;
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly AUTOSAVE_DEBOUNCE_MS = 1500;
+  // Vista de seguimiento (móvil): solo recibe y dibuja. No guarda nada local ni
+  // en el servidor, no reconcilia entidades intermedias y no puede editar.
+  private readOnly = false;
   private reconcilingJunctions = false;
   // >0 mientras loadFromJson() está creando clases y relaciones en lote
   // (los dos bucles todavía no terminaron); reconcileGeneratedJunctions() se
@@ -48,8 +51,13 @@ export class DiagramService {
   /**
    * Inicializa JointJS y configura el papel y grafo
    */
-  async initialize(paperElement: HTMLElement, roomId: string): Promise<void> {
+  async initialize(
+    paperElement: HTMLElement,
+    roomId: string,
+    options: { readOnly?: boolean } = {}
+  ): Promise<void> {
     try {
+      this.readOnly = !!options.readOnly;
       // Configura la clave de almacenamiento local
       this.storageKey = `diagram-${roomId}`;
       this.roomId = roomId;
@@ -66,7 +74,7 @@ export class DiagramService {
         height: 600,
         gridSize: 10,
         drawGrid: true,
-        interactive: { elementMove: true, addLinkFromMagnet: true },
+        interactive: this.readOnly ? false : { elementMove: true, addLinkFromMagnet: true },
         background: { color: '#f8f9fa' },
         defaultConnector: { name: 'rounded' },
         defaultLink: () => this.buildRelationship(),
@@ -426,8 +434,9 @@ export class DiagramService {
         exportToJson: () => this.exportService.export(this.graph),
       });
 
-      // Obtener Persistencia Mediante LocalStorage
-      const saved = localStorage.getItem(this.storageKey);
+      // Obtener Persistencia Mediante LocalStorage (quien solo observa parte
+      // siempre del estado de la sala, nunca de una copia local vieja)
+      const saved = this.readOnly ? null : localStorage.getItem(this.storageKey);
       if (saved) {
         try {
           const json: UmlExportDTO = JSON.parse(saved);
@@ -438,7 +447,7 @@ export class DiagramService {
         }
       }
 
-      this.collab.init(roomId);
+      this.collab.init(roomId, { viewer: this.readOnly });
       console.log('JointJS inicializado en room:', roomId);
       return Promise.resolve();
     } catch (error) {
@@ -1820,7 +1829,7 @@ export class DiagramService {
   }
   // Guarda el estado actual del diagrama en localStorage y agenda el respaldo remoto
   private persist() {
-    if (!this.graph) return;
+    if (!this.graph || this.readOnly) return;
     // graph.on('add remove change', ...) dispara persist() en CUALQUIER mutación
     // del grafo (carga inicial, edición interactiva de multiplicidad, sync remoto,
     // deshacer una relación, etc.), así que es el único punto que garantiza cubrir
@@ -2054,7 +2063,7 @@ export class DiagramService {
   // Agenda un guardado remoto con debounce para no saturar al backend
   // en cada evento de arrastre/edición.
   private scheduleBackendBackup(): void {
-    if (!this.roomId) return;
+    if (!this.roomId || this.readOnly) return;
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
     this.autosaveTimer = setTimeout(() => {
       this.autosaveTimer = null;
@@ -2064,7 +2073,7 @@ export class DiagramService {
 
   // Envía el snapshot actual al backend de inmediato (sin esperar el debounce).
   private sendBackupNow(): void {
-    if (!this.roomId) return;
+    if (!this.roomId || this.readOnly) return;
     const snapshot = this.exportToJson();
     if (!snapshot) return;
     this.backup.setBackupUml(this.roomId, snapshot).subscribe({
@@ -2088,7 +2097,7 @@ export class DiagramService {
       clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
     }
-    if (roomId) {
+    if (roomId && !this.readOnly) {
       const snapshot = this.exportToJson();
       if (snapshot) {
         this.backup.setBackupUml(roomId, snapshot).subscribe({
@@ -2102,8 +2111,42 @@ export class DiagramService {
     // petición fallida dejaban la conexión WebSocket abierta indefinidamente,
     // generando usuarios fantasma al reingresar a la sala.
     this.collab.closeSocketRTC();
-    this.graph?.clear();
+    // Quien solo observa no vacía el grafo: la página se destruye y no hay
+    // nada que sincronizar ni validar.
+    if (!this.readOnly) this.graph?.clear();
     this.selectedCell = null;
+  }
+
+  /**
+   * Vista de seguimiento: llama a `callback` cada vez que el diagrama cambia
+   * (clases o relaciones que se agregan, quitan o modifican).
+   */
+  watchGraph(callback: () => void): void {
+    this.graph?.on('add remove change', callback);
+  }
+
+  /**
+   * Vista de seguimiento: ajusta el zoom al ancho de `container` y deja el
+   * alto justo para que la página se desplace en vertical.
+   */
+  fitToViewport(container: HTMLElement): void {
+    if (!this.paper || !this.graph) return;
+    const padding = 16;
+    const width = Math.max(container.clientWidth, 200);
+    const bbox = this.graph.getBBox();
+
+    if (!bbox || !bbox.width || !bbox.height) {
+      this.paper.setDimensions(width, Math.max(container.clientHeight, 200));
+      this.paper.scale(1, 1);
+      this.paper.translate(0, 0);
+      return;
+    }
+
+    const scale = Math.min(1, (width - 2 * padding) / bbox.width);
+    const height = Math.max(container.clientHeight, bbox.height * scale + 2 * padding);
+    this.paper.setDimensions(width, height);
+    this.paper.scale(scale, scale);
+    this.paper.translate(padding - bbox.x * scale, padding - bbox.y * scale);
   }
 
   closeDiagram(roomId: string) {

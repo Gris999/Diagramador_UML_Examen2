@@ -356,11 +356,14 @@ class IaChatApiTests(APITestCase):
             {"text": "Cliente no tiene clave primaria", "prompt": "agrega el atributo id: int a Cliente"},
         )
 
-        group, message = self.layer.sent[0]
-        self.assertEqual(group, f"canvas_{self.room}")
-        self.assertEqual(message["type"], "activity")
-        self.assertEqual(message["event"]["id"], event.id)
-        self.assertEqual(message["event"]["actor_kind"], "ia")
+        self.assertEqual(
+            [group for group, _ in self.layer.sent],
+            [f"canvas_{self.room}", f"canvas_{self.room}_viewers"],
+        )
+        for _, message in self.layer.sent:
+            self.assertEqual(message["type"], "activity")
+            self.assertEqual(message["event"]["id"], event.id)
+            self.assertEqual(message["event"]["actor_kind"], "ia")
 
     def test_review_accepts_an_answer_wrapped_in_a_markdown_fence(self):
         self.provider.reply = "```json\n" + self.review_reply([{"texto": "Falta una clave", "pedido": "agrega id"}]) + "\n```"
