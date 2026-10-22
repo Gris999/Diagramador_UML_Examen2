@@ -183,18 +183,38 @@ describe('CollaborationService IA signals', () => {
     expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'delete', id: 'c3' });
   });
 
-  it('shares the IA status with the room and shows the remote one without needing a graph', () => {
-    service.setIaStatus('thinking', 'Ana');
+  it('announces each request to the room with its own id and clears only that one', () => {
+    const first = service.startIaRequest('Ana');
     expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Ana' });
-    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'ia_status', state: 'thinking', by: 'Ana' });
+    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'ia_status', state: 'thinking', by: 'Ana', requestId: first });
 
-    p2p.onData('peer-2', { t: 'ia_status', state: 'idle', by: '' });
+    service.finishIaRequest(first);
 
+    expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
+    expect(p2p.sendToAll).toHaveBeenCalledWith({ t: 'ia_status', state: 'idle', by: '', requestId: first });
+  });
+
+  it('keeps the IA busy until the last concurrent request finishes', () => {
+    p2p.onData('peer-1', { t: 'ia_status', state: 'thinking', by: 'Ana', requestId: 'a' });
+    p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto', requestId: 'b' });
+
+    p2p.onData('peer-2', { t: 'ia_status', state: 'idle', by: '', requestId: 'b' });
+    expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Ana' });
+
+    p2p.onData('peer-1', { t: 'ia_status', state: 'idle', by: '', requestId: 'a' });
     expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
   });
 
-  it('clears a thinking status by itself if the requester never reports back', () => {
-    p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto' });
+  it('understands status messages from older clients that carry no request id', () => {
+    p2p.onData('peer-1', { t: 'ia_status', state: 'thinking', by: 'Ana' });
+    expect(service.iaStatus().state).toBe('thinking');
+
+    p2p.onData('peer-1', { t: 'ia_status', state: 'idle', by: 'Ana' });
+    expect(service.iaStatus().state).toBe('idle');
+  });
+
+  it('clears a thinking request by itself if the requester never reports back', () => {
+    p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto', requestId: 'x' });
     expect(service.iaStatus().state).toBe('thinking');
 
     jasmine.clock().tick(90_001);
@@ -202,14 +222,18 @@ describe('CollaborationService IA signals', () => {
     expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
   });
 
-  it('tracks applied suggestions locally and from other participants', () => {
-    service.markSuggestionApplied(7, 0);
-    p2p.onData('peer-2', { t: 'ia_suggestion_applied', eventId: 7, index: 2 });
+  it('forgets the previous room status when the connection closes', () => {
+    p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto', requestId: 'x' });
 
-    expect(service.appliedSuggestions().has('7:0')).toBeTrue();
-    expect(service.appliedSuggestions().has('7:2')).toBeTrue();
-    expect(service.appliedSuggestions().has('7:1')).toBeFalse();
-    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'ia_suggestion_applied', eventId: 7, index: 0 });
+    service.closeSocketRTC();
+
+    expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
+  });
+
+  it('ignores the old ephemeral "suggestion applied" message: applied state now lives on the server', () => {
+    p2p.onData('peer-2', { t: 'ia_suggestion_applied', eventId: 7, index: 0 });
+
+    expect(service.iaStatus().state).toBe('idle');
   });
 });
 

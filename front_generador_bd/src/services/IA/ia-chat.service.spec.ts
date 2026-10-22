@@ -92,4 +92,18 @@ describe('IaChatService', () => {
 
     expect(info).toEqual({ provider: 'gemini', label: 'IA en la nube (Gemini)' });
   });
+
+  it('claims a suggestion with the participant token and releases it with DELETE', () => {
+    service.claimSuggestion('sala 1', 7, 2).subscribe();
+    const claim = http.expectOne(`${base}activity/7/apply/2/`);
+    expect(claim.request.method).toBe('POST');
+    expect(claim.request.headers.get('X-Participant-Token')).toBe(token);
+    claim.flush({});
+
+    service.releaseSuggestion('sala 1', 7, 2).subscribe();
+    const release = http.expectOne(`${base}activity/7/apply/2/`);
+    expect(release.request.method).toBe('DELETE');
+    expect(release.request.headers.get('X-Participant-Token')).toBe(token);
+    release.flush({});
+  });
 });

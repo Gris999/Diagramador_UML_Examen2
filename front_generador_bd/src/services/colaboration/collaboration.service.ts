@@ -18,8 +18,7 @@ type Op =
   | { t: 'delete'; id: string }
   | { t: 'request_full_state' }
   | { t: 'full_state'; payload: any }
-  | { t: 'ia_status'; state: 'thinking' | 'idle'; by: string }
-  | { t: 'ia_suggestion_applied'; eventId: number; index: number };
+  | { t: 'ia_status'; state: 'thinking' | 'idle'; by: string; requestId?: string };
 
 export type IaStatus = { state: 'thinking' | 'idle'; by: string };
 
@@ -33,12 +32,12 @@ export class CollaborationService {
   private ready = false;
   private viaIa = false;
   private viewer = false;
-  private iaThinkingTimer?: ReturnType<typeof setTimeout>;
+  // Pedidos en curso a la IA (cada uno con su identificador): la IA solo vuelve a
+  // "disponible" cuando termina el último, aunque dos personas pregunten a la vez.
+  private readonly activeIaRequests = new Map<string, { by: string; timer: ReturnType<typeof setTimeout> }>();
 
   /** Estado de la IA en la sala: quién le pidió algo y si está trabajando. */
   readonly iaStatus = signal<IaStatus>({ state: 'idle', by: '' });
-  /** Ideas de la IA ya aplicadas por alguien (`eventId:índice`), compartido en vivo. */
-  readonly appliedSuggestions = signal<ReadonlySet<string>>(new Set());
   constructor(
     private p2p: P2PService,
     private backup: BackupService
@@ -97,46 +96,59 @@ export class CollaborationService {
     }
   }
 
-  setIaStatus(state: IaStatus['state'], by: string): void {
-    this.applyIaStatus({ state, by });
-    this.broadcast({ t: 'ia_status', state, by });
+  /** La IA empieza a trabajar para `by`; devuelve el identificador del pedido. */
+  startIaRequest(by: string): string {
+    const requestId = crypto.randomUUID();
+    this.trackIaRequest(requestId, by);
+    this.broadcast({ t: 'ia_status', state: 'thinking', by, requestId });
+    return requestId;
   }
 
-  markSuggestionApplied(eventId: number, index: number): void {
-    this.addAppliedSuggestion(eventId, index);
-    this.broadcast({ t: 'ia_suggestion_applied', eventId, index });
+  finishIaRequest(requestId: string): void {
+    this.untrackIaRequest(requestId);
+    this.broadcast({ t: 'ia_status', state: 'idle', by: '', requestId });
   }
 
   private handleIaSignal(op: Op): boolean {
-    if (op?.t === 'ia_status') {
-      this.applyIaStatus({ state: op.state === 'thinking' ? 'thinking' : 'idle', by: String(op.by ?? '') });
-      return true;
+    if (op?.t !== 'ia_status') return false;
+    // Los clientes viejos no mandan identificador: se agrupa por persona.
+    const requestId = typeof op.requestId === 'string' ? op.requestId : `legacy:${String(op.by ?? '')}`;
+    if (op.state === 'thinking') {
+      this.trackIaRequest(requestId, String(op.by ?? ''));
+    } else {
+      this.untrackIaRequest(requestId);
     }
-    if (op?.t === 'ia_suggestion_applied') {
-      this.addAppliedSuggestion(op.eventId, op.index);
-      return true;
-    }
-    return false;
+    return true;
   }
 
-  private applyIaStatus(status: IaStatus): void {
-    clearTimeout(this.iaThinkingTimer);
-    this.iaStatus.set(status);
-    if (status.state === 'thinking') {
-      this.iaThinkingTimer = setTimeout(
-        () => this.iaStatus.set({ state: 'idle', by: '' }),
-        IA_THINKING_TIMEOUT_MS
-      );
-    }
+  private trackIaRequest(requestId: string, by: string): void {
+    const previous = this.activeIaRequests.get(requestId);
+    if (previous) clearTimeout(previous.timer);
+    // Si quien pidió se desconecta, el pedido no puede quedar "pensando" para siempre.
+    const timer = setTimeout(() => this.untrackIaRequest(requestId), IA_THINKING_TIMEOUT_MS);
+    this.activeIaRequests.set(requestId, { by, timer });
+    this.publishIaStatus();
   }
 
-  private addAppliedSuggestion(eventId: number, index: number): void {
-    this.appliedSuggestions.update(current => new Set(current).add(`${eventId}:${index}`));
+  private untrackIaRequest(requestId: string): void {
+    const request = this.activeIaRequests.get(requestId);
+    if (request) clearTimeout(request.timer);
+    this.activeIaRequests.delete(requestId);
+    this.publishIaStatus();
+  }
+
+  private publishIaStatus(): void {
+    const first = this.activeIaRequests.values().next();
+    this.iaStatus.set(first.done ? { state: 'idle', by: '' } : { state: 'thinking', by: first.value.by });
   }
 
   closeSocketRTC() {
     this.p2p.closeSocketRTC();
     this.ready = false;
+    // Al salir de la sala no debe quedar el estado de la anterior.
+    this.activeIaRequests.forEach(request => clearTimeout(request.timer));
+    this.activeIaRequests.clear();
+    this.publishIaStatus();
   }
 
   private applyRemoteOp(op: Op) {

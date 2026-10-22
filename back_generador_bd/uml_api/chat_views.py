@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -13,6 +14,7 @@ from collab.activity import serialize_activity_event
 from collab.groups import room_group_name, viewers_group_name
 from collab.models import ActivityEvent, ChatMessage, Participant
 from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider
+from .services.change_guard import count_destructive, validate_changes
 from .services.ia_context import (
     MAX_EVENTS,
     MAX_HISTORY,
@@ -27,6 +29,10 @@ logger = logging.getLogger(__name__)
 SUPPORTED_MODES = {"ask", "change", "review"}
 DEFAULT_REVIEW_MESSAGE = "Revisa el diagrama"
 MAX_REQUESTS_PER_MINUTE = 12
+# Topes de coste compartidos: un mismo participante, toda una sala y todo el
+# servicio. Los dos últimos no dependen de identificadores que el cliente elige.
+MAX_ROOM_REQUESTS_PER_MINUTE = 30
+MAX_GLOBAL_REQUESTS_PER_MINUTE = 60
 
 
 def _participant_for(request, room):
@@ -68,20 +74,22 @@ def _ia_unavailable():
 
 
 def _store_exchange(room, participant, mode, message, reply):
-    ChatMessage.objects.create(
-        room=room,
-        participant=participant,
-        role=ChatMessage.ROLE_USER,
-        mode=mode,
-        content=message,
-    )
-    ChatMessage.objects.create(
-        room=room,
-        participant=participant,
-        role=ChatMessage.ROLE_IA,
-        mode=mode,
-        content=reply,
-    )
+    """Guarda pregunta y respuesta juntas: o quedan las dos o ninguna."""
+    with transaction.atomic():
+        ChatMessage.objects.create(
+            room=room,
+            participant=participant,
+            role=ChatMessage.ROLE_USER,
+            mode=mode,
+            content=message,
+        )
+        ChatMessage.objects.create(
+            room=room,
+            participant=participant,
+            role=ChatMessage.ROLE_IA,
+            mode=mode,
+            content=reply,
+        )
 
 
 def _publish_activity(room, event):
@@ -116,9 +124,15 @@ def _answer(provider, room, participant, body, message):
 
 def _change(provider, room, participant, body, message):
     changes = provider.change(message, body.get("uml"))
+    validate_changes(changes)
     reply = "Listo, apliqué el cambio en el diagrama."
     _store_exchange(room, participant, "change", message, reply)
-    return Response({"reply": reply, "changes": changes})
+    return Response({
+        "reply": reply,
+        "changes": changes,
+        # La interfaz pide confirmación antes de aplicar un cambio que elimina cosas.
+        "destructive": count_destructive(changes),
+    })
 
 
 def _review(provider, room, participant, body, message):
@@ -128,7 +142,6 @@ def _review(provider, room, participant, body, message):
     lines = [result["summary"]] if result["summary"] else []
     lines += [f"{number}. {finding['text']}" for number, finding in enumerate(findings, 1)]
     reply = "\n".join(lines) or "No encontré observaciones importantes."
-    _store_exchange(room, participant, "review", message, reply)
 
     if not findings:
         count = "sin observaciones"
@@ -136,15 +149,19 @@ def _review(provider, room, participant, body, message):
         count = "1 observación"
     else:
         count = f"{len(findings)} observaciones"
-    event = ActivityEvent.objects.create(
-        room=room,
-        actor=participant,
-        actor_name="IA",
-        actor_kind="ia",
-        type="ia_review",
-        summary=f"revisó el diagrama a pedido de {participant.display_name}: {count}"[:255],
-        data={"findings": findings, "requested_by": participant.display_name},
-    )
+
+    # La conversación y el evento público se guardan juntos.
+    with transaction.atomic():
+        _store_exchange(room, participant, "review", message, reply)
+        event = ActivityEvent.objects.create(
+            room=room,
+            actor=participant,
+            actor_name="IA",
+            actor_kind="ia",
+            type="ia_review",
+            summary=f"revisó el diagrama a pedido de {participant.display_name}: {count}"[:255],
+            data={"findings": findings, "requested_by": participant.display_name},
+        )
     _publish_activity(room, event)
 
     suggestions = [
@@ -179,12 +196,15 @@ def ia_chat(request, room):
             f"El mensaje no puede superar {MAX_MESSAGE_CHARS} caracteres."
         )
 
-    recent_requests = ChatMessage.objects.filter(
-        participant=participant,
+    last_minute = ChatMessage.objects.filter(
         role=ChatMessage.ROLE_USER,
         created_at__gte=timezone.now() - timedelta(minutes=1),
-    ).count()
-    if recent_requests >= MAX_REQUESTS_PER_MINUTE:
+    )
+    if (
+        last_minute.filter(participant=participant).count() >= MAX_REQUESTS_PER_MINUTE
+        or last_minute.filter(room=room).count() >= MAX_ROOM_REQUESTS_PER_MINUTE
+        or last_minute.count() >= MAX_GLOBAL_REQUESTS_PER_MINUTE
+    ):
         return Response(
             {"error": "Demasiadas preguntas seguidas. Espera un momento."},
             status=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -224,3 +244,65 @@ def chat_history(request, room):
 @api_view(["GET"])
 def ia_provider_info(request):
     return Response(describe_ai_provider())
+
+
+def _reviewable_event(room, event_id, index):
+    """Evento de revisión de esa sala con una idea aplicable en `index`, o None."""
+    event = ActivityEvent.objects.select_for_update().filter(
+        id=event_id, room=room, type="ia_review"
+    ).first()
+    if event is None:
+        return None
+    findings = event.data.get("findings") if isinstance(event.data, dict) else None
+    if (
+        not isinstance(findings, list)
+        or not 0 <= index < len(findings)
+        or not isinstance(findings[index], dict)
+        or not findings[index].get("prompt")
+    ):
+        return None
+    return event
+
+
+@api_view(["POST", "DELETE"])
+def claim_suggestion(request, room, event_id, index):
+    """Reserva una idea de la IA para quien la va a aplicar (POST) o la libera (DELETE).
+
+    La reserva es atómica y queda guardada: dos personas no pueden aplicar la
+    misma idea a la vez, y tras recargar la página sigue marcada como aplicada.
+    """
+    participant = _participant_for(request, room)
+    if participant is None:
+        return _forbidden()
+
+    with transaction.atomic():
+        event = _reviewable_event(room, event_id, index)
+        if event is None:
+            return Response({"error": "Idea no encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+        applied = [a for a in event.data.get("applied", []) if isinstance(a, dict)]
+        existing = next((a for a in applied if a.get("index") == index), None)
+
+        if request.method == "POST":
+            if existing is not None:
+                return Response(
+                    {"error": "Otra persona ya aplicó esta idea."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            applied.append({
+                "index": index,
+                "by": participant.display_name,
+                "by_id": participant.id,
+            })
+        else:
+            if existing is None:
+                return Response({"event": serialize_activity_event(event)})
+            if existing.get("by_id") != participant.id:
+                return _forbidden()
+            applied = [a for a in applied if a.get("index") != index]
+
+        event.data = {**event.data, "applied": applied}
+        event.save(update_fields=["data"])
+
+    _publish_activity(room, event)
+    return Response({"event": serialize_activity_event(event)})

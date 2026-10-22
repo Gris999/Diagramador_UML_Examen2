@@ -167,3 +167,24 @@ class ViewerModeTests(SimpleTestCase):
         )
         self.assertEqual(state["members"][0]["role"], "host")
         await second.disconnect()
+
+    async def test_a_viewer_cannot_flood_the_room_with_full_state_requests(self):
+        viewer, _ = await self.connect(viewer=True)
+        editor, _ = await self.connect()
+        await self.receive_until(editor, lambda m: m.get("action") == "state")
+
+        for _ in range(6):
+            await viewer.send_json_to({
+                "type": "broadcast",
+                "payload": {"t": "request_full_state"},
+            })
+
+        received = 0
+        while not await editor.receive_nothing(timeout=0.3):
+            message = await editor.receive_json_from(timeout=1)
+            if message.get("type") == "broadcast":
+                received += 1
+        self.assertEqual(received, 1)
+        await viewer.disconnect()
+        await editor.disconnect()
+

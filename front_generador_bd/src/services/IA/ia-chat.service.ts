@@ -26,6 +26,10 @@ export type IaChatResponse = {
   changes?: unknown;
   /** Solo en modo `review`: ideas que cualquiera de la sala puede aplicar. */
   suggestions?: IaSuggestion[];
+  /** Solo en modo `change`: cuántos elementos elimina el cambio (pide confirmación si > 0). */
+  destructive?: number;
+  /** El usuario no confirmó un cambio destructivo: no se aplicó nada. */
+  cancelled?: boolean;
 };
 
 /**
@@ -58,6 +62,20 @@ export class IaChatService {
       { mode, message, uml },
       { headers: this.headers() }
     ).pipe(timeout(IA_REQUEST_TIMEOUT_MS));
+  }
+
+  /** Reserva una idea de la IA para quien la va a aplicar (409 si otra persona ya la tomó). */
+  claimSuggestion(roomId: string, eventId: number, index: number): Observable<unknown> {
+    return this.http.post(this.suggestionUrl(roomId, eventId, index), {}, { headers: this.headers() });
+  }
+
+  /** Libera una idea reservada cuando el cambio no llegó a aplicarse. */
+  releaseSuggestion(roomId: string, eventId: number, index: number): Observable<unknown> {
+    return this.http.delete(this.suggestionUrl(roomId, eventId, index), { headers: this.headers() });
+  }
+
+  private suggestionUrl(roomId: string, eventId: number, index: number): string {
+    return `${this.baseUrl(roomId)}activity/${eventId}/apply/${index}/`;
   }
 
   private baseUrl(roomId: string): string {

@@ -28,6 +28,12 @@ class CanvasConsumer(AsyncWebsocketConsumer):
     activity_data_limit = 8192
     activity_rate_limit = 60
     activity_rate_window = 10
+    # Un observador puede pedir el estado completo, pero cada pedido hace que
+    # todos los editores respondan: se limita para que no sirva de amplificador.
+    viewer_state_request_interval = 2
+    # Cada `hello` con un token nuevo crea un participante: una conexión no
+    # puede fabricar identidades sin fin.
+    max_identity_changes = 5
 
     async def connect(self):
         print("[CanvasConsumer.connect] scope:", self.scope)
@@ -52,6 +58,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         self.display_name = None
         self._edit_activity_times = {}
         self._identity = None
+        self._identity_changes = 0
         self._activity_window_start = time.monotonic()
         self._activity_window_count = 0
 
@@ -183,6 +190,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         # Los observadores van en un grupo aparte: no entran al orden que define
         # al host, no figuran en la presencia y no pueden expulsar ni ser
         # expulsados. Solo reciben lo que ocurre en la sala.
+        self._last_state_request = None
         await self.channel_layer.group_add(self.viewers_group_name, self.channel_name)
         await self.accept()
         await self.send(text_data=json.dumps({
@@ -199,6 +207,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             data.get("type") == "broadcast"
             and isinstance(payload, dict)
             and payload.get("t") == "request_full_state"
+            and self._allow_viewer_state_request()
         ):
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -208,6 +217,14 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                     "payload": {"t": "request_full_state"},
                 },
             )
+
+    def _allow_viewer_state_request(self):
+        now = time.monotonic()
+        last = self._last_state_request
+        if last is not None and now - last < self.viewer_state_request_interval:
+            return False
+        self._last_state_request = now
+        return True
 
     async def _send_to_room(self, message):
         await self.channel_layer.group_send(self.room_group_name, message)
@@ -250,6 +267,9 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         # y reemitir la presencia a toda la sala.
         if self._identity == (token, name):
             return
+        if self._identity_changes >= self.max_identity_changes:
+            return
+        self._identity_changes += 1
         self._identity = (token, name)
 
         self.display_name = name

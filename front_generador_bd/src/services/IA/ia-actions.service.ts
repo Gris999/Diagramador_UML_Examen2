@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { map, Observable, tap } from 'rxjs';
+import { catchError, finalize, map, Observable, switchMap, tap, throwError } from 'rxjs';
 import { CollaborationService } from '../colaboration/collaboration.service';
 import { IdentityService } from '../colaboration/identity.service';
 import { DiagramService } from '../diagram/diagram.service';
@@ -19,26 +19,60 @@ export class IaActionsService {
   private readonly identity = inject(IdentityService);
 
   request(roomId: string, mode: IaChatMode, message: string): Observable<IaChatResponse> {
-    const requester = this.identity.getIdentity().name;
-    this.collab.setIaStatus('thinking', requester);
+    const requestId = this.collab.startIaRequest(this.identity.getIdentity().name);
 
     return this.chat.send(roomId, mode, message, this.diagram.exportToJson()).pipe(
-      tap({
-        next: response => {
-          if (mode === 'change' && response.changes) this.applyChanges(response.changes);
-        },
-        // Se avisa a la sala que la IA terminó, haya salido bien o mal.
-        error: () => this.collab.setIaStatus('idle', ''),
-        complete: () => this.collab.setIaStatus('idle', '')
-      })
+      map(response => {
+        if (mode !== 'change' || !response.changes) return response;
+        // El modelo lee el diagrama, que puede traer texto malicioso: antes de
+        // aplicar un cambio que elimina cosas se le pide confirmación a la persona.
+        const deletions = response.destructive ?? 0;
+        if (deletions > 0 && !this.confirmDeletions(deletions)) {
+          return {
+            ...response,
+            changes: undefined,
+            cancelled: true,
+            reply: 'Cancelaste el cambio: no se modificó el diagrama.'
+          };
+        }
+        this.applyChanges(response.changes);
+        return response;
+      }),
+      // Se avisa a la sala que la IA terminó, haya salido bien o mal.
+      finalize(() => this.collab.finishIaRequest(requestId))
     );
   }
 
-  /** Aplica una idea de la IA (a nombre de quien la aplica) y la marca como aplicada. */
+  /**
+   * Aplica una idea de la IA a nombre de quien la aplica. Primero la reserva en
+   * el servidor (así nadie más la aplica a la vez y queda marcada para todos);
+   * si el cambio no llega a aplicarse, la libera.
+   */
   applySuggestion(roomId: string, eventId: number, index: number, prompt: string): Observable<string> {
-    return this.request(roomId, 'change', prompt).pipe(
-      tap(() => this.collab.markSuggestionApplied(eventId, index)),
+    return this.chat.claimSuggestion(roomId, eventId, index).pipe(
+      switchMap(() =>
+        this.request(roomId, 'change', prompt).pipe(
+          tap(response => {
+            if (response.cancelled) this.release(roomId, eventId, index);
+          }),
+          catchError(error => {
+            this.release(roomId, eventId, index);
+            return throwError(() => error);
+          })
+        )
+      ),
       map(response => response.reply)
+    );
+  }
+
+  private release(roomId: string, eventId: number, index: number): void {
+    this.chat.releaseSuggestion(roomId, eventId, index).subscribe({ error: () => undefined });
+  }
+
+  private confirmDeletions(count: number): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.confirm(
+      `La IA quiere eliminar ${count} elemento${count === 1 ? '' : 's'} del diagrama. ¿Aplicar el cambio?`
     );
   }
 
