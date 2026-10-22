@@ -98,8 +98,17 @@ def restaurar(cambios: dict, alias: dict, uml_real: dict) -> dict:
     """Vuelve a los ids reales y recupera lo que el modelo no vio."""
     resultado = copy.deepcopy(cambios)
     reales = {c.get("id"): c for c in _lista(uml_real.get("classes") if isinstance(uml_real, dict) else None)}
+    # Nombre de cada clase existente -> su id corto. Un modelo pequeño a veces devuelve el id de otra
+    # clase con el nombre correcto; aplicado tal cual, renombraría y vaciaría la clase equivocada.
+    corto_por_nombre = {}
+    for corto, real in alias.items():
+        if corto.startswith("c") and real in reales and isinstance(reales[real].get("name"), str):
+            corto_por_nombre.setdefault(reales[real]["name"], corto)
 
     for clase in _lista(resultado.get("classes")):
+        nombre = clase.get("name")
+        if isinstance(nombre, str) and nombre in corto_por_nombre and clase.get("id") != corto_por_nombre[nombre]:
+            clase["id"] = corto_por_nombre[nombre]  # si el nombre es el de una clase que existe, manda el nombre
         real = alias.get(clase.get("id"))
         if real is None:
             continue

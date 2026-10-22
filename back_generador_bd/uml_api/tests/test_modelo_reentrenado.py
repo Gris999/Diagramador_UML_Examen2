@@ -121,6 +121,24 @@ class CompactarYRestaurarTests(SimpleTestCase):
 
         self.assertEqual(clase["attributes"], [{"name": "total", "type": "decimal"}])
 
+    def test_the_name_of_an_existing_class_wins_over_a_wrong_id(self):
+        # Caso real: el modelo devolvió «Pedido» con el id de Cliente; sin corregirlo, se renombraría Cliente.
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Pedido", "attributes": [{"name": "total", "type": "decimal"}]}]}
+
+        clase = modelo.restaurar(cambios, alias, REAL)["classes"][0]
+
+        self.assertEqual(clase["id"], REAL["classes"][1]["id"])
+        self.assertEqual(clase["name"], "Pedido")
+
+    def test_renaming_a_class_keeps_its_id_because_the_new_name_does_not_exist_yet(self):
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Zona", "attributes": [], "methods": []}]}
+
+        clase = modelo.restaurar(cambios, alias, REAL)["classes"][0]
+
+        self.assertEqual(clase["id"], REAL["classes"][0]["id"])
+
     def test_new_classes_keep_their_own_ids_and_the_input_is_not_modified(self):
         _, alias = modelo.compactar(REAL)
         cambios = {"classes": [{"id": "c9", "name": "Factura", "attributes": [], "methods": []}], "relationships": []}
@@ -137,7 +155,7 @@ class CompactarYRestaurarTests(SimpleTestCase):
 
 class OllamaConModeloReentrenadoTests(SimpleTestCase):
     def provider(self):
-        return OllamaProvider(base_url="http://ollama.local:11434", model="qwen3.5:9b", change_model="uml-qwen-dia2")
+        return OllamaProvider(base_url="http://ollama.local:11434", model="qwen3.5:9b", change_model="uml-qwen-dia3")
 
     def respuesta(self, contenido):
         resp = mock.Mock()
@@ -152,7 +170,7 @@ class OllamaConModeloReentrenadoTests(SimpleTestCase):
         url = post.call_args.args[0]
         cuerpo = post.call_args.kwargs["json"]
         self.assertTrue(url.endswith("/api/chat"))
-        self.assertEqual(cuerpo["model"], "uml-qwen-dia2")
+        self.assertEqual(cuerpo["model"], "uml-qwen-dia3")
         self.assertIs(cuerpo["think"], False)
         self.assertEqual(cuerpo["messages"][0]["content"], modelo.SISTEMA)
         self.assertIn("PEDIDO: Elimina la clase Cliente", cuerpo["messages"][1]["content"])
@@ -191,12 +209,12 @@ class OllamaConModeloReentrenadoTests(SimpleTestCase):
     def test_any_provider_ignores_a_think_block_before_the_json(self):
         self.assertEqual(_parse_changes('<think>\n\n</think>\n\n{"classes": []}'), {"classes": []})
 
-    @override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="qwen3.5:9b", OLLAMA_CHANGE_MODEL="uml-qwen-dia2")
+    @override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="qwen3.5:9b", OLLAMA_CHANGE_MODEL="uml-qwen-dia3")
     def test_the_chat_label_says_which_model_makes_the_changes(self):
         etiqueta = describe_ai_provider()["label"]
 
         self.assertIn("qwen3.5:9b", etiqueta)
-        self.assertIn("uml-qwen-dia2", etiqueta)
+        self.assertIn("uml-qwen-dia3", etiqueta)
         self.assertIn("reentrenado", etiqueta)
 
     @override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="qwen3.5:9b", OLLAMA_CHANGE_MODEL="")
