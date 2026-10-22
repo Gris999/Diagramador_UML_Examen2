@@ -5,6 +5,7 @@
 set -euo pipefail
 MODELO="$1"; CORRIDA="$2"; ITERS="${3:-}"
 RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"
+DATOS="${DATOS:-ml/data/out}"
 cd "$RAIZ"
 mkdir -p "$CORRIDA"
 
@@ -15,15 +16,15 @@ mkdir -p "$CORRIDA"
   echo "modelo_base: $MODELO"
   echo "mlx_lm: $(ml/.venv/bin/python -c 'import mlx_lm; print(mlx_lm.__version__)')"
   echo "commit: $(git rev-parse --short HEAD)"
-  echo "datos_sha256: $(shasum -a 256 ml/data/out/train.jsonl | cut -d' ' -f1)"
+  echo "datos_sha256: $(shasum -a 256 "$DATOS/train.jsonl" | cut -d' ' -f1)"
 } > "$CORRIDA/equipo.txt"
 cp ml/train/config.yaml "$CORRIDA/config.yaml"
-cp ml/data/out/MANIFEST.json "$CORRIDA/MANIFEST.json"
+cp "$DATOS/MANIFEST.json" "$CORRIDA/MANIFEST.json"
 
 EXTRA=()
 if [ -n "$ITERS" ]; then EXTRA+=(--iters "$ITERS"); fi
 
-ml/.venv/bin/python -m mlx_lm lora -c ml/train/config.yaml --model "$MODELO" \
+ml/.venv/bin/python -m mlx_lm lora -c ml/train/config.yaml --model "$MODELO" --data "$DATOS" \
   --adapter-path "$CORRIDA/adapters" "${EXTRA[@]}" 2>&1 | tee "$CORRIDA/train.log"
 
 ml/.venv/bin/python ml/train/extraer_perdida.py "$CORRIDA/train.log" "$CORRIDA/loss.csv"

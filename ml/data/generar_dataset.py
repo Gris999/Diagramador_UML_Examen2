@@ -441,8 +441,9 @@ OPERACIONES = {
 }
 
 
-def generar(rng, cantidad, entidades, prueba):
-    nombres = sorted(OPERACIONES)
+def generar(rng, cantidad, entidades, prueba, pesos=None):
+    # Cada operación aparece tantas veces en el reparto como indique su peso (por defecto, 1).
+    nombres = [n for n in sorted(OPERACIONES) for _ in range((pesos or {}).get(n, 1))]
     ejemplos = []
     for indice in range(cantidad):
         operacion = nombres[indice % len(nombres)]  # reparto parejo entre operaciones
@@ -470,18 +471,29 @@ def main():
     parser.add_argument("--valid", type=int, default=150)
     parser.add_argument("--test", type=int, default=200)
     parser.add_argument("--semilla", type=int, default=42)
+    parser.add_argument("--pesos", default="", help='sobrerrepresenta operaciones: "agregar_metodo=4,renombrar_clase=2"')
+    parser.add_argument("--test-existente", help="carpeta de una corrida anterior: se reutiliza su conjunto de prueba tal cual")
     args = parser.parse_args()
+    pesos = {k: int(v) for k, v in (par.split("=") for par in args.pesos.split(",") if par)}
+    desconocidas = set(pesos) - set(OPERACIONES)
+    if desconocidas:
+        raise SystemExit(f"Operaciones desconocidas en --pesos: {sorted(desconocidas)}")
 
     salida = Path(args.salida)
     salida.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.semilla)
 
     conjuntos = {
-        "train": generar(rng, args.train, ENTIDADES, prueba=False),
+        "train": generar(rng, args.train, ENTIDADES, prueba=False, pesos=pesos),
         "valid": generar(rng, args.valid, ENTIDADES, prueba=False),
-        # La prueba mezcla entidades nuevas con las de entrenamiento, y solo usa redacciones reservadas.
-        "test": generar(rng, args.test, {**ENTIDADES, **ENTIDADES_PRUEBA}, prueba=True),
     }
+    if args.test_existente:
+        # Misma prueba que la corrida anterior: así los resultados de ambas son comparables.
+        conjuntos["test"] = [json.loads(linea) for linea in
+                             open(Path(args.test_existente) / "test_meta.jsonl", encoding="utf-8")]
+    else:
+        # La prueba mezcla entidades nuevas con las de entrenamiento, y solo usa redacciones reservadas.
+        conjuntos["test"] = generar(rng, args.test, {**ENTIDADES, **ENTIDADES_PRUEBA}, prueba=True)
 
     # Sin fugas: ningún pedido (con su diagrama) de la prueba aparece en entrenamiento.
     vistos = {(json.dumps(e["uml"], sort_keys=True), e["pedido"]) for n in ("train", "valid") for e in conjuntos[n]}
@@ -497,6 +509,8 @@ def main():
 
     manifiesto = {
         "semilla": args.semilla,
+        "pesos_por_operacion": pesos,
+        "prueba_reutilizada_de": args.test_existente,
         "conteos": {nombre: len(ejemplos) for nombre, ejemplos in conjuntos.items()},
         "operaciones": {nombre: dict(Counter(e["op"] for e in ejemplos)) for nombre, ejemplos in conjuntos.items()},
         "entidades_entrenamiento": sorted(ENTIDADES),
