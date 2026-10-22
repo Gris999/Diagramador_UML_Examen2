@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from collab.activity import serialize_activity_event
 from collab.groups import room_group_name, viewers_group_name
 from collab.models import ActivityEvent, ChatMessage, Participant
-from .services.ai_provider import AIProviderError, get_ai_provider
+from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider
 from .services.ia_context import (
     MAX_EVENTS,
     MAX_HISTORY,
@@ -219,3 +219,8 @@ def chat_history(request, room):
         ChatMessage.objects.filter(participant=participant).order_by("-id")[:limit]
     )[::-1]
     return Response({"messages": [serialize_chat_message(m) for m in messages]})
+
+
+@api_view(["GET"])
+def ia_provider_info(request):
+    return Response(describe_ai_provider())

@@ -45,6 +45,13 @@ export class IaChatService {
       .pipe(map(response => (Array.isArray(response?.messages) ? response.messages : [])));
   }
 
+  /** Qué IA responde (nube o modelo local), para mostrarlo en el chat. */
+  provider(): Observable<{ provider: string; label: string }> {
+    return this.http.get<{ provider: string; label: string }>(
+      `${environment.endpoint_python}api/ia/provider/`
+    );
+  }
+
   send(roomId: string, mode: IaChatMode, message: string, uml: unknown): Observable<IaChatResponse> {
     return this.http.post<IaChatResponse>(
       `${this.baseUrl(roomId)}ia/chat/`,

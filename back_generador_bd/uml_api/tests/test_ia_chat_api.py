@@ -456,6 +456,105 @@ class GeminiProviderTests(SimpleTestCase):
         self.assertIsNone(caught.exception.__cause__)
 
 
+class OllamaProviderTests(SimpleTestCase):
+    def provider(self):
+        from uml_api.services.ai_provider import OllamaProvider
+        return OllamaProvider(base_url="http://ollama.local:11434", model="qwen2.5:7b")
+
+    def fake_response(self, text):
+        response = mock.Mock()
+        response.json.return_value = {"response": text}
+        return response
+
+    def test_chat_sends_the_prompt_to_the_local_server_without_streaming(self):
+        with mock.patch(
+            "uml_api.services.ai_provider.requests.post",
+            return_value=self.fake_response("  Hola desde el modelo local  "),
+        ) as post:
+            reply = self.provider().chat("pregunta")
+
+        self.assertEqual(reply, "Hola desde el modelo local")
+        self.assertEqual(post.call_args.args[0], "http://ollama.local:11434/api/generate")
+        body = post.call_args.kwargs["json"]
+        self.assertEqual(body["model"], "qwen2.5:7b")
+        self.assertEqual(body["prompt"], "pregunta")
+        self.assertFalse(body["stream"])
+        self.assertIn("timeout", post.call_args.kwargs)
+
+    def test_change_asks_for_json_with_the_same_prompt_gemini_uses(self):
+        from uml_api.services.services_gemini import build_change_prompt
+
+        uml = {"classes": [], "relationships": []}
+        reply = '```json\n{"classes": [{"name": "Factura"}]}\n```'
+        with mock.patch(
+            "uml_api.services.ai_provider.requests.post",
+            return_value=self.fake_response(reply),
+        ) as post:
+            changes = self.provider().change("agrega la clase Factura", uml)
+
+        self.assertEqual(changes, {"classes": [{"name": "Factura"}]})
+        body = post.call_args.kwargs["json"]
+        self.assertEqual(body["prompt"], build_change_prompt("agrega la clase Factura", uml))
+        self.assertEqual(body["format"], "json")
+
+    def test_a_server_that_is_down_or_answers_garbage_is_an_ai_error(self):
+        import requests
+
+        provider = self.provider()
+        with mock.patch(
+            "uml_api.services.ai_provider.requests.post",
+            side_effect=requests.ConnectionError("no hay servidor"),
+        ):
+            with self.assertRaises(AIProviderError):
+                provider.chat("hola")
+        with mock.patch(
+            "uml_api.services.ai_provider.requests.post",
+            return_value=self.fake_response("esto no es json"),
+        ):
+            with self.assertRaises(AIProviderError):
+                provider.change("agrega X", None)
+        with mock.patch(
+            "uml_api.services.ai_provider.requests.post",
+            return_value=self.fake_response("   "),
+        ):
+            with self.assertRaises(AIProviderError):
+                provider.chat("hola")
+
+    def test_provider_selection_follows_the_settings(self):
+        from django.test import override_settings
+        from uml_api.services.ai_provider import GeminiProvider, OllamaProvider, get_ai_provider
+
+        with override_settings(AI_PROVIDER="ollama", OLLAMA_BASE_URL="http://x:1", OLLAMA_MODEL="m"):
+            provider = get_ai_provider()
+        self.assertIsInstance(provider, OllamaProvider)
+        self.assertEqual((provider.base_url, provider.model), ("http://x:1", "m"))
+        with override_settings(AI_PROVIDER="gemini"):
+            self.assertIsInstance(get_ai_provider(), GeminiProvider)
+        with override_settings(AI_PROVIDER="otro"):
+            with self.assertRaises(AIProviderError):
+                get_ai_provider()
+
+
+class ProviderInfoApiTests(APITestCase):
+    def test_reports_which_provider_answers_without_exposing_secrets(self):
+        from django.test import override_settings
+
+        with override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="qwen2.5:7b", GEMINI_API_KEY="secreto"):
+            response = self.client.get("/api/ia/provider/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"provider": "ollama", "label": "IA local (qwen2.5:7b)"})
+        self.assertNotIn("secreto", str(response.data))
+
+    def test_gemini_is_reported_as_cloud(self):
+        from django.test import override_settings
+
+        with override_settings(AI_PROVIDER="gemini"):
+            response = self.client.get("/api/ia/provider/")
+
+        self.assertEqual(response.data, {"provider": "gemini", "label": "IA en la nube (Gemini)"})
+
+
 class SummarizeUmlTests(SimpleTestCase):
     def test_summarizes_classes_and_relationships_by_name(self):
         summary = summarize_uml({

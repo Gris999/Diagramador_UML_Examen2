@@ -24,6 +24,13 @@ environ.Env.read_env(str(BASE_DIR / ".env"))
 GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
 GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 
+# Proveedor de IA del chat de la sala: "gemini" (nube) u "ollama" (modelo local,
+# por ejemplo Qwen). Con ollama, OLLAMA_BASE_URL debe ser alcanzable desde el
+# contenedor de Django (en Docker Desktop: http://host.docker.internal:11434).
+AI_PROVIDER = env("AI_PROVIDER", default="gemini")
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
+OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen2.5:7b")
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/

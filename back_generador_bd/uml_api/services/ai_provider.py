@@ -9,13 +9,29 @@ diagrama.
 import json
 import re
 
+import requests
 from django.conf import settings
 
-from .services_gemini import _post_gemini, call_gemini
+from .services_gemini import _post_gemini, build_change_prompt, call_gemini
 
 
 class AIProviderError(Exception):
     """La IA no pudo responder (configuración, red o respuesta inválida)."""
+
+
+def _parse_changes(output) -> dict:
+    """Interpreta la respuesta de un cambio (JSON, con o sin cerco de Markdown)."""
+    try:
+        if isinstance(output, str):
+            output = re.sub(r"^```json\s*|\s*```$", "", output.strip(), flags=re.MULTILINE)
+        changes = json.loads(output)
+    except Exception as exc:
+        raise AIProviderError(
+            f"La IA no devolvió un cambio válido ({type(exc).__name__})."
+        ) from None
+    if not isinstance(changes, dict) or changes.get("error"):
+        raise AIProviderError("La IA no devolvió un cambio válido.")
+    return changes
 
 
 class AIProvider:
@@ -62,23 +78,71 @@ class GeminiProvider(AIProvider):
     def change(self, instruction: str, uml) -> dict:
         try:
             output = call_gemini(instruction, current_uml=uml)
-            if isinstance(output, str):
-                output = re.sub(
-                    r"^```json\s*|\s*```$", "", output.strip(), flags=re.MULTILINE
-                )
-            changes = json.loads(output)
         except Exception as exc:
             raise AIProviderError(
                 f"Gemini no devolvió un cambio válido ({type(exc).__name__})."
             ) from None
+        return _parse_changes(output)
 
-        if not isinstance(changes, dict) or changes.get("error"):
-            raise AIProviderError("Gemini no devolvió un cambio válido.")
-        return changes
+
+class OllamaProvider(AIProvider):
+    """Modelo local (p. ej. Qwen) servido por Ollama: la IA funciona sin internet.
+
+    Usa las mismas instrucciones que Gemini; un modelo pequeño puede fallar más
+    en el formato de los cambios, y entonces el cliente ve el error claro de
+    siempre y el diagrama no se toca.
+    """
+
+    request_timeout = 100
+
+    def __init__(self, base_url=None, model=None):
+        self.base_url = (
+            base_url or getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")
+        ).rstrip("/")
+        self.model = model or getattr(settings, "OLLAMA_MODEL", "qwen2.5:7b")
+
+    def _generate(self, prompt: str, json_format: bool = False) -> str:
+        body = {"model": self.model, "prompt": prompt, "stream": False}
+        if json_format:
+            body["format"] = "json"
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json=body,
+                timeout=self.request_timeout,
+            )
+            response.raise_for_status()
+            text = response.json()["response"]
+        except Exception as exc:
+            raise AIProviderError(
+                f"El modelo local no respondió ({type(exc).__name__})."
+            ) from None
+        if not isinstance(text, str) or not text.strip():
+            raise AIProviderError("El modelo local devolvió una respuesta vacía.")
+        return text.strip()
+
+    def chat(self, prompt: str) -> str:
+        return self._generate(prompt)
+
+    def change(self, instruction: str, uml) -> dict:
+        return _parse_changes(
+            self._generate(build_change_prompt(instruction, uml), json_format=True)
+        )
 
 
 def get_ai_provider() -> AIProvider:
     name = str(getattr(settings, "AI_PROVIDER", "gemini")).strip().lower()
     if name == "gemini":
         return GeminiProvider()
+    if name == "ollama":
+        return OllamaProvider()
     raise AIProviderError(f"Proveedor de IA desconocido: {name}")
+
+
+def describe_ai_provider() -> dict:
+    """Qué proveedor responde, para mostrarlo en la interfaz (sin datos sensibles)."""
+    name = str(getattr(settings, "AI_PROVIDER", "gemini")).strip().lower()
+    if name == "ollama":
+        model = getattr(settings, "OLLAMA_MODEL", "qwen2.5:7b")
+        return {"provider": "ollama", "label": f"IA local ({model})"}
+    return {"provider": "gemini", "label": "IA en la nube (Gemini)"}

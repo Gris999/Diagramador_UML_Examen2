@@ -10,6 +10,7 @@ import { IaChatPanel } from './ia-chat-panel';
 describe('IaChatPanel', () => {
   let fixture: ComponentFixture<IaChatPanel>;
   let history: jasmine.Spy<(room: string) => Observable<IaChatMessage[]>>;
+  let provider: jasmine.Spy<() => Observable<{ provider: string; label: string }>>;
   let request: jasmine.Spy<(room: string, mode: IaChatMode, message: string) => Observable<IaChatResponse>>;
 
   function element(selector: string): HTMLElement | null {
@@ -40,6 +41,7 @@ describe('IaChatPanel', () => {
 
   beforeEach(async () => {
     history = jasmine.createSpy('history').and.returnValue(of([]));
+    provider = jasmine.createSpy('provider').and.returnValue(of({ provider: 'ollama', label: 'IA local (qwen2.5:7b)' }));
     request = jasmine.createSpy('request').and.returnValue(of({ reply: 'Respuesta de la IA' }));
 
     await TestBed.configureTestingModule({
@@ -48,7 +50,7 @@ describe('IaChatPanel', () => {
         provideZonelessChangeDetection(),
         { provide: PLATFORM_ID, useValue: 'browser' },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'sala-1' } } } },
-        { provide: IaChatService, useValue: { history } },
+        { provide: IaChatService, useValue: { history, provider } },
         { provide: IaActionsService, useValue: { request } }
       ]
     }).compileComponents();
@@ -182,6 +184,21 @@ describe('IaChatPanel', () => {
     click('ia-mode-change');
     fixture.detectChanges();
     expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeTrue();
+  });
+
+  it('shows which AI answers (cloud or local model)', async () => {
+    await openChat();
+
+    expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA local (qwen2.5:7b)');
+  });
+
+  it('keeps working when the provider cannot be known', async () => {
+    provider.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+    await openChat();
+
+    expect(element('[data-testid="ia-provider"]')).toBeNull();
+    expect(element('[data-testid="ia-chat-input"]')).not.toBeNull();
   });
 
   it('keeps working when the history cannot be loaded', async () => {
