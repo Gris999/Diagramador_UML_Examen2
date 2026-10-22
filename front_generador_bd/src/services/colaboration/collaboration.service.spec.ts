@@ -1,4 +1,4 @@
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { CollaborationService } from './collaboration.service';
 
 describe('CollaborationService full-state readiness', () => {
@@ -40,6 +40,89 @@ describe('CollaborationService full-state readiness', () => {
     p2p.onReady();
 
     expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'request_full_state' });
+  });
+
+  describe('database backup fallback', () => {
+    let cells: any[];
+    let loadFromJson: jasmine.Spy;
+    let service: CollaborationService;
+
+    function start() {
+      cells = [];
+      loadFromJson = jasmine.createSpy('loadFromJson');
+      service = new CollaborationService(p2p, backup);
+      service.registerDiagramApi({
+        getGraph: () => ({ getCells: () => cells }),
+        getJoint: () => ({}),
+        createUmlClass: () => undefined,
+        loadFromJson,
+        exportToJson: () => ({ classes: [], relationships: [] })
+      });
+      service.init('room-1');
+    }
+
+    it('loads the backup locally, without broadcasting it, when nobody answers', () => {
+      const answer = new Subject<any>();
+      backup.getBackup.and.returnValue(answer);
+      start();
+
+      jasmine.clock().tick(3000);
+      answer.next({ classes: [{ id: 'c1' }] });
+
+      expect(backup.getBackup).toHaveBeenCalledOnceWith('room-1');
+      expect(loadFromJson).toHaveBeenCalledOnceWith({ classes: [{ id: 'c1' }] }, true, true);
+    });
+
+    it('ignores a backup that arrives after the room already sent its state', () => {
+      const answer = new Subject<any>();
+      backup.getBackup.and.returnValue(answer);
+      start();
+      jasmine.clock().tick(3000);
+
+      cells.push({ id: 'c-from-the-room' });
+      answer.next({ classes: [{ id: 'old' }] });
+
+      expect(loadFromJson).not.toHaveBeenCalled();
+    });
+
+    it('does not even ask for the backup when the room answered in time', () => {
+      start();
+      cells.push({ id: 'c1' });
+
+      jasmine.clock().tick(3000);
+
+      expect(backup.getBackup).not.toHaveBeenCalled();
+    });
+
+    it('drops a backup requested for a room that was already left', () => {
+      const answer = new Subject<any>();
+      backup.getBackup.and.returnValue(answer);
+      start();
+      jasmine.clock().tick(3000);
+
+      service.closeSocketRTC();
+      answer.next({ classes: [{ id: 'old' }] });
+
+      expect(loadFromJson).not.toHaveBeenCalled();
+    });
+
+    it('does not ask for a backup after leaving before the 3 seconds passed', () => {
+      start();
+
+      service.closeSocketRTC();
+      jasmine.clock().tick(5000);
+
+      expect(backup.getBackup).not.toHaveBeenCalled();
+    });
+
+    it('ignores a missing backup', () => {
+      backup.getBackup.and.returnValue(of(null));
+      start();
+
+      jasmine.clock().tick(3000);
+
+      expect(loadFromJson).not.toHaveBeenCalled();
+    });
   });
 
   it('does not request full state when local room state already exists', () => {
@@ -217,7 +300,11 @@ describe('CollaborationService IA signals', () => {
     p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto', requestId: 'x' });
     expect(service.iaStatus().state).toBe('thinking');
 
-    jasmine.clock().tick(90_001);
+    // Más que los 110 s que espera el navegador de quien pidió.
+    jasmine.clock().tick(120_000);
+    expect(service.iaStatus().state).toBe('thinking');
+
+    jasmine.clock().tick(10_001);
 
     expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
   });

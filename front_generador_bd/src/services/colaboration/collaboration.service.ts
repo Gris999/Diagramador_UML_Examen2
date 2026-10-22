@@ -23,13 +23,17 @@ type Op =
 export type IaStatus = { state: 'thinking' | 'idle'; by: string };
 
 // Si quien pidió algo a la IA se desconecta antes de terminar, los demás no
-// deben ver "pensando…" para siempre.
-const IA_THINKING_TIMEOUT_MS = 90_000;
+// deben ver "pensando…" para siempre. Es más que lo que espera el navegador de
+// quien pidió (110 s), para no apagarlo antes de que la IA pueda contestar.
+const IA_THINKING_TIMEOUT_MS = 130_000;
 
 @Injectable({ providedIn: 'root' })
 export class CollaborationService {
   private api?: DiagramApi;
   private ready = false;
+  // Cuenta las conexiones a salas: invalida el respaldo pedido para una sala que ya se dejó.
+  private session = 0;
+  private backupTimer?: ReturnType<typeof setTimeout>;
   private viaIa = false;
   private viewer = false;
   // Pedidos en curso a la IA (cada uno con su identificador): la IA solo vuelve a
@@ -65,17 +69,28 @@ export class CollaborationService {
     };
     this.p2p.init(roomId, this.viewer);
     this.ready = true;
-    setTimeout(() => {
-      if (!this.api?.getGraph()?.getCells()?.length) {
-        console.log('[Collab] Nadie respondió, cargo backup de BD...');
-        this.backup.getBackup(roomId).subscribe({
-          next: (snapshot) => {
-            if (snapshot) this.api!.loadFromJson(snapshot, true);
-          },
-          error: (err) => console.error('[Collab] Error obteniendo backup', err)
-        });
-      }
+    const session = ++this.session;
+    clearTimeout(this.backupTimer);
+    this.backupTimer = setTimeout(() => {
+      if (!this.isEmptyRoom(session)) return;
+      console.log('[Collab] Nadie respondió, cargo backup de BD...');
+      this.backup.getBackup(roomId).subscribe({
+        next: (snapshot) => {
+          // La respuesta puede llegar tarde: si mientras tanto la sala mandó su
+          // estado (o esta persona salió), el respaldo ya está viejo.
+          if (!snapshot || !this.isEmptyRoom(session)) return;
+          // Se carga solo aquí: difundirlo pisaría con un respaldo atrasado lo
+          // que tengan quienes sí están conectados.
+          this.api!.loadFromJson(snapshot, true, true);
+        },
+        error: (err) => console.error('[Collab] Error obteniendo backup', err)
+      });
     }, 3000);
+  }
+
+  /** La conexión de `session` sigue activa y el lienzo sigue vacío. */
+  private isEmptyRoom(session: number): boolean {
+    return session === this.session && !this.api?.getGraph()?.getCells()?.length;
   }
 
   broadcast(op: Op) {
@@ -145,6 +160,9 @@ export class CollaborationService {
   closeSocketRTC() {
     this.p2p.closeSocketRTC();
     this.ready = false;
+    // Un respaldo pedido para la sala que se deja no debe cargarse en la siguiente.
+    this.session++;
+    clearTimeout(this.backupTimer);
     // Al salir de la sala no debe quedar el estado de la anterior.
     this.activeIaRequests.forEach(request => clearTimeout(request.timer));
     this.activeIaRequests.clear();
