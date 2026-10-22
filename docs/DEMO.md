@@ -22,7 +22,13 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 ## 1. Primer parcial: el editor completo (4–5 min)
 
 1. **Crear la sala** (Ana). *"Cada sala tiene un código; quien lo conoce entra."* Mostrar el botón **Copiar código de sala**.
-2. **Edición manual.** Arrastrar dos clases (`Cliente`, `Pedido`), editar nombre, atributos y métodos con doble clic, unirlas con una **Asociación** y poner multiplicidad `*` en ambos extremos. *"Cuando una relación es muchos-a-muchos, el editor crea sola la entidad intermedia con su clave."* (Se ve la clase `Cliente_Pedido`.)
+2. **Edición manual.** Se hace así (ensayado el 2026-10-22):
+   - **Agregar clases:** arrastrar **Clase UML** de la paleta al lienzo (dos veces).
+   - **Renombrar:** doble clic sobre el **nombre** de la clase; aparece una cajita de texto con el nombre actual. **Seleccionar todo antes de escribir** (triple clic o Cmd+A); si no, el texto nuevo se agrega al final ("EntidadCliente"). Enter confirma. Lo mismo para atributos y métodos (doble clic en su zona).
+   - **Unir con una Asociación:** hacer clic en una clase (aparecen cuatro circulitos en sus bordes) y **arrastrar desde un circulito hasta la otra clase**. La paleta no es una herramienta de clic, es para arrastrar clases. La relación nace con multiplicidades `0..1` y `1`.
+   - **Multiplicidad:** doble clic sobre el `0..1` y sobre el `1`, reemplazar por `*` en ambos extremos.
+   - *"Cuando una relación es muchos-a-muchos, el editor crea sola la entidad intermedia con su clave."* (Se ve la clase `Cliente_Pedido`.)
+   - **Consejo:** hacer toda la edición manual **antes** de que entren los demás: el panel de Actividad crece con cada acción y empuja el lienzo hacia abajo (llega a un máximo y luego se desplaza solo).
 3. **UML desde texto.** En "Generar modelo": *"Agrega una clase Factura con total y fecha"*. Mostrar que no duplica ni mueve lo existente.
 4. **UML desde voz** *(opcional)*. Pulsar el micrófono y decir una instrucción corta.
 5. **UML desde imagen** *(opcional)*. Importaciones → imagen del diagrama → Reemplazar/Combinar.
