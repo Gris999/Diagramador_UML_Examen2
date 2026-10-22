@@ -28,6 +28,11 @@ La plataforma es una aplicación web con tres servicios y un conjunto de apoyos.
 - **Gemini (nube).** Proveedor por defecto: convierte texto, voz e imágenes en diagramas y atiende el chat de la sala.
 - **Ollama con Qwen (local).** Alternativa que corre en el computador, sin internet. Para esta entrega se reentrenó un modelo Qwen de 4 mil millones de parámetros con la técnica LoRA usando **MLX**, el marco de Apple para su silicio (capítulo 7 y Parte 2, implementación).
 
+## Modelado
+
+- **PlantUML y Graphviz.** Los diagramas de la Parte 2 se escriben como texto y se dibujan con la notación de UML 2.5.1 (casos de uso, comunicación, clases, paquetes, despliegue, secuencia, componentes). Se generan desde los mismos datos que las tablas del informe, de modo que el modelo y los diagramas no se desincronizan, y se pueden regenerar cuando el modelo cambia. Para el contexto, los contenedores y los componentes se usa la notación del modelo C4.
+- **XMI y Enterprise Architect.** Además, la propia plataforma exporta el modelo de clases a XMI para abrirlo en Enterprise Architect (y lo importa desde allí), flujo que se probó con esa herramienta.
+
 ## Despliegue y calidad
 
 - **Docker Compose, nginx y Let's Encrypt en AWS EC2.** Todo se despliega de forma repetible con HTTPS en un dominio propio (https://diagramador.dev).
