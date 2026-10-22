@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from collab.models import ActivityEvent, ChatMessage, Participant
 from uml_api.services.ai_provider import AIProviderError
+from uml_api.services.change_guard import count_destructive, validate_changes
 from uml_api.services.ia_context import summarize_uml
 
 
@@ -47,7 +48,7 @@ class FakeChannelLayer:
         self.sent.append((group, message))
 
 
-class IaChatApiTests(APITestCase):
+class ChatTestBase(APITestCase):
     room = "sala-demo"
 
     def setUp(self):
@@ -101,6 +102,11 @@ class IaChatApiTests(APITestCase):
             summary=summary,
         )
 
+    def review_reply(self, observations, summary="Hay detalles por mejorar."):
+        return json.dumps({"resumen": summary, "observaciones": observations})
+
+
+class IaChatApiTests(ChatTestBase):
     def test_requires_a_known_participant_token(self):
         for headers in (
             {},
@@ -326,9 +332,6 @@ class IaChatApiTests(APITestCase):
         self.assertNotIn("changes", review_response.data)
         self.assertEqual(self.provider.change_calls, [])
 
-    def review_reply(self, observations, summary="Hay detalles por mejorar."):
-        return json.dumps({"resumen": summary, "observaciones": observations})
-
     def test_review_returns_suggestions_and_publishes_an_event_for_the_room(self):
         self.provider.reply = self.review_reply([
             {"texto": "Cliente no tiene clave primaria", "pedido": "agrega el atributo id: int a Cliente"},
@@ -454,6 +457,183 @@ class GeminiProviderTests(SimpleTestCase):
 
         self.assertNotIn("clave-secreta-123", str(caught.exception))
         self.assertIsNone(caught.exception.__cause__)
+
+
+class ChatReliabilityTests(ChatTestBase):
+    """Atomicidad, topes de coste y confirmación de cambios destructivos."""
+
+    def test_a_failure_while_publishing_a_review_leaves_nothing_half_saved(self):
+        self.provider.reply = self.review_reply([{"texto": "Falta una clave", "pedido": "agrega id"}])
+
+        with mock.patch.object(
+            ActivityEvent.objects, "create", side_effect=RuntimeError("base caída")
+        ):
+            response = self.ask(self.ana, "revisa", mode="review")
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(ChatMessage.objects.count(), 0)
+        self.assertEqual(ActivityEvent.objects.count(), 0)
+
+    def test_the_whole_room_shares_a_request_budget(self):
+        for number in range(30):
+            ChatMessage.objects.create(
+                room=self.room, participant=self.beto, role="user", content=f"x{number}"
+            )
+
+        response = self.ask(self.ana, "una más")
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(self.provider.prompts, [])
+
+    def test_the_whole_service_shares_a_request_budget_across_rooms(self):
+        other = Participant.objects.create(room="otra", token=uuid.uuid4(), display_name="Eva")
+        for number in range(60):
+            ChatMessage.objects.create(
+                room="otra", participant=other, role="user", content=f"x{number}"
+            )
+
+        response = self.ask(self.ana, "una más")
+
+        self.assertEqual(response.status_code, 429)
+
+    def test_change_mode_reports_how_many_deletions_the_ai_proposes(self):
+        self.provider.change_result = {
+            "classes": [
+                {"name": "Pedido", "eliminar": True},
+                {"name": "Cliente", "attributes": [{"name": "edad", "eliminar": True}]},
+            ],
+            "relationships": [{"sourceId": "A", "targetId": "B", "eliminar": True}],
+        }
+
+        response = self.ask(self.ana, "quita cosas", mode="change")
+
+        self.assertEqual(response.data["destructive"], 3)
+
+    def test_a_harmless_change_reports_no_deletions(self):
+        response = self.ask(self.ana, "agrega Factura", mode="change")
+
+        self.assertEqual(response.data["destructive"], 0)
+
+    def test_an_oversized_change_from_the_model_is_rejected_whole(self):
+        self.provider.change_result = {"classes": [{"name": f"C{n}"} for n in range(200)]}
+
+        response = self.ask(self.ana, "crea de todo", mode="change")
+
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn("changes", response.data)
+        self.assertEqual(ChatMessage.objects.count(), 0)
+
+
+class ChangeGuardTests(SimpleTestCase):
+    def test_counts_deletions_in_every_format_the_editor_understands(self):
+        changes = {
+            "editado": {
+                "classes": [{"name": "A", "methods": [{"name": "m", "eliminar": True}]}],
+                "relationships": [{"id": "r", "eliminar": True}],
+            },
+            "classes": [{"name": "B", "eliminar": True}],
+        }
+
+        self.assertEqual(count_destructive(changes), 3)
+
+    def test_tolerates_malformed_input(self):
+        for value in (None, "x", 3, [], {"classes": "no"}, {"classes": [None, 4, {"attributes": "no"}]}):
+            self.assertEqual(count_destructive(value), 0)
+
+    def test_validation_rejects_huge_or_non_dict_changes(self):
+        with self.assertRaises(AIProviderError):
+            validate_changes([1, 2])
+        with self.assertRaises(AIProviderError):
+            validate_changes({"classes": [{"name": "x"}] * 61})
+        with self.assertRaises(AIProviderError):
+            validate_changes({"relationships": [{}] * 151})
+        validate_changes({"classes": [{"name": "x"}] * 60, "relationships": [{}] * 150})
+
+
+class ClaimSuggestionApiTests(ChatTestBase):
+    """Una idea de la IA solo la puede aplicar una persona, también tras recargar."""
+
+    def setUp(self):
+        super().setUp()
+        self.event = ActivityEvent.objects.create(
+            room=self.room,
+            actor=self.ana,
+            actor_name="IA",
+            actor_kind="ia",
+            type="ia_review",
+            summary="revisó el diagrama a pedido de Ana: 2 observaciones",
+            data={"findings": [
+                {"text": "Falta una clave", "prompt": "agrega id"},
+                {"text": "Está aislada", "prompt": "relaciona"},
+            ]},
+        )
+
+    def claim_url(self, event_id=None, index=0, room=None):
+        return f"/api/rooms/{room or self.room}/activity/{event_id or self.event.id}/apply/{index}/"
+
+    def claim(self, participant, **kwargs):
+        headers = {"HTTP_X_PARTICIPANT_TOKEN": str(participant.token)} if participant else {}
+        return self.client.post(self.claim_url(**kwargs), **headers)
+
+    def test_the_first_person_claims_it_and_the_room_is_told(self):
+        response = self.claim(self.beto)
+
+        self.assertEqual(response.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.data["applied"], [{"index": 0, "by": "Beto", "by_id": self.beto.id}])
+        self.assertEqual(response.data["event"]["data"]["applied"][0]["index"], 0)
+        self.assertEqual(
+            [group for group, _ in self.layer.sent],
+            [f"canvas_{self.room}", f"canvas_{self.room}_viewers"],
+        )
+        self.assertEqual(self.layer.sent[0][1]["event"]["id"], self.event.id)
+
+    def test_a_second_claim_of_the_same_idea_is_refused(self):
+        self.claim(self.beto)
+
+        response = self.claim(self.ana)
+
+        self.assertEqual(response.status_code, 409)
+        self.event.refresh_from_db()
+        self.assertEqual(len(self.event.data["applied"]), 1)
+
+    def test_other_ideas_of_the_same_review_stay_available(self):
+        self.claim(self.beto, index=0)
+
+        response = self.claim(self.ana, index=1)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_only_who_claimed_it_can_release_it(self):
+        self.claim(self.beto)
+
+        stranger = self.client.delete(
+            self.claim_url(), HTTP_X_PARTICIPANT_TOKEN=str(self.ana.token)
+        )
+        owner = self.client.delete(
+            self.claim_url(), HTTP_X_PARTICIPANT_TOKEN=str(self.beto.token)
+        )
+
+        self.assertEqual(stranger.status_code, 403)
+        self.assertEqual(owner.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.data.get("applied"), [])
+        self.assertEqual(self.claim(self.ana).status_code, 200)
+
+    def test_invalid_requests_are_rejected(self):
+        self.assertEqual(self.claim(None).status_code, 403)
+        self.assertEqual(self.claim(self.ana, index=5).status_code, 404)
+        self.assertEqual(self.claim(self.ana, event_id=99999).status_code, 404)
+        other = ActivityEvent.objects.create(room="otra", actor_name="IA", type="ia_review", data={"findings": [{"text": "x", "prompt": "y"}]})
+        self.assertEqual(self.claim(self.ana, event_id=other.id).status_code, 404)
+        not_review = ActivityEvent.objects.create(room=self.room, actor_name="Ana", type="add_class", data={})
+        self.assertEqual(self.claim(self.ana, event_id=not_review.id).status_code, 404)
+
+    def test_a_finding_without_a_request_cannot_be_claimed(self):
+        self.event.data = {"findings": [{"text": "solo informativa", "prompt": ""}]}
+        self.event.save()
+
+        self.assertEqual(self.claim(self.ana).status_code, 404)
 
 
 class OllamaProviderTests(SimpleTestCase):

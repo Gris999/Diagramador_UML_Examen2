@@ -237,6 +237,17 @@ class CanvasIdentityActivityTests(SimpleTestCase):
         self.assertEqual(len(InMemoryActivityStore.events), 1)
         await client.disconnect()
 
+    async def test_one_connection_cannot_mint_unlimited_identities(self):
+        client, _, _ = await self.connect_client()
+
+        for number in range(12):
+            await self.send_hello(client, str(uuid.uuid4()), f"Persona {number}")
+        await client.send_json_to({"type": "broadcast", "payload": {"t": "delete", "id": "x"}})
+        await self.receive_until(client, lambda m: m.get("type") == "activity")
+
+        self.assertEqual(InMemoryActivityStore.identify_calls, 5)
+        await client.disconnect()
+
     async def test_a_new_connection_is_told_its_own_peer_id_before_anything_else(self):
         first, first_id, _ = await self.connect_client()
         second = WebsocketCommunicator(self.application, "/ws/canvas/activity-room/")

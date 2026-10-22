@@ -31,6 +31,9 @@ class CanvasConsumer(AsyncWebsocketConsumer):
     # Un observador puede pedir el estado completo, pero cada pedido hace que
     # todos los editores respondan: se limita para que no sirva de amplificador.
     viewer_state_request_interval = 2
+    # Cada `hello` con un token nuevo crea un participante: una conexión no
+    # puede fabricar identidades sin fin.
+    max_identity_changes = 5
 
     async def connect(self):
         print("[CanvasConsumer.connect] scope:", self.scope)
@@ -55,6 +58,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         self.display_name = None
         self._edit_activity_times = {}
         self._identity = None
+        self._identity_changes = 0
         self._activity_window_start = time.monotonic()
         self._activity_window_count = 0
 
@@ -263,6 +267,9 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         # y reemitir la presencia a toda la sala.
         if self._identity == (token, name):
             return
+        if self._identity_changes >= self.max_identity_changes:
+            return
+        self._identity_changes += 1
         self._identity = (token, name)
 
         self.display_name = name
