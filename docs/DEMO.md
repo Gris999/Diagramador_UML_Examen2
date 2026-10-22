@@ -104,4 +104,4 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 | Gemini (nube) | Cambiar a la IA local (`AI_PROVIDER=ollama`) o mostrar el modo que no la necesita; el chat muestra el error claro. |
 | Internet | IA local + los generadores (no necesitan red). |
 | El micrófono | Usar texto; el micrófono funciona solo en Chrome con HTTPS. |
-| Una sala "rara" tras reiniciar el servidor | Crear una sala nueva (las salas viejas pueden conservar participantes fantasma hasta que vence su expiración). |
+| Una sala "rara" | Crear una sala nueva (10 segundos). Al reiniciar el servidor ya se limpian los participantes de las salas anteriores. |

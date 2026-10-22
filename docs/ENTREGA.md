@@ -57,7 +57,7 @@ Comandos exactos: [`puds/05-pruebas.md`](puds/05-pruebas.md) §3.
 
 1. **Sin cuentas:** el código de la sala es la capacidad de acceso; la vista móvil es de solo lectura pero **no** es un permiso separado (`DESPLIEGUE.md` §7).
 2. **Atribución a la IA** (`via_ia`) la declara el navegador: es transparencia, no auditoría a prueba de manipulación.
-3. **Servidor pequeño** (2 vCPU, ~2 GB): la IA local no corre allí; la nube (Gemini) sí. Si el servidor se reinicia, las salas abiertas conservan participantes "fantasma" un tiempo (D-04): usar una sala nueva.
+3. **Servidor pequeño** (2 vCPU, ~2 GB): la IA local no corre allí; la nube (Gemini) sí. Si el servidor se reinicia, las personas conectadas pierden la conexión y deben volver a entrar (el estado de las salas se limpia al arrancar, D-04); el diagrama se recupera desde el respaldo.
 4. **Dominio** `diagramador.dev` vence el 2027-10-21 (renovación automática apagada a propósito).
 5. **Pruebas en dispositivos reales:** la vista móvil se probó en una ventana del tamaño de un celular, no en un teléfono físico.
 6. **Calidad de la IA:** depende de Gemini o del modelo local; las respuestas pueden fallar o equivocarse; en ese caso el chat muestra el error y el diagrama no cambia, y los cambios que eliminan elementos piden confirmación.
