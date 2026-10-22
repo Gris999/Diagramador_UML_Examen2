@@ -77,7 +77,7 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 ## 3. Procedimientos de prueba
 
 1. **Frontend:** `cd front_generador_bd && npx --no-install ng build` y luego `npx --no-install ng test --watch=false --browsers=ChromeHeadless --no-progress`.
-2. **Django sin base de datos:** `back_generador_bd/.venv/bin/python back_generador_bd/manage.py test collab uml_api.tests.test_services_gemini uml_api.tests.test_xmi_service uml_api.tests.test_xmi_layout uml_api.tests.test_flutter_generator` (con `DJANGO_SECRET_KEY` y `POSTGRES_PASSWORD` de prueba en el entorno).
+2. **Django sin base de datos:** `back_generador_bd/.venv/bin/python back_generador_bd/manage.py test collab uml_api.tests.test_services_gemini uml_api.tests.test_xmi_service uml_api.tests.test_xmi_layout uml_api.tests.test_flutter_generator uml_api.tests.test_modelo_reentrenado uml_api.tests.test_evaluar_ia` (con `DJANGO_SECRET_KEY` y `POSTGRES_PASSWORD` de prueba en el entorno).
 3. **Django con base de datos:** `docker exec django_backend_UML python manage.py test`.
 4. **Spring:** `cd back_generator_uml && ./mvnw test` (incluye la compilación real del proyecto generado).
 5. **Sala con varios navegadores:** abrir la misma sala en 2–3 ventanas; verificar roles, edición, borrado, recarga y expulsión.
@@ -96,14 +96,14 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | D-08 | Hallazgos de la revisión final independiente (2026-10-22): el límite de costo no contaba los pedidos que fallaban ni los simultáneos; una respuesta con menos atributos que los existentes borraba sin pedir confirmación; la última validación de una ráfaga se descartaba; los observadores podían multiplicar el pedido de estado completo; una idea podía quedar reservada para siempre; quien fue expulsado guardaba un respaldo final y su estado "expulsado" no se reiniciaba; un respaldo tardío podía pisar el estado de la sala; el estado "pensando" podía apagarse antes de que la IA contestara; la evaluación de la IA aceptaba respuestas equivocadas | Medio a alto | ✅ Corregidos con pruebas (CP-43 a CP-48). Quedan como límites de diseño documentados en `DESPLIEGUE.md` §7: el modelo sin cuentas (el código de sala es la capacidad, la vista móvil no es un permiso) y los topes por conexión/proceso |
 | D-03 | Las pruebas de Django que necesitan base de datos no corren en el host de macOS | Hay que correrlas en el contenedor | Documentado |
 
-## 5. Evaluación de prueba *(corte del 2026-10-21, `develop`)*
+## 5. Evaluación de prueba *(corte del 2026-10-22, rama `feat/ia-reentrenada`)*
 
 | Suite | Resultado | Comando |
 |---|---|---|
-| Frontend (Karma) | **201 correctas**, 0 fallos | `ng test` sobre `fix/revision-final` (2026-10-22) |
+| Frontend (Karma) | **201 correctas**, 0 fallos | `ng test` (2026-10-22) |
 | Frontend (compilación) | Correcta, con 2 avisos de módulos CommonJS (`backbone`, `file-saver`) | `ng build` |
-| Django sin base de datos | **101 correctas**, 0 fallos (colaboración 43, Gemini 7, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
-| Django con base de datos (SQLite en memoria, `settings_test`) | **126 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, topes de costo, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
+| Django sin base de datos | **119 correctas**, 0 fallos (colaboración 43, Gemini 7, XMI 14, diseño de XMI 1, Flutter 32, modelo reentrenado 17, verificadores de la evaluación 1, otros) | ver procedimiento 2 |
+| Django con base de datos (SQLite en memoria, `settings_test`) | **143 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, topes de costo, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api uml_api.tests.test_modelo_reentrenado --settings=diagramador_uml.settings_test` |
 | Spring | **9 correctas**, 0 fallos (incluye `ProjectGeneratorCompileTest`, que compila de verdad el proyecto generado, y las pruebas de CORS) | `cd back_generator_uml && ./mvnw test` (2026-10-22) |
 | Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados; identidad, actividad, chat, revisión y aplicar idea verificados con dos navegadores en https://diagramador.dev | Pruebas de humo y prueba manual del 2026-10-21 |
 

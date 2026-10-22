@@ -31,8 +31,8 @@ DOCS = RAIZ / "docs"
 # --- Datos de la carátula (completar lo marcado) ----------------------------------------------
 TITULO = ("Plataforma CASE Colaborativa de Modelado UML 2.5 con Inteligencia Artificial como Integrante "
           "de la Sala, Generación de Backend (Spring Boot) y Flutter, e IA Local Reentrenada")
-NUMERO = "[N.° DE GRUPO]"
-INTEGRANTES = [("Alaca Pedro", "[REGISTRO]"), ("Quenta Callejas Yohan Sebastian", "[REGISTRO]")]
+NUMERO = "29"
+INTEGRANTES = [("Alaca Pedro", "222007281"), ("Quenta Callejas Yohan Sebastian", "222009462")]
 MATERIA = "Ingeniería de Software 1"
 SIGLA = "INF 422"
 DOCENTE = "Ing. Martínez Canedo Rolando Antonio"
