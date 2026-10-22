@@ -59,6 +59,10 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | CP-33 | CU-04 | La IA propone eliminar elementos o un cambio enorme | Se pide confirmación antes de aplicar (si se rechaza, no cambia nada); los cambios enormes se rechazan | ✅ `ChangeGuardTests`, `ChatReliabilityTests`, `ia-actions.service.spec.ts` |
 | CP-34 | CU-03…05 | Abuso de costo: muchas preguntas o identidades nuevas | Topes por participante (12/min), sala (30/min) y total (60/min); 5 identidades por conexión | ✅ `ChatReliabilityTests`, `test_one_connection_cannot_mint_unlimited_identities` |
 | CP-35 | CU-03…05 | Falla la base entre guardar la pregunta y la respuesta o el evento público | No queda nada a medias | ✅ `test_a_failure_while_publishing_a_review_leaves_nothing_half_saved` |
+| CP-36 | CU-14, CU-10 | Tres navegadores con identidades distintas en la sala desplegada: cada uno agrega una clase | Todos ven las 3 clases; la actividad muestra a Ana, Bruno y Carla; la vista móvil (observador) también, con 0 controles de edición y sin contar como participante | ✅ prueba manual en https://diagramador.dev el 2026-10-22 |
+| CP-37 | CU-05, CU-06 | Carla pide una revisión; Bruno aplica una idea que elimina elementos y otra que no | La revisión se ve en las 3 pantallas y en el celular; la idea destructiva pide confirmación (rechazada → no cambia nada y la idea se libera); la otra se aplica a nombre de Bruno y queda "Aplicada" para todos | ✅ prueba manual en producción con Gemini real, 2026-10-22 |
+| CP-38 | CU-15, CU-14 | Ana (host) expulsa a Carla, luego Ana sale y Carla vuelve | Carla desaparece de la lista; al salir Ana, Bruno pasa a ser host; Carla reingresa como participante con el diagrama y la actividad completos | ✅ prueba manual en producción; el aviso al expulsado se añadió después (`diagram.spec.ts`, `p2p.roles.spec.ts`) |
+| CP-39 | CU-04 | Chat con la IA local (Qwen 3.5 9B) en el navegador | El rótulo muestra "IA local (qwen3.5:9b)"; Preguntar y Pedir cambio funcionan y el cambio se ve en la actividad | ✅ prueba manual en local, 2026-10-22 |
 | CP-30 | CU-02 | Un cliente envía operaciones enormes o en ráfaga | Se registra con tope de tamaño y de tasa; el relé sigue funcionando | ✅ `test_oversized_operation_data_is_not_stored_whole`, `test_activity_flood_is_capped_but_relay_keeps_working` |
 
 ## 3. Procedimientos de prueba
@@ -84,7 +88,7 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 
 | Suite | Resultado | Comando |
 |---|---|---|
-| Frontend (Karma) | **175 correctas**, 0 fallos | `ng test` sobre `develop` |
+| Frontend (Karma) | **178 correctas**, 0 fallos | `ng test` sobre `develop` |
 | Frontend (compilación) | Correcta, con 2 avisos de módulos CommonJS (`backbone`, `file-saver`) | `ng build` |
 | Django sin base de datos | **91 correctas**, 0 fallos (colaboración 26, Gemini 7, IA endpoints 10, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
 | Django con base de datos (SQLite en memoria, `settings_test`) | **83 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
