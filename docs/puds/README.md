@@ -3,7 +3,7 @@
 Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de Software (PUDS)** del proyecto. La organización sigue el material de la cátedra (*El Proceso Unificado de Desarrollo de Software*, A.U.S. Gustavo Torossi): cuatro fases, cinco disciplinas y, por cada disciplina, los artefactos de la tabla "Resumen de Trabajadores, Actividades y Artefactos" (páginas 23–25 del PDF).
 
 > **Convención.** ✅ implementado y verificado · 🔄 en construcción · 📋 planificado. Lo marcado *(verificado)* se comprobó leyendo el código o ejecutando pruebas; *(propuesta)* es diseño que todavía no existe.
-> **Estado al 2026-10-21.** Fecha de entrega estimada: 2026-11-04 *(por confirmar con el docente)*.
+> **Estado al 2026-10-22.** Fecha de entrega estimada: 2026-11-04 *(por confirmar con el docente)*.
 
 ## 1. Cómo se aplica PUDS aquí
 
@@ -16,8 +16,8 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 |---|---|---|---|
 | **Inicio** | Objetivos del ciclo de vida | Alcance acordado (RF-01…RF-33), plan, riesgos, línea base de `develop` limpia | ✅ cerrada (I0) |
 | **Elaboración** | Arquitectura del ciclo de vida | Arquitectura validada con un caso de uso de punta a punta (nombre → acción → registro de actividad visible para todos) | ✅ cerrada (I1), verificada en dos navegadores y en el sitio desplegado |
-| **Construcción** | Capacidad operativa inicial | RF-23…RF-32 implementados y probados; sistema estable para usar | ✅ I2 a I6 listas; falta el cierre (I7) |
-| **Transición** | Lanzamiento del producto | Sistema desplegado, documentación final, demostración ensayada | 📋 I7 (congelamiento ≈ 2026-11-02) |
+| **Construcción** | Capacidad operativa inicial | RF-23…RF-32 implementados y probados; sistema estable para usar | ✅ I2 a I6 y el reentrenamiento (I8) |
+| **Transición** | Lanzamiento del producto | Sistema desplegado, documentación final, demostración ensayada | ✅ I7: versión 1.0 desplegada y verificada; queda ensayar la demostración con personas |
 
 ## 2. Mapa de artefactos (tabla del PDF → este proyecto)
 
@@ -41,7 +41,8 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 | I4 — Sesiones continuas | Construcción | Recuperar diagrama, actividad y chat propio al volver | ✅ validado de punta a punta en local (2026-10-21); falta repetirlo en el sitio desplegado |
 | I5 — Vista móvil de seguimiento | Construcción | Vista de solo lectura en vivo | ✅ |
 | I6 — IA local (opcional) | Construcción | Proveedor configurable Gemini / local (Ollama, Qwen) | ✅ evaluado con Qwen 3.5 9B y verificaciones estrictas: 10/10 pedidos correctos ([`../IA_LOCAL.md`](../IA_LOCAL.md)) |
-| I7 — Endurecimiento y entrega | Transición | Despliegue final, prueba de humo, documentación y demo | 📋 |
+| I7 — Endurecimiento y entrega | Transición | Despliegue final, prueba de humo, documentación y demo; revisión independiente del código con sus hallazgos corregidos | ✅ versión 1.0 desplegada en https://diagramador.dev |
+| I8 — IA reentrenada (opcional) | Construcción | Un modelo Qwen reentrenado con LoRA para modificar diagramas, medido contra el modelo sin entrenar y desplegado en Ollama; el proveedor de la app lo usa para los cambios | ✅ ver el Anexo B |
 
 El detalle de cada iteración (objetivo, esfuerzo, rama, criterios de aceptación) está en la sección 8 del [plan de trabajo](../PLAN_PUDS_IA_PARTICIPANTE.md).
 

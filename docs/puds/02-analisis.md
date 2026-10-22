@@ -145,7 +145,7 @@ flowchart LR
   Prov -->|4 operaciones propuestas| CI
   CI -->|5 validar y aplicar| CE
   CE -->|6 difundir a todos| CE
-  CI -->|7 registrar "IA, a pedido de X"| CA
+  CI -->|7 registrar «IA, a pedido de X»| CA
 ```
 
 ## 4. Reglas de análisis que se derivan
