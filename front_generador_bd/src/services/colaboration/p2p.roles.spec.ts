@@ -16,6 +16,14 @@ describe('P2PService collaboration roles', () => {
     await (service as any).handleSignaling(message);
   }
 
+  it('marks the client as removed when the host expels it', async () => {
+    expect(service.removed()).toBeFalse();
+
+    await receive({ type: 'removed', by: 'peer-host' });
+
+    expect(service.removed()).toBeTrue();
+  });
+
   it('takes its own id from the server welcome even when another peer joined first', async () => {
     await receive({ type: 'presence', action: 'self', peer: 'peer-me' });
     await receive({ type: 'presence', action: 'join', peer: 'peer-other' });

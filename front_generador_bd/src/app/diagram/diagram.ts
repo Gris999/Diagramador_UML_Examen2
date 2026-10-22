@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, HostListener, Inject, NgZone, OnDestroy, PLATFORM_ID, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, effect, ElementRef, HostListener, Inject, NgZone, OnDestroy, PLATFORM_ID, ViewChild } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { CdkDragEnd, CdkDropListGroup, CdkDropList } from '@angular/cdk/drag-drop';
 import { SidePanel } from "../side-panel/side-panel";
@@ -10,9 +10,10 @@ import { DiagramExportService } from '../../services/exports/diagram-export.serv
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
 import { ChatbotService } from '../../services/IA/chatbot.service';
 import { UmlValidationService } from '../../services/colaboration/uml-validation.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { XmiService } from '../../services/interop/xmi.service';
 import { ParticipantsPanel } from '../participants-panel/participants-panel';
+import { P2PService } from '../../services/colaboration/p2p.service';
 import { ActivityPanel } from '../activity-panel/activity-panel';
 import { IaChatPanel } from '../ia-chat-panel/ia-chat-panel';
 
@@ -42,8 +43,24 @@ export class Diagram implements AfterViewInit, OnDestroy {
     private chatbot: ChatbotService,
     private umlValidation: UmlValidationService,
     private route: ActivatedRoute,
-    private xmiService: XmiService
-  ) {}
+    private xmiService: XmiService,
+    private p2p: P2PService,
+    private router: Router
+  ) {
+    // Si el host expulsa a esta persona, la conexión se cierra: se le avisa y
+    // vuelve al inicio en lugar de quedarse con una sala congelada.
+    effect(() => {
+      if (!this.p2p.removed() || !isPlatformBrowser(this.platformId)) return;
+      alert('El host te expulsó de la sala.');
+      this.leaveAfterRemoval();
+    });
+  }
+
+  private leaveAfterRemoval(): void {
+    this.diagramService.clearStorage();
+    if (this.roomId) this.diagramService.closeDiagram(this.roomId);
+    this.router.navigate(['/']);
+  }
   
   async ngAfterViewInit(): Promise<void> {
     if (isPlatformBrowser(this.platformId)) {
