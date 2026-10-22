@@ -79,8 +79,36 @@ def comparacion(corrida: Path):
     plt.close(figura)
 
 
+def entre_corridas(primera: Path, segunda: Path, destino: Path):
+    """Aciertos por operación del modelo base y de dos corridas de reentrenamiento (resultados en MLX)."""
+    base = json.loads((segunda / "eval-base.json").read_text(encoding="utf-8"))["resumen"]
+    a = json.loads((primera / "eval-reentrenado.json").read_text(encoding="utf-8"))["resumen"]
+    b = json.loads((segunda / "eval-reentrenado.json").read_text(encoding="utf-8"))["resumen"]
+    operaciones = sorted(base["por_operacion"])
+    figura, eje = plt.subplots(figsize=(11, 4.6))
+    ancho = 0.27
+    for desplazamiento, (resumen, etiqueta, color) in enumerate((
+        (base, "Base sin entrenar (35 %)", "#9aa5b8"),
+        (a, f"Primera corrida ({100 * a['correctos'] / a['ejemplos']:.0f} %)", "#3b6fd4"),
+        (b, f"Segunda corrida ({100 * b['correctos'] / b['ejemplos']:.0f} %)", "#e08a1e"),
+    )):
+        valores = [100 * resumen["por_operacion"][op]["correctos"] / resumen["por_operacion"][op]["total"] for op in operaciones]
+        eje.bar([i + desplazamiento * ancho for i in range(len(operaciones))], valores, width=ancho, color=color, label=etiqueta)
+    eje.set_xticks([i + ancho for i in range(len(operaciones))])
+    eje.set_xticklabels([op.replace("_", "\n") for op in operaciones], fontsize=6.5)
+    eje.set_ylim(0, 112)
+    eje.set_ylabel("Respuestas exactamente correctas (%)")
+    eje.set_title("Dos corridas de reentrenamiento sobre los mismos 200 ejemplos de prueba")
+    eje.legend(fontsize=8, ncol=3, loc="upper center")
+    figura.tight_layout()
+    figura.savefig(destino, dpi=170)
+    plt.close(figura)
+
+
 if __name__ == "__main__":
     carpeta = Path(sys.argv[1])
     curva_perdida(carpeta)
     comparacion(carpeta)
+    if len(sys.argv) > 2:  # python graficos.py <segunda-corrida> <primera-corrida>
+        entre_corridas(Path(sys.argv[2]), carpeta, carpeta / "comparacion-corridas.png")
     print("gráficos en", carpeta)
