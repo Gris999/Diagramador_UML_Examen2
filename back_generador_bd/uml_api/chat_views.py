@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -12,7 +12,7 @@ from rest_framework.response import Response
 
 from collab.activity import serialize_activity_event
 from collab.groups import room_group_name, viewers_group_name
-from collab.models import ActivityEvent, ChatMessage, Participant
+from collab.models import ActivityEvent, ChatMessage, IaAttempt, Participant
 from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider
 from .services.change_guard import count_destructive, validate_changes
 from .services.ia_context import (
@@ -33,6 +33,7 @@ MAX_REQUESTS_PER_MINUTE = 12
 # servicio. Los dos últimos no dependen de identificadores que el cliente elige.
 MAX_ROOM_REQUESTS_PER_MINUTE = 30
 MAX_GLOBAL_REQUESTS_PER_MINUTE = 60
+ATTEMPT_RETENTION = timedelta(hours=1)
 
 
 def _participant_for(request, room):
@@ -43,6 +44,28 @@ def _participant_for(request, room):
     except (ValueError, AttributeError, TypeError):
         return None
     return Participant.objects.filter(room=room, token=token).first()
+
+
+def _reserve_attempt(room, participant):
+    """Reserva un cupo de IA antes de llamar al proveedor; False si no queda.
+
+    Se inserta primero y se cuenta después: con pedidos simultáneos ninguno ve
+    menos de lo que hay, así que el tope no se sobrepasa (en el límite pueden
+    rechazarse de más, nunca aceptarse de más). Un pedido que falla conserva su
+    cupo; uno rechazado lo devuelve para no vaciar el cupo de los demás.
+    """
+    now = timezone.now()
+    IaAttempt.objects.filter(created_at__lt=now - ATTEMPT_RETENTION).delete()
+    attempt = IaAttempt.objects.create(room=room, participant=participant)
+    last_minute = IaAttempt.objects.filter(created_at__gte=now - timedelta(minutes=1))
+    if (
+        last_minute.filter(participant=participant).count() > MAX_REQUESTS_PER_MINUTE
+        or last_minute.filter(room=room).count() > MAX_ROOM_REQUESTS_PER_MINUTE
+        or last_minute.count() > MAX_GLOBAL_REQUESTS_PER_MINUTE
+    ):
+        attempt.delete()
+        return False
+    return True
 
 
 def _forbidden():
@@ -131,7 +154,7 @@ def _change(provider, room, participant, body, message):
         "reply": reply,
         "changes": changes,
         # La interfaz pide confirmación antes de aplicar un cambio que elimina cosas.
-        "destructive": count_destructive(changes),
+        "destructive": count_destructive(changes, body.get("uml")),
     })
 
 
@@ -196,15 +219,7 @@ def ia_chat(request, room):
             f"El mensaje no puede superar {MAX_MESSAGE_CHARS} caracteres."
         )
 
-    last_minute = ChatMessage.objects.filter(
-        role=ChatMessage.ROLE_USER,
-        created_at__gte=timezone.now() - timedelta(minutes=1),
-    )
-    if (
-        last_minute.filter(participant=participant).count() >= MAX_REQUESTS_PER_MINUTE
-        or last_minute.filter(room=room).count() >= MAX_ROOM_REQUESTS_PER_MINUTE
-        or last_minute.count() >= MAX_GLOBAL_REQUESTS_PER_MINUTE
-    ):
+    if not _reserve_attempt(room, participant):
         return Response(
             {"error": "Demasiadas preguntas seguidas. Espera un momento."},
             status=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -264,12 +279,31 @@ def _reviewable_event(room, event_id, index):
     return event
 
 
-@api_view(["POST", "DELETE"])
-def claim_suggestion(request, room, event_id, index):
-    """Reserva una idea de la IA para quien la va a aplicar (POST) o la libera (DELETE).
+RESERVED = "reserved"
+APPLIED = "applied"
+# Un poco más que lo que tarda la IA en contestar (110 s en el navegador): si
+# quien reservó cierra la pestaña o pierde la conexión, la idea vuelve a quedar libre.
+RESERVATION_TTL = timedelta(seconds=150)
 
-    La reserva es atómica y queda guardada: dos personas no pueden aplicar la
-    misma idea a la vez, y tras recargar la página sigue marcada como aplicada.
+
+def _is_live(entry, now):
+    """Una idea sigue tomada si ya se aplicó o si su reserva no venció."""
+    if entry.get("state", APPLIED) != RESERVED:
+        return True
+    try:
+        reserved_at = datetime.fromisoformat(entry["reserved_at"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return now - reserved_at < RESERVATION_TTL
+
+
+@api_view(["POST", "PUT", "DELETE"])
+def claim_suggestion(request, room, event_id, index):
+    """Ciclo de una idea de la IA: reservar (POST), confirmar (PUT) o liberar (DELETE).
+
+    Reservar es atómico y queda guardado: dos personas no pueden aplicar la
+    misma idea a la vez. La reserva vence sola si nadie la confirma. Confirmar
+    marca la idea como aplicada para todos, incluso tras recargar la página.
     """
     participant = _participant_for(request, room)
     if participant is None:
@@ -280,28 +314,43 @@ def claim_suggestion(request, room, event_id, index):
         if event is None:
             return Response({"error": "Idea no encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
-        applied = [a for a in event.data.get("applied", []) if isinstance(a, dict)]
-        existing = next((a for a in applied if a.get("index") == index), None)
+        now = timezone.now()
+        entries = [a for a in event.data.get("applied", []) if isinstance(a, dict)]
+        existing = next((a for a in entries if a.get("index") == index), None)
+        others = [a for a in entries if a.get("index") != index]
+        mine = existing is not None and existing.get("by_id") == participant.id
+        taken = existing is not None and _is_live(existing, now)
+        entry = {"index": index, "by": participant.display_name, "by_id": participant.id}
 
         if request.method == "POST":
-            if existing is not None:
+            if taken and not (mine and existing.get("state") == RESERVED):
                 return Response(
-                    {"error": "Otra persona ya aplicó esta idea."},
+                    {"error": "Otra persona ya aplicó o está aplicando esta idea."},
                     status=status.HTTP_409_CONFLICT,
                 )
-            applied.append({
-                "index": index,
-                "by": participant.display_name,
-                "by_id": participant.id,
-            })
+            entries = others + [{**entry, "state": RESERVED, "reserved_at": now.isoformat()}]
+        elif request.method == "PUT":
+            if taken and not mine:
+                return Response(
+                    {"error": "Otra persona ya aplicó o está aplicando esta idea."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            # Si la reserva venció pero nadie la tomó, el cambio ya se aplicó:
+            # se registra igual para que no se pueda aplicar dos veces.
+            entries = others + [{**entry, "state": APPLIED, "applied_at": now.isoformat()}]
         else:
             if existing is None:
                 return Response({"event": serialize_activity_event(event)})
-            if existing.get("by_id") != participant.id:
+            if not mine:
                 return _forbidden()
-            applied = [a for a in applied if a.get("index") != index]
+            if existing.get("state", APPLIED) != RESERVED:
+                return Response(
+                    {"error": "La idea ya está aplicada."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            entries = others
 
-        event.data = {**event.data, "applied": applied}
+        event.data = {**event.data, "applied": entries}
         event.save(update_fields=["data"])
 
     _publish_activity(room, event)

@@ -1,4 +1,5 @@
 import uuid
+from unittest import mock
 
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
@@ -33,6 +34,8 @@ class ViewerModeTests(SimpleTestCase):
         CanvasConsumer.role_store_class = InMemoryRoleStore
         CanvasConsumer.identity_store_class = InMemoryIdentityStore
         CanvasConsumer.activity_store_class = InMemoryActivityStore
+        CanvasConsumer.viewer_counts.clear()
+        CanvasConsumer.last_room_state_request.clear()
 
     def tearDown(self):
         (
@@ -188,3 +191,79 @@ class ViewerModeTests(SimpleTestCase):
         await viewer.disconnect()
         await editor.disconnect()
 
+    async def test_only_the_host_is_asked_for_the_full_state(self):
+        host, _ = await self.connect()
+        second, _ = await self.connect()
+        viewer, viewer_id = await self.connect(viewer=True)
+        await self.receive_until(
+            second,
+            lambda m: m.get("action") == "state" and len(m["members"]) == 2,
+        )
+        await self.receive_until(
+            host,
+            lambda m: m.get("action") == "state" and len(m["members"]) == 2,
+        )
+        # Se descarta lo que ya estaba pendiente (presencia de las conexiones).
+        for peer in (host, second):
+            while not await peer.receive_nothing(timeout=0.2):
+                await peer.receive_json_from(timeout=1)
+
+        await viewer.send_json_to({
+            "type": "broadcast",
+            "payload": {"t": "request_full_state"},
+        })
+
+        asked = await self.receive_until(host, lambda m: m.get("type") == "broadcast")
+        self.assertEqual(asked["from"], viewer_id)
+        await self.assert_silent(second)
+        await viewer.disconnect()
+        await host.disconnect()
+        await second.disconnect()
+
+    async def test_many_viewers_together_cost_one_state_request_per_interval(self):
+        editor, _ = await self.connect()
+        await self.receive_until(editor, lambda m: m.get("action") == "state")
+        viewers = [(await self.connect(viewer=True))[0] for _ in range(4)]
+
+        for viewer in viewers:
+            await viewer.send_json_to({
+                "type": "broadcast",
+                "payload": {"t": "request_full_state"},
+            })
+
+        received = 0
+        while not await editor.receive_nothing(timeout=0.3):
+            message = await editor.receive_json_from(timeout=1)
+            if message.get("type") == "broadcast":
+                received += 1
+        self.assertEqual(received, 1)
+        for viewer in viewers:
+            await viewer.disconnect()
+        await editor.disconnect()
+
+    async def test_a_room_accepts_a_limited_number_of_viewers(self):
+        with mock.patch.object(CanvasConsumer, "max_viewers_per_room", 2):
+            first, _ = await self.connect(viewer=True)
+            second, _ = await self.connect(viewer=True)
+
+            refused = WebsocketCommunicator(
+                self.application, f"/ws/canvas/{self.room}/?mode=viewer"
+            )
+            connected, _ = await refused.connect()
+            self.assertFalse(connected)
+
+            await first.disconnect()
+            replacement, _ = await self.connect(viewer=True)
+
+            await second.disconnect()
+            await replacement.disconnect()
+        self.assertEqual(CanvasConsumer.viewer_counts, {})
+
+    async def test_the_viewer_limit_does_not_apply_to_editors(self):
+        with mock.patch.object(CanvasConsumer, "max_viewers_per_room", 1):
+            viewer, _ = await self.connect(viewer=True)
+            editors = [(await self.connect())[0] for _ in range(3)]
+
+            for editor in editors:
+                await editor.disconnect()
+            await viewer.disconnect()

@@ -73,3 +73,19 @@ class ChatMessage(models.Model):
                 name="chat_participant_id_idx",
             ),
         ]
+
+
+class IaAttempt(models.Model):
+    """Pedido a la IA que ya reservó cupo, haya salido bien o no.
+
+    El tope por minuto cuenta estas filas y no los mensajes guardados: así un
+    proveedor que falla, o pedidos simultáneos, igual gastan cupo.
+    """
+
+    room = models.CharField(max_length=64)
+    participant = models.ForeignKey(
+        Participant,
+        on_delete=models.CASCADE,
+        related_name="ia_attempts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)

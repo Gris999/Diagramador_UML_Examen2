@@ -7,7 +7,7 @@ from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from collab.models import ActivityEvent, ChatMessage, Participant
+from collab.models import ActivityEvent, ChatMessage, IaAttempt, Participant
 from uml_api.services.ai_provider import AIProviderError
 from uml_api.services.change_guard import count_destructive, validate_changes
 from uml_api.services.ia_context import summarize_uml
@@ -254,13 +254,9 @@ class IaChatApiTests(ChatTestBase):
         self.assertEqual(self.provider.prompts, [])
 
     def test_too_many_requests_in_a_minute_are_throttled(self):
-        for number in range(12):
-            ChatMessage.objects.create(
-                room=self.room,
-                participant=self.ana,
-                role="user",
-                content=f"antes {number}",
-            )
+        IaAttempt.objects.bulk_create(
+            [IaAttempt(room=self.room, participant=self.ana) for _ in range(12)]
+        )
 
         response = self.ask(self.ana, "una más")
 
@@ -268,16 +264,10 @@ class IaChatApiTests(ChatTestBase):
         self.assertEqual(self.provider.prompts, [])
 
     def test_old_messages_do_not_count_toward_the_throttle(self):
-        old = ChatMessage.objects.bulk_create([
-            ChatMessage(
-                room=self.room,
-                participant=self.ana,
-                role="user",
-                content=f"viejo {number}",
-            )
-            for number in range(12)
-        ])
-        ChatMessage.objects.filter(id__in=[m.id for m in old]).update(
+        old = IaAttempt.objects.bulk_create(
+            [IaAttempt(room=self.room, participant=self.ana) for _ in range(12)]
+        )
+        IaAttempt.objects.filter(id__in=[a.id for a in old]).update(
             created_at=timezone.now() - timedelta(minutes=5)
         )
 
@@ -475,10 +465,9 @@ class ChatReliabilityTests(ChatTestBase):
         self.assertEqual(ActivityEvent.objects.count(), 0)
 
     def test_the_whole_room_shares_a_request_budget(self):
-        for number in range(30):
-            ChatMessage.objects.create(
-                room=self.room, participant=self.beto, role="user", content=f"x{number}"
-            )
+        IaAttempt.objects.bulk_create(
+            [IaAttempt(room=self.room, participant=self.beto) for _ in range(30)]
+        )
 
         response = self.ask(self.ana, "una más")
 
@@ -487,14 +476,53 @@ class ChatReliabilityTests(ChatTestBase):
 
     def test_the_whole_service_shares_a_request_budget_across_rooms(self):
         other = Participant.objects.create(room="otra", token=uuid.uuid4(), display_name="Eva")
-        for number in range(60):
-            ChatMessage.objects.create(
-                room="otra", participant=other, role="user", content=f"x{number}"
-            )
+        IaAttempt.objects.bulk_create(
+            [IaAttempt(room="otra", participant=other) for _ in range(60)]
+        )
 
         response = self.ask(self.ana, "una más")
 
         self.assertEqual(response.status_code, 429)
+
+    def test_a_failing_provider_still_spends_the_budget(self):
+        with mock.patch.object(
+            self.provider, "chat", side_effect=AIProviderError("caído")
+        ):
+            for _ in range(12):
+                self.assertEqual(self.ask(self.ana, "hola").status_code, 502)
+
+            response = self.ask(self.ana, "hola")
+
+        self.assertEqual(response.status_code, 429)
+
+    def test_a_rejected_request_gives_its_slot_back(self):
+        IaAttempt.objects.bulk_create(
+            [IaAttempt(room=self.room, participant=self.ana) for _ in range(12)]
+        )
+
+        self.ask(self.ana, "una más")
+
+        self.assertEqual(IaAttempt.objects.filter(participant=self.ana).count(), 12)
+
+    def test_the_slot_is_reserved_before_the_provider_is_called(self):
+        seen = []
+
+        def chat(prompt):
+            seen.append(IaAttempt.objects.filter(participant=self.ana).count())
+            return "ok"
+
+        with mock.patch.object(self.provider, "chat", side_effect=chat):
+            self.ask(self.ana, "hola")
+
+        self.assertEqual(seen, [1])
+
+    def test_old_attempts_are_cleaned_up(self):
+        old = IaAttempt.objects.create(room=self.room, participant=self.ana)
+        IaAttempt.objects.filter(id=old.id).update(created_at=timezone.now() - timedelta(hours=3))
+
+        self.ask(self.ana, "hola")
+
+        self.assertFalse(IaAttempt.objects.filter(id=old.id).exists())
 
     def test_change_mode_reports_how_many_deletions_the_ai_proposes(self):
         self.provider.change_result = {
@@ -509,6 +537,16 @@ class ChatReliabilityTests(ChatTestBase):
 
         self.assertEqual(response.data["destructive"], 3)
 
+    def test_change_mode_asks_for_confirmation_when_the_model_returns_less_than_there_was(self):
+        uml = {"classes": [{"id": "c1", "name": "Cliente",
+                            "attributes": [{"name": "id", "type": "int"}, {"name": "nombre", "type": "string"}],
+                            "methods": []}], "relationships": []}
+        self.provider.change_result = {"classes": [{"id": "c1", "name": "Cliente", "attributes": []}]}
+
+        response = self.ask(self.ana, "limpia Cliente", mode="change", uml=uml)
+
+        self.assertEqual(response.data["destructive"], 2)
+
     def test_a_harmless_change_reports_no_deletions(self):
         response = self.ask(self.ana, "agrega Factura", mode="change")
 
@@ -522,6 +560,85 @@ class ChatReliabilityTests(ChatTestBase):
         self.assertEqual(response.status_code, 502)
         self.assertNotIn("changes", response.data)
         self.assertEqual(ChatMessage.objects.count(), 0)
+
+
+class ChangeGuardAgainstTheCurrentDiagramTests(SimpleTestCase):
+    """Una respuesta que deja menos de lo que había también borra, aunque no lo marque."""
+
+    uml = {
+        "classes": [
+            {
+                "id": "c1",
+                "name": "Cliente",
+                "attributes": [{"name": "id", "type": "int"}, {"name": "nombre", "type": "string"}],
+                "methods": [{"name": "comprar"}],
+            }
+        ],
+        "relationships": [],
+    }
+
+    def test_returning_fewer_members_than_the_class_has_counts_as_deleting_them(self):
+        changes = {"classes": [{"id": "c1", "name": "Cliente", "attributes": [], "methods": []}]}
+
+        self.assertEqual(count_destructive(changes, self.uml), 3)
+
+    def test_returning_only_the_new_attribute_would_wipe_the_others(self):
+        changes = {"classes": [{"name": "Cliente", "attributes": [{"name": "email", "type": "string"}]}]}
+
+        self.assertEqual(count_destructive(changes, self.uml), 2)
+
+    def test_the_editor_matches_names_exactly_so_another_spelling_is_a_new_class(self):
+        changes = {"classes": [{"name": "cliente", "attributes": [{"name": "email"}]}]}
+
+        self.assertEqual(count_destructive(changes, self.uml), 0)
+
+    def test_a_response_with_deletion_marks_only_deletes_what_is_marked(self):
+        changes = {"classes": [{"name": "Cliente", "attributes": [{"name": "nombre", "eliminar": True}]}]}
+
+        self.assertEqual(count_destructive(changes, self.uml), 1)
+
+    def test_an_edit_does_not_replace_the_members_it_leaves_out(self):
+        changes = {
+            "original": self.uml,
+            "editado": {"classes": [{"id": "c1", "name": "Cliente", "attributes": [
+                {"originalName": "id", "name": "codigo", "type": "int", "editado": True}
+            ]}]},
+        }
+
+        self.assertEqual(count_destructive(changes, self.uml), 0)
+
+    def test_keeping_everything_and_adding_more_is_harmless(self):
+        changes = {"classes": [{
+            "id": "c1",
+            "name": "Cliente",
+            "attributes": [{"name": "id"}, {"name": "nombre"}, {"name": "email"}],
+            "methods": [{"name": "comprar"}],
+        }]}
+
+        self.assertEqual(count_destructive(changes, self.uml), 0)
+
+    def test_members_already_flagged_are_not_counted_twice(self):
+        changes = {"classes": [{
+            "id": "c1",
+            "name": "Cliente",
+            "attributes": [{"name": "id"}, {"name": "nombre", "eliminar": True}],
+            "methods": [{"name": "comprar"}],
+        }]}
+
+        self.assertEqual(count_destructive(changes, self.uml), 1)
+
+    def test_classes_that_do_not_exist_yet_and_edit_sections_are_not_penalized(self):
+        creating = {"classes": [{"name": "Factura", "attributes": []}]}
+        editing = {"editado": {"classes": [{"id": "c1", "name": "Cliente", "attributes": [{"name": "email"}]}]}}
+
+        self.assertEqual(count_destructive(creating, self.uml), 0)
+        self.assertEqual(count_destructive(editing, self.uml), 0)
+
+    def test_a_missing_or_malformed_diagram_changes_nothing(self):
+        changes = {"classes": [{"id": "c1", "name": "Cliente", "attributes": []}]}
+
+        for uml in (None, "x", [], {"classes": "no"}, {"classes": [None, 3]}):
+            self.assertEqual(count_destructive(changes, uml), 0)
 
 
 class ChangeGuardTests(SimpleTestCase):
@@ -580,7 +697,11 @@ class ClaimSuggestionApiTests(ChatTestBase):
 
         self.assertEqual(response.status_code, 200)
         self.event.refresh_from_db()
-        self.assertEqual(self.event.data["applied"], [{"index": 0, "by": "Beto", "by_id": self.beto.id}])
+        [entry] = self.event.data["applied"]
+        self.assertEqual(
+            (entry["index"], entry["by"], entry["by_id"], entry["state"]),
+            (0, "Beto", self.beto.id, "reserved"),
+        )
         self.assertEqual(response.data["event"]["data"]["applied"][0]["index"], 0)
         self.assertEqual(
             [group for group, _ in self.layer.sent],
@@ -619,6 +740,104 @@ class ClaimSuggestionApiTests(ChatTestBase):
         self.event.refresh_from_db()
         self.assertEqual(self.event.data.get("applied"), [])
         self.assertEqual(self.claim(self.ana).status_code, 200)
+
+    def confirm(self, participant, **kwargs):
+        return self.client.put(
+            self.claim_url(**kwargs), HTTP_X_PARTICIPANT_TOKEN=str(participant.token)
+        )
+
+    def release(self, participant, **kwargs):
+        return self.client.delete(
+            self.claim_url(**kwargs), HTTP_X_PARTICIPANT_TOKEN=str(participant.token)
+        )
+
+    def age_reservation(self, seconds):
+        self.event.refresh_from_db()
+        data = dict(self.event.data)
+        for entry in data["applied"]:
+            if "reserved_at" in entry:
+                entry["reserved_at"] = (timezone.now() - timedelta(seconds=seconds)).isoformat()
+        self.event.data = data
+        self.event.save()
+
+    def test_confirming_marks_the_idea_as_applied_for_good(self):
+        self.claim(self.beto)
+
+        response = self.confirm(self.beto)
+
+        self.assertEqual(response.status_code, 200)
+        self.event.refresh_from_db()
+        [entry] = self.event.data["applied"]
+        self.assertEqual(entry["state"], "applied")
+        self.assertEqual(entry["by"], "Beto")
+        self.assertNotIn("reserved_at", entry)
+        # Una vez aplicada ni la reserva vencida ni una liberación la devuelven.
+        self.assertEqual(self.claim(self.ana).status_code, 409)
+        self.assertEqual(self.release(self.beto).status_code, 409)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.data["applied"][0]["state"], "applied")
+
+    def test_an_expired_reservation_can_be_taken_by_someone_else(self):
+        self.claim(self.beto)
+        self.assertEqual(self.claim(self.ana).status_code, 409)
+
+        self.age_reservation(seconds=151)
+
+        self.assertEqual(self.claim(self.ana).status_code, 200)
+        self.event.refresh_from_db()
+        [entry] = self.event.data["applied"]
+        self.assertEqual(entry["by"], "Ana")
+
+    def test_a_reservation_that_has_not_expired_still_blocks_others(self):
+        self.claim(self.beto)
+        self.age_reservation(seconds=100)
+
+        self.assertEqual(self.claim(self.ana).status_code, 409)
+
+    def test_the_same_person_can_retry_their_own_reservation(self):
+        self.claim(self.beto)
+
+        self.assertEqual(self.claim(self.beto).status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(len(self.event.data["applied"]), 1)
+
+    def test_only_the_holder_can_confirm_a_live_reservation(self):
+        self.claim(self.beto)
+
+        self.assertEqual(self.confirm(self.ana).status_code, 409)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.data["applied"][0]["state"], "reserved")
+
+    def test_confirming_after_the_reservation_expired_still_records_the_change(self):
+        self.claim(self.beto)
+        self.age_reservation(seconds=400)
+
+        self.assertEqual(self.confirm(self.beto).status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.data["applied"][0]["state"], "applied")
+
+    def test_confirming_loses_to_someone_who_took_over_an_expired_reservation(self):
+        self.claim(self.beto)
+        self.age_reservation(seconds=400)
+        self.claim(self.ana)
+
+        self.assertEqual(self.confirm(self.beto).status_code, 409)
+
+    def test_ideas_stored_before_reservations_existed_count_as_applied(self):
+        self.event.data = {**self.event.data, "applied": [{"index": 0, "by": "Beto", "by_id": self.beto.id}]}
+        self.event.save()
+
+        self.assertEqual(self.claim(self.ana).status_code, 409)
+        self.assertEqual(self.release(self.beto).status_code, 409)
+
+    def test_confirm_and_release_are_announced_to_the_room(self):
+        self.claim(self.beto)
+        self.layer.sent.clear()
+
+        self.confirm(self.beto)
+
+        self.assertEqual(len(self.layer.sent), 2)
+        self.assertEqual(self.layer.sent[0][1]["event"]["data"]["applied"][0]["state"], "applied")
 
     def test_invalid_requests_are_rejected(self):
         self.assertEqual(self.claim(None).status_code, 403)
