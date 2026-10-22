@@ -92,11 +92,11 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 
 | Suite | Resultado | Comando |
 |---|---|---|
-| Frontend (Karma) | **178 correctas**, 0 fallos | `ng test` sobre `develop` |
+| Frontend (Karma) | **182 correctas**, 0 fallos | `ng test` sobre `develop` |
 | Frontend (compilación) | Correcta, con 2 avisos de módulos CommonJS (`backbone`, `file-saver`) | `ng build` |
-| Django sin base de datos | **91 correctas**, 0 fallos (colaboración 26, Gemini 7, IA endpoints 10, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
-| Django con base de datos (SQLite en memoria, `settings_test`) | **83 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
-| Spring | Cubierto por `ProjectGeneratorCompileTest` y las pruebas de CORS | Verificado en iteraciones anteriores; se vuelve a ejecutar antes del congelamiento |
+| Django sin base de datos | **95 correctas**, 0 fallos (colaboración 31, Gemini 7, IA endpoints 10, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
+| Django con base de datos (SQLite en memoria, `settings_test`) | **87 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
+| Spring | **9 correctas**, 0 fallos (incluye `ProjectGeneratorCompileTest`, que compila de verdad el proyecto generado, y las pruebas de CORS) | `cd back_generator_uml && ./mvnw test` (2026-10-22) |
 | Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados; identidad, actividad, chat, revisión y aplicar idea verificados con dos navegadores en https://diagramador.dev | Pruebas de humo y prueba manual del 2026-10-21 |
 
 **Revisión independiente (Codex, 2026-10-22):** se revisó el código de I1 a I5; se corrigieron los hallazgos reproducibles (guardado atómico, topes de costo compartidos, reserva persistente de ideas, estado "pensando" por pedido, confirmación de cambios destructivos, carrera del historial del chat) y se documentaron como límites de diseño los que dependen de no tener cuentas (el código de sala es la capacidad; la vista móvil no es un límite de seguridad; `via_ia` es informativo). Ver [`../DESPLIEGUE.md`](../DESPLIEGUE.md) §7.

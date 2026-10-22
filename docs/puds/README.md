@@ -45,7 +45,9 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 
 El detalle de cada iteración (objetivo, esfuerzo, rama, criterios de aceptación) está en la sección 8 del [plan de trabajo](../PLAN_PUDS_IA_PARTICIPANTE.md).
 
-## 4. Demostración
+## 4. Entrega y demostración
+
+La lista final de entrega (qué se entrega, estado de las pruebas, limitaciones y pendientes humanos) está en [`../ENTREGA.md`](../ENTREGA.md).
 
 El guion de la demostración (orden, qué decir, qué debe verse, preguntas probables y plan B) está en [`../DEMO.md`](../DEMO.md).
 
