@@ -1,12 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { PLATFORM_ID, provideZonelessChangeDetection, signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { ActivityEvent } from '../../services/colaboration/activity-event';
-import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { P2PService } from '../../services/colaboration/p2p.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
 import { ActivityPanel } from './activity-panel';
@@ -15,7 +15,6 @@ describe('ActivityPanel', () => {
   let fixture: ComponentFixture<ActivityPanel>;
   let http: HttpTestingController;
   let liveActivityEvents: ReturnType<typeof signal<ActivityEvent[]>>;
-  let appliedSuggestions: ReturnType<typeof signal<ReadonlySet<string>>>;
   let applySuggestion: jasmine.Spy;
   const historyUrl = `${environment.endpoint_python}api/rooms/room%20one/activity/?limit=100`;
 
@@ -37,7 +36,6 @@ describe('ActivityPanel', () => {
 
   beforeEach(async () => {
     liveActivityEvents = signal<ActivityEvent[]>([]);
-    appliedSuggestions = signal<ReadonlySet<string>>(new Set());
     applySuggestion = jasmine.createSpy('applySuggestion').and.returnValue(of('Listo'));
     await TestBed.configureTestingModule({
       imports: [ActivityPanel],
@@ -51,7 +49,6 @@ describe('ActivityPanel', () => {
           useValue: { snapshot: { paramMap: { get: () => 'room one' } } }
         },
         { provide: P2PService, useValue: { liveActivityEvents } },
-        { provide: CollaborationService, useValue: { appliedSuggestions } },
         { provide: IaActionsService, useValue: { applySuggestion } }
       ]
     }).compileComponents();
@@ -208,16 +205,41 @@ describe('ActivityPanel', () => {
       expect(applySuggestion).toHaveBeenCalledOnceWith('room one', 9, 0, 'agrega id: int a Cliente');
     });
 
-    it('shows an idea as applied, for everyone, once someone applied it', () => {
-      load([reviewEvent()]);
-
-      appliedSuggestions.set(new Set(['9:0']));
-      fixture.detectChanges();
+    it('shows an idea as applied, for everyone, once the server says someone took it', () => {
+      load([reviewEvent({
+        data: {
+          findings: [
+            { text: 'Cliente no tiene clave', prompt: 'agrega id: int a Cliente' },
+            { text: 'Pedido está aislado', prompt: 'relaciona Pedido' }
+          ],
+          applied: [{ index: 0, by: 'Bruno', by_id: 4 }]
+        }
+      })]);
 
       expect(buttons()[0].textContent).toContain('Aplicada');
       expect(buttons()[0].disabled).toBeTrue();
+      expect(buttons()[1].textContent).toContain('Aplicar');
       buttons()[0].click();
       expect(applySuggestion).not.toHaveBeenCalled();
+    });
+
+    it('survives a reload: the applied state comes with the event, not from memory', () => {
+      load([reviewEvent({
+        data: { findings: [{ text: 'x', prompt: 'agrega id' }], applied: [{ index: 0, by: 'Ana' }] }
+      })]);
+
+      expect(buttons()[0].disabled).toBeTrue();
+    });
+
+    it('tells the user when somebody else took the idea first', () => {
+      applySuggestion.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
+      load([reviewEvent()]);
+
+      buttons()[0].click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="suggestion-error"]').textContent)
+        .toContain('Otra persona ya aplicó esta idea');
     });
 
     it('tells the user when the IA could not apply an idea and lets them retry', () => {

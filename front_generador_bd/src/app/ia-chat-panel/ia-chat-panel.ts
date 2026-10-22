@@ -24,6 +24,8 @@ export class IaChatPanel implements OnInit {
   readonly messages = signal<IaChatMessage[]>([]);
   readonly draft = signal('');
   readonly sending = signal(false);
+  /** El historial ya se cargó (o falló): hasta entonces no se envía, para no duplicar mensajes. */
+  readonly historyReady = signal(false);
   readonly error = signal('');
   readonly maxChars = MAX_MESSAGE_CHARS;
   readonly mode = signal<IaChatMode>('ask');
@@ -75,7 +77,7 @@ export class IaChatPanel implements OnInit {
     const typed = this.draft().trim();
     // Revisar no necesita texto: el servidor usa un pedido por defecto.
     const text = typed || (mode === 'review' ? 'Revisa el diagrama' : '');
-    if (!this.roomId || !text || this.sending()) return;
+    if (!this.roomId || !text || this.sending() || !this.historyReady()) return;
     if (text.length > MAX_MESSAGE_CHARS) {
       this.error.set(`El mensaje no puede superar ${MAX_MESSAGE_CHARS} caracteres.`);
       return;
@@ -111,13 +113,14 @@ export class IaChatPanel implements OnInit {
     this.historyLoaded = true;
     this.chat.history(this.roomId).subscribe({
       next: history => {
-        // Si el usuario ya escribió algo mientras cargaba, se conserva debajo del historial.
-        this.messages.update(current => [...history, ...current]);
+        this.messages.set(history);
+        this.historyReady.set(true);
         this.scrollToEnd();
       },
       error: () => {
         // Sin historial el chat sigue funcionando; se reintenta al reabrir.
         this.historyLoaded = false;
+        this.historyReady.set(true);
       }
     });
   }

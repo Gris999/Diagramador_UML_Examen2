@@ -201,6 +201,33 @@ describe('IaChatPanel', () => {
     expect(element('[data-testid="ia-chat-input"]')).not.toBeNull();
   });
 
+  it('does not let the user send until the history has loaded, so nothing is duplicated', async () => {
+    const pending = new Subject<IaChatMessage[]>();
+    history.and.returnValue(pending);
+    await openChat();
+    await type('hola');
+
+    const send = element('[data-testid="ia-chat-send"]') as HTMLButtonElement;
+    expect(send.disabled).toBeTrue();
+    send.click();
+    expect(request).not.toHaveBeenCalled();
+
+    pending.next([{ id: 1, role: 'user', content: 'antes', created_at: 'x' }]);
+    pending.complete();
+    fixture.detectChanges();
+
+    expect(send.disabled).toBeFalse();
+    expect(elements('[data-testid="ia-chat-message"]').length).toBe(1);
+  });
+
+  it('allows sending when the history cannot be loaded', async () => {
+    history.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    await openChat();
+    await type('hola');
+
+    expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeFalse();
+  });
+
   it('keeps working when the history cannot be loaded', async () => {
     history.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
 

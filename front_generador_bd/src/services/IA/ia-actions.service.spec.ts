@@ -1,39 +1,43 @@
+import { provideZonelessChangeDetection } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
-import { IaActionsService } from './ia-actions.service';
-import { IaChatService } from './ia-chat.service';
 import { CollaborationService } from '../colaboration/collaboration.service';
 import { IdentityService } from '../colaboration/identity.service';
 import { DiagramService } from '../diagram/diagram.service';
-import { TestBed } from '@angular/core/testing';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { IaActionsService } from './ia-actions.service';
+import { IaChatService } from './ia-chat.service';
 
 describe('IaActionsService', () => {
   let service: IaActionsService;
   let send: jasmine.Spy;
+  let claimSuggestion: jasmine.Spy;
+  let releaseSuggestion: jasmine.Spy;
   let loadFromJson: jasmine.Spy;
-  let setIaStatus: jasmine.Spy;
-  let markSuggestionApplied: jasmine.Spy;
+  let startIaRequest: jasmine.Spy;
+  let finishIaRequest: jasmine.Spy;
   let appliedWhileMarked: boolean[];
   const uml = { classes: [{ id: 'c1', name: 'Cliente' }], relationships: [] };
 
   beforeEach(() => {
     send = jasmine.createSpy('send');
+    claimSuggestion = jasmine.createSpy('claimSuggestion').and.returnValue(of({}));
+    releaseSuggestion = jasmine.createSpy('releaseSuggestion').and.returnValue(of({}));
     appliedWhileMarked = [];
     let marked = false;
     loadFromJson = jasmine.createSpy('loadFromJson').and.callFake(() => appliedWhileMarked.push(marked));
-    setIaStatus = jasmine.createSpy('setIaStatus');
-    markSuggestionApplied = jasmine.createSpy('markSuggestionApplied');
+    startIaRequest = jasmine.createSpy('startIaRequest').and.returnValue('req-1');
+    finishIaRequest = jasmine.createSpy('finishIaRequest');
 
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        { provide: IaChatService, useValue: { send } },
+        { provide: IaChatService, useValue: { send, claimSuggestion, releaseSuggestion } },
         { provide: DiagramService, useValue: { exportToJson: () => uml, loadFromJson } },
         {
           provide: CollaborationService,
           useValue: {
-            setIaStatus,
-            markSuggestionApplied,
+            startIaRequest,
+            finishIaRequest,
             runAsIa: (action: () => unknown) => {
               marked = true;
               try {
@@ -57,16 +61,29 @@ describe('IaActionsService', () => {
     service.request('sala', 'ask', '¿qué hay?').subscribe();
 
     expect(send).toHaveBeenCalledOnceWith('sala', 'ask', '¿qué hay?', uml);
-    expect(setIaStatus).toHaveBeenCalledOnceWith('thinking', 'Ana');
+    expect(startIaRequest).toHaveBeenCalledOnceWith('Ana');
+    expect(finishIaRequest).not.toHaveBeenCalled();
 
     pending.next({ reply: 'hola' });
     pending.complete();
-    expect(setIaStatus).toHaveBeenCalledWith('idle', '');
+    expect(finishIaRequest).toHaveBeenCalledOnceWith('req-1');
+  });
+
+  it('reports the request as finished when it fails or is abandoned', () => {
+    send.and.returnValue(throwError(() => new Error('502')));
+    service.request('sala', 'change', 'x').subscribe({ error: () => undefined });
+    expect(finishIaRequest).toHaveBeenCalledOnceWith('req-1');
+    expect(loadFromJson).not.toHaveBeenCalled();
+
+    finishIaRequest.calls.reset();
+    send.and.returnValue(new Subject());
+    service.request('sala', 'ask', 'y').subscribe().unsubscribe();
+    expect(finishIaRequest).toHaveBeenCalledOnceWith('req-1');
   });
 
   it('applies the changes of change mode marked as IA', () => {
     const changes = { classes: [{ name: 'Factura' }] };
-    send.and.returnValue(of({ reply: 'Listo', changes }));
+    send.and.returnValue(of({ reply: 'Listo', changes, destructive: 0 }));
 
     service.request('sala', 'change', 'agrega Factura').subscribe();
 
@@ -83,33 +100,62 @@ describe('IaActionsService', () => {
     expect(loadFromJson).not.toHaveBeenCalled();
   });
 
-  it('reports the IA as idle again when the request fails', () => {
-    send.and.returnValue(throwError(() => new Error('502')));
-    let failed = false;
+  it('asks for confirmation before applying a change that deletes things, and applies it if accepted', () => {
+    const confirm = spyOn(window, 'confirm').and.returnValue(true);
+    const changes = { classes: [{ name: 'Pedido', eliminar: true }] };
+    send.and.returnValue(of({ reply: 'Listo', changes, destructive: 1 }));
 
-    service.request('sala', 'change', 'x').subscribe({ error: () => (failed = true) });
+    service.request('sala', 'change', 'quita Pedido').subscribe();
 
-    expect(failed).toBeTrue();
-    expect(setIaStatus).toHaveBeenCalledWith('idle', '');
-    expect(loadFromJson).not.toHaveBeenCalled();
+    expect(confirm).toHaveBeenCalledOnceWith(jasmine.stringContaining('eliminar 1 elemento del diagrama'));
+    expect(loadFromJson).toHaveBeenCalledOnceWith(changes, true);
   });
 
-  it('applies a suggestion as a change request and marks it as applied for everyone', () => {
-    send.and.returnValue(of({ reply: 'Listo', changes: { classes: [] } }));
+  it('leaves the diagram alone and says so when the user refuses a destructive change', () => {
+    spyOn(window, 'confirm').and.returnValue(false);
+    send.and.returnValue(of({ reply: 'Listo', changes: { classes: [{ name: 'A', eliminar: true }] }, destructive: 3 }));
+    let response: any;
+
+    service.request('sala', 'change', 'borra todo').subscribe(value => (response = value));
+
+    expect(loadFromJson).not.toHaveBeenCalled();
+    expect(response.cancelled).toBeTrue();
+    expect(response.changes).toBeUndefined();
+    expect(response.reply).toContain('Cancelaste el cambio');
+  });
+
+  it('claims a suggestion before applying it, as a change request on behalf of the clicker', () => {
+    send.and.returnValue(of({ reply: 'Listo', changes: { classes: [] }, destructive: 0 }));
     let reply = '';
 
     service.applySuggestion('sala', 12, 1, 'agrega id a Cliente').subscribe(value => (reply = value));
 
+    expect(claimSuggestion).toHaveBeenCalledOnceWith('sala', 12, 1);
     expect(send).toHaveBeenCalledOnceWith('sala', 'change', 'agrega id a Cliente', uml);
-    expect(markSuggestionApplied).toHaveBeenCalledOnceWith(12, 1);
+    expect(releaseSuggestion).not.toHaveBeenCalled();
     expect(reply).toBe('Listo');
   });
 
-  it('does not mark a suggestion as applied when the change fails', () => {
+  it('does not ask the IA anything when somebody else already took the suggestion', () => {
+    claimSuggestion.and.returnValue(throwError(() => ({ status: 409 })));
+    let failure: any;
+
+    service.applySuggestion('sala', 12, 1, 'x').subscribe({ error: error => (failure = error) });
+
+    expect(failure.status).toBe(409);
+    expect(send).not.toHaveBeenCalled();
+    expect(releaseSuggestion).not.toHaveBeenCalled();
+  });
+
+  it('releases the suggestion if the change fails or is refused', () => {
     send.and.returnValue(throwError(() => new Error('502')));
-
     service.applySuggestion('sala', 12, 1, 'x').subscribe({ error: () => undefined });
+    expect(releaseSuggestion).toHaveBeenCalledOnceWith('sala', 12, 1);
 
-    expect(markSuggestionApplied).not.toHaveBeenCalled();
+    releaseSuggestion.calls.reset();
+    spyOn(window, 'confirm').and.returnValue(false);
+    send.and.returnValue(of({ reply: 'x', changes: { classes: [{ eliminar: true }] }, destructive: 1 }));
+    service.applySuggestion('sala', 12, 2, 'y').subscribe();
+    expect(releaseSuggestion).toHaveBeenCalledOnceWith('sala', 12, 2);
   });
 });

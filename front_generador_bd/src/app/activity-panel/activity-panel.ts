@@ -1,10 +1,9 @@
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, OnDestroy, OnInit, PLATFORM_ID, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { ActivityEvent } from '../../services/colaboration/activity-event';
-import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { P2PService } from '../../services/colaboration/p2p.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
 
@@ -21,7 +20,6 @@ export class ActivityPanel implements OnInit, OnDestroy {
   private readonly p2p = inject(P2PService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly actions = inject(IaActionsService);
-  private readonly collab = inject(CollaborationService);
   private readonly history = signal<ActivityEvent[]>([]);
 
   private roomId: string | null = null;
@@ -72,8 +70,10 @@ export class ActivityPanel implements OnInit, OnDestroy {
       .map(item => ({ text: item.text, prompt: typeof item.prompt === 'string' ? item.prompt : '' }));
   }
 
+  /** Una idea queda aplicada para todos cuando el servidor la reserva (viaja dentro del evento). */
   isApplied(event: ActivityEvent, index: number): boolean {
-    return this.collab.appliedSuggestions().has(`${event.id}:${index}`);
+    const applied = event.data?.['applied'];
+    return Array.isArray(applied) && applied.some(item => item?.index === index);
   }
 
   isApplying(event: ActivityEvent, index: number): boolean {
@@ -88,9 +88,13 @@ export class ActivityPanel implements OnInit, OnDestroy {
     this.applying.set(`${event.id}:${index}`);
     this.actions.applySuggestion(this.roomId, event.id, index, finding.prompt).subscribe({
       next: () => this.applying.set(null),
-      error: () => {
+      error: (failure: unknown) => {
         this.applying.set(null);
-        this.suggestionError.set('La IA no pudo aplicar esa idea ahora. Intenta de nuevo.');
+        this.suggestionError.set(
+          failure instanceof HttpErrorResponse && failure.status === 409
+            ? 'Otra persona ya aplicó esta idea.'
+            : 'La IA no pudo aplicar esa idea ahora. Intenta de nuevo.'
+        );
       }
     });
   }
