@@ -69,6 +69,8 @@ Para el `.env` de Django, restaurar la copia `.env.bak-<fecha>` y recrear el ser
 
 ## 6. Pruebas de humo
 
+**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-10-22, todo en orden.
+
 Desde cualquier equipo, sustituyendo el dominio:
 
 ```bash

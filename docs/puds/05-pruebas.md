@@ -55,6 +55,10 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | CP-28 | CU-14 | Dos personas entran a la sala en el mismo instante | Cada una se reconoce a sí misma y los cambios se sincronizan | ✅ `test_a_new_connection_is_told_its_own_peer_id_before_anything_else`, `p2p.roles.spec.ts`; reproducido y corregido en el navegador |
 | CP-29 | CU-02 | Más de 100 eventos en la sala | El historial inicial trae los más recientes | ✅ `test_without_since_returns_the_latest_events_oldest_first` |
 | CP-31 | CU-08 | Un celular entra como observador antes que el editor | El editor es host; el observador no figura en la presencia, no envía ni expulsa, y recibe operaciones y actividad en vivo | ✅ `collab/tests/test_viewer.py` (5 pruebas); `follow-view.spec.ts`, `diagram.service.spec.ts` (modo solo lectura no guarda); verificado en un navegador del tamaño de un celular |
+| CP-32 | CU-05, CU-06 | Dos personas intentan aplicar la misma idea de la IA | Solo una la toma (la otra recibe 409); queda marcada para todos, también tras recargar; si el cambio falla, se libera | ✅ `ClaimSuggestionApiTests`, `ia-actions.service.spec.ts`, `activity-panel.spec.ts`; verificado en dos navegadores |
+| CP-33 | CU-04 | La IA propone eliminar elementos o un cambio enorme | Se pide confirmación antes de aplicar (si se rechaza, no cambia nada); los cambios enormes se rechazan | ✅ `ChangeGuardTests`, `ChatReliabilityTests`, `ia-actions.service.spec.ts` |
+| CP-34 | CU-03…05 | Abuso de costo: muchas preguntas o identidades nuevas | Topes por participante (12/min), sala (30/min) y total (60/min); 5 identidades por conexión | ✅ `ChatReliabilityTests`, `test_one_connection_cannot_mint_unlimited_identities` |
+| CP-35 | CU-03…05 | Falla la base entre guardar la pregunta y la respuesta o el evento público | No queda nada a medias | ✅ `test_a_failure_while_publishing_a_review_leaves_nothing_half_saved` |
 | CP-30 | CU-02 | Un cliente envía operaciones enormes o en ráfaga | Se registra con tope de tamaño y de tasa; el relé sigue funcionando | ✅ `test_oversized_operation_data_is_not_stored_whole`, `test_activity_flood_is_capped_but_relay_keeps_working` |
 
 ## 3. Procedimientos de prueba
@@ -80,11 +84,13 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 
 | Suite | Resultado | Comando |
 |---|---|---|
-| Frontend (Karma) | **161 correctas**, 0 fallos | `ng test` sobre `develop` |
+| Frontend (Karma) | **175 correctas**, 0 fallos | `ng test` sobre `develop` |
 | Frontend (compilación) | Correcta, con 2 avisos de módulos CommonJS (`backbone`, `file-saver`) | `ng build` |
-| Django sin base de datos | **79 correctas**, 0 fallos (colaboración 25, Gemini 7, XMI 14, diseño de XMI 1, Flutter 32) | ver procedimiento 2 |
-| Django con base de datos (SQLite en memoria, `settings_test`) | **60 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
+| Django sin base de datos | **91 correctas**, 0 fallos (colaboración 26, Gemini 7, IA endpoints 10, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
+| Django con base de datos (SQLite en memoria, `settings_test`) | **83 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
 | Spring | Cubierto por `ProjectGeneratorCompileTest` y las pruebas de CORS | Verificado en iteraciones anteriores; se vuelve a ejecutar antes del congelamiento |
 | Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados; identidad, actividad, chat, revisión y aplicar idea verificados con dos navegadores en https://diagramador.dev | Pruebas de humo y prueba manual del 2026-10-21 |
+
+**Revisión independiente (Codex, 2026-10-22):** se revisó el código de I1 a I5; se corrigieron los hallazgos reproducibles (guardado atómico, topes de costo compartidos, reserva persistente de ideas, estado "pensando" por pedido, confirmación de cambios destructivos, carrera del historial del chat) y se documentaron como límites de diseño los que dependen de no tener cuentas (el código de sala es la capacidad; la vista móvil no es un límite de seguridad; `via_ia` es informativo). Ver [`../DESPLIEGUE.md`](../DESPLIEGUE.md) §7.
 
 **Pendiente antes de la entrega:** repetir toda la evaluación sobre la versión congelada (≈ 2026-11-02), añadir las pruebas de I4 y repetir la prueba física con tres navegadores y con un celular real.
