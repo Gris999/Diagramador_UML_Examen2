@@ -810,3 +810,82 @@ describe('DiagramService read-only mode (follow view)', () => {
     expect(paper.scale).toHaveBeenCalledOnceWith(1, 1);
   });
 });
+
+describe('DiagramService merging AI updates into existing classes', () => {
+  function createService() {
+    const collab = { broadcast: jasmine.createSpy('broadcast') };
+    const service = new DiagramService(
+      { scheduleAutoResize: () => undefined } as any,
+      collab as any,
+      { export: () => ({ classes: [], relationships: [] }) } as any,
+      {} as any,
+      {} as any
+    );
+    return { service, collab };
+  }
+
+  function existingClass(initial: Record<string, any>) {
+    const state: Record<string, any> = { ...initial };
+    return {
+      id: 'c1',
+      isElement: () => true,
+      get: (prop: string) => state[prop],
+      set: (prop: string, value: any) => { state[prop] = value; },
+      position: () => undefined,
+      resize: () => undefined
+    };
+  }
+
+  function load(service: DiagramService, element: any, json: any, isRemoteSync = false) {
+    (service as any).graph = {
+      getCells: () => [element],
+      getElements: () => [element],
+      getLinks: () => [],
+      getCell: () => undefined
+    };
+    (service as any).loadFromJsonBatch(json, true, isRemoteSync);
+  }
+
+  it('tells the other participants when an AI update renames a class or changes its members', () => {
+    const { service, collab } = createService();
+    const element = existingClass({ name: 'Entidad', attributes: 'id: int', methods: '' });
+
+    load(service, element, {
+      classes: [{
+        id: 'c1',
+        name: 'Cliente',
+        attributes: [{ name: 'id', type: 'int' }, { name: 'email', type: 'string' }],
+        methods: [{ name: 'comprar' }]
+      }],
+      relationships: []
+    });
+
+    expect(collab.broadcast.calls.allArgs()).toEqual([
+      [{ t: 'edit_text', id: 'c1', field: 'name', value: 'Cliente' }],
+      [{ t: 'edit_text', id: 'c1', field: 'attributes', value: 'id: int\nemail: string' }],
+      [{ t: 'edit_text', id: 'c1', field: 'methods', value: 'comprar();' }]
+    ]);
+  });
+
+  it('does not broadcast values that did not change', () => {
+    const { service, collab } = createService();
+    const element = existingClass({ name: 'Cliente', attributes: 'id: int', methods: '' });
+
+    load(service, element, {
+      classes: [{ id: 'c1', name: 'Cliente', attributes: [{ name: 'id', type: 'int' }] }],
+      relationships: []
+    });
+
+    expect(collab.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('never re-broadcasts what arrived from the room', () => {
+    const { service, collab } = createService();
+    const element = existingClass({ name: 'Entidad', attributes: '', methods: '' });
+
+    load(service, element, { classes: [{ id: 'c1', name: 'Cliente' }], relationships: [] }, true);
+
+    expect(collab.broadcast).not.toHaveBeenCalled();
+  });
+});
+

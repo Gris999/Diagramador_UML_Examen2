@@ -948,8 +948,20 @@ export class DiagramService {
       if (existing && isStorageLoad) {
         idMap[cls.id] = existing.id;
 
+        // Una actualización que cambia una clase ya existente (la IA, el texto o
+        // la voz) debe llegar también a los demás participantes: se difunde cada
+        // campo que realmente cambió, igual que una edición manual. Lo que viene
+        // de la sala (isRemoteSync) nunca se vuelve a difundir.
+        const updateField = (field: 'name' | 'attributes' | 'methods', value: string) => {
+          const previous = existing.get(field);
+          existing.set(field, value);
+          if (!isRemoteSync && previous !== value) {
+            this.collab.broadcast({ t: 'edit_text', id: existing.id, field, value });
+          }
+        };
+
         if (cls.name !== undefined) {
-          existing.set('name', cls.name);
+          updateField('name', cls.name);
         }
 
         if (cls.attributes !== undefined) {
@@ -958,7 +970,7 @@ export class DiagramService {
               `${attribute.name}: ${attribute.type}`
             ).join('\n')
             : (cls.attributes || '');
-          existing.set('attributes', attributesText);
+          updateField('attributes', attributesText);
         }
 
         if (cls.methods !== undefined) {
@@ -969,7 +981,7 @@ export class DiagramService {
               return `${method.name}${params}${returnType};`;
             }).join('\n')
             : (cls.methods || '');
-          existing.set('methods', methodsText);
+          updateField('methods', methodsText);
         }
 
         // Restaurar posición/tamaño si vino del storage.
