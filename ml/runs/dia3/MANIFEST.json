@@ -1,0 +1,113 @@
+{
+  "semilla": 43,
+  "pesos_por_operacion": {
+    "agregar_metodo": 4,
+    "crear_dos_con_relacion": 4,
+    "renombrar_atributo": 2,
+    "renombrar_clase": 2,
+    "crear_clase": 2,
+    "editar_tipo": 2,
+    "crear_clase_con_metodos": 2
+  },
+  "prueba_reutilizada_de": "ml/data/out",
+  "conteos": {
+    "train": 2000,
+    "valid": 150,
+    "test": 200
+  },
+  "operaciones": {
+    "train": {
+      "relacion": 74,
+      "renombrar_clase": 148,
+      "agregar_metodo": 297,
+      "crear_clase_con_metodos": 148,
+      "crear_dos_con_relacion": 296,
+      "eliminar_atributo": 74,
+      "eliminar_relacion": 74,
+      "agregar_varios_atributos": 74,
+      "crear_clase": 148,
+      "eliminar_clase": 74,
+      "agregar_atributo": 75,
+      "editar_tipo": 148,
+      "eliminar_metodo": 74,
+      "crear_varias_clases": 74,
+      "herencia": 74,
+      "renombrar_atributo": 148
+    },
+    "valid": {
+      "eliminar_relacion": 9,
+      "crear_dos_con_relacion": 10,
+      "eliminar_clase": 9,
+      "agregar_varios_atributos": 10,
+      "herencia": 9,
+      "relacion": 9,
+      "renombrar_clase": 9,
+      "eliminar_atributo": 9,
+      "agregar_metodo": 10,
+      "agregar_atributo": 10,
+      "crear_varias_clases": 9,
+      "crear_clase_con_metodos": 10,
+      "renombrar_atributo": 9,
+      "crear_clase": 10,
+      "eliminar_metodo": 9,
+      "editar_tipo": 9
+    },
+    "test": {
+      "eliminar_clase": 12,
+      "renombrar_atributo": 12,
+      "crear_varias_clases": 13,
+      "agregar_varios_atributos": 13,
+      "agregar_atributo": 13,
+      "crear_dos_con_relacion": 13,
+      "relacion": 12,
+      "herencia": 12,
+      "editar_tipo": 13,
+      "crear_clase_con_metodos": 13,
+      "renombrar_clase": 12,
+      "eliminar_relacion": 12,
+      "crear_clase": 13,
+      "agregar_metodo": 13,
+      "eliminar_metodo": 12,
+      "eliminar_atributo": 12
+    }
+  },
+  "entidades_entrenamiento": [
+    "Almacen",
+    "Autor",
+    "Categoria",
+    "Cliente",
+    "Curso",
+    "Empleado",
+    "Estudiante",
+    "Factura",
+    "Hotel",
+    "Libro",
+    "Materia",
+    "Pedido",
+    "Producto",
+    "Proveedor",
+    "Proyecto",
+    "Reserva",
+    "Sucursal",
+    "Tarea",
+    "Ticket",
+    "Usuario"
+  ],
+  "entidades_solo_prueba": [
+    "Cancion",
+    "Doctor",
+    "Gimnasio",
+    "Mascota",
+    "Paciente",
+    "Pelicula",
+    "Receta",
+    "Vehiculo"
+  ],
+  "sin_fugas_train_valid_vs_test": true,
+  "sha256": {
+    "test.jsonl": "c6b66a55e5ddfe28b00a9c470d054aebafdbaeda0540998c827c9165d895b088",
+    "test_meta.jsonl": "4574445f2e8535b017fd5e1868b5b45c0f117af6565e22ab3e2551d2fe3ebfd6",
+    "train.jsonl": "9b943d90d2b546036fa2b8f128c52e10b10719b0b6e42dcb3e99a4388d6a06e1",
+    "valid.jsonl": "7248ad364f78d19bb25ebbf6cacc912ae7f5eeb36e019e582618652d9cf5755b"
+  }
+}

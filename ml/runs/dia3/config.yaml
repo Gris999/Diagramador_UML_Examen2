@@ -1,0 +1,21 @@
+# Hiperparámetros del entrenamiento LoRA (mlx-lm). El modelo y la carpeta de la
+# corrida se pasan desde entrenar.sh; todo lo demás está aquí para que quede registrado.
+train: true
+fine_tune_type: lora
+data: ml/data/out
+seed: 42
+num_layers: 24            # capas del modelo que reciben LoRA (las últimas; la prueba de viabilidad usó 16)
+batch_size: 2
+iters: 1000               # la prueba de viabilidad usó 100
+learning_rate: 1.0e-4
+steps_per_report: 10
+steps_per_eval: 100
+val_batches: 25
+save_every: 100
+max_seq_length: 1024
+grad_checkpoint: true     # menos memoria a cambio de algo de tiempo
+mask_prompt: true         # la pérdida se mide solo sobre la respuesta, no sobre el pedido
+lora_parameters:
+  rank: 16
+  scale: 20.0
+  dropout: 0.05

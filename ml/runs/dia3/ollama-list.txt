@@ -1,0 +1,5 @@
+NAME                     ID              SIZE      MODIFIED               
+uml-qwen-dia3:latest     d2727dd62210    3.4 GB    Less than a second ago    
+uml-qwen-dia2:latest     a893f46709b5    3.4 GB    3 hours ago               
+uml-qwen-spike:latest    ad7680c77d7c    3.4 GB    4 hours ago               
+qwen3.5:9b               d63f830f28d5    7.6 GB    15 hours ago              
