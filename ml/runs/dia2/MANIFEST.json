@@ -1,0 +1,103 @@
+{
+  "semilla": 42,
+  "conteos": {
+    "train": 1500,
+    "valid": 150,
+    "test": 200
+  },
+  "operaciones": {
+    "train": {
+      "renombrar_atributo": 93,
+      "crear_varias_clases": 94,
+      "eliminar_relacion": 94,
+      "agregar_atributo": 94,
+      "herencia": 93,
+      "eliminar_atributo": 94,
+      "agregar_varios_atributos": 94,
+      "crear_dos_con_relacion": 94,
+      "renombrar_clase": 93,
+      "editar_tipo": 94,
+      "crear_clase": 94,
+      "eliminar_metodo": 94,
+      "eliminar_clase": 94,
+      "relacion": 93,
+      "crear_clase_con_metodos": 94,
+      "agregar_metodo": 94
+    },
+    "valid": {
+      "eliminar_metodo": 9,
+      "agregar_atributo": 10,
+      "renombrar_clase": 9,
+      "crear_varias_clases": 9,
+      "eliminar_clase": 9,
+      "herencia": 9,
+      "agregar_varios_atributos": 10,
+      "editar_tipo": 9,
+      "renombrar_atributo": 9,
+      "eliminar_atributo": 9,
+      "crear_clase": 10,
+      "crear_clase_con_metodos": 10,
+      "relacion": 9,
+      "agregar_metodo": 10,
+      "eliminar_relacion": 9,
+      "crear_dos_con_relacion": 10
+    },
+    "test": {
+      "eliminar_clase": 12,
+      "renombrar_atributo": 12,
+      "crear_varias_clases": 13,
+      "agregar_varios_atributos": 13,
+      "agregar_atributo": 13,
+      "crear_dos_con_relacion": 13,
+      "relacion": 12,
+      "herencia": 12,
+      "editar_tipo": 13,
+      "crear_clase_con_metodos": 13,
+      "renombrar_clase": 12,
+      "eliminar_relacion": 12,
+      "crear_clase": 13,
+      "agregar_metodo": 13,
+      "eliminar_metodo": 12,
+      "eliminar_atributo": 12
+    }
+  },
+  "entidades_entrenamiento": [
+    "Almacen",
+    "Autor",
+    "Categoria",
+    "Cliente",
+    "Curso",
+    "Empleado",
+    "Estudiante",
+    "Factura",
+    "Hotel",
+    "Libro",
+    "Materia",
+    "Pedido",
+    "Producto",
+    "Proveedor",
+    "Proyecto",
+    "Reserva",
+    "Sucursal",
+    "Tarea",
+    "Ticket",
+    "Usuario"
+  ],
+  "entidades_solo_prueba": [
+    "Cancion",
+    "Doctor",
+    "Gimnasio",
+    "Mascota",
+    "Paciente",
+    "Pelicula",
+    "Receta",
+    "Vehiculo"
+  ],
+  "sin_fugas_train_valid_vs_test": true,
+  "sha256": {
+    "test.jsonl": "c6b66a55e5ddfe28b00a9c470d054aebafdbaeda0540998c827c9165d895b088",
+    "test_meta.jsonl": "4574445f2e8535b017fd5e1868b5b45c0f117af6565e22ab3e2551d2fe3ebfd6",
+    "train.jsonl": "7d5ebfd14e339b6fad0eea49ddef530ea40be3f37af9d64d1e92f6ae26e948c2",
+    "valid.jsonl": "e7a2d7c65391c24f4d9ab1111a8d6bf4c1c8130b6f7f4083122e0b5f6b75e3ec"
+  }
+}

@@ -1,0 +1,1898 @@
+{
+  "resumen": {
+    "nombre": "base (sin entrenar)",
+    "modelo": "/Users/pedroalaca/.lmstudio/models/lmstudio-community/Qwen3-4B-Instruct-2507-MLX-4bit",
+    "adaptador": null,
+    "fecha": "2026-10-22T10:30:38",
+    "equipo": "arm64 / macOS-26.5.2-arm64-arm-64bit",
+    "ejemplos": 200,
+    "json_valido": 192,
+    "correctos": 70,
+    "segundos_promedio": 4.7,
+    "segundos_total": 939.7,
+    "por_operacion": {
+      "agregar_atributo": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 9
+      },
+      "agregar_metodo": {
+        "total": 13,
+        "json_valido": 12,
+        "correctos": 7
+      },
+      "agregar_varios_atributos": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 6
+      },
+      "crear_clase": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 11
+      },
+      "crear_clase_con_metodos": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 4
+      },
+      "crear_dos_con_relacion": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 0
+      },
+      "crear_varias_clases": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 13
+      },
+      "editar_tipo": {
+        "total": 13,
+        "json_valido": 13,
+        "correctos": 11
+      },
+      "eliminar_atributo": {
+        "total": 12,
+        "json_valido": 12,
+        "correctos": 0
+      },
+      "eliminar_clase": {
+        "total": 12,
+        "json_valido": 8,
+        "correctos": 0
+      },
+      "eliminar_metodo": {
+        "total": 12,
+        "json_valido": 12,
+        "correctos": 0
+      },
+      "eliminar_relacion": {
+        "total": 12,
+        "json_valido": 10,
+        "correctos": 3
+      },
+      "herencia": {
+        "total": 12,
+        "json_valido": 11,
+        "correctos": 0
+      },
+      "relacion": {
+        "total": 12,
+        "json_valido": 12,
+        "correctos": 0
+      },
+      "renombrar_atributo": {
+        "total": 12,
+        "json_valido": 12,
+        "correctos": 3
+      },
+      "renombrar_clase": {
+        "total": 12,
+        "json_valido": 12,
+        "correctos": 3
+      }
+    }
+  },
+  "resultados": [
+    {
+      "n": 1,
+      "op": "eliminar_clase",
+      "pedido": "saca Categoria del diagrama",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.36,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":[]},{\"id\":\"c4\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"}]},{\"id\":\"c3\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 2,
+      "op": "renombrar_atributo",
+      "pedido": "Llama descuento al atributo confirmada de la clase Reserva",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.73,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"personas\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"descuento\",\"type\":\"double\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"enviar\"}]}]}"
+    },
+    {
+      "n": 3,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Producto (nombre: string, stock: int), Proyecto (id: int, inicio: Date) y Factura (monto: float, pagada: boolean).",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.44,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"stock\",\"type\":\"int\"}]},{\"id\":\"C2\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"inicio\",\"type\":\"Date\"}]},{\"id\":\"C3\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"pagada\",\"type\":\"boolean\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 4,
+      "op": "agregar_varios_atributos",
+      "pedido": "Suma a Materia: descuento: float, version: int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.06,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"descuento\",\"type\":\"float\"},{\"name\":\"version\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 5,
+      "op": "agregar_atributo",
+      "pedido": "Mete en Gimnasio un atributo activo: boolean.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.35,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"confirmar\"}]},{\"id\":\"c3\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 6,
+      "op": "agregar_varios_atributos",
+      "pedido": "suma a Pelicula: activo: boolean, observaciones: string.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.67,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"activo\",\"type\":\"boolean\"},{\"name\":\"observaciones\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"enviar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 7,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Tarea y Materia en el diagrama, con una composición que parta de Tarea",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.8,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"carrera\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"}]},{\"id\":\"c2\",\"name\":\"Tarea\",\"attributes\":[],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Materia\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 8,
+      "op": "relacion",
+      "pedido": "Establece una asociación que vaya de Materia a Reserva.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.13,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"confirmada\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"registrar\"}]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 9,
+      "op": "herencia",
+      "pedido": "pon a Mascota como subclase de Pedido.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.65,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"buscar\"}]},{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}],\"eliminar\":false},{\"id\":\"c2\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"estado\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"total\",\"type\":\"float\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"confirmar\"}],\"eliminar\":false}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 10,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Factura (monto: float, fecha: Date), Gimnasio (abierto: boolean, id: int) y Cancion (duracion: float, titulo: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.89,
+      "respuesta": "{\"classes\":[{\"id\":\"Factura\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"fecha\",\"type\":\"Date\"}]},{\"id\":\"Gimnasio\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"}]},{\"id\":\"Cancion\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"titulo\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 11,
+      "op": "editar_tipo",
+      "pedido": "ciudad de Proveedor tiene que pasar a ser float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.88,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"razonSocial\",\"type\":\"string\"}],\"methods\":[{\"name\":\"validar\"}]}]}"
+    },
+    {
+      "n": 12,
+      "op": "renombrar_atributo",
+      "pedido": "Tarea: terminada se renombra como observaciones",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.29,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"observaciones\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"}]}]}"
+    },
+    {
+      "n": 13,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Sucursal con los atributos id: int, ciudad: string, direccion: string y las operaciones registrar, actualizar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.64,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"}],\"methods\":[\"registrar\",\"actualizar\"]},{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"descripcion\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 14,
+      "op": "agregar_varios_atributos",
+      "pedido": "Suma a Reserva: notas: string, personas: int.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 9.05,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"notas\",\"type\":\"string\"},{\"name\":\"personas\",\"type\":\"int\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"comprar\"}]},{\"id\":\"c2\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"prioridad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"actualizar\"}]},{\"id\":\"c3\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"comprar\"}]}],\"relationships\":[{\"id\":\"r1\",\"type\":\"association\",\"sourceId\":\"c3\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 15,
+      "op": "renombrar_clase",
+      "pedido": "Reserva se renombra como Plan",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.75,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"abierto\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Plan\",\"attributes\":[{\"name\":\"personas\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"buscar\"}]}]}"
+    },
+    {
+      "n": 16,
+      "op": "eliminar_relacion",
+      "pedido": "deshaz la relación que une Curso con Estudiante, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 1.72,
+      "respuesta": "{\"relationships\":[{\"type\":\"delete\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 17,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime el vínculo Sucursal-Hotel",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.13,
+      "respuesta": "{\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 18,
+      "op": "renombrar_clase",
+      "pedido": "Estudiante se renombra como Pago.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.54,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pago\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"registrar\"}]}]}"
+    },
+    {
+      "n": 19,
+      "op": "herencia",
+      "pedido": "La clase Hotel debe ser hija de Materia",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.64,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estrellas\",\"type\":\"int\"}],\"methods\":[{\"name\":\"exportar\"}],\"generalization\":{\"sourceId\":\"c1\",\"targetId\":\"c2\"}},{\"id\":\"c2\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"pagada\",\"type\":\"boolean\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 20,
+      "op": "crear_clase",
+      "pedido": "Por favor, arma la clase Proyecto con estos atributos: inicio: Date, nombre: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.27,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 21,
+      "op": "editar_tipo",
+      "pedido": "disponible de Libro tiene que pasar a ser Date",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.95,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c4\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"numero\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 22,
+      "op": "crear_varias_clases",
+      "pedido": "genera las siguientes clases: Libro (isbn: string, disponible: boolean), Hotel (ciudad: string, nombre: string) y Usuario (clave: string, nombre: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 5.14,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"isbn\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"C2\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"C3\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 23,
+      "op": "crear_clase",
+      "pedido": "Arma la clase Mascota con estos atributos: nombre: string, especie: string, id: int, peso: float.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.96,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"registrar\"}]},{\"id\":\"c2\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 24,
+      "op": "agregar_metodo",
+      "pedido": "Categoria también debe poder hacer comprar()",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.86,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"calcularTotal\"},{\"name\":\"comprar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 25,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime la relacion Categoria-Cliente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 10.84,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"calorias\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"porciones\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"buscar\"}]},{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"exportar\"}]},{\"id\":\"c4\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"estreno\",\"type\":\"Date\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 26,
+      "op": "eliminar_metodo",
+      "pedido": "Ya no quiero la operación validar en Proveedor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 8.36,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"razonSocial\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c4\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"cancelar\"}]},{\"id\":\"c3\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"carrera\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"enviar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 27,
+      "op": "eliminar_relacion",
+      "pedido": "suprime el vínculo Proyecto-Vehiculo",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 8.82,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"marca\",\"type\":\"string\"},{\"name\":\"placa\",\"type\":\"string\"},{\"name\":\"anio\",\"type\":\"int\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"comprar\"}]},{\"id\":\"c1\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"presupuesto\",\"type\":\"float\"}],\"methods\":[{\"name\":\"comprar\"}]},{\"id\":\"c3\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\",\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 28,
+      "op": "agregar_varios_atributos",
+      "pedido": "Por favor, suma a Paciente: cantidad: int, observaciones: string",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.91,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cantidad\",\"type\":\"int\"},{\"name\":\"observaciones\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"}]},{\"id\":\"c2\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 29,
+      "op": "agregar_atributo",
+      "pedido": "Sumale a Paciente un campo puntaje: float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.95,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"puntaje\",\"type\":\"float\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"cancelar\"}]}]}"
+    },
+    {
+      "n": 30,
+      "op": "herencia",
+      "pedido": "Pon a Paciente como subclase de Tarea",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.04,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"prioridad\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 31,
+      "op": "agregar_metodo",
+      "pedido": "Dale a Proyecto la operación confirmar, por favor",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.93,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"enviar\"},{\"name\":\"confirmar\"}]}]}"
+    },
+    {
+      "n": 32,
+      "op": "eliminar_relacion",
+      "pedido": "Deshaz la relación que une Proveedor con Almacen.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.2,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"razonSocial\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"enviar\"}]},{\"id\":\"c2\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 33,
+      "op": "crear_clase",
+      "pedido": "Arma la clase Mascota con estos atributos: especie: string, nombre: string, por favor.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.45,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 34,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Pelicula (anio: int, estreno: Date), Almacen (capacidad: int, codigo: string) y Factura (pagada: boolean, fecha: Date)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.81,
+      "respuesta": "{\"classes\":[{\"id\":\"Pelicula\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"estreno\",\"type\":\"Date\"}]},{\"id\":\"Almacen\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"capacidad\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}]},{\"id\":\"Factura\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"fecha\",\"type\":\"Date\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 35,
+      "op": "renombrar_clase",
+      "pedido": "La clase Cliente pasa a llamarse Pago, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.15,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pago\",\"attributes\":[{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"validar\"}],\"eliminar\":false},{\"id\":\"c2\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"}],\"eliminar\":false},{\"id\":\"c3\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}],\"eliminar\":false}],\"relationships\":[]}"
+    },
+    {
+      "n": 36,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Sucursal (direccion: string, ciudad: string), Paciente (nombre: string, seguro: string) y Almacen (ubicacion: string, capacidad: int)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.47,
+      "respuesta": "{\"classes\":[{\"id\":\"S1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}]},{\"id\":\"P1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"seguro\",\"type\":\"string\"}]},{\"id\":\"A1\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 37,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Almacen con los atributos capacidad: int, ubicacion: string, codigo: string y las operaciones actualizar.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.74,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"capacidad\",\"type\":\"int\"},{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 38,
+      "op": "eliminar_clase",
+      "pedido": "Por favor, suprime Gimnasio del modelo",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 10.64,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"}],\"eliminar\":true},{\"id\":\"c3\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"cancelar\"}]},{\"id\":\"c4\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estrellas\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"confirmar\"}]}],\"relationships\":[{\"id\":\"r1\",\"type\":\"composition\",\"sourceId\":\"c3\",\"targetId\":\"c4\"}]}"
+    },
+    {
+      "n": 39,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Proyecto con los atributos nombre: string, id: int y las operaciones actualizar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.13,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[\"actualizar\"]}]}"
+    },
+    {
+      "n": 40,
+      "op": "herencia",
+      "pedido": "pon a Libro como subclase de Factura.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.89,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"pagada\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\"}]},{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"paginas\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"isbn\",\"type\":\"string\"}],\"methods\":[],\"generalization\":{\"sourceId\":\"c1\",\"targetId\":\"c2\"}}],\"relationships\":[]}"
+    },
+    {
+      "n": 41,
+      "op": "crear_clase",
+      "pedido": "quiero tener la clase Factura, con estos campos: fecha: Date, monto: float, numero: int, pagada: boolean",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.98,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"pagada\",\"type\":\"boolean\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 42,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Gimnasio con los atributos nombre: string, id: int y las operaciones exportar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.41,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"numero\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[\"exportar\"]}],\"relationships\":[]}"
+    },
+    {
+      "n": 43,
+      "op": "eliminar_metodo",
+      "pedido": "Por favor, ya no quiero la operación cancelar en Gimnasio",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.54,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"}],\"eliminar\":false},{\"id\":\"c2\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[],\"eliminar\":false}]}"
+    },
+    {
+      "n": 44,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Cliente el campo id",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.96,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"email\",\"type\":\"string\"}],\"methods\":[{\"name\":\"registrar\"}]},{\"id\":\"c3\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"anio\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"enviar\"}]},{\"id\":\"c2\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"personas\",\"type\":\"int\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 45,
+      "op": "renombrar_clase",
+      "pedido": "Cancion se renombra como Ficha",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.07,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Ficha\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"enviar\"}]},{\"id\":\"c2\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"confirmar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 46,
+      "op": "eliminar_clase",
+      "pedido": "Suprime Proveedor del modelo",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.95,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"razonSocial\",\"type\":\"string\"}],\"methods\":[],\"eliminar\":true}]}"
+    },
+    {
+      "n": 47,
+      "op": "agregar_metodo",
+      "pedido": "Por favor, dale a Categoria la operacion validar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.57,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"validar\"}]},{\"id\":\"c2\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"capacidad\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"ubicacion\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 48,
+      "op": "crear_clase",
+      "pedido": "Por favor, quiero tener la clase Factura, con estos campos: pagada: boolean, fecha: Date.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.45,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 49,
+      "op": "eliminar_atributo",
+      "pedido": "Por favor, ya no quiero id en Paciente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.17,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"validar\"},{\"name\":\"actualizar\"}]},{\"id\":\"c2\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 50,
+      "op": "eliminar_clase",
+      "pedido": "Suprime Materia del modelo",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.15,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"disponible\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"validar\"}],\"eliminar\":true},{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"exportar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 51,
+      "op": "renombrar_clase",
+      "pedido": "La clase Cancion pasa a llamarse Cuenta",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.5,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cuenta\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}],\"eliminar\":false},{\"id\":\"c3\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"carrera\",\"type\":\"string\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"comprar\"}],\"eliminar\":false},{\"id\":\"c2\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"}],\"eliminar\":false}],\"relationships\":[]}"
+    },
+    {
+      "n": 52,
+      "op": "crear_varias_clases",
+      "pedido": "genera las siguientes clases: Pedido (fecha: Date, id: int), Gimnasio (nombre: string, id: int) y Materia (horas: int, nombre: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.77,
+      "respuesta": "{\"classes\":[{\"id\":\"Pedido\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}]},{\"id\":\"Gimnasio\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}]},{\"id\":\"Materia\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 53,
+      "op": "agregar_atributo",
+      "pedido": "Almacen debe tener además observaciones de tipo string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.0,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"},{\"name\":\"observaciones\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 54,
+      "op": "eliminar_metodo",
+      "pedido": "Elimina de Materia el metodo calcularTotal()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.31,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 55,
+      "op": "crear_clase",
+      "pedido": "Por favor, pon una clase llamada Sucursal con ciudad: string, direccion: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.16,
+      "respuesta": "{\"classes\":[{\"id\":\"S1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"direccion\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 56,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Modela Producto y Paciente y conéctalas con una asociación de Producto a Paciente.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.74,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"estado\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Producto\",\"attributes\":[],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Paciente\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 57,
+      "op": "agregar_varios_atributos",
+      "pedido": "Suma a Sucursal: notas: string, pais: string.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.45,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"notas\",\"type\":\"string\"},{\"name\":\"pais\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"notificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 58,
+      "op": "eliminar_clase",
+      "pedido": "suprime Categoria del modelo",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 2.79,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"cancelar\"},\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 59,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Proveedor y Cliente en el diagrama, con una agregación que parta de Proveedor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.45,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"confirmada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"comprar\"}]},{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"String\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"email\",\"type\":\"String\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 60,
+      "op": "agregar_atributo",
+      "pedido": "Autor debe tener además descuento de tipo float",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.31,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"nacionalidad\",\"type\":\"string\"},{\"name\":\"descuento\",\"type\":\"float\"}],\"methods\":[{\"name\":\"cancelar\"}]},{\"id\":\"c2\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"estado\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"total\",\"type\":\"float\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"pagar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 61,
+      "op": "renombrar_atributo",
+      "pedido": "Reemplaza el nombre creado por puntaje en Ticket, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.95,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"puntaje\",\"type\":\"int\"},{\"name\":\"numero\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"marca\",\"type\":\"string\"},{\"name\":\"placa\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"personas\",\"type\":\"int\"},{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 62,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Vehiculo con los atributos disponible: boolean, anio: int, placa: string y las operaciones actualizar.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.12,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"placa\",\"type\":\"string\"}],\"methods\":[\"actualizar\"]},{\"id\":\"c1\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"especialidad\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 63,
+      "op": "agregar_atributo",
+      "pedido": "Sumale a Producto un campo observaciones: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.69,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"stock\",\"type\":\"int\"},{\"name\":\"observaciones\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}]}]}"
+    },
+    {
+      "n": 64,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Sucursal (ciudad: string, id: int), Estudiante (nombre: string, matricula: string) y Pelicula (id: int, titulo: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.22,
+      "respuesta": "{\"classes\":[{\"id\":\"S1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}]},{\"id\":\"E1\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"}]},{\"id\":\"P1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 65,
+      "op": "herencia",
+      "pedido": "Pon a Libro como subclase de Cliente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.79,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"isbn\",\"type\":\"string\"},{\"name\":\"paginas\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"enviar\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 66,
+      "op": "renombrar_clase",
+      "pedido": "Tarea se renombra como Ruta",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 9.41,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"notificar\"}]},{\"id\":\"c2\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"enviar\"}]},{\"id\":\"c1\",\"name\":\"Ruta\",\"attributes\":[{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"buscar\"}]},{\"id\":\"c4\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"sueldo\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"cargo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"}]}],\"relationships\":[{\"id\":\"r1\",\"type\":\"composition\",\"sourceId\":\"c2\",\"targetId\":\"c4\"}]}"
+    },
+    {
+      "n": 67,
+      "op": "relacion",
+      "pedido": "Quiero una asociación que vaya de Tarea a Estudiante",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.35,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"presupuesto\",\"type\":\"float\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"validar\"}]},{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"prioridad\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 68,
+      "op": "crear_dos_con_relacion",
+      "pedido": "modela Estudiante y Gimnasio y conectalas con una agregación de Estudiante a Gimnasio.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.36,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[],\"classes\":[{\"id\":\"c2\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 69,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime el vínculo Usuario-Doctor",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 5.33,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"}]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\":\"eliminar\"}]}"
+    },
+    {
+      "n": 70,
+      "op": "agregar_atributo",
+      "pedido": "Mete en Sucursal un atributo activo: boolean",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.08,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"notificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 71,
+      "op": "agregar_metodo",
+      "pedido": "pon en Tarea el método actualizar()",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.17,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"cancelar\"},{\"name\":\"actualizar\"}]}]}"
+    },
+    {
+      "n": 72,
+      "op": "editar_tipo",
+      "pedido": "En la clase Hotel, id ahora es de tipo float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.9,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"id\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"notificar\"}]}]}"
+    },
+    {
+      "n": 73,
+      "op": "relacion",
+      "pedido": "Conecta Cliente con Empleado usando una asociación",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.56,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"sueldo\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"confirmar\"}]},{\"id\":\"c1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"buscar\"}]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 74,
+      "op": "herencia",
+      "pedido": "Almacen debe extender la clase Libro.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 9.02,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"}],\"methods\":[],\"eliminar\":false},{\"id\":\"c3\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nacionalidad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[],\"eliminar\":false},{\"id\":\"c4\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"monto\",\"type\":\"float\"}],\"methods\":[{\"name\":\"validar\"}],\"eliminar\":false},{\"id\":\"c2\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"isbn\",\"type\":\"string\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"paginas\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}],\"eliminar\":false}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 75,
+      "op": "renombrar_clase",
+      "pedido": "Receta se renombra como Turno",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.98,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Turno\",\"attributes\":[{\"name\":\"porciones\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"validar\"}]},{\"id\":\"c2\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"registrar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 76,
+      "op": "renombrar_clase",
+      "pedido": "Por favor, la clase Gimnasio pasa a llamarse Turno.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.99,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Turno\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"anio\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"comprar\"}]}],\"relationships\":[{\"id\":\"r1\",\"type\":\"generalization\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 77,
+      "op": "agregar_atributo",
+      "pedido": "Pelicula debe tener además titulo de tipo string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.11,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"confirmar\"}]}]}"
+    },
+    {
+      "n": 78,
+      "op": "editar_tipo",
+      "pedido": "estado de Pedido tiene que pasar a ser boolean",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.79,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"estado\",\"type\":\"boolean\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"total\",\"type\":\"float\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 79,
+      "op": "crear_clase_con_metodos",
+      "pedido": "quiero Factura con los atributos fecha: Date, numero: int, pagada: boolean y las operaciones validar",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.59,
+      "respuesta": "{\"classes\":[{\"id\":\"Factura\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"pagada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"validar\"}]}]}"
+    },
+    {
+      "n": 80,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Por favor, genera Producto y Cancion y une Producto hacia Cancion con una agregación",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.97,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"isbn\",\"type\":\"string\"},{\"name\":\"paginas\",\"type\":\"int\"},{\"name\":\"disponible\",\"type\":\"boolean\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"precio\",\"type\":\"float\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"artista\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 81,
+      "op": "herencia",
+      "pedido": "pon a Mascota como subclase de Tarea",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 10.03,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\"}],\"generalization\":{\"sourceId\":\"c1\",\"targetId\":\"c2\"}},{\"id\":\"c3\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c4\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"enviar\"}},{\"id\":\"c2\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"notificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 82,
+      "op": "eliminar_clase",
+      "pedido": "Suprime Mascota del modelo",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 4.75,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":,\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 83,
+      "op": "agregar_metodo",
+      "pedido": "Categoria también debe poder hacer exportar()",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 4.93,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[\"exportar\"]},{\"id\":\"c2\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"estrellas\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[\"registrar\",\"comprar\"]}]}\""
+    },
+    {
+      "n": 84,
+      "op": "relacion",
+      "pedido": "Establece una asociación que vaya de Libro a Pelicula",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 9.62,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"registrar\"}]},{\"id\":\"c3\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"precio\",\"type\":\"float\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"anio\",\"type\":\"int\"}],\"methods\":[{\"name\":\"comprar\"}]},{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"confirmar\"}]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 85,
+      "op": "agregar_atributo",
+      "pedido": "sumale a Gimnasio un campo pais: string.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.45,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"pais\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"}]}]}"
+    },
+    {
+      "n": 86,
+      "op": "eliminar_relacion",
+      "pedido": "Deshaz la relación que une Cliente con Proveedor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.2,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"validar\"}]},{\"id\":\"c3\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"eliminar\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 87,
+      "op": "agregar_varios_atributos",
+      "pedido": "Proveedor necesita además estos atributos: cantidad: int, descuento: float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.28,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"cantidad\",\"type\":\"int\"},{\"name\":\"descuento\",\"type\":\"float\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 88,
+      "op": "agregar_metodo",
+      "pedido": "Pon en Sucursal el método calcularTotal()",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.92,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"direccion\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"comprar\"},{\"name\":\"calcularTotal\"}]}]}"
+    },
+    {
+      "n": 89,
+      "op": "renombrar_atributo",
+      "pedido": "Por favor, llama activo al atributo cargo de la clase Empleado",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.62,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"sueldo\",\"type\":\"float\"},{\"name\":\"cargo\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 90,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Reserva con los atributos id: int, fecha: Date, confirmada: boolean y las operaciones calcularTotal",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.2,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"confirmada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"calcularTotal\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 91,
+      "op": "renombrar_clase",
+      "pedido": "Estudiante se renombra como Contrato",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.89,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Contrato\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"carrera\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"comprar\"}]},{\"id\":\"c2\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"monto\",\"type\":\"float\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 92,
+      "op": "relacion",
+      "pedido": "Conecta Tarea con Paciente usando una composición.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 10.28,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"}]},{\"id\":\"c2\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"seguro\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}]},{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 93,
+      "op": "agregar_varios_atributos",
+      "pedido": "Pelicula necesita además estos atributos: descuento: float, activo: boolean",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.78,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"descuento\",\"type\":\"float\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 94,
+      "op": "eliminar_clase",
+      "pedido": "Por favor, suprime Vehiculo del modelo",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.4,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"placa\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"marca\",\"type\":\"string\"}],\"methods\":[],\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 95,
+      "op": "eliminar_metodo",
+      "pedido": "Elimina de Pelicula el método enviar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.77,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"placa\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"}]},{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 96,
+      "op": "herencia",
+      "pedido": "Pon a Producto como subclase de Pedido",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.18,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"precio\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"}],\"eliminar\":false},{\"id\":\"c2\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estado\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"}],\"eliminar\":false},{\"id\":\"c3\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[],\"eliminar\":false}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 97,
+      "op": "herencia",
+      "pedido": "Cancion debe extender la clase Reserva",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.03,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}]},{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"enviar\"}],\"generalization\":{\"sourceId\":\"c1\",\"targetId\":\"c2\"}}],\"relationships\":[]}"
+    },
+    {
+      "n": 98,
+      "op": "eliminar_metodo",
+      "pedido": "Ya no quiero la operación exportar en Paciente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.2,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[{\"id\":\"r1\",\"type\":\"composition\",\"sourceId\":\"c3\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 99,
+      "op": "crear_clase",
+      "pedido": "Arma la clase Pedido con estos atributos: total: float, id: int, fecha: Date, estado: string.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.37,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"estado\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 100,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Autor y Libro en el diagrama, con una asociación que parta de Autor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.21,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"calorias\",\"type\":\"float\"},{\"name\":\"porciones\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"cancelar\"}]},{\"id\":\"c2\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nombreAutor\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 101,
+      "op": "agregar_metodo",
+      "pedido": "dale a Autor la operación comprar",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.38,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nacionalidad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"registrar\"},{\"name\":\"comprar\"}]}]}"
+    },
+    {
+      "n": 102,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Genera Tarea y Reserva y une Tarea hacia Reserva con una agregación, por favor.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.05,
+      "respuesta": "{\"classes\":[{\"id\":\"Tarea\",\"name\":\"Tarea\",\"attributes\":[],\"methods\":[]},{\"id\":\"Reserva\",\"name\":\"Reserva\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"Tarea\",\"targetId\":\"Reserva\"}]}"
+    },
+    {
+      "n": 103,
+      "op": "agregar_varios_atributos",
+      "pedido": "Categoria necesita además estos atributos: creadoEn: Date, pais: string",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.91,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"carrera\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"creadoEn\",\"type\":\"Date\"},{\"name\":\"pais\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"buscar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 104,
+      "op": "eliminar_relacion",
+      "pedido": "suprime el vínculo Receta-Proveedor",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.9,
+      "respuesta": "{\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 105,
+      "op": "eliminar_metodo",
+      "pedido": "Suprime el método calcularTotal de la clase Pedido",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.11,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"estado\",\"type\":\"string\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"comprar\"}]},{\"id\":\"c2\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}]},{\"id\":\"c3\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"razonSocial\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 106,
+      "op": "relacion",
+      "pedido": "Por favor, conecta Materia con Estudiante usando una agregación",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.86,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"horas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"registrar\"}]},{\"id\":\"c3\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"carrera\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 107,
+      "op": "relacion",
+      "pedido": "Conecta Factura con Cancion usando una agregación",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.88,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"pagar\"}]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 108,
+      "op": "editar_tipo",
+      "pedido": "isbn de Libro tiene que pasar a ser boolean",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.21,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"paginas\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"isbn\",\"type\":\"boolean\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 109,
+      "op": "eliminar_atributo",
+      "pedido": "Suprime el atributo abierto de la clase Ticket",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.41,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"asunto\",\"type\":\"string\"},{\"name\":\"numero\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 110,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Categoria (descripcion: string, nombre: string), Vehiculo (anio: int, disponible: boolean) y Factura (numero: int, fecha: Date)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.72,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}]},{\"id\":\"V1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"disponible\",\"type\":\"boolean\"}]},{\"id\":\"F1\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 111,
+      "op": "relacion",
+      "pedido": "Quiero una asociación que vaya de Cancion a Mascota",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.35,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"especie\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"}]},{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 112,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Sucursal y Usuario en el diagrama, con una agregación que parta de Sucursal",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.92,
+      "respuesta": "{\"classes\":[{\"id\":\"S1\",\"name\":\"Sucursal\",\"attributes\":[],\"methods\":[]},{\"id\":\"U1\",\"name\":\"Usuario\",\"attributes\":[],\"methods\":[]},{\"id\":\"S2\",\"name\":\"Usuario\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"S1\",\"targetId\":\"U1\"}]}"
+    },
+    {
+      "n": 113,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Tarea (titulo: string, terminada: boolean), Factura (numero: int, monto: float) y Producto (stock: int, nombre: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 5.03,
+      "respuesta": "{\"classes\":[{\"id\":\"Tarea\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"}]},{\"id\":\"Factura\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"monto\",\"type\":\"float\"}]},{\"id\":\"Producto\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"stock\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 114,
+      "op": "renombrar_atributo",
+      "pedido": "Llama pais al atributo id de la clase Hotel",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.61,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"estrellas\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"pais\",\"type\":\"string\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 115,
+      "op": "renombrar_atributo",
+      "pedido": "Reemplaza el nombre id por observaciones en Proyecto",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.64,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"presupuesto\",\"type\":\"float\"},{\"name\":\"observaciones\",\"type\":\"string\"},{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"pagar\"}]}]}"
+    },
+    {
+      "n": 116,
+      "op": "renombrar_atributo",
+      "pedido": "Reemplaza el nombre anio por pais en Pelicula",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.64,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"pais\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estreno\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"exportar\"}]}]}"
+    },
+    {
+      "n": 117,
+      "op": "agregar_metodo",
+      "pedido": "Pon en Ticket el método validar(), por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 12.26,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"creado\",\"type\":\"Date\"},{\"name\":\"asunto\",\"type\":\"string\"}],\"methods\":[\"registrar\",\"comprar\",\"validar\"]},{\"id\":\"c4\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":[\"registrar\"]},{\"id\":\"c2\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"}],\"methods\":[\"notificar\",\"comprar\"]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c3\",\"targetId\":\"c4\"}]}"
+    },
+    {
+      "n": 118,
+      "op": "agregar_atributo",
+      "pedido": "Por favor, sumale a Pelicula un campo etiqueta: string",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.73,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"etiqueta\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"registrar\"}]},{\"id\":\"c2\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"confirmar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 119,
+      "op": "eliminar_clase",
+      "pedido": "Suprime Factura del modelo",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.19,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"monto\",\"type\":\"float\"},{\"name\":\"pagada\",\"type\":\"boolean\"},{\"name\":\"numero\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}],\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 120,
+      "op": "agregar_metodo",
+      "pedido": "Dale a Sucursal la operacion registrar",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.72,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"direccion\",\"type\":\"string\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"registrar\"}]}]}"
+    },
+    {
+      "n": 121,
+      "op": "eliminar_metodo",
+      "pedido": "Elimina de Almacen el metodo pagar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.74,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"}]},{\"id\":\"c3\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"actualizar\"}]},{\"id\":\"c2\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"enviar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 122,
+      "op": "renombrar_atributo",
+      "pedido": "Receta: porciones se renombra como cantidad.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.43,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"calorias\",\"type\":\"float\"},{\"name\":\"cantidad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"enviar\"}]}]}"
+    },
+    {
+      "n": 123,
+      "op": "eliminar_atributo",
+      "pedido": "elimina de Cliente el campo email",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.34,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 124,
+      "op": "crear_clase_con_metodos",
+      "pedido": "quiero Cliente con los atributos nombre: string, telefono: string y las operaciones calcularTotal, pagar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.09,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[\"calcularTotal\",\"pagar\"]}]}"
+    },
+    {
+      "n": 125,
+      "op": "eliminar_atributo",
+      "pedido": "Suprime el atributo especie de la clase Mascota",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.35,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"validar\"}]}]}"
+    },
+    {
+      "n": 126,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Genera Sucursal y Doctor y une Sucursal hacia Doctor con una asociación",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.2,
+      "respuesta": "{\"classes\":[{\"id\":\"S1\",\"name\":\"Sucursal\",\"attributes\":[],\"methods\":[]},{\"id\":\"D1\",\"name\":\"Doctor\",\"attributes\":[],\"methods\":[]},{\"id\":\"S2\",\"name\":\"Doctor\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"S1\",\"targetId\":\"D1\"}]}"
+    },
+    {
+      "n": 127,
+      "op": "crear_clase",
+      "pedido": "Quiero tener la clase Producto, con estos campos: codigo: string, stock: int, nombre: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.41,
+      "respuesta": "{\"classes\":[{\"id\":\"Producto\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"stock\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 128,
+      "op": "eliminar_atributo",
+      "pedido": "Ya no quiero especie en Mascota",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 10.81,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"nacionalidad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"cancelar\"}]},{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"actualizar\"}]},{\"id\":\"c4\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"validar\"}]},{\"id\":\"c2\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cupo\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c4\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 129,
+      "op": "eliminar_clase",
+      "pedido": "Saca Almacen del diagrama",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.2,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"capacidad\",\"type\":\"int\"},{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"validar\"}],\"eliminar\":true}],\"relationships\":[]}"
+    },
+    {
+      "n": 130,
+      "op": "eliminar_metodo",
+      "pedido": "elimina de Hotel el método cancelar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.8,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"estrellas\",\"type\":\"int\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 131,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Paciente el campo fechaNacimiento",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.24,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"estrellas\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 132,
+      "op": "crear_varias_clases",
+      "pedido": "genera las siguientes clases: Hotel (estrellas: int, id: int), Receta (id: int, calorias: float) y Libro (titulo: string, isbn: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.68,
+      "respuesta": "{\"classes\":[{\"id\":\"H1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"estrellas\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}]},{\"id\":\"R1\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"calorias\",\"type\":\"float\"}]},{\"id\":\"B1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"isbn\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 133,
+      "op": "agregar_metodo",
+      "pedido": "Tarea también debe poder hacer registrar(), por favor",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.56,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"validar\"},{\"name\":\"registrar\"}]}]}"
+    },
+    {
+      "n": 134,
+      "op": "crear_clase",
+      "pedido": "Arma la clase Categoria con estos atributos: descripcion: string, id: int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.23,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 135,
+      "op": "renombrar_atributo",
+      "pedido": "llama pais al atributo id de la clase Reserva",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.3,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"personas\",\"type\":\"int\"},{\"name\":\"confirmada\",\"type\":\"boolean\"},{\"name\":\"pais\",\"type\":\"string\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"enviar\"}]},{\"id\":\"c2\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"exportar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 136,
+      "op": "agregar_atributo",
+      "pedido": "Categoria debe tener ademas pais de tipo string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.91,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"pais\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"pagar\"}]}]}"
+    },
+    {
+      "n": 137,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Doctor con los atributos nombre: string, especialidad: string y las operaciones pagar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.38,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"especialidad\",\"type\":\"string\"}],\"methods\":[\"pagar\"]}],\"relationships\":[]}"
+    },
+    {
+      "n": 138,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Paciente el campo fechaNacimiento",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.68,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"marca\",\"type\":\"string\"},{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"placa\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"exportar\"}]},{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"estreno\",\"type\":\"Date\"},{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"id\":\"r1\",\"type\":\"aggregation\",\"sourceId\":\"c3\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 139,
+      "op": "relacion",
+      "pedido": "Quiero una agregación que vaya de Categoria a Cancion",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.08,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"descripcion\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"actualizar\"}]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 140,
+      "op": "eliminar_relacion",
+      "pedido": "Por favor, deshaz la relacion que une Pelicula con Estudiante",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 9.08,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}]},{\"id\":\"c2\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"carrera\",\"type\":\"string\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"buscar\"}]},{\"id\":\"c4\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 141,
+      "op": "renombrar_clase",
+      "pedido": "la clase Estudiante pasa a llamarse Evento.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.51,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Evento\",\"attributes\":[{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"carrera\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"validar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 142,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime la relacion Cliente-Proyecto, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 8.12,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"presupuesto\",\"type\":\"float\"}],\"methods\":[{\"name\":\"exportar\"}]},{\"id\":\"c3\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"registrar\"}]},{\"id\":\"c4\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"pagada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"cancelar\"}]},{\"id\":\"c1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"telefono\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 143,
+      "op": "crear_clase",
+      "pedido": "Quiero tener la clase Curso, con estos campos: codigo: string, creditos: int, nombre: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.24,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 144,
+      "op": "crear_clase",
+      "pedido": "Quiero tener la clase Mascota, con estos campos: peso: float, especie: string, nombre: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.6,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 145,
+      "op": "renombrar_atributo",
+      "pedido": "Por favor, reemplaza el nombre titulo por version en Cancion.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.76,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"version\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c4\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"}]},{\"id\":\"c3\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"estrellas\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}]},{\"id\":\"c2\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"capacidad\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 146,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Producto el campo stock",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.17,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"precio\",\"type\":\"float\"}],\"methods\":[{\"name\":\"validar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 147,
+      "op": "eliminar_metodo",
+      "pedido": "Suprime el método calcularTotal de la clase Receta.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.68,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"calorias\",\"type\":\"float\"},{\"name\":\"porciones\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"placa\",\"type\":\"string\"},{\"name\":\"marca\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 148,
+      "op": "agregar_metodo",
+      "pedido": "Reserva también debe poder hacer cancelar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.31,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"calcularTotal\"},{\"name\":\"cancelar\"}]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 149,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Cliente con los atributos nombre: string, email: string, id: int y las operaciones buscar, enviar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.14,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"}]},{\"id\":\"c2\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"},{\"name\":\"enviar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 150,
+      "op": "eliminar_metodo",
+      "pedido": "Suprime el método actualizar de la clase Cliente.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.57,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"}]},{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"},{\"name\":\"validar\"}]},{\"id\":\"c3\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 151,
+      "op": "herencia",
+      "pedido": "Empleado debe extender la clase Receta",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.49,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"calorias\",\"type\":\"float\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"pagar\"}]},{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cargo\",\"type\":\"string\"},{\"name\":\"sueldo\",\"type\":\"float\"}],\"methods\":[{\"name\":\"comprar\"},{\"name\":\"exportar\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 152,
+      "op": "agregar_varios_atributos",
+      "pedido": "Receta necesita ademas estos atributos: activo: boolean, cantidad: int.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.39,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"porciones\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"calorias\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"},{\"name\":\"cantidad\",\"type\":\"int\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 153,
+      "op": "agregar_varios_atributos",
+      "pedido": "Suma a Sucursal: pais: string, creadoEn: Date",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.73,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"direccion\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"pais\",\"type\":\"string\"},{\"name\":\"creadoEn\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"presupuesto\",\"type\":\"float\"},{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"razonSocial\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 154,
+      "op": "editar_tipo",
+      "pedido": "Haz que nombre en Curso sea de tipo int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.58,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Curso\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"int\"},{\"name\":\"creditos\",\"type\":\"int\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"exportar\"}]}]}"
+    },
+    {
+      "n": 155,
+      "op": "renombrar_clase",
+      "pedido": "La clase Proyecto pasa a llamarse Pago",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.61,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pago\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"presupuesto\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 156,
+      "op": "crear_varias_clases",
+      "pedido": "genera las siguientes clases: Ticket (abierto: boolean, creado: Date), Libro (isbn: string, paginas: int) y Hotel (id: int, ciudad: string).",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.31,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"creado\",\"type\":\"Date\"}]},{\"id\":\"C2\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"isbn\",\"type\":\"string\"},{\"name\":\"paginas\",\"type\":\"int\"}]},{\"id\":\"C3\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 157,
+      "op": "editar_tipo",
+      "pedido": "En la clase Pedido, id ahora es de tipo boolean",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.54,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"boolean\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"estado\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 158,
+      "op": "editar_tipo",
+      "pedido": "Por favor, haz que titulo en Libro sea de tipo Date",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.23,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Libro\",\"attributes\":[{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"titulo\",\"type\":\"Date\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"estreno\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"confirmar\"}]},{\"id\":\"c4\",\"name\":\"Factura\",\"attributes\":[{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"pagada\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"actualizar\"}]},{\"id\":\"c2\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"estrellas\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"buscar\"}]}]}"
+    },
+    {
+      "n": 159,
+      "op": "relacion",
+      "pedido": "Establece una composición que vaya de Tarea a Pedido",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 7.01,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"sueldo\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"}]},{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"prioridad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"}]},{\"id\":\"c2\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"total\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"comprar\"}]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 160,
+      "op": "crear_clase",
+      "pedido": "Por favor, quiero tener la clase Gimnasio, con estos campos: abierto: boolean, cupo: int",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.44,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"placa\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"marca\",\"type\":\"string\"}],\"methods\":[{\"name\":\"calcularTotal\"}]},{\"id\":\"c2\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"cupo\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 161,
+      "op": "agregar_metodo",
+      "pedido": "Pon en Tarea el metodo validar().",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.72,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[\"validar()\"]}]}"
+    },
+    {
+      "n": 162,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Ticket con los atributos abierto: boolean, asunto: string y las operaciones exportar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.7,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":[{\"name\":\"comprar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 163,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Quiero Usuario y Categoria en el diagrama, con una agregación que parta de Usuario",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.08,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"presupuesto\",\"type\":\"float\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Usuario\",\"attributes\":[],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Categoria\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"c2\",\"targetId\":\"c1\"}]}"
+    },
+    {
+      "n": 164,
+      "op": "crear_dos_con_relacion",
+      "pedido": "modela Ticket y Categoria y conéctalas con una asociación de Ticket a Categoria.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 3.16,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Ticket\",\"attributes\":[],\"methods\":[]},{\"id\":\"C2\",\"name\":\"Categoria\",\"attributes\":[],\"methods\":[]},{\"id\":\"C3\",\"name\":\"Categoria\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"C1\",\"targetId\":\"C2\"}]}"
+    },
+    {
+      "n": 165,
+      "op": "editar_tipo",
+      "pedido": "En la clase Paciente, fechaNacimiento ahora es de tipo boolean",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.56,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"fechaNacimiento\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"exportar\"}]}]}"
+    },
+    {
+      "n": 166,
+      "op": "eliminar_clase",
+      "pedido": "saca Empleado del diagrama.",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 5.49,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"actualizar\"}]},{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"sueldo\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"},{\"name\":\"cancelar\"}},{\"eliminar\":true}]}]}"
+    },
+    {
+      "n": 167,
+      "op": "editar_tipo",
+      "pedido": "En la clase Hotel, estrellas ahora es de tipo string.",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.88,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"estrellas\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[{\"name\":\"validar\"}]}]}"
+    },
+    {
+      "n": 168,
+      "op": "eliminar_clase",
+      "pedido": "Saca Mascota del diagrama, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.7,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"cancelar\"}],\"eliminar\":true}]}"
+    },
+    {
+      "n": 169,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Doctor con los atributos nombre: string, matricula: string y las operaciones notificar, exportar",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.07,
+      "respuesta": "{\"classes\":[{\"id\":\"Doctor\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"}],\"methods\":[\"notificar\",\"exportar\"]}]}"
+    },
+    {
+      "n": 170,
+      "op": "herencia",
+      "pedido": "Paciente debe extender la clase Usuario",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 8.06,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"nacionalidad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"pagar\"}]},{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"}]},{\"id\":\"c4\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"buscar\"}]},{\"id\":\"c2\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"}],\"methods\":[{\"name\":\"calcularTotal\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 171,
+      "op": "eliminar_atributo",
+      "pedido": "ya no quiero estreno en Pelicula",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.81,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"pagar\"},{\"name\":\"comprar\"}]},{\"id\":\"c2\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"asunto\",\"type\":\"string\"},{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"creado\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"notificar\"}]}]}"
+    },
+    {
+      "n": 172,
+      "op": "eliminar_atributo",
+      "pedido": "Suprime el atributo duracion de la clase Cancion",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 1.97,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"registrar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 173,
+      "op": "eliminar_metodo",
+      "pedido": "Ya no quiero la operación actualizar en Gimnasio",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.68,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"abierto\",\"type\":\"boolean\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 174,
+      "op": "renombrar_atributo",
+      "pedido": "reemplaza el nombre especie por activo en Mascota",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.93,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"activo\",\"type\":\"string\"}],\"methods\":[{\"name\":\"validar\"}]},{\"id\":\"c2\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"cargo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 175,
+      "op": "editar_tipo",
+      "pedido": "activo de Usuario tiene que pasar a ser float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.23,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"float\"}],\"methods\":[{\"name\":\"buscar\"}]}]}"
+    },
+    {
+      "n": 176,
+      "op": "agregar_atributo",
+      "pedido": "Por favor, mete en Autor un atributo creadoEn: Date",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.03,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nacionalidad\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"creadoEn\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"calcularTotal\"}]}]}"
+    },
+    {
+      "n": 177,
+      "op": "editar_tipo",
+      "pedido": "En la clase Ticket, creado ahora es de tipo string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.67,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"creado\",\"type\":\"string\"},{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"asunto\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"}]}]}"
+    },
+    {
+      "n": 178,
+      "op": "agregar_atributo",
+      "pedido": "mete en Estudiante un atributo notas: string",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 3.16,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"carrera\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"notas\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"}]}]}"
+    },
+    {
+      "n": 179,
+      "op": "agregar_metodo",
+      "pedido": "pon en Gimnasio el método exportar()",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.07,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Gimnasio\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cupo\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"abierto\"},{\"name\":\"enviar\"},{\"name\":\"exportar\"}]},{\"id\":\"c2\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"validar\"},{\"name\":\"enviar\"}]}]}"
+    },
+    {
+      "n": 180,
+      "op": "herencia",
+      "pedido": "pon a Paciente como subclase de Cliente",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 8.29,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"numero\",\"type\":\"int\"},{\"name\":\"creado\",\"type\":\"Date\"},{\"name\":\"asunto\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"}]},{\"id\":\"c4\",\"name\":\"Categoria\",\"attributes\":[{\"name\":\"descripcion\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Paciente\",\"attributes\":[{\"name\":\"seguro\",\"type\":\"string\"},{\"name\":\"fechaNacimiento\",\"type\":\"Date\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"validar\"}]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 181,
+      "op": "agregar_atributo",
+      "pedido": "Doctor debe tener además descuento de tipo float",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.73,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Doctor\",\"attributes\":[{\"name\":\"especialidad\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"},{\"name\":\"descuento\",\"type\":\"float\"}],\"methods\":[{\"name\":\"actualizar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 182,
+      "op": "renombrar_atributo",
+      "pedido": "Hotel: nombre se renombra como pais",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.91,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"pais\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 183,
+      "op": "relacion",
+      "pedido": "conecta Tarea con Pedido usando una composición",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 6.57,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Estudiante\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"edad\",\"type\":\"int\"},{\"name\":\"carrera\",\"type\":\"string\"},{\"name\":\"matricula\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Pedido\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"fecha\",\"type\":\"Date\"},{\"name\":\"estado\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"}]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 184,
+      "op": "crear_varias_clases",
+      "pedido": "genera las siguientes clases: Almacen (codigo: string, ubicacion: string), Hotel (id: int, nombre: string) y Reserva (id: int, personas: int)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.69,
+      "respuesta": "{\"classes\":[{\"id\":\"Almacen\",\"name\":\"Almacen\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"ubicacion\",\"type\":\"string\"}]},{\"id\":\"Hotel\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"}]},{\"id\":\"Reserva\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"personas\",\"type\":\"int\"}]}],\"relationships\":[[\"association\",\"Almacen\",\"Hotel\"],[\"association\",\"Hotel\",\"Reserva\"]]}"
+    },
+    {
+      "n": 185,
+      "op": "crear_clase_con_metodos",
+      "pedido": "Quiero Hotel con los atributos ciudad: string, id: int, nombre: string, estrellas: int y las operaciones pagar",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.66,
+      "respuesta": "{\"classes\":[{\"id\":\"H1\",\"name\":\"Hotel\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"estrellas\",\"type\":\"int\"}],\"methods\":[{\"name\":\"pagar\"}]}]}"
+    },
+    {
+      "n": 186,
+      "op": "crear_clase",
+      "pedido": "Arma la clase Empleado con estos atributos: cargo: string, id: int",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.19,
+      "respuesta": "{\"classes\":[{\"id\":\"c4\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"cargo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 187,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Por favor, modela Reserva y Autor y conéctalas con una asociación de Reserva a Autor.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.8,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Vehiculo\",\"attributes\":[{\"name\":\"anio\",\"type\":\"int\"},{\"name\":\"marca\",\"type\":\"string\"},{\"name\":\"disponible\",\"type\":\"boolean\"},{\"name\":\"placa\",\"type\":\"string\"}],\"methods\":[{\"name\":\"cancelar\"}]},{\"id\":\"c2\",\"name\":\"Reserva\",\"attributes\":[],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Autor\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"association\",\"sourceId\":\"c2\",\"targetId\":\"c3\"}]}"
+    },
+    {
+      "n": 188,
+      "op": "eliminar_atributo",
+      "pedido": "Elimina de Reserva el campo id",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.84,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Reserva\",\"attributes\":[{\"name\":\"fecha\",\"type\":\"Date\"}],\"methods\":[{\"name\":\"registrar\"}]},{\"id\":\"c2\",\"name\":\"Usuario\",\"attributes\":[{\"name\":\"clave\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c3\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 189,
+      "op": "agregar_varios_atributos",
+      "pedido": "Tarea necesita además estos atributos: version: int, pais: string, por favor.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.59,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"ciudad\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"prioridad\",\"type\":\"int\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"version\",\"type\":\"int\"},{\"name\":\"pais\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 190,
+      "op": "eliminar_relacion",
+      "pedido": "suprime el vínculo Sucursal-Cliente, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.16,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Cliente\",\"attributes\":[{\"name\":\"email\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"telefono\",\"type\":\"string\"}],\"methods\":[{\"name\":\"actualizar\"},{\"name\":\"cancelar\"}]},{\"id\":\"c1\",\"name\":\"Sucursal\",\"attributes\":[{\"name\":\"ciudad\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"direccion\",\"type\":\"string\"}],\"methods\":[]}],\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 191,
+      "op": "eliminar_relacion",
+      "pedido": "Suprime el vínculo Proyecto-Cliente",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 1.69,
+      "respuesta": "{\"relationships\":[{\"type\":\"generalization\",\"sourceId\":\"c1\",\"targetId\":\"c2\",\"eliminar\":true}]}"
+    },
+    {
+      "n": 192,
+      "op": "eliminar_clase",
+      "pedido": "Deshazte de la clase Cancion",
+      "json_valido": false,
+      "correcto": false,
+      "segundos": 4.89,
+      "respuesta": "{\"classes\":[{\"id\":\"c2\",\"name\":\"Mascota\",\"attributes\":[{\"name\":\"especie\",\"type\":\"string\"},{\"name\":\"peso\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"confirmar\"}]},{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"exportar\"},{\"name\":\"comprar\"}},{\"eliminar\":true}]}"
+    },
+    {
+      "n": 193,
+      "op": "agregar_varios_atributos",
+      "pedido": "Suma a Producto: activo: boolean, codigo: string",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.49,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"stock\",\"type\":\"int\"},{\"name\":\"precio\",\"type\":\"float\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"activo\",\"type\":\"boolean\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Receta\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"calorias\",\"type\":\"float\"}],\"methods\":[]}],\"relationships\":[]}"
+    },
+    {
+      "n": 194,
+      "op": "eliminar_metodo",
+      "pedido": "Suprime el método validar de la clase Proyecto.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.17,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Proyecto\",\"attributes\":[{\"name\":\"inicio\",\"type\":\"Date\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"}]}]}"
+    },
+    {
+      "n": 195,
+      "op": "crear_dos_con_relacion",
+      "pedido": "Genera Categoria y Cliente y une Categoria hacia Cliente con una agregación, por favor",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 2.6,
+      "respuesta": "{\"classes\":[{\"id\":\"C1\",\"name\":\"Categoria\",\"attributes\":[],\"methods\":[]},{\"id\":\"C2\",\"name\":\"Cliente\",\"attributes\":[],\"methods\":[]}],\"relationships\":[{\"type\":\"aggregation\",\"sourceId\":\"C1\",\"targetId\":\"C2\"}]}"
+    },
+    {
+      "n": 196,
+      "op": "crear_varias_clases",
+      "pedido": "Genera las siguientes clases: Pelicula (titulo: string, id: int), Proveedor (razonSocial: string, ciudad: string) y Autor (id: int, nacionalidad: string)",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 4.38,
+      "respuesta": "{\"classes\":[{\"id\":\"Pelicula\",\"name\":\"Pelicula\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"}]},{\"id\":\"Proveedor\",\"name\":\"Proveedor\",\"attributes\":[{\"name\":\"razonSocial\",\"type\":\"string\"},{\"name\":\"ciudad\",\"type\":\"string\"}]},{\"id\":\"Autor\",\"name\":\"Autor\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"nacionalidad\",\"type\":\"string\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 197,
+      "op": "renombrar_clase",
+      "pedido": "Almacen se renombra como Turno.",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 5.07,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Turno\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"ubicacion\",\"type\":\"string\"},{\"name\":\"capacidad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"comprar\"}]},{\"id\":\"c2\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"stock\",\"type\":\"int\"},{\"name\":\"precio\",\"type\":\"float\"},{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"}],\"methods\":[{\"name\":\"enviar\"},{\"name\":\"notificar\"}]}],\"relationships\":[]}"
+    },
+    {
+      "n": 198,
+      "op": "relacion",
+      "pedido": "Establece una composición que vaya de Cancion a Tarea",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 9.16,
+      "respuesta": "{\"classes\":[{\"id\":\"c3\",\"name\":\"Materia\",\"attributes\":[{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"codigo\",\"type\":\"string\"}],\"methods\":[]},{\"id\":\"c1\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"duracion\",\"type\":\"float\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"pagar\"}]},{\"id\":\"c4\",\"name\":\"Producto\",\"attributes\":[{\"name\":\"codigo\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"string\"},{\"name\":\"precio\",\"type\":\"float\"},{\"name\":\"stock\",\"type\":\"int\"}],\"methods\":[]},{\"id\":\"c2\",\"name\":\"Tarea\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"terminada\",\"type\":\"boolean\"},{\"name\":\"prioridad\",\"type\":\"int\"}],\"methods\":[{\"name\":\"notificar\"},{\"name\":\"pagar\"}]}],\"relationships\":[{\"type\":\"composition\",\"sourceId\":\"c1\",\"targetId\":\"c2\"}]}"
+    },
+    {
+      "n": 199,
+      "op": "agregar_varios_atributos",
+      "pedido": "Suma a Ticket: pais: string, version: int",
+      "json_valido": true,
+      "correcto": false,
+      "segundos": 4.63,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Ticket\",\"attributes\":[{\"name\":\"asunto\",\"type\":\"string\"},{\"name\":\"abierto\",\"type\":\"boolean\"},{\"name\":\"pais\",\"type\":\"string\"},{\"name\":\"version\",\"type\":\"int\"}],\"methods\":[{\"name\":\"registrar\"},{\"name\":\"notificar\"}]},{\"id\":\"c2\",\"name\":\"Cancion\",\"attributes\":[{\"name\":\"titulo\",\"type\":\"string\"},{\"name\":\"duracion\",\"type\":\"float\"},{\"name\":\"id\",\"type\":\"int\"}],\"methods\":[]}]}"
+    },
+    {
+      "n": 200,
+      "op": "editar_tipo",
+      "pedido": "Haz que nombre en Empleado sea de tipo Date",
+      "json_valido": true,
+      "correcto": true,
+      "segundos": 2.17,
+      "respuesta": "{\"classes\":[{\"id\":\"c1\",\"name\":\"Empleado\",\"attributes\":[{\"name\":\"id\",\"type\":\"int\"},{\"name\":\"cargo\",\"type\":\"string\"},{\"name\":\"nombre\",\"type\":\"Date\"}],\"methods\":[]}]}"
+    }
+  ]
+}

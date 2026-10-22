@@ -1,0 +1,7 @@
+fecha: 2026-10-22T10:30:38-04:00
+equipo: Apple M5, 16 GB
+sistema: macOS 26.5.2
+modelo_base: /Users/pedroalaca/.lmstudio/models/lmstudio-community/Qwen3-4B-Instruct-2507-MLX-4bit
+mlx_lm: 0.32.2
+commit: 2ebe4a4
+datos_sha256: 7d5ebfd14e339b6fad0eea49ddef530ea40be3f37af9d64d1e92f6ae26e948c2

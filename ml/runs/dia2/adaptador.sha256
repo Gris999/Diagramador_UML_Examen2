@@ -1,0 +1,24 @@
+7957ddfcaf9ccd3e37d8a994f0d89c3fa568c612982e2c146425e13a03e9664d  ml/runs/dia2/adapters/0000100_adapters.safetensors
+182ac9145962584c1a8ae826a340de996a06b3778ce36626c235d116956cc879  ml/runs/dia2/adapters/0000200_adapters.safetensors
+e0488a7a374b9044f4a26a88b46d281bbb4f70d421ce815ebf2b68ebf086b575  ml/runs/dia2/adapters/0000300_adapters.safetensors
+626905fed33ad7596d9656107b17d5111f8cb4f09d63a203dbcd444c8bba5a9f  ml/runs/dia2/adapters/0000400_adapters.safetensors
+72c79a5966c6e8dea8ce72b2bc6c454ddfa04a71ea781837d92fc56b54040a05  ml/runs/dia2/adapters/0000500_adapters.safetensors
+6ef0f64257f2de572727f7e46c5017137c560ed541ee4208a0607c808f5731ca  ml/runs/dia2/adapters/0000600_adapters.safetensors
+d6eacec7b3e0ea8f190f4aaf4bd47dd27e63bc7b0ed1ca433944dbb0986d7500  ml/runs/dia2/adapters/0000700_adapters.safetensors
+1067b0c0cf27cd6f4f5e28db585f538cb733baeaed7c1ab0ac1dde7e47f356d0  ml/runs/dia2/adapters/0000800_adapters.safetensors
+5fa818b0a66422472c2d57c8ff8ad33e847139f44d88141229fe10befaaecbfe  ml/runs/dia2/adapters/0000900_adapters.safetensors
+2a26ffd83e3996f45796bedc486ee5b695e94bfb796a871975acfbf54af49477  ml/runs/dia2/adapters/0001000_adapters.safetensors
+2a26ffd83e3996f45796bedc486ee5b695e94bfb796a871975acfbf54af49477  ml/runs/dia2/adapters/adapters.safetensors
+total 1917664
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 10:40 0000100_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 10:48 0000200_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 10:56 0000300_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:04 0000400_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:12 0000500_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:20 0000600_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:28 0000700_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:37 0000800_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:45 0000900_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:53 0001000_adapters.safetensors
+-rw-r--r--@ 1 pedroalaca  staff      1063 Oct 22 10:30 adapter_config.json
+-rw-r--r--@ 1 pedroalaca  staff  88117092 Oct 22 11:53 adapters.safetensors
