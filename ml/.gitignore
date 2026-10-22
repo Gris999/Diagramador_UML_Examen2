@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+# Pesos grandes: el modelo base y el fusionado no se versionan (el adaptador sí, ver README)
+models/
+fused/
+data/out/
+# El adaptador (≈ 59 MB por archivo) no se versiona; su hash queda en runs/<corrida>/adaptador.sha256
+runs/*/adapters/*.safetensors
