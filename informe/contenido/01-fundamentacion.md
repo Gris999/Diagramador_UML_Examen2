@@ -40,21 +40,47 @@ Entre los **estilos** relevantes están la arquitectura **en capas**, el **clien
 
 ## 1.6 Capítulo 5: Proceso de diseñar una base de datos
 
-Diseñar una base de datos recorre pasos ordenados, desde el modelo conceptual hasta el código (Rumbaugh et al., 1991):
+Diseñar una base de datos es una de las fases más críticas del ciclo de vida, porque garantiza que la información se represente correctamente y se manipule con eficiencia. El proceso recorre pasos ordenados, desde un nivel conceptual abstracto hasta la implementación física y su integración en el código del backend (Rumbaugh et al., 1991).
 
-1. **Diseño conceptual:** modelo de dominio con entidades, atributos y relaciones, independiente de la tecnología. En el proyecto es el **diagrama de clases UML** que dibuja el usuario.
-2. **Diseño lógico:** traducción al modelo relacional: cada clase pasa a ser una tabla; se definen claves primarias y foráneas; una relación **muchos a muchos** se resuelve con una **tabla intermedia**; una herencia se resuelve con una de varias estrategias (tabla por clase, por jerarquía o por clase concreta). La plataforma crea automáticamente una **entidad intermedia visible** con sus dos claves foráneas cuando el usuario dibuja una relación muchos a muchos.
-3. **Diseño físico:** elección del motor y de tipos de datos concretos, índices y restricciones. El proyecto apunta a **PostgreSQL** y exporta un guion SQL.
-4. **Implementación en código del backend:** entidades, repositorios y servicios que acceden a las tablas; la plataforma los genera en Spring Boot.
-5. **Mantenimiento y evolución:** migraciones controladas cuando el modelo cambia. En Django, las migraciones versionan el esquema del propio sistema (`collab` tiene cuatro migraciones, una por cada cambio de modelo de datos).
+### 1) Diseño conceptual
+
+Es el modelo del dominio con entidades, atributos y relaciones, independiente de cualquier sistema gestor de base de datos. La técnica habitual es el modelo entidad-relación o el modelo orientado a objetos. En el proyecto es el **diagrama de clases UML** que dibuja el usuario en el editor.
+
+### 2) Diseño lógico
+
+Es la traducción al modelo relacional: cada clase pasa a ser una tabla, se definen claves primarias y foráneas, una relación **muchos a muchos** se resuelve con una **tabla intermedia** y una herencia se resuelve con una de varias estrategias (tabla por clase, por jerarquía o por clase concreta). La plataforma crea automáticamente una **entidad intermedia visible** con sus dos claves foráneas cuando el usuario dibuja una relación muchos a muchos.
+
+### 3) Diseño físico
+
+Es la elección del motor y de los tipos de datos concretos, los índices y las restricciones. El proyecto apunta a **PostgreSQL** y exporta un guion SQL con las tablas.
+
+### 4) Implementación en código backend
+
+Son las entidades, los repositorios y los servicios que acceden a las tablas. La plataforma los genera en Spring Boot, con la estructura en capas que exige la materia.
+
+### 5) Mantenimiento y evolución
+
+Son las migraciones controladas cuando el modelo cambia. En Django, las migraciones versionan el esquema de la propia plataforma: la aplicación `collab` tiene cuatro migraciones, una por cada cambio de su modelo de datos.
 
 ## 1.7 Capítulo 6: Construcción del backend (ORM)
 
-Un **ORM** (*Object-Relational Mapping*) asocia clases del lenguaje con tablas relacionales, de modo que se trabaja con objetos en lugar de escribir SQL (Fowler, 2002). Sus ventajas son la productividad, la portabilidad entre motores, la protección frente a inyección SQL con consultas parametrizadas y el versionado del esquema. Sus costos son la curva de aprendizaje y consultas poco eficientes si se usa sin cuidado (por ejemplo, el problema de las *N+1 consultas*).
+La construcción del backend implementa la lógica de negocio, la gestión de datos y la comunicación entre la aplicación y la base de datos. En este contexto, el mapeo objeto-relacional simplifica la interacción entre el modelo de datos y el código fuente (Fowler, 2002).
 
-El ciclo de construcción con ORM es: definir las entidades, generar o escribir el esquema, implementar repositorios, encapsular la lógica de negocio en servicios y exponerla mediante controladores. Los ORM más usados son **Hibernate/JPA** en Java y el **ORM de Django** en Python.
+### 1. Concepto de ORM
 
-**Aplicación en el proyecto.** Se usa el ORM en dos sentidos. El backend de la propia plataforma usa el **ORM de Django** (participantes, actividad, chats). Y la plataforma **genera** un backend con **Spring Data JPA**, con la estructura en capas que pide la materia: **entidad, DTO, repositorio, servicio y controlador**, más los endpoints JSON y una colección de Postman para probarlos. Una prueba automática de Spring compila de verdad el proyecto generado para evitar que el generador produzca código roto.
+Un **ORM** (*Object-Relational Mapping*) asocia las estructuras de una base relacional (tablas, atributos, claves) con clases de un lenguaje orientado a objetos, de modo que se manipulan objetos en lugar de escribir sentencias SQL.
+
+### 2. Ventajas del uso de ORM en el backend
+
+Aumenta la productividad, da portabilidad entre motores de base de datos, protege frente a la inyección SQL al usar consultas parametrizadas y versiona el esquema con migraciones. Sus costos son la curva de aprendizaje y las consultas poco eficientes si se usa sin cuidado (por ejemplo, el problema de las *N+1 consultas*).
+
+### 3. Ciclo de construcción del backend con ORM
+
+Se definen las entidades, se genera o escribe el esquema, se implementan los repositorios, se encapsula la lógica de negocio en servicios y se expone mediante controladores.
+
+### 4. Herramientas ORM más utilizadas
+
+**Hibernate/JPA** en Java y el **ORM de Django** en Python. El proyecto usa ambos: el ORM de Django para los datos de la propia plataforma (participantes, actividad, chats) y **Spring Data JPA** en el backend que se genera, con entidad, DTO, repositorio, servicio y controlador, más los endpoints JSON y una colección de Postman para probarlos. Una prueba automática de Spring compila de verdad el proyecto generado para evitar que el generador produzca código roto.
 
 ## 1.8 Capítulo 7: La IA aplicada a la ingeniería de software
 
@@ -64,7 +90,7 @@ Los **modelos de lenguaje grandes** (LLM), basados en la arquitectura *Transform
 
 - **Texto a UML, imagen a UML y voz a UML:** un pedido en lenguaje natural, una foto de un diagrama o una instrucción hablada se convierten en el JSON del diagrama.
 - **La IA como integrante de la sala:** un solo modelo atiende a varias personas, con un **chat privado por participante** y con el **registro de actividad** de la sala como contexto, de modo que puede responder "¿qué hizo Bruno?". Tiene tres modos: *preguntar* (solo responde), *pedir cambio* (propone un cambio que se aplica en el navegador de quien lo pidió y queda registrado como "IA, a pedido de X") y *revisar* (publica observaciones para toda la sala, cada una con un botón para aplicarla). La IA no hace nada hasta que alguien se lo pide; los cambios que eliminan elementos piden confirmación.
-- **IA local y reentrenada:** como alternativa sin internet, se reentrenó un modelo abierto. Se usó **LoRA** (*Low-Rank Adaptation*), que congela el modelo y entrena solo matrices de bajo rango añadidas a sus capas, con menos del 1 % de los parámetros (Hu et al., 2021), sobre un modelo cuantizado a 4 bits en la variante **QLoRA** (Dettmers et al., 2023), de la familia Qwen (Qwen Team, 2025), con el marco MLX de Apple. El resultado, un adaptador de unas decenas de megabytes, se fusiona con el modelo base y se sirve con Ollama. Los datos de entrenamiento se generan de forma determinista con reglas (la respuesta correcta se calcula, no se pide a otro modelo) y se mide con ejemplos que el modelo nunca vio.
+- **IA local y reentrenada:** como alternativa sin internet, se reentrenó un modelo abierto. Se usó **LoRA** (*Low-Rank Adaptation*), que congela el modelo y entrena solo matrices de bajo rango añadidas a sus capas, con menos del 1 % de los parámetros (Hu et al., 2021), sobre un modelo cuantizado a 4 bits en la variante **QLoRA** (Dettmers et al., 2023), de la familia Qwen (Qwen Team, 2025), con el marco MLX de Apple. El resultado, un adaptador de unas decenas de megabytes, se fusiona con el modelo base y se sirve con Ollama. Los datos de entrenamiento se generan de forma determinista con reglas (la respuesta correcta se calcula, no se pide a otro modelo) y se mide con ejemplos que el modelo nunca vio: en la primera corrida, el modelo pasó de acertar el 35 % de los pedidos a acertar el 77 % (Anexo B).
 
 ## 1.9 Capítulo 8: UML 2.5
 
