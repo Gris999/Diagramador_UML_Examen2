@@ -225,11 +225,13 @@ sequenceDiagram
   CA->>WS: ia_status = libre
 ```
 
+Antes de aplicar, la interfaz pide confirmación si el cambio **elimina** elementos (el servidor cuenta las eliminaciones y rechaza cambios enormes), porque el modelo lee el contenido del diagrama y este puede venir de una importación.
+
 Alternativas descartadas: IA del lado del servidor (exigiría una copia del diagrama en el servidor) y que el modelo decida si actuar (no verificable). En los modos `ask` y `review` el servidor **nunca** devuelve cambios; hay una prueba automática con un proveedor que devuelve un diagrama.
 
 ### 3.5 Revisar y aplicar ideas (CU-05, CU-06) *(✅ I3)*
 
-`POST mode=review` pide al proveedor un JSON con observaciones; el servidor lo valida (máximo 5, solo texto), guarda un `ActivityEvent` de tipo `ia_review` y lo difunde a la sala por el canal. Cualquier participante puede pulsar **Aplicar** en una idea: eso ejecuta un `mode=change` con el pedido de la idea, a nombre de quien aplica, y marca la idea como aplicada para todos (`ia_suggestion_applied`).
+`POST mode=review` pide al proveedor un JSON con observaciones; el servidor lo valida (máximo 5, solo texto), guarda un `ActivityEvent` de tipo `ia_review` y lo difunde a la sala por el canal. Cualquier participante puede pulsar **Aplicar** en una idea: el navegador primero **reserva** la idea en el servidor (`POST /api/rooms/<sala>/activity/<evento>/apply/<n>/`, atómico; 409 si otra persona ya la tomó), después ejecuta un `mode=change` con el pedido de la idea, a nombre de quien aplica, y si el cambio no llega a aplicarse la libera (`DELETE`). El estado "aplicada" viaja dentro del evento (`data.applied`), por eso todos lo ven y sobrevive a recargar.
 
 ### 3.6 Vista de seguimiento móvil (CU-08) *(✅ I5)*
 
