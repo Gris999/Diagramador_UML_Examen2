@@ -35,6 +35,18 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 
 Para volver a Gemini basta con `AI_PROVIDER=gemini` (o quitar la línea).
 
+## Modelo reentrenado (opcional)
+
+Para los **cambios al diagrama** se puede usar un modelo que el equipo reentrenó (Qwen3-4B con LoRA; ver el Anexo B y `docs/REENTRENAMIENTO_IA.md`). En `back_generador_bd/.env`:
+
+```
+AI_PROVIDER=ollama
+OLLAMA_MODEL=qwen3.5:9b
+OLLAMA_CHANGE_MODEL=uml-qwen-dia3
+```
+
+Las preguntas y la revisión siguen con el modelo general (`OLLAMA_MODEL`); los cambios los atiende el reentrenado, que usa un prompt corto con ids cortos y es más rápido (≈ 2 s por cambio). En los 10 pedidos fijos acierta 8 de 10 (los otros proveedores, 10 de 10) y en 200 ejemplos reservados acierta el 82 %, contra el 35 % del modelo sin entrenar. Si falla, el chat muestra el error de siempre y el diagrama no cambia; la plataforma además pide confirmación cuando una respuesta dejaría fuera atributos o métodos existentes.
+
 ## En el servidor (AWS)
 
 La instancia (2 vCPU, ~2 GB de RAM) **no** puede correr un modelo de 7 B. Para la demostración, lo razonable es mantener `AI_PROVIDER=gemini` en el servidor y mostrar la IA local en el computador de quien presenta, o instalar Ollama en otra máquina con GPU/más memoria y apuntar `OLLAMA_BASE_URL` allí.
