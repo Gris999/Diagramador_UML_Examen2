@@ -33,6 +33,9 @@ export class IaChatPanel implements OnInit {
     { id: 'review', label: 'Revisar', hint: 'La IA revisa el diagrama y publica sus ideas para todos' }
   ];
 
+  /** "IA local (modelo)" o "IA en la nube (Gemini)"; vacío si no se pudo saber. */
+  readonly providerLabel = signal('');
+
   readonly modeHint = computed(() => this.modes.find(option => option.id === this.mode())?.hint ?? '');
 
   private roomId: string | null = null;
@@ -46,6 +49,7 @@ export class IaChatPanel implements OnInit {
   toggle(): void {
     this.open.update(value => !value);
     if (this.open()) {
+      this.loadProvider();
       this.loadHistory();
       this.scrollToEnd();
     }
@@ -91,6 +95,14 @@ export class IaChatPanel implements OnInit {
         this.error.set(this.messageFor(failure));
         this.sending.set(false);
       }
+    });
+  }
+
+  private loadProvider(): void {
+    if (this.providerLabel()) return;
+    this.chat.provider().subscribe({
+      next: info => this.providerLabel.set(typeof info?.label === 'string' ? info.label : ''),
+      error: () => undefined // es solo informativo
     });
   }
 

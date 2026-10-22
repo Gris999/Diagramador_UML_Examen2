@@ -40,7 +40,7 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 | I3 — Acciones, sugerencias y revisión | Construcción | La IA cambia el diagrama solo a pedido; ideas visibles; revisión; la IA como integrante de la sala | ✅ |
 | I4 — Sesiones continuas | Construcción | Recuperar diagrama, actividad y chat propio al volver | ✅ validado de punta a punta en local (2026-10-21); falta repetirlo en el sitio desplegado |
 | I5 — Vista móvil de seguimiento | Construcción | Vista de solo lectura en vivo | ✅ |
-| I6 — IA local (opcional) | Construcción | Proveedor configurable Gemini / local (Ollama, Qwen) | 📋 opcional |
+| I6 — IA local (opcional) | Construcción | Proveedor configurable Gemini / local (Ollama, Qwen) | 🔄 proveedor implementado y probado con simulaciones; falta correrlo con un modelo real ([`../IA_LOCAL.md`](../IA_LOCAL.md)) |
 | I7 — Endurecimiento y entrega | Transición | Despliegue final, prueba de humo, documentación y demo | 📋 |
 
 El detalle de cada iteración (objetivo, esfuerzo, rama, criterios de aceptación) está en la sección 8 del [plan de trabajo](../PLAN_PUDS_IA_PARTICIPANTE.md).

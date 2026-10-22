@@ -81,4 +81,15 @@ describe('IaChatService', () => {
       jasmine.clock().uninstall();
     }
   });
+
+  it('asks which provider answers without needing the participant token', () => {
+    let info: unknown;
+    service.provider().subscribe(value => (info = value));
+
+    const request = http.expectOne(`${environment.endpoint_python}api/ia/provider/`);
+    expect(request.request.headers.has('X-Participant-Token')).toBeFalse();
+    request.flush({ provider: 'gemini', label: 'IA en la nube (Gemini)' });
+
+    expect(info).toEqual({ provider: 'gemini', label: 'IA en la nube (Gemini)' });
+  });
 });

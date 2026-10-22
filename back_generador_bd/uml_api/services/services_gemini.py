@@ -120,21 +120,13 @@ def _post_gemini(
     )
 
 
-def call_gemini(prompt: str, current_uml=None):
-    GEMINI_API_KEY = getattr(settings, "GEMINI_API_KEY", None)
+def build_change_prompt(prompt: str, current_uml=None) -> str:
+    """Arma el prompt de cambio (crear, editar o eliminar) para el diagrama.
 
-    if (
-        not GEMINI_API_KEY
-        or str(GEMINI_API_KEY).strip().lower()
-        in {"placeholder", "change-me"}
-    ):
-        raise RuntimeError(
-            "GEMINI_API_KEY no está configurada."
-        )
-
-    headers = {"Content-Type": "application/json"}
-    params = {"key": GEMINI_API_KEY}
-
+    Es el mismo prompt que usa `call_gemini`; se extrajo a una función para que
+    otros proveedores de IA (p. ej. un modelo local) reciban exactamente las
+    mismas instrucciones y devuelvan el mismo formato de JSON.
+    """
     # Detectar si es una solicitud de eliminación
     delete_keywords = ["eliminar", "elimina", "borra", "borrar",
                        "quitar", "quita", "remover", "remueve",
@@ -336,6 +328,25 @@ Prompt del usuario:
 {prompt}
 {current_uml_context}
 """
+    return prompt_text
+
+
+def call_gemini(prompt: str, current_uml=None):
+    GEMINI_API_KEY = getattr(settings, "GEMINI_API_KEY", None)
+
+    if (
+        not GEMINI_API_KEY
+        or str(GEMINI_API_KEY).strip().lower()
+        in {"placeholder", "change-me"}
+    ):
+        raise RuntimeError(
+            "GEMINI_API_KEY no está configurada."
+        )
+
+    headers = {"Content-Type": "application/json"}
+    params = {"key": GEMINI_API_KEY}
+
+    prompt_text = build_change_prompt(prompt, current_uml)
 
     data = {
         "contents": [

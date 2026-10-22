@@ -8,6 +8,9 @@
         <div>
           <h3 class="text-sm font-semibold text-gray-800">Chat con la IA</h3>
           <p class="text-[10px] text-gray-500">Privado: solo tú ves esta conversación</p>
+          @if (providerLabel()) {
+            <p class="text-[10px] text-purple-700" data-testid="ia-provider">{{ providerLabel() }}</p>
+          }
         </div>
         <button
           type="button"
