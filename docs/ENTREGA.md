@@ -34,7 +34,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | XMI con Enterprise Architect (en ambos sentidos, con pruebas de seguridad) | Hecho |
 | Generación Spring Boot + PostgreSQL, colección Postman, proyecto Flutter con SQLite sin conexión | Hecho |
 | IA como integrante de la sala: identidad, actividad, chat privado, cambios a pedido, revisión con ideas aplicables, sesiones continuas, vista móvil | Hecho (RF-23 a RF-32) |
-| IA local (Ollama + Qwen 3.5 9B) | Hecho: evaluado, 10/10 pedidos correctos (RF-33) |
+| IA local (Ollama + Qwen 3.5 9B) | Hecho: evaluado con verificaciones estrictas, 10/10 pedidos correctos (RF-33) |
 | Despliegue en AWS con dominio y HTTPS | Parcial: manual y repetible; sin infraestructura como código ni CI/CD |
 | IA local **dentro de la app móvil generada** | Parcial: el asistente de la app Flutter es un intérprete de comandos determinista, no un modelo |
 | Cobertura de pruebas / formalidad UML 2.5 / documentación PUDS | Parcial: ver §4 |
@@ -43,12 +43,12 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 
 | Suite | Resultado |
 |---|---|
-| Frontend (Karma) | 182 correctas, 0 fallos; `ng build` sin errores |
-| Django sin base de datos | 95 correctas |
-| Django con base de datos (`settings_test`) | 87 correctas |
+| Frontend (Karma) | 201 correctas, 0 fallos; `ng build` sin errores |
+| Django sin base de datos | 101 correctas |
+| Django con base de datos (`settings_test`) | 126 correctas |
 | Spring (incluye compilar de verdad el proyecto generado) | 9 correctas |
 | Pruebas manuales en producción | Tres identidades + vista móvil: sincronización, IA, revisión, expulsión, relevo de host, reconexión |
-| Revisión de código independiente | Realizada; hallazgos corregidos o documentados como límites de diseño |
+| Revisión de código independiente | Dos rondas (I1–I5 y la revisión final del 2026-10-22); hallazgos corregidos con pruebas o documentados como límites de diseño (`puds/05-pruebas.md` D-08) |
 | Escaneo de secretos (árbol actual y 131 commits) | Sin hallazgos; la contraseña antigua de PostgreSQL se rotó y la antigua es rechazada |
 
 Comandos exactos: [`puds/05-pruebas.md`](puds/05-pruebas.md) §3.

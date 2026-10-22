@@ -76,7 +76,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 
 1. En el computador de quien presenta: `AI_PROVIDER=ollama` (ver [`IA_LOCAL.md`](IA_LOCAL.md)) y reiniciar Django. En el chat se lee **"IA local (qwen3.5:9b)"**.
 2. Hacer una pregunta y un cambio: funciona igual, sin enviar nada a internet.
-3. Mostrar la tabla de evaluación: **10 de 10 pedidos correctos** con el modelo local (≈ 22 s en promedio) frente a **10 de 10** con Gemini (≈ 9 s).
+3. Mostrar la tabla de evaluación: **10 de 10 pedidos correctos** con el modelo local y **10 de 10** con Gemini, con verificaciones estrictas (clase, atributo, tipo y extremos correctos; nada perdido). Los tiempos varían entre corridas (de ≈ 10 s a ≈ 20 s en promedio para ambos): no prometer que uno sea más rápido.
 4. Decir con honestidad: *el servidor de AWS (2 GB de memoria) no puede correr el modelo; la IA local se demuestra en un portátil.*
 
 ## 5. Arquitectura, proceso y despliegue (2 min)
@@ -84,7 +84,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 - **Arquitectura:** Angular + JointJS (editor), Django + Channels + Redis (colaboración y API), Spring Boot (generador), PostgreSQL. Detalle y diagramas: [`puds/03-diseno.md`](puds/03-diseno.md).
 - **Despliegue:** AWS EC2 con Docker Compose, nginx y HTTPS (Let's Encrypt) en un dominio propio; solo los puertos 22, 80 y 443 están abiertos. Un solo comando comprueba todo: `scripts/smoke-test.sh`. Runbook: [`DESPLIEGUE.md`](DESPLIEGUE.md).
 - **Proceso PUDS:** fases, iteraciones, artefactos por disciplina y trazabilidad en [`puds/`](puds/README.md); estado de cada requisito en [`GAP_MATRIX.md`](GAP_MATRIX.md).
-- **Pruebas:** 178 pruebas del frontend, unas 150 del backend, compilación real del proyecto Spring generado; y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
+- **Pruebas:** 201 pruebas del frontend, unas 200 del backend, compilación real del proyecto Spring generado; y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
 
 ## Preguntas probables y respuestas cortas
 

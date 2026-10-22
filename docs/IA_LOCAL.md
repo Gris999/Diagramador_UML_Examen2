@@ -41,31 +41,34 @@ La instancia (2 vCPU, ~2 GB de RAM) **no** puede correr un modelo de 7 B. Para l
 
 ## Evaluación (2026-10-22)
 
-`scripts/evaluar_ia.py` ejecuta **10 pedidos fijos** contra un proveedor, tal como los usa el chat, y comprueba de forma automática que la respuesta sea un JSON utilizable **y** que contenga lo pedido (no solo que "parezca" JSON). Se corre así (desde la raíz del repositorio):
+`scripts/evaluar_ia.py` ejecuta **10 pedidos fijos** contra un proveedor, tal como los usa el chat, y comprueba de forma automática que la respuesta sea un JSON utilizable **y** que haga exactamente lo pedido: la clase, el atributo, el tipo o los extremos de la relación correctos, que no se pierda lo que ya existía y que la cantidad de eliminaciones sea la esperada (la misma cuenta que usa el chat para pedir confirmación). Se corre así (desde la raíz del repositorio):
 
 ```bash
 DJANGO_SECRET_KEY=x POSTGRES_PASSWORD=x back_generador_bd/.venv/bin/python scripts/evaluar_ia.py gemini
 DJANGO_SECRET_KEY=x POSTGRES_PASSWORD=x back_generador_bd/.venv/bin/python scripts/evaluar_ia.py ollama qwen3.5:9b http://localhost:11434
+DJANGO_SECRET_KEY=x POSTGRES_PASSWORD=x back_generador_bd/.venv/bin/python scripts/evaluar_ia.py --verificadores   # sin proveedor
 ```
 
-Los 10 pedidos: crear una clase con atributos, crear dos clases con una relación, agregar un atributo, agregar un método, cambiar el tipo de un atributo, eliminar un atributo, eliminar una clase, herencia, un dominio completo desde texto (biblioteca) y la revisión de un diagrama con defectos.
+La opción `--verificadores` (y una prueba automática de Django) comprueba que las verificaciones aceptan una respuesta buena y **rechazan** respuestas casi buenas: clase o atributo equivocado, tipo equivocado, relación con la dirección invertida o con otros extremos, atributos que se perderían al reemplazar la clase, eliminar de más o de menos. Una primera versión del script solo buscaba palabras en el JSON; la revisión independiente señaló que eso podía dar por buena una respuesta equivocada, por eso se endureció y se volvió a medir.
+
+Los 10 pedidos: crear una clase con atributos, crear dos clases con una relación, agregar un atributo, agregar un método, cambiar el tipo de un atributo, eliminar un atributo, eliminar una clase, herencia, un dominio completo desde texto (biblioteca) y la revisión de un diagrama con defectos (debe señalar la clase aislada y sin atributos y proponer cómo arreglarla).
 
 | # | Pedido | Gemini (nube) | | Qwen 3.5 9B (local) | |
 |---|---|---|---|---|---|
 | | | correcto | segundos | correcto | segundos |
-| 1 | crear clase con atributos | sí | 13.4 | sí | 10.4 |
-| 2 | crear dos clases y una relación | sí | 15.1 | sí | 31.4 |
-| 3 | agregar atributo | sí | 8.9 | sí | 16.9 |
-| 4 | agregar método | sí | 6.5 | sí | 16.9 |
-| 5 | editar tipo de atributo | sí | 10.0 | sí | 27.0 |
-| 6 | eliminar atributo | sí | 8.6 | sí | 11.8 |
-| 7 | eliminar clase | sí | 6.4 | sí | 8.9 |
-| 8 | herencia | sí | 8.2 | sí | 13.4 |
-| 9 | dominio desde texto | sí | 10.6 | sí | 56.9 |
-| 10 | revisión con defectos | sí | 4.4 | sí | 25.9 |
-| | **Resultado** | **10/10** | **9.2 s de promedio** | **10/10** | **21.9 s de promedio** |
+| 1 | crear clase con atributos | sí | 5.4 | sí | 11.6 |
+| 2 | crear dos clases y una relación | sí | 9.2 | sí | 15.2 |
+| 3 | agregar atributo | sí | 9.6 | sí | 7.4 |
+| 4 | agregar método | sí | 9.2 | sí | 5.0 |
+| 5 | editar tipo de atributo | sí | 10.0 | sí | 13.5 |
+| 6 | eliminar atributo | sí | 9.1 | sí | 6.1 |
+| 7 | eliminar clase | sí | 16.8 | sí | 4.9 |
+| 8 | herencia | sí | 44.6 | sí | 5.9 |
+| 9 | dominio desde texto | sí | 36.6 | sí | 24.7 |
+| 10 | revisión con defectos | sí | 41.6 | sí | 21.9 |
+| | **Resultado** | **10/10** | **19,2 s de promedio** | **10/10** | **11,6 s de promedio** |
 
-**Conclusión:** en estos pedidos el modelo local acierta igual que Gemini (10/10 en JSON válido y en resultado correcto), a cambio de ser más lento (≈ 2,4 veces; el dominio completo tardó casi un minuto) y de ocupar unos 8 GB de memoria mientras responde. Son 10 pedidos, no un estudio estadístico: sirven para demostrar que la alternativa local funciona, no para afirmar que iguala a Gemini en todo. Medido en un Mac de 16 GB con Ollama 0.40.
+**Conclusión:** con las verificaciones estrictas, el modelo local y Gemini aciertan los mismos 10 pedidos (JSON válido y resultado correcto). Los tiempos **varían mucho entre corridas**: en una primera medición, con verificaciones más laxas, Gemini promedió 9,2 s y el modelo local 21,9 s; en esta, 19,2 s y 11,6 s (Gemini tuvo varias respuestas lentas y las dos evaluaciones corrieron a la vez). No hay base para afirmar que uno sea más rápido que el otro; el modelo local ocupa unos 8 GB de memoria mientras responde. Son 10 pedidos, no un estudio estadístico: sirven para demostrar que la alternativa local funciona, no para afirmar que iguala a Gemini en todo. Medido en un Mac de 16 GB con Ollama 0.40.
 
 **Detalles que se aprendieron al probarlo:**
 
