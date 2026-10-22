@@ -20,6 +20,8 @@ export class P2PService {
   private localId = signal(''); // mi channel_name (lo asigna el servidor en presence)
   readonly participants = signal<CollaborationParticipant[]>([]);
   readonly liveActivityEvents = signal<ActivityEvent[]>([]);
+  /** El host expulsó a esta conexión: la sala ya no le envía nada ni acepta lo que haga. */
+  readonly removed = signal(false);
   readonly isHost = computed(() => this.participants().some(
     participant => participant.peer === this.localId() && participant.role === 'host'
   ));
@@ -88,6 +90,11 @@ export class P2PService {
 
 
   private async handleSignaling(msg: any) {
+
+    if (msg.type === 'removed') {
+      this.removed.set(true);
+      return;
+    }
 
     if (msg.type === 'activity' && msg.event) {
       const event = msg.event as ActivityEvent;

@@ -2,7 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { P2PService } from '../../services/colaboration/p2p.service';
+import { DiagramService } from '../../services/diagram/diagram.service';
 
 import { Diagram } from './diagram';
 
@@ -30,5 +32,28 @@ describe('Diagram', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('tells an expelled participant and sends them back to the start page', () => {
+    const alertSpy = spyOn(window, 'alert');
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    const diagram = TestBed.inject(DiagramService);
+    const clearStorage = spyOn(diagram, 'clearStorage');
+    spyOn(diagram, 'closeDiagram');
+
+    TestBed.inject(P2PService).removed.set(true);
+    TestBed.tick();
+
+    expect(alertSpy).toHaveBeenCalledOnceWith('El host te expulsó de la sala.');
+    expect(clearStorage).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledOnceWith(['/']);
+  });
+
+  it('does nothing while nobody has been expelled', () => {
+    const alertSpy = spyOn(window, 'alert');
+
+    TestBed.tick();
+
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 });

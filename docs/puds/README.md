@@ -45,6 +45,10 @@ Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de S
 
 El detalle de cada iteración (objetivo, esfuerzo, rama, criterios de aceptación) está en la sección 8 del [plan de trabajo](../PLAN_PUDS_IA_PARTICIPANTE.md).
 
-## 4. Trazabilidad
+## 4. Demostración
+
+El guion de la demostración (orden, qué decir, qué debe verse, preguntas probables y plan B) está en [`../DEMO.md`](../DEMO.md).
+
+## 5. Trazabilidad
 
 La matriz requisito → caso de uso → iteración → verificación está en la sección 14 del plan. El estado de cada requisito se lleva en [`../GAP_MATRIX.md`](../GAP_MATRIX.md); si un requisito cambia de estado, se actualiza allí.
