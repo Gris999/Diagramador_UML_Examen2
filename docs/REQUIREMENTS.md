@@ -52,7 +52,7 @@ Requested by the instructor on 2026-10-13: the AI becomes one more member of the
 - **RF-29** — AI changes are applied and propagated to everyone, labeled "IA, a pedido de X".
 - **RF-30** — On request, the AI reviews classes, attributes, methods and relationships.
 - **RF-31** — On returning to a room, the diagram, the activity log and the participant's own chat are recovered.
-- **RF-32** — A mobile follow-along view exists (live, read-only).
+- **RF-32** — A mobile follow-along view exists (live, read-only): `/sala/<room>/seguir`.
 - **RF-33** — *(Optional)* The AI provider is configurable: Gemini or local (Ollama/Qwen).
 
 Additional non-functional requirements:
