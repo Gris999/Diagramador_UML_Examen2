@@ -28,6 +28,9 @@ class CanvasConsumer(AsyncWebsocketConsumer):
     activity_data_limit = 8192
     activity_rate_limit = 60
     activity_rate_window = 10
+    # Un observador puede pedir el estado completo, pero cada pedido hace que
+    # todos los editores respondan: se limita para que no sirva de amplificador.
+    viewer_state_request_interval = 2
 
     async def connect(self):
         print("[CanvasConsumer.connect] scope:", self.scope)
@@ -183,6 +186,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
         # Los observadores van en un grupo aparte: no entran al orden que define
         # al host, no figuran en la presencia y no pueden expulsar ni ser
         # expulsados. Solo reciben lo que ocurre en la sala.
+        self._last_state_request = None
         await self.channel_layer.group_add(self.viewers_group_name, self.channel_name)
         await self.accept()
         await self.send(text_data=json.dumps({
@@ -199,6 +203,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             data.get("type") == "broadcast"
             and isinstance(payload, dict)
             and payload.get("t") == "request_full_state"
+            and self._allow_viewer_state_request()
         ):
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -208,6 +213,14 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                     "payload": {"t": "request_full_state"},
                 },
             )
+
+    def _allow_viewer_state_request(self):
+        now = time.monotonic()
+        last = self._last_state_request
+        if last is not None and now - last < self.viewer_state_request_interval:
+            return False
+        self._last_state_request = now
+        return True
 
     async def _send_to_room(self, message):
         await self.channel_layer.group_send(self.room_group_name, message)
