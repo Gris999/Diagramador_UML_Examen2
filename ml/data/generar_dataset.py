@@ -36,6 +36,14 @@ ENTIDADES = {
     "Proveedor": [("id", "int"), ("razonSocial", "string"), ("ciudad", "string")],
     "Sucursal": [("id", "int"), ("direccion", "string"), ("ciudad", "string")],
     "Reserva": [("id", "int"), ("fecha", "Date"), ("personas", "int"), ("confirmada", "boolean")],
+    "Usuario": [("id", "int"), ("nombre", "string"), ("clave", "string"), ("activo", "boolean")],
+    "Categoria": [("id", "int"), ("nombre", "string"), ("descripcion", "string")],
+    "Almacen": [("codigo", "string"), ("ubicacion", "string"), ("capacidad", "int")],
+    "Tarea": [("id", "int"), ("titulo", "string"), ("prioridad", "int"), ("terminada", "boolean")],
+    "Proyecto": [("id", "int"), ("nombre", "string"), ("presupuesto", "float"), ("inicio", "Date")],
+    "Materia": [("codigo", "string"), ("nombre", "string"), ("horas", "int")],
+    "Hotel": [("id", "int"), ("nombre", "string"), ("estrellas", "int"), ("ciudad", "string")],
+    "Ticket": [("numero", "int"), ("asunto", "string"), ("abierto", "boolean"), ("creado", "Date")],
 }
 # Solo para la prueba: el modelo nunca las ve entrenando.
 ENTIDADES_PRUEBA = {
@@ -44,6 +52,9 @@ ENTIDADES_PRUEBA = {
     "Vehiculo": [("placa", "string"), ("marca", "string"), ("anio", "int"), ("disponible", "boolean")],
     "Cancion": [("id", "int"), ("titulo", "string"), ("duracion", "float")],
     "Mascota": [("id", "int"), ("nombre", "string"), ("especie", "string"), ("peso", "float")],
+    "Pelicula": [("id", "int"), ("titulo", "string"), ("anio", "int"), ("estreno", "Date")],
+    "Gimnasio": [("id", "int"), ("nombre", "string"), ("cupo", "int"), ("abierto", "boolean")],
+    "Receta": [("id", "int"), ("nombre", "string"), ("calorias", "float"), ("porciones", "int")],
 }
 ATRIBUTOS_EXTRA = [
     ("observaciones", "string"), ("activo", "boolean"), ("creadoEn", "Date"), ("puntaje", "float"),
@@ -54,6 +65,7 @@ METODOS = [
     "calcularTotal", "cancelar", "confirmar", "enviar", "pagar", "actualizar", "validar",
     "registrar", "buscar", "exportar", "notificar", "comprar",
 ]
+NOMBRES_CLASE_NUEVOS = ["Cuenta", "Pago", "Ruta", "Evento", "Contrato", "Registro", "Zona", "Turno", "Ficha", "Plan"]
 TIPOS = ["int", "string", "float", "Date", "boolean"]
 RELACIONES = ["association", "aggregation", "composition"]
 NOMBRE_RELACION = {"association": "asociación", "aggregation": "agregación", "composition": "composición"}
@@ -126,6 +138,62 @@ PLANTILLAS = {
 }
 
 
+# Más redacciones por operación (las de prueba siguen sin aparecer en el entrenamiento).
+_EXTRA = {
+    "crear_clase": (["Genera la clase {C} y dale {lista}", "Quiero la clase {C}: {lista}", "Dibuja una clase {C} con los campos {lista}"],
+                    ["Arma la clase {C} con estos atributos: {lista}"]),
+    "agregar_atributo": (["{C} debe incluir el atributo {a} ({t})", "Agrégale a {C} el campo {a} de tipo {t}", "Falta {a}: {t} en la clase {C}"],
+                         ["Mete en {C} un atributo {a}: {t}"]),
+    "agregar_metodo": (["Necesito que {C} tenga la operación {m}()", "Agrega la operación {m} a {C}", "{C} requiere el método {m}"],
+                       ["Pon en {C} el método {m}()"]),
+    "editar_tipo": (["Pon el atributo {a} de {C} como {t}", "El tipo de {a} en {C} debe cambiar a {t}", "Convierte {a} de {C} a {t}"],
+                    ["En la clase {C}, {a} ahora es de tipo {t}"]),
+    "renombrar_atributo": (["En {C}, renombra {a} como {b}", "Cambia {a} por {b} en la clase {C}", "El atributo {a} de {C} debe llamarse {b}"],
+                           ["Reemplaza el nombre {a} por {b} en {C}"]),
+    "eliminar_atributo": (["Elimina {a} de {C}", "Quítale a {C} el atributo {a}", "Ya no hace falta {a} en {C}"],
+                          ["Suprime el atributo {a} de la clase {C}"]),
+    "eliminar_metodo": (["Elimina {m}() de {C}", "Quítale a {C} la operación {m}", "En {C} sobra el método {m}"],
+                        ["Suprime el método {m} de la clase {C}"]),
+    "eliminar_clase": (["Elimina {C} del diagrama", "Borra la clase {C} del modelo", "Quiero quitar {C}"],
+                       ["Suprime {C} del modelo"]),
+    "relacion": (["Relaciona {C} y {D} con una {r}", "Agrega una {r} desde {C} hacia {D}", "Conecta {C} con {D} mediante una {r}"],
+                 ["Establece una {r} que vaya de {C} a {D}"]),
+    "herencia": (["{C} hereda de {D}", "Haz de {C} una subclase de {D}", "Agrega la herencia {C} -> {D}"],
+                 ["{C} debe extender la clase {D}"]),
+    "eliminar_relacion": (["Quita la relación que une {C} y {D}", "Elimina la asociación entre {C} y {D}", "Borra el vínculo de {C} con {D}"],
+                          ["Suprime el vínculo {C}-{D}"]),
+    "crear_dos_con_relacion": (["Agrega {C} y {D} unidas por una {r} (de {C} a {D})", "Crea dos clases, {C} y {D}, y relaciónalas con una {r} que salga de {C}", "Dibuja {C} y {D} con una {r} desde {C}"],
+                               ["Genera {C} y {D} y une {C} hacia {D} con una {r}"]),
+    "renombrar_clase": (["Renombra la clase {C} a {N}", "Cambia el nombre de {C} por {N}", "{C} ahora se llama {N}", "Llama {N} a la clase {C}", "Cambia {C} a {N}"],
+                        ["La clase {C} pasa a llamarse {N}", "{C} se renombra como {N}"]),
+    "agregar_varios_atributos": (["Agrega a {C} los atributos {lista}", "Añade a la clase {C} estos atributos: {lista}", "A {C} ponle {lista}", "Incluye en {C} los campos {lista}"],
+                                 ["{C} necesita además estos atributos: {lista}", "Suma a {C}: {lista}"]),
+    "crear_clase_con_metodos": (["Crea la clase {C} con los atributos {lista} y los métodos {metodos}", "Agrega {C} con {lista}; sus métodos son {metodos}", "Nueva clase {C}: atributos {lista}, métodos {metodos}"],
+                                ["Quiero {C} con los atributos {lista} y las operaciones {metodos}"]),
+    "crear_varias_clases": (["Crea las clases {clases}", "Agrega estas clases: {clases}", "Necesito las clases {clases}"],
+                            ["Genera las siguientes clases: {clases}"]),
+}
+for _operacion, (_entrenamiento, _prueba) in _EXTRA.items():
+    base = PLANTILLAS.setdefault(_operacion, ([], []))
+    base[0].extend(_entrenamiento)
+    base[1].extend(_prueba)
+
+
+def ruido(rng, texto):
+    """Variaciones de escritura reales: sin acentos, minúsculas, cortesía, punto final."""
+    if rng.random() < 0.20 and texto[0] != "{":
+        texto = texto[0].lower() + texto[1:]
+    if rng.random() < 0.15:
+        texto = texto.translate(str.maketrans("áéíóúÁÉÍÓÚ", "aeiouAEIOU"))
+    if rng.random() < 0.12 and texto[0] != "{":
+        texto = "Por favor, " + texto[0].lower() + texto[1:]
+    elif rng.random() < 0.10:
+        texto = texto + ", por favor"
+    if rng.random() < 0.15:
+        texto = texto + "."
+    return texto
+
+
 class Contexto:
     """Estado de un ejemplo: ids nuevos y el vocabulario que puede usar."""
 
@@ -154,10 +222,20 @@ class Contexto:
         cantidad = self.rng.randint(0, maximo)
         return [self.clase(n) for n in self.rng.sample(disponibles, cantidad)]
 
+    def relaciones_previas(self, clases, excluidas=()):
+        """A veces el diagrama ya trae una relación entre dos clases que no son el objetivo."""
+        candidatas = [c for c in clases if c["id"] not in excluidas]
+        if len(candidatas) < 2 or self.rng.random() > 0.3:
+            return []
+        origen, destino = self.rng.sample(candidatas, 2)
+        tipo = self.rng.choice(RELACIONES + ["generalization"])
+        return [{"id": "r1", "type": tipo, "sourceId": origen["id"], "targetId": destino["id"]}]
+
     def redactar(self, operacion, **valores):
         entrenamiento, prueba = PLANTILLAS[operacion]
         plantilla = self.rng.choice(prueba if self.prueba else entrenamiento)
-        return plantilla.format(**valores)
+        # El ruido se aplica a la plantilla, no a los nombres: "cliente" y "Cliente" serían clases distintas.
+        return ruido(self.rng, plantilla).format(**valores)
 
 
 def lista_atributos(atributos):
@@ -172,10 +250,11 @@ def _mezclar(rng, clases):
 
 def op_crear_clase(cx):
     nombre = cx.rng.choice(list(cx.entidades))
-    contexto = cx.otras({nombre})
+    contexto = cx.otras({nombre}, 3)
     nueva = cx.clase(nombre, con_metodos=0)
     pedido = cx.redactar("crear_clase", C=nombre, lista=lista_atributos(nueva["attributes"]))
-    return {"classes": contexto, "relationships": []}, pedido, {"classes": [nueva], "relationships": []}
+    return ({"classes": contexto, "relationships": cx.relaciones_previas(contexto)}, pedido,
+            {"classes": [nueva], "relationships": []})
 
 
 def _con_objetivo(cx, operacion, requisito=None):
@@ -186,8 +265,8 @@ def _con_objetivo(cx, operacion, requisito=None):
         if requisito is None or requisito(objetivo):
             break
         cx.siguiente -= 1
-    clases = _mezclar(cx.rng, [objetivo] + cx.otras({nombre}))
-    return {"classes": clases, "relationships": []}, objetivo
+    clases = _mezclar(cx.rng, [objetivo] + cx.otras({nombre}, 3))
+    return {"classes": clases, "relationships": cx.relaciones_previas(clases, {objetivo["id"]})}, objetivo
 
 
 def op_agregar_atributo(cx):
@@ -263,7 +342,7 @@ def op_eliminar_clase(cx):
 def _dos_clases(cx):
     primera, segunda = cx.rng.sample(list(cx.entidades), 2)
     a, b = cx.clase(primera), cx.clase(segunda)
-    clases = _mezclar(cx.rng, [a, b] + cx.otras({primera, segunda}, 1))
+    clases = _mezclar(cx.rng, [a, b] + cx.otras({primera, segunda}, 2))
     return a, b, clases
 
 
@@ -302,6 +381,46 @@ def op_crear_dos_con_relacion(cx):
             {"classes": [a, b], "relationships": [relacion]})
 
 
+def op_renombrar_clase(cx):
+    uml, objetivo = _con_objetivo(cx, "renombrar_clase")
+    usados = {c["name"] for c in uml["classes"]}
+    nuevo = cx.rng.choice([n for n in NOMBRES_CLASE_NUEVOS if n not in usados])
+    pedido = cx.redactar("renombrar_clase", C=objetivo["name"], N=nuevo)
+    completa = copy.deepcopy(objetivo)
+    completa["name"] = nuevo
+    return uml, pedido, {"classes": [completa], "relationships": []}
+
+
+def op_agregar_varios_atributos(cx):
+    uml, objetivo = _con_objetivo(cx, "agregar_varios_atributos")
+    existentes = {a["name"] for a in objetivo["attributes"]}
+    candidatos = [(a, t) for a, t in cx.entidades[objetivo["name"]] + ATRIBUTOS_EXTRA if a not in existentes]
+    nuevos = [{"name": a, "type": t} for a, t in cx.rng.sample(candidatos, 2)]
+    pedido = cx.redactar("agregar_varios_atributos", C=objetivo["name"], lista=lista_atributos(nuevos))
+    completa = copy.deepcopy(objetivo)
+    completa["attributes"].extend(nuevos)
+    return uml, pedido, {"classes": [completa], "relationships": []}
+
+
+def op_crear_clase_con_metodos(cx):
+    nombre = cx.rng.choice(list(cx.entidades))
+    contexto = cx.otras({nombre}, 2)
+    nueva = cx.clase(nombre, con_metodos=cx.rng.randint(1, 2))
+    pedido = cx.redactar("crear_clase_con_metodos", C=nombre, lista=lista_atributos(nueva["attributes"]),
+                         metodos=", ".join(m["name"] for m in nueva["methods"]))
+    return ({"classes": contexto, "relationships": cx.relaciones_previas(contexto)}, pedido,
+            {"classes": [nueva], "relationships": []})
+
+
+def op_crear_varias_clases(cx):
+    nombres = cx.rng.sample(list(cx.entidades), 3)
+    nuevas = [cx.clase(n, n_atributos=2, con_metodos=0) for n in nombres]
+    descripcion = [f"{c['name']} ({lista_atributos(c['attributes'])})" for c in nuevas]
+    clases = f"{descripcion[0]}, {descripcion[1]} y {descripcion[2]}"
+    pedido = cx.redactar("crear_varias_clases", clases=clases)
+    return {"classes": [], "relationships": []}, pedido, {"classes": nuevas, "relationships": []}
+
+
 OPERACIONES = {
     "crear_clase": op_crear_clase,
     "agregar_atributo": op_agregar_atributo,
@@ -315,6 +434,10 @@ OPERACIONES = {
     "herencia": op_herencia,
     "eliminar_relacion": op_eliminar_relacion,
     "crear_dos_con_relacion": op_crear_dos_con_relacion,
+    "renombrar_clase": op_renombrar_clase,
+    "agregar_varios_atributos": op_agregar_varios_atributos,
+    "crear_clase_con_metodos": op_crear_clase_con_metodos,
+    "crear_varias_clases": op_crear_varias_clases,
 }
 
 
