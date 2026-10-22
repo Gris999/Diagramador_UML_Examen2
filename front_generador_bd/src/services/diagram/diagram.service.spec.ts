@@ -674,6 +674,46 @@ describe('DiagramService backup persistence and room lifecycle', () => {
     expect(collab.closeSocketRTC).toHaveBeenCalled();
   });
 
+  it('leaves without saving a backup when asked to (an expelled participant), but still closes the socket', () => {
+    const { service, collab, backup } = createServiceWithMocks();
+
+    service.closeDiagram('room-1', { saveBackup: false });
+
+    expect(backup.setBackupUml).not.toHaveBeenCalled();
+    expect(collab.closeSocketRTC).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not save a backup on the later automatic leave either once it left without one', () => {
+    const { service, backup } = createServiceWithMocks();
+
+    service.closeDiagram('room-1', { saveBackup: false });
+    service.leaveRoom('room-1'); // lo que hace ngOnDestroy al cambiar de ruta
+    jasmine.clock().tick(5000);
+
+    expect(backup.setBackupUml).not.toHaveBeenCalled();
+  });
+
+  it('stops its animation-frame loops when the room is left, and restarts them for the next one', async () => {
+    const { service, collab } = createServiceWithMocks();
+    Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
+    const frames: FrameRequestCallback[] = [];
+    spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    await service.initialize(document.createElement('div'), 'room-1');
+    expect(frames.length).toBe(3);
+
+    // Mientras la sala está abierta, cada cuadro vuelve a pedir el siguiente.
+    frames.splice(0).forEach(callback => callback(0));
+    expect(frames.length).toBe(3);
+
+    service.leaveRoom('room-1');
+    frames.splice(0).forEach(callback => callback(0));
+    expect(frames.length).toBe(0);
+  });
+
   it('leaveRoom is idempotent: a second call does not re-close the socket or resend the backup', () => {
     const { service, collab, backup } = createServiceWithMocks();
 

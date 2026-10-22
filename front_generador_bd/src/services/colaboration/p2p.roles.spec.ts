@@ -6,6 +6,7 @@ describe('P2PService collaboration roles', () => {
 
   beforeEach(() => {
     signaling = {
+      connect: jasmine.createSpy('connect'),
       broadcast: jasmine.createSpy('broadcast'),
       removeParticipant: jasmine.createSpy('removeParticipant')
     };
@@ -22,6 +23,16 @@ describe('P2PService collaboration roles', () => {
     await receive({ type: 'removed', by: 'peer-host' });
 
     expect(service.removed()).toBeTrue();
+  });
+
+  it('starts every new connection as not expelled', async () => {
+    await receive({ type: 'removed', by: 'peer-host' });
+    expect(service.removed()).toBeTrue();
+
+    service.init('sala-nueva');
+
+    expect(service.removed()).toBeFalse();
+    expect(signaling.connect).toHaveBeenCalledWith('sala-nueva', false);
   });
 
   it('takes its own id from the server welcome even when another peer joined first', async () => {

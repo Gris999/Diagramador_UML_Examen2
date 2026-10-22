@@ -39,13 +39,16 @@ describe('Diagram', () => {
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     const diagram = TestBed.inject(DiagramService);
     const clearStorage = spyOn(diagram, 'clearStorage');
-    spyOn(diagram, 'closeDiagram');
+    const closeDiagram = spyOn(diagram, 'closeDiagram');
+    (component as any).roomId = 'sala-prueba';
 
     TestBed.inject(P2PService).removed.set(true);
     TestBed.tick();
 
     expect(alertSpy).toHaveBeenCalledOnceWith('El host te expulsó de la sala.');
     expect(clearStorage).toHaveBeenCalled();
+    // Su copia puede estar atrasada: no debe guardar un respaldo final.
+    expect(closeDiagram).toHaveBeenCalledOnceWith('sala-prueba', { saveBackup: false });
     expect(navigate).toHaveBeenCalledOnceWith(['/']);
   });
 

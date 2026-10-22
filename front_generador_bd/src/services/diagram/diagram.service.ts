@@ -28,6 +28,7 @@ export class DiagramService {
   public clipboard: any = null;
   private roomId = '';
   private roomLeft = false;
+  private frameLoopGeneration = 0;
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly AUTOSAVE_DEBOUNCE_MS = 1500;
   // Vista de seguimiento (móvil): solo recibe y dibuja. No guarda nada local ni
@@ -167,13 +168,16 @@ export class DiagramService {
       /**************************************************************************************************
        * EVENTOS INTERACTIVOS EN EL PAPER (COLABORATIVO)
        ***************************************************************************************************/
+      // Los tres bucles de abajo se detienen al salir de la sala o al abrir otra:
+      // el servicio vive toda la sesión y, si no, cada sala dejaría tres bucles más.
+      const frameLoop = ++this.frameLoopGeneration;
       let pendingPos: { id: string; x: number; y: number } | null = null;
       const flushMove = () => {
         if (pendingPos) {
           this.collab.broadcast({ t: 'move', ...pendingPos });
           pendingPos = null;
         }
-        requestAnimationFrame(flushMove);
+        if (frameLoop === this.frameLoopGeneration) requestAnimationFrame(flushMove);
       };
       requestAnimationFrame(flushMove);
       this.paper.on('element:pointermove', (view: any) => {
@@ -271,7 +275,7 @@ export class DiagramService {
           this.collab.broadcast({ t: 'move_label', ...pendingLabelMove });
           pendingLabelMove = null;
         }
-        requestAnimationFrame(flushLabelMove);
+        if (frameLoop === this.frameLoopGeneration) requestAnimationFrame(flushLabelMove);
       };
       requestAnimationFrame(flushLabelMove);
       this.paper.on('link:label:pointermove', (linkView: any, evt: any) => {
@@ -307,7 +311,7 @@ export class DiagramService {
           this.collab.broadcast({ t: 'resize', ...pendingResize });
           pendingResize = null;
         }
-        requestAnimationFrame(flushResize);
+        if (frameLoop === this.frameLoopGeneration) requestAnimationFrame(flushResize);
       };
       requestAnimationFrame(flushResize);
       this.paper.on('element:resize', (view: any) => {
@@ -2102,14 +2106,17 @@ export class DiagramService {
   // Se debe invocar siempre que el usuario abandona la sala (botón Home,
   // navegación del router o cierre del componente) para garantizar que el
   // socket de colaboración se cierre y no queden conexiones fantasma.
-  leaveRoom(roomId: string = this.roomId): void {
+  leaveRoom(roomId: string = this.roomId, options: { saveBackup?: boolean } = {}): void {
     if (this.roomLeft) return;
     this.roomLeft = true;
+    this.frameLoopGeneration++;
     if (this.autosaveTimer) {
       clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
     }
-    if (roomId && !this.readOnly) {
+    // Quien fue expulsado se va sin guardar: su copia pudo quedar atrasada y no
+    // debe pisar el respaldo que sigue usando la sala.
+    if (roomId && !this.readOnly && options.saveBackup !== false) {
       const snapshot = this.exportToJson();
       if (snapshot) {
         this.backup.setBackupUml(roomId, snapshot).subscribe({
@@ -2163,8 +2170,8 @@ export class DiagramService {
     this.paper.translate(padding - bbox.x * scale, padding - bbox.y * scale);
   }
 
-  closeDiagram(roomId: string) {
-    this.leaveRoom(roomId);
+  closeDiagram(roomId: string, options: { saveBackup?: boolean } = {}) {
+    this.leaveRoom(roomId, options);
   }
   zoomIn() {
     this.currentScale = Math.min(this.currentScale + this.zoomStep, this.maxScale);

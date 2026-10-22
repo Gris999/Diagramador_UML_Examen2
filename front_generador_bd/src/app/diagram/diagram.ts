@@ -30,7 +30,6 @@ export class Diagram implements AfterViewInit, OnDestroy {
 
   private lastMousePos: { x: number; y: number } | null = null;
   private roomId: string | null = null;
-  private roomLeft = false;
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
@@ -58,7 +57,8 @@ export class Diagram implements AfterViewInit, OnDestroy {
 
   private leaveAfterRemoval(): void {
     this.diagramService.clearStorage();
-    if (this.roomId) this.diagramService.closeDiagram(this.roomId);
+    // El respaldo final lo guardan quienes siguen en la sala, no quien fue expulsado.
+    if (this.roomId) this.diagramService.closeDiagram(this.roomId, { saveBackup: false });
     this.router.navigate(['/']);
   }
   

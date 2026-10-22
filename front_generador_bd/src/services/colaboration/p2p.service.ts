@@ -31,6 +31,8 @@ export class P2PService {
   constructor(private signaling: SignalingService) {}
 
   init(roomId: string, viewer = false) {
+    // Una conexión nueva empieza sin haber sido expulsada (el servicio vive toda la sesión).
+    this.removed.set(false);
     this.signaling.onMessage = (msg) => this.handleSignaling(msg);
     this.signaling.connect(roomId, viewer);
   }
