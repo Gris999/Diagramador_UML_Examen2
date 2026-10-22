@@ -85,18 +85,18 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | D-06 | La validación del modelo con IA (`/ws/uml/`) llamaba a Gemini dentro del bucle de eventos y, al salir de una sala, se disparaba una por cada elemento: el servidor se congelaba para todos varios segundos o minutos | Alto (detectado en el ensayo de la demo, existía desde la línea base) | ✅ Corregido: llamada en un hilo, una validación cada 5 s por conexión y el vaciado al salir ya no valida |
 | D-07 | Las actualizaciones de la IA, el texto o la voz sobre clases que ya existían (renombrar, cambiar atributos o métodos) se aplicaban solo en el navegador de quien las pidió y no llegaban a los demás ni al respaldo | Alto (detectado en el ensayo de la demo, existía desde la línea base) | ✅ Corregido: se difunde cada campo que cambió, igual que una edición manual |
 | D-05 | La llamada a Gemini puede tardar si un intento se queda colgado (el chat limita a 30 s por intento y 2 intentos; el cliente corta a los 110 s) | Una respuesta puede tardar hasta ~1 min en casos raros | ✅ Acotado |
-| D-02 | La contraseña anterior de PostgreSQL sigue en el historial público de git | Riesgo si se reutiliza en otro sitio | Mitigado: ya no está en el compose; cambiar la contraseña si se usó en otro lugar |
+| D-02 | La contraseña anterior de PostgreSQL quedó en el historial público de git | Era la que usaban el servidor y la base local | ✅ Resuelto el 2026-10-22: se rotó en el servidor y en el equipo local y se comprobó que la antigua es rechazada por red; ya no está en los archivos actuales |
 | D-03 | Las pruebas de Django que necesitan base de datos no corren en el host de macOS | Hay que correrlas en el contenedor | Documentado |
 
 ## 5. Evaluación de prueba *(corte del 2026-10-21, `develop`)*
 
 | Suite | Resultado | Comando |
 |---|---|---|
-| Frontend (Karma) | **178 correctas**, 0 fallos | `ng test` sobre `develop` |
+| Frontend (Karma) | **182 correctas**, 0 fallos | `ng test` sobre `develop` |
 | Frontend (compilación) | Correcta, con 2 avisos de módulos CommonJS (`backbone`, `file-saver`) | `ng build` |
-| Django sin base de datos | **91 correctas**, 0 fallos (colaboración 26, Gemini 7, IA endpoints 10, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
-| Django con base de datos (SQLite en memoria, `settings_test`) | **83 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
-| Spring | Cubierto por `ProjectGeneratorCompileTest` y las pruebas de CORS | Verificado en iteraciones anteriores; se vuelve a ejecutar antes del congelamiento |
+| Django sin base de datos | **95 correctas**, 0 fallos (colaboración 31, Gemini 7, IA endpoints 10, XMI 14, diseño de XMI 1, Flutter 32, otros) | ver procedimiento 2 |
+| Django con base de datos (SQLite en memoria, `settings_test`) | **87 correctas**, 0 fallos (colaboración, actividad por REST, chat con la IA, reserva de ideas, proveedor local simulado) | `manage.py test collab uml_api.tests.test_ia_chat_api uml_api.tests.test_activity_api --settings=diagramador_uml.settings_test` |
+| Spring | **9 correctas**, 0 fallos (incluye `ProjectGeneratorCompileTest`, que compila de verdad el proyecto generado, y las pruebas de CORS) | `cd back_generator_uml && ./mvnw test` (2026-10-22) |
 | Sitio desplegado | HTTPS 200, WebSocket 101, 4200/7001/8000 cerrados; identidad, actividad, chat, revisión y aplicar idea verificados con dos navegadores en https://diagramador.dev | Pruebas de humo y prueba manual del 2026-10-21 |
 
 **Revisión independiente (Codex, 2026-10-22):** se revisó el código de I1 a I5; se corrigieron los hallazgos reproducibles (guardado atómico, topes de costo compartidos, reserva persistente de ideas, estado "pensando" por pedido, confirmación de cambios destructivos, carrera del historial del chat) y se documentaron como límites de diseño los que dependen de no tener cuentas (el código de sala es la capacidad; la vista móvil no es un límite de seguridad; `via_ia` es informativo). Ver [`../DESPLIEGUE.md`](../DESPLIEGUE.md) §7.
