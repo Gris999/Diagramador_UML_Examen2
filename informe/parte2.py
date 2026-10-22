@@ -614,33 +614,54 @@ def parte_requisitos():
     md = ["# 2. Registro del proceso de desarrollo de software (PUDS)\n",
           "Esta parte registra el proceso seguido con el Proceso Unificado de Desarrollo de Software: "
           "los cinco flujos de trabajo (requisitos, análisis, diseño, implementación y pruebas) aplicados en cuatro "
-          "ciclos de vida. Todos los diagramas siguen la notación UML 2.5.1; el modelo de clases del editor puede, además, "
-          "exportarse a XMI y abrirse en Enterprise Architect (caso de uso CU-16).\n",
+          "ciclos de vida. La etapa de despliegue se documenta de forma resumida en el Anexo C. Todos los diagramas "
+          "siguen la notación UML 2.5.1; el modelo de clases del editor puede, además, exportarse a XMI y abrirse en "
+          "Enterprise Architect (caso de uso CU16).\n",
           "## 2.1 Captura de requisitos\n",
-          "### 2.1.1 Actores\n",
-          "| Código | Actor | Descripción |", "|---|---|---|"]
-    md += [f"| **{c}** | {n} | {d} |" for c, n, d in ACTORES]
-    md.append("")
-    md += ["### 2.1.2 Casos de uso\n",
-           "| Caso de uso | Nombre | Actores | Ciclo de vida |", "|---|---|---|---|"]
+          "**Visión del proyecto.** Modelar un sistema con UML suele hacerse de forma individual y en herramientas de "
+          "escritorio, y pasar del modelo al código es un trabajo manual. Cuando varias personas diseñan a la vez se pierde "
+          "la visión de quién cambió qué, y la inteligencia artificial suele vivir fuera del equipo, sin conocer el "
+          "diagrama ni lo que hizo cada integrante.\n",
+          "**Objetivo general.** Construir una plataforma CASE web para modelar diagramas de clases UML 2.5 de forma "
+          "colaborativa, en la que la inteligencia artificial participe como un integrante más de la sala, y que genere a "
+          "partir del modelo un backend Spring Boot con PostgreSQL, una colección de Postman y un proyecto Flutter.\n",
+          "**Objetivos específicos.**\n",
+          "- Crear y editar diagramas de clases manualmente, con importación y exportación XMI para Enterprise Architect.",
+          "- Crear o modificar el diagrama a partir de texto, imágenes y voz.",
+          "- Soportar sesiones colaborativas de 2 a 3 personas con *host* y participantes, expulsión, reconexión y "
+          "recuperación del estado.",
+          "- Incorporar la IA como integrante de la sala: no actúa hasta que se le pide, sus ideas son visibles, conoce lo "
+          "que hizo cada persona, cada persona tiene su propio chat y las sesiones pueden retomarse.",
+          "- Ofrecer una vista móvil de solo lectura, generar el backend, la colección de Postman y el proyecto Flutter, y "
+          "ofrecer una IA local reentrenada como extra valorable.\n",
+          "**Alcance.** Incluye todo lo anterior y el despliegue en AWS con HTTPS. No incluye cuentas de usuario con inicio "
+          "de sesión (el código de la sala es la llave de acceso), edición desde la vista móvil, ni infraestructura como "
+          "código.\n",
+          "### 2.1.1 Actores\n"]
+    for c, n, d in ACTORES:
+        md += [f"**{c}: {n}**\n", f"{d}\n"]
+    md += ["### 2.1.2 Casos de uso\n"]
     for numero, _, _, codigos in CICLOS:
         for cu in codigos:
-            md.append(f"| {cu} | {CUS[cu]['nombre']} | {', '.join(CUS[cu]['actores'])} | #{numero} |")
+            md.append(f"- ➢ {cu}: {CUS[cu]['nombre']}")
     md.append("")
     md += ["### 2.1.3 Priorizar casos de uso\n",
            "Los casos de uso se agruparon en cuatro ciclos de vida según su prioridad y el riesgo que reducen: "
            "primero los que fijan la arquitectura (colaboración en tiempo real, edición e intercambio XMI), después "
            "los que dan identidad y contexto a la IA, luego las acciones de la IA y, al final, lo opcional.\n"]
+    prioridad = {"Alta": "Crítica", "Media": "Normal", "Baja": "Normal"}
+    riesgo = {"Alta": "Alto", "Media": "Medio", "Baja": "Bajo"}
     for numero, nombre, iteraciones, codigos in CICLOS:
-        md += [f"#### Ciclo de vida #{numero}: {nombre} ({iteraciones})\n",
-               "| Caso de uso | Prioridad | Motivo |", "|---|---|---|"]
-        md += [f"| {cu}: {CUS[cu]['nombre']} | {CUS[cu]['prioridad']} | {CUS[cu]['motivo']} |" for cu in codigos]
+        md += [f"#### Ciclo de vida #{numero}\n",
+               "| NRO | Casos de uso | Estado | Prioridad | Riesgo | Actor |", "|---|---|---|---|---|---|"]
+        md += [f"| {cu} | {CUS[cu]['nombre']} | Aprobado | {prioridad[CUS[cu]['prioridad']]} | "
+               f"{riesgo[CUS[cu]['prioridad']]} | {', '.join(CUS[cu]['actores'])} |" for cu in codigos]
         md.append("")
     md += ["### 2.1.4 Detallar casos de uso\n"]
     for numero, nombre, iteraciones, codigos in CICLOS:
         md.append(f"#### Ciclo de vida #{numero}\n")
         for cu in codigos:
-            md += [f"**{cu}: {CUS[cu]['nombre']}**\n", diagrama_casos_uso([cu]), tabla_caso_uso(cu)]
+            md += [f"**{CUS[cu]['nombre']}.**\n", diagrama_casos_uso([cu]), tabla_caso_uso(cu)]
     md += ["### 2.1.5 Estructurar el modelo de caso de uso\n"]
     acumulado = []
     for numero, nombre, iteraciones, codigos in CICLOS:
@@ -686,7 +707,7 @@ def parte_diseno():
           "### 2.3.2 Diseño de la arquitectura\n",
           "#### 2.3.2.1 Diseño físico (diagrama de despliegue)\n", uml(DESPLIEGUE),
           "#### 2.3.2.2 Diseño lógico (diagrama de paquetes organizado en capas)\n", uml(CAPAS),
-          "### 2.3.3 Diseño de datos\n",
+          "#### 2.3.2.3 Diseño de datos\n",
           "El modelo de datos persistente es pequeño: el diagrama lo guarda como una copia JSON por sala y "
           "la IA y la colaboración añaden cuatro tablas. Lo efímero (orden de conexión y presencia) vive en Redis.\n",
           uml(MODELO_DATOS), "**Tablas de volumen**\n"]
@@ -696,7 +717,7 @@ def parte_diseno():
         md += [f"| {a} | {t} | {d} | {s} | {n} | {k} |" for a, t, d, s, n, k in filas]
         md.append("")
     md += ["**Script de creación (PostgreSQL)**\n", "```sql\n" + DDL + "\n```\n",
-           "### 2.3.4 Diagrama de secuencia\n"]
+           "### 2.3.3 Diagrama de secuencia\n"]
     for numero, _, _, codigos in CICLOS:
         md.append(f"#### Ciclo de vida #{numero}\n")
         for cu in codigos:

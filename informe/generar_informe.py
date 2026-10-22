@@ -341,6 +341,8 @@ class Constructor:
         texto = re.sub(r"\[`?([^\]`]+\.md)`?\]\([^)]*\.md[^)]*\)", referencia, texto)
         texto = re.sub(r"`(?:\.\./|docs/(?:puds/)?)?([A-Za-z0-9_\-]+\.md)`",
                        lambda m: REFERENCIAS.get(m.group(1), m.group(0)), texto)
+        # Los casos de uso se citan como en los informes modelo: CU1, CU14 (no CU-01, CU-14).
+        texto = re.sub(r"\bCU-0?(\d+)", r"CU\1", texto)
         lineas = texto.split("\n")
         i, lista, contadores = 0, [], [0, 0, 0, 0, 0]
         base = Path(".")
@@ -540,7 +542,7 @@ def main():
     contenido = INFORME / "contenido"
     # Parte 0 y 1
     b.markdown(leer(contenido / "00-introduccion.md"))
-    b.markdown(leer(contenido / "01-fundamentacion.md"), desplazar=1)
+    b.markdown(leer(contenido / "01-fundamentacion.md"))
 
     # Parte 2: registro del proceso PUDS (estructura de los informes modelo)
     import parte2
