@@ -29,7 +29,7 @@ GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 # contenedor de Django (en Docker Desktop: http://host.docker.internal:11434).
 AI_PROVIDER = env("AI_PROVIDER", default="gemini")
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
-OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen2.5:7b")
+OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
 
 
 # Quick-start development settings - unsuitable for production
