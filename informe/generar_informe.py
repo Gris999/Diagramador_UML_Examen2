@@ -92,7 +92,7 @@ def configurar_estilos(doc):
     normal.paragraph_format.space_after = Pt(6)
     normal.paragraph_format.line_spacing = 1.15
 
-    tamanos = {1: 16, 2: 13.5, 3: 12, 4: 11}
+    tamanos = {1: 16, 2: 13.5, 3: 12, 4: 11, 5: 10.5}
     for nivel, tam in tamanos.items():
         h = estilos[f"Heading {nivel}"]
         h.font.name = FUENTE
@@ -106,10 +106,10 @@ def configurar_estilos(doc):
         h.paragraph_format.space_after = Pt(6)
         h.paragraph_format.keep_with_next = True
     from docx.enum.style import WD_STYLE_TYPE
-    for nivel, sangria in ((1, 0.0), (2, 0.5), (3, 1.0)):
+    for nivel, sangria in ((1, 0.0), (2, 0.5), (3, 1.0), (4, 1.5), (5, 2.0)):
         toc = estilos.add_style(f"toc {nivel}", WD_STYLE_TYPE.PARAGRAPH)
         toc.base_style = estilos["Normal"]
-        toc.font.size = Pt(9.5 if nivel == 1 else 9)
+        toc.font.size = Pt(9.5 if nivel == 1 else 8.5)
         toc.font.bold = nivel == 1
         toc.paragraph_format.left_indent = Cm(sangria)
         toc.paragraph_format.space_after = Pt(1)
@@ -197,7 +197,7 @@ class Constructor:
     def titulo(self, texto, nivel, salto_pagina=False):
         if salto_pagina:
             self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
-        self.doc.add_heading(limpiar(texto), level=min(nivel, 4))
+        self.doc.add_heading(re.sub(r"[`*]", "", limpiar(texto)).strip(), level=min(nivel, 5))
 
     def parrafo(self, texto, **kw):
         p = self.doc.add_paragraph()
@@ -519,7 +519,7 @@ class Constructor:
         r.font.size = Pt(16)
         r.font.color.rgb = RGBColor(0x1F, 0x2A, 0x44)
         p = self.doc.add_paragraph()
-        campo(p, r'TOC \o "1-3" \h \z \u', "Haz clic derecho y elige «Actualizar campo» para generar el índice.")
+        campo(p, r'TOC \o "1-5" \h \z \u', "Haz clic derecho y elige «Actualizar campo» para generar el índice.")
 
 
 def leer(ruta):
@@ -561,7 +561,7 @@ def main():
     b.titulo("5. Anexos", 1, salto_pagina=True)
     anexos = [
         ("Anexo A. IA local con Ollama (instalación, activación y evaluación)", DOCS / "IA_LOCAL.md", "A"),
-        ("Anexo B. Reentrenamiento del modelo de IA", DOCS / "PLAN_REENTRENAMIENTO_IA.md", "B"),
+        ("Anexo B. Reentrenamiento del modelo de IA", DOCS / "REENTRENAMIENTO_IA.md", "B"),
         ("Anexo C. Despliegue en AWS", DOCS / "DESPLIEGUE.md", "C"),
         ("Anexo D. Entrega y limitaciones conocidas", DOCS / "ENTREGA.md", "D"),
     ]
