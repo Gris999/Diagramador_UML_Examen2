@@ -223,6 +223,58 @@ describe('ActivityPanel', () => {
       expect(applySuggestion).not.toHaveBeenCalled();
     });
 
+    function twoFindings(applied: unknown[]): ActivityEvent {
+      return reviewEvent({
+        data: {
+          findings: [
+            { text: 'Cliente no tiene clave', prompt: 'agrega id: int a Cliente' },
+            { text: 'Pedido está aislado', prompt: 'relaciona Pedido' }
+          ],
+          applied
+        }
+      });
+    }
+
+    it('shows who is applying an idea right now and blocks it for everybody else', () => {
+      load([twoFindings([
+        { index: 0, by: 'Bruno', by_id: 4, state: 'reserved', reserved_at: new Date().toISOString() }
+      ])]);
+
+      expect(buttons()[0].textContent).toContain('Aplicando (Bruno)');
+      expect(buttons()[0].disabled).toBeTrue();
+      expect(buttons()[1].textContent).toContain('Aplicar');
+      buttons()[0].click();
+      expect(applySuggestion).not.toHaveBeenCalled();
+    });
+
+    it('lets the idea be applied again once an unconfirmed reservation expired', () => {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
+      load([twoFindings([
+        { index: 0, by: 'Bruno', by_id: 4, state: 'reserved', reserved_at: tenMinutesAgo }
+      ])]);
+
+      expect(buttons()[0].textContent).toContain('Aplicar');
+      expect(buttons()[0].disabled).toBeFalse();
+      buttons()[0].click();
+      expect(applySuggestion).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows a confirmed idea as applied, and an entry without a state (older events) too', () => {
+      load([twoFindings([
+        { index: 0, by: 'Bruno', by_id: 4, state: 'applied' },
+        { index: 1, by: 'Ana', by_id: 1 }
+      ])]);
+
+      expect(buttons()[0].textContent).toContain('Aplicada');
+      expect(buttons()[1].textContent).toContain('Aplicada');
+    });
+
+    it('treats a reservation without a valid date as expired instead of blocking the idea forever', () => {
+      load([twoFindings([{ index: 0, by: 'Bruno', by_id: 4, state: 'reserved', reserved_at: 'basura' }])]);
+
+      expect(buttons()[0].disabled).toBeFalse();
+    });
+
     it('survives a reload: the applied state comes with the event, not from memory', () => {
       load([reviewEvent({
         data: { findings: [{ text: 'x', prompt: 'agrega id' }], applied: [{ index: 0, by: 'Ana' }] }
@@ -239,7 +291,7 @@ describe('ActivityPanel', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('[data-testid="suggestion-error"]').textContent)
-        .toContain('Otra persona ya aplicó esta idea');
+        .toContain('Otra persona ya aplicó o está aplicando esta idea');
     });
 
     it('tells the user when the IA could not apply an idea and lets them retry', () => {

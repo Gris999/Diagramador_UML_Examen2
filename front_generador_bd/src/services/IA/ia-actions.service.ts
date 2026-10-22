@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { catchError, finalize, map, Observable, switchMap, tap, throwError } from 'rxjs';
+import { catchError, finalize, map, Observable, retry, switchMap, tap, throwError, timer } from 'rxjs';
 import { CollaborationService } from '../colaboration/collaboration.service';
 import { IdentityService } from '../colaboration/identity.service';
 import { DiagramService } from '../diagram/diagram.service';
@@ -45,8 +45,9 @@ export class IaActionsService {
 
   /**
    * Aplica una idea de la IA a nombre de quien la aplica. Primero la reserva en
-   * el servidor (así nadie más la aplica a la vez y queda marcada para todos);
-   * si el cambio no llega a aplicarse, la libera.
+   * el servidor (así nadie más la aplica a la vez); cuando el cambio llega al
+   * diagrama la confirma, y si no llega a aplicarse la libera. Una reserva que
+   * nadie confirma ni libera (por ejemplo, se cerró la pestaña) vence sola.
    */
   applySuggestion(roomId: string, eventId: number, index: number, prompt: string): Observable<string> {
     return this.chat.claimSuggestion(roomId, eventId, index).pipe(
@@ -54,6 +55,7 @@ export class IaActionsService {
         this.request(roomId, 'change', prompt).pipe(
           tap(response => {
             if (response.cancelled) this.release(roomId, eventId, index);
+            else this.confirm(roomId, eventId, index);
           }),
           catchError(error => {
             this.release(roomId, eventId, index);
@@ -66,7 +68,16 @@ export class IaActionsService {
   }
 
   private release(roomId: string, eventId: number, index: number): void {
-    this.chat.releaseSuggestion(roomId, eventId, index).subscribe({ error: () => undefined });
+    this.withRetries(this.chat.releaseSuggestion(roomId, eventId, index)).subscribe({ error: () => undefined });
+  }
+
+  private confirm(roomId: string, eventId: number, index: number): void {
+    this.withRetries(this.chat.confirmSuggestion(roomId, eventId, index)).subscribe({ error: () => undefined });
+  }
+
+  /** Un fallo de red no debe dejar la idea reservada o sin confirmar: se reintenta un par de veces. */
+  private withRetries<T>(request: Observable<T>): Observable<T> {
+    return request.pipe(retry({ count: 2, delay: () => timer(1000) }));
   }
 
   private confirmDeletions(count: number): boolean {

@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { of, Subject, throwError } from 'rxjs';
+import { defer, of, Subject, throwError } from 'rxjs';
 import { CollaborationService } from '../colaboration/collaboration.service';
 import { IdentityService } from '../colaboration/identity.service';
 import { DiagramService } from '../diagram/diagram.service';
@@ -12,6 +12,7 @@ describe('IaActionsService', () => {
   let send: jasmine.Spy;
   let claimSuggestion: jasmine.Spy;
   let releaseSuggestion: jasmine.Spy;
+  let confirmSuggestion: jasmine.Spy;
   let loadFromJson: jasmine.Spy;
   let startIaRequest: jasmine.Spy;
   let finishIaRequest: jasmine.Spy;
@@ -22,6 +23,7 @@ describe('IaActionsService', () => {
     send = jasmine.createSpy('send');
     claimSuggestion = jasmine.createSpy('claimSuggestion').and.returnValue(of({}));
     releaseSuggestion = jasmine.createSpy('releaseSuggestion').and.returnValue(of({}));
+    confirmSuggestion = jasmine.createSpy('confirmSuggestion').and.returnValue(of({}));
     appliedWhileMarked = [];
     let marked = false;
     loadFromJson = jasmine.createSpy('loadFromJson').and.callFake(() => appliedWhileMarked.push(marked));
@@ -31,7 +33,7 @@ describe('IaActionsService', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        { provide: IaChatService, useValue: { send, claimSuggestion, releaseSuggestion } },
+        { provide: IaChatService, useValue: { send, claimSuggestion, releaseSuggestion, confirmSuggestion } },
         { provide: DiagramService, useValue: { exportToJson: () => uml, loadFromJson } },
         {
           provide: CollaborationService,
@@ -134,6 +136,76 @@ describe('IaActionsService', () => {
     expect(send).toHaveBeenCalledOnceWith('sala', 'change', 'agrega id a Cliente', uml);
     expect(releaseSuggestion).not.toHaveBeenCalled();
     expect(reply).toBe('Listo');
+  });
+
+  it('confirms the suggestion once the change reached the diagram, and not before', () => {
+    const pending = new Subject<{ reply: string; changes: unknown; destructive: number }>();
+    send.and.returnValue(pending);
+    service.applySuggestion('sala', 12, 1, 'agrega id a Cliente').subscribe();
+
+    expect(confirmSuggestion).not.toHaveBeenCalled();
+    pending.next({ reply: 'Listo', changes: { classes: [] }, destructive: 0 });
+    pending.complete();
+
+    expect(loadFromJson).toHaveBeenCalledTimes(1);
+    expect(confirmSuggestion).toHaveBeenCalledOnceWith('sala', 12, 1);
+  });
+
+  it('never confirms a suggestion whose change failed or was refused', () => {
+    send.and.returnValue(throwError(() => new Error('502')));
+    service.applySuggestion('sala', 12, 1, 'x').subscribe({ error: () => undefined });
+
+    spyOn(window, 'confirm').and.returnValue(false);
+    send.and.returnValue(of({ reply: 'x', changes: { classes: [{ eliminar: true }] }, destructive: 1 }));
+    service.applySuggestion('sala', 12, 2, 'y').subscribe();
+
+    expect(confirmSuggestion).not.toHaveBeenCalled();
+  });
+
+  describe('when the network fails while closing the reservation', () => {
+    beforeEach(() => jasmine.clock().install());
+    afterEach(() => jasmine.clock().uninstall());
+
+    it('retries the confirmation instead of leaving the idea reserved', () => {
+      let attempts = 0;
+      // Como un pedido HTTP, cada suscripción vuelve a intentarlo.
+      confirmSuggestion.and.returnValue(defer(() =>
+        ++attempts < 3 ? throwError(() => new Error('red')) : of({})));
+      send.and.returnValue(of({ reply: 'Listo', changes: { classes: [] }, destructive: 0 }));
+
+      service.applySuggestion('sala', 12, 1, 'x').subscribe();
+      jasmine.clock().tick(5000);
+
+      expect(attempts).toBe(3);
+    });
+
+    it('retries the release when the change fails', () => {
+      let attempts = 0;
+      releaseSuggestion.and.returnValue(defer(() =>
+        ++attempts < 2 ? throwError(() => new Error('red')) : of({})));
+      send.and.returnValue(throwError(() => new Error('502')));
+
+      service.applySuggestion('sala', 12, 1, 'x').subscribe({ error: () => undefined });
+      jasmine.clock().tick(5000);
+
+      expect(attempts).toBe(2);
+    });
+
+    it('gives up quietly after a few attempts', () => {
+      let attempts = 0;
+      confirmSuggestion.and.returnValue(defer(() => {
+        attempts++;
+        return throwError(() => new Error('red'));
+      }));
+      send.and.returnValue(of({ reply: 'Listo', changes: { classes: [] }, destructive: 0 }));
+      let failure: unknown;
+
+      service.applySuggestion('sala', 12, 1, 'x').subscribe({ error: error => (failure = error) });
+      jasmine.clock().tick(10_000);
+
+      expect(attempts).toBe(3);
+      expect(failure).toBeUndefined();
+    });
   });
 
   it('does not ask the IA anything when somebody else already took the suggestion', () => {

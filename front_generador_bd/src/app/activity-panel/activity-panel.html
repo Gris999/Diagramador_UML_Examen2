@@ -36,11 +36,16 @@
                 <button
                   type="button"
                   class="shrink-0 rounded bg-purple-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-                  [disabled]="isApplied(event, $index) || applying() !== null"
+                  [disabled]="isApplied(event, $index) || isReserved(event, $index) || applying() !== null"
                   data-testid="apply-suggestion"
                   (click)="apply(event, $index, finding)"
                 >
-                  {{ isApplied(event, $index) ? 'Aplicada' : isApplying(event, $index) ? 'Aplicando…' : 'Aplicar' }}
+                  {{
+                    isApplied(event, $index) ? 'Aplicada'
+                      : isApplying(event, $index) ? 'Aplicando…'
+                      : isReserved(event, $index) ? 'Aplicando (' + reservedBy(event, $index) + ')…'
+                      : 'Aplicar'
+                  }}
                 </button>
               }
             </div>

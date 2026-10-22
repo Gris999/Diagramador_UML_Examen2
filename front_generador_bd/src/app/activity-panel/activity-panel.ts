@@ -9,6 +9,9 @@ import { IaActionsService } from '../../services/IA/ia-actions.service';
 
 type ActivityHistoryResponse = ActivityEvent[] | { events: ActivityEvent[] };
 
+/** Igual que en el servidor: pasado este tiempo una reserva sin confirmar deja de contar. */
+const RESERVATION_TTL_MS = 150_000;
+
 @Component({
   selector: 'app-activity-panel',
   standalone: true,
@@ -70,10 +73,29 @@ export class ActivityPanel implements OnInit, OnDestroy {
       .map(item => ({ text: item.text, prompt: typeof item.prompt === 'string' ? item.prompt : '' }));
   }
 
-  /** Una idea queda aplicada para todos cuando el servidor la reserva (viaja dentro del evento). */
+  /** Una idea queda aplicada para todos cuando quien la tomó confirma el cambio (viaja dentro del evento). */
   isApplied(event: ActivityEvent, index: number): boolean {
+    const entry = this.entryOf(event, index);
+    return !!entry && entry['state'] !== 'reserved';
+  }
+
+  /** Alguien la está aplicando ahora: la reserva vence sola si nadie la confirma. */
+  isReserved(event: ActivityEvent, index: number): boolean {
+    const entry = this.entryOf(event, index);
+    if (!entry || entry['state'] !== 'reserved') return false;
+    const reservedAt = Date.parse(String(entry['reserved_at'] ?? ''));
+    return Number.isFinite(reservedAt) && this.now() - reservedAt < RESERVATION_TTL_MS;
+  }
+
+  /** Quién la está aplicando, para mostrarlo en el botón. */
+  reservedBy(event: ActivityEvent, index: number): string {
+    return String(this.entryOf(event, index)?.['by'] ?? '');
+  }
+
+  private entryOf(event: ActivityEvent, index: number): Record<string, unknown> | undefined {
     const applied = event.data?.['applied'];
-    return Array.isArray(applied) && applied.some(item => item?.index === index);
+    if (!Array.isArray(applied)) return undefined;
+    return applied.find(item => item && typeof item === 'object' && item.index === index);
   }
 
   isApplying(event: ActivityEvent, index: number): boolean {
@@ -82,7 +104,10 @@ export class ActivityPanel implements OnInit, OnDestroy {
 
   /** Cualquiera puede aplicar una idea: el cambio queda a nombre de quien la aplica. */
   apply(event: ActivityEvent, index: number, finding: { prompt: string }): void {
-    if (this.readOnly() || !this.roomId || !finding.prompt || this.applying() || this.isApplied(event, index)) return;
+    if (
+      this.readOnly() || !this.roomId || !finding.prompt || this.applying()
+      || this.isApplied(event, index) || this.isReserved(event, index)
+    ) return;
 
     this.suggestionError.set('');
     this.applying.set(`${event.id}:${index}`);
@@ -92,7 +117,7 @@ export class ActivityPanel implements OnInit, OnDestroy {
         this.applying.set(null);
         this.suggestionError.set(
           failure instanceof HttpErrorResponse && failure.status === 409
-            ? 'Otra persona ya aplicó esta idea.'
+            ? 'Otra persona ya aplicó o está aplicando esta idea.'
             : 'La IA no pudo aplicar esa idea ahora. Intenta de nuevo.'
         );
       }

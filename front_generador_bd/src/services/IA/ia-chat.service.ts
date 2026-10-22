@@ -69,6 +69,11 @@ export class IaChatService {
     return this.http.post(this.suggestionUrl(roomId, eventId, index), {}, { headers: this.headers() });
   }
 
+  /** Marca la idea como aplicada para todos una vez que el cambio llegó al diagrama. */
+  confirmSuggestion(roomId: string, eventId: number, index: number): Observable<unknown> {
+    return this.http.put(this.suggestionUrl(roomId, eventId, index), {}, { headers: this.headers() });
+  }
+
   /** Libera una idea reservada cuando el cambio no llegó a aplicarse. */
   releaseSuggestion(roomId: string, eventId: number, index: number): Observable<unknown> {
     return this.http.delete(this.suggestionUrl(roomId, eventId, index), { headers: this.headers() });

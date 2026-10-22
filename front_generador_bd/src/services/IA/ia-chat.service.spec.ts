@@ -100,6 +100,12 @@ describe('IaChatService', () => {
     expect(claim.request.headers.get('X-Participant-Token')).toBe(token);
     claim.flush({});
 
+    service.confirmSuggestion('sala 1', 7, 2).subscribe();
+    const confirm = http.expectOne(`${base}activity/7/apply/2/`);
+    expect(confirm.request.method).toBe('PUT');
+    expect(confirm.request.headers.get('X-Participant-Token')).toBe(token);
+    confirm.flush({});
+
     service.releaseSuggestion('sala 1', 7, 2).subscribe();
     const release = http.expectOne(`${base}activity/7/apply/2/`);
     expect(release.request.method).toBe('DELETE');
