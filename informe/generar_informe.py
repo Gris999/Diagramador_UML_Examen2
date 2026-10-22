@@ -33,7 +33,7 @@ TITULO = ("Plataforma CASE Colaborativa de Modelado UML 2.5 con Inteligencia Art
           "de la Sala, Generación de Backend (Spring Boot) y Flutter, e IA Local Reentrenada")
 NUMERO = "29"
 INTEGRANTES = [("Alaca Pedro", "222007281"), ("Quenta Callejas Yohan Sebastian", "222009462")]
-MATERIA = "Ingeniería de Software 1"
+MATERIA = "Ingeniería de software 1"
 SIGLA = "INF 422"
 DOCENTE = "Ing. Martínez Canedo Rolando Antonio"
 GESTION = "Semestre 2 - 2026"
@@ -50,7 +50,7 @@ REFERENCIAS = {
 FUENTE = "Arial"
 EMOJIS = {"✅": "✔", "📋": "○", "🔄": "◐", "🤖": ""}
 
-ANCHO_UTIL_CM = 16.4
+ANCHO_UTIL_CM = 16.0
 ALTO_MAX_IMAGEN_CM = 19.0
 
 
@@ -84,62 +84,60 @@ def campo(parrafo, codigo, texto_previo=""):
 
 
 def configurar_estilos(doc):
+    """Tipografía y tamaños tomados de los informes modelo (Google Docs, Arial)."""
+    from docx.enum.style import WD_STYLE_TYPE
+
     estilos = doc.styles
     normal = estilos["Normal"]
     normal.font.name = FUENTE
-    normal.font.size = Pt(10.5)
+    normal.font.size = Pt(11)
     normal.element.rPr.rFonts.set(qn("w:eastAsia"), FUENTE)
+    normal.paragraph_format.space_before = Pt(0)
     normal.paragraph_format.space_after = Pt(6)
-    normal.paragraph_format.line_spacing = 1.15
+    normal.paragraph_format.line_spacing = 1.5
 
-    tamanos = {1: 16, 2: 13.5, 3: 12, 4: 11, 5: 10.5}
-    for nivel, tam in tamanos.items():
+    # Títulos en Arial normal (no negrita): 20 / 16 / 14 gris oscuro / 12 gris / 12 gris.
+    formatos = {1: (20, 0x000000), 2: (16, 0x000000), 3: (14, 0x434343), 4: (12, 0x666666), 5: (12, 0x666666)}
+    for nivel, (tam, color) in formatos.items():
         h = estilos[f"Heading {nivel}"]
         h.font.name = FUENTE
         h.font.size = Pt(tam)
-        h.font.bold = True
-        h.font.color.rgb = RGBColor(0x1F, 0x2A, 0x44) if nivel <= 2 else RGBColor(0x33, 0x33, 0x33)
-        h.element.rPr.rFonts.set(qn("w:eastAsia"), FUENTE)
-        h.element.rPr.rFonts.set(qn("w:ascii"), FUENTE)
-        h.element.rPr.rFonts.set(qn("w:hAnsi"), FUENTE)
-        h.paragraph_format.space_before = Pt(16 if nivel == 1 else 12)
+        h.font.bold = False
+        h.font.italic = False
+        h.font.color.rgb = RGBColor((color >> 16) & 255, (color >> 8) & 255, color & 255)
+        for atributo in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+            h.element.rPr.rFonts.set(qn(atributo), FUENTE)
+        for tema in ("w:asciiTheme", "w:hAnsiTheme", "w:eastAsiaTheme", "w:cstheme"):
+            h.element.rPr.rFonts.attrib.pop(qn(tema), None)  # sin esto Word usa la fuente del tema (Calibri)
+        h.paragraph_format.space_before = Pt(18 if nivel == 1 else 14 if nivel == 2 else 12)
         h.paragraph_format.space_after = Pt(6)
+        h.paragraph_format.line_spacing = 1.15
         h.paragraph_format.keep_with_next = True
-    from docx.enum.style import WD_STYLE_TYPE
-    for nivel, sangria in ((1, 0.0), (2, 0.5), (3, 1.0), (4, 1.5), (5, 2.0)):
+
+    # Índice: Arial 11, sangría de 18 pt por nivel.
+    for nivel in range(1, 6):
         toc = estilos.add_style(f"toc {nivel}", WD_STYLE_TYPE.PARAGRAPH)
         toc.base_style = estilos["Normal"]
-        toc.font.size = Pt(9.5 if nivel == 1 else 8.5)
-        toc.font.bold = nivel == 1
-        toc.paragraph_format.left_indent = Cm(sangria)
+        toc.font.size = Pt(11 if nivel <= 3 else 10)
+        toc.paragraph_format.left_indent = Pt(18 * (nivel - 1))
         toc.paragraph_format.space_after = Pt(1)
-        toc.paragraph_format.space_before = Pt(4 if nivel == 1 else 0)
-        toc.paragraph_format.line_spacing = 1.0
-    for nombre in ("List Bullet", "List Bullet 2"):
-        estilos[nombre].font.name = FUENTE
-        estilos[nombre].font.size = Pt(10.5)
-        estilos[nombre].paragraph_format.space_after = Pt(2)
+        toc.paragraph_format.space_before = Pt(0)
+        toc.paragraph_format.line_spacing = 1.15
 
 
 def configurar_pagina(doc):
     seccion = doc.sections[0]
     seccion.orientation = WD_ORIENT.PORTRAIT
-    seccion.page_width, seccion.page_height = Cm(21.59), Cm(27.94)  # carta
-    seccion.left_margin = seccion.right_margin = Cm(2.6)
-    seccion.top_margin, seccion.bottom_margin = Cm(2.4), Cm(2.2)
-    seccion.different_first_page_header_footer = True
-
-    encabezado = seccion.header.paragraphs[0]
-    encabezado.text = "Ingeniería de Software 1 — Informe del proyecto"
-    encabezado.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    for run in encabezado.runs:
-        run.font.size = Pt(8)
-        run.font.color.rgb = RGBColor(0x77, 0x77, 0x77)
+    seccion.page_width, seccion.page_height = Cm(21.0), Cm(29.7)  # A4, como los modelos
+    seccion.left_margin = seccion.right_margin = Cm(2.5)
+    seccion.top_margin = seccion.bottom_margin = Cm(2.5)
+    seccion.different_first_page_header_footer = True  # la carátula no lleva número
     pie = seccion.footer.paragraphs[0]
-    pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    pie.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     campo(pie, "PAGE", "1")
     for run in pie.runs:
         run.font.size = Pt(9)
+        run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
 
 
 # --- Texto con formato en línea ---------------------------------------------------------------
@@ -197,7 +195,17 @@ class Constructor:
     def titulo(self, texto, nivel, salto_pagina=False):
         if salto_pagina:
             self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
-        self.doc.add_heading(re.sub(r"[`*]", "", limpiar(texto)).strip(), level=min(nivel, 5))
+        texto = re.sub(r"[`*]", "", limpiar(texto)).strip()
+        # Como en los informes modelo: 1., 2. y las secciones 2.1, 2.2, 2.3 a 2.5 (nivel 2) van en mayúsculas.
+        if re.match(r"^(1\.|2\.)\s|^2\.[12](\.\d+)*\s|^2\.[345]\s", texto):
+            texto = texto.upper()
+        encabezado = self.doc.add_heading(texto, level=min(nivel, 5))
+        if nivel == 3 and re.match(r"^\d+[\)\.]\s", texto):
+            # Subtemas de los capítulos 5 y 6 ("1) Diseño conceptual"): negrita 12, negro.
+            for run in encabezado.runs:
+                run.bold = True
+                run.font.size = Pt(12)
+                run.font.color.rgb = RGBColor(0, 0, 0)
 
     def parrafo(self, texto, **kw):
         p = self.doc.add_paragraph()
@@ -206,15 +214,17 @@ class Constructor:
 
     def lista(self, items):
         for nivel, tipo, texto, numero in items:
+            p = self.doc.add_paragraph()
+            sangria = 36 + 18 * nivel
+            p.paragraph_format.left_indent = Pt(sangria)
+            p.paragraph_format.first_line_indent = Pt(-18)
+            p.paragraph_format.space_after = Pt(2)
+            p.paragraph_format.tab_stops.add_tab_stop(Pt(sangria))
             if tipo == "bullet":
-                p = self.doc.add_paragraph(style="List Bullet" if nivel == 0 else "List Bullet 2")
-                agregar_inline(p, texto)
+                simbolo = "➢" if texto.startswith("➢") else "●"
+                agregar_inline(p, f"{simbolo}\t{texto.lstrip('➢ ')}")
             else:
-                p = self.doc.add_paragraph()
-                p.paragraph_format.left_indent = Cm(0.9 + 0.8 * nivel)
-                p.paragraph_format.first_line_indent = Cm(-0.6)
-                p.paragraph_format.space_after = Pt(2)
-                agregar_inline(p, f"{numero}. {texto}")
+                agregar_inline(p, f"{numero}.\t{texto}")
 
     def cita(self, lineas):
         p = self.doc.add_paragraph()
@@ -257,8 +267,8 @@ class Constructor:
             agregar_inline(c, pie, tam=9, cursiva=True, color=RGBColor(0x55, 0x55, 0x55))
 
     def tabla(self, filas):
-        # Tabla de "ficha" (caso de uso): primera fila vacía = sin encabezado y primera columna sombreada.
-        ficha = all(not c.strip() for c in filas[0])
+        """Tablas como en los informes modelo: ficha de caso de uso (columna naranja), cabecera amarilla."""
+        ficha = all(not c.strip() for c in filas[0])  # primera fila vacía = ficha clave-valor
         if ficha:
             filas = filas[1:]
         columnas = max(len(f) for f in filas)
@@ -270,29 +280,39 @@ class Constructor:
         ancho.set(qn("w:type"), "pct")
         ancho.set(qn("w:w"), "5000")
         propiedades.append(ancho)
-        tam = 8.5 if columnas >= 4 else 9.5
+
+        anchos = None
+        if ficha:
+            anchos = [6.9, ANCHO_UTIL_CM - 6.9]
+        elif [c.strip() for c in filas[0]] == ["NRO", "Casos de uso", "Estado", "Prioridad", "Riesgo", "Actor"]:
+            anchos = [1.6, 5.6, 2.3, 2.3, 2.0, 2.2]
+        tam = 11 if (ficha or columnas <= 3 or anchos) else 10 if columnas == 4 else 9.5
+        if anchos:
+            tabla.autofit = False
+
         for numero, fila in enumerate(filas):
             celdas = tabla.add_row().cells
             for indice in range(columnas):
                 texto = fila[indice] if indice < len(fila) else ""
                 celda = celdas[indice]
+                if anchos:
+                    celda.width = Cm(anchos[indice])
                 parrafo = celda.paragraphs[0]
-                parrafo.paragraph_format.space_after = Pt(1)
-                parrafo.paragraph_format.line_spacing = 1.0
-                agregar_inline(parrafo, texto, tam=tam, negrita=(numero == 0 and not ficha))
-                if numero == 0 and not ficha:
-                    sombrear(celda._tc.get_or_add_tcPr(), "DDE3F0")
+                parrafo.paragraph_format.space_after = Pt(4)
+                parrafo.paragraph_format.space_before = Pt(4)
+                parrafo.paragraph_format.line_spacing = 1.15
+                encabezado = numero == 0 and not ficha
+                agregar_inline(parrafo, texto, tam=tam, negrita=(ficha and indice == 0))
+                if encabezado:
+                    sombrear(celda._tc.get_or_add_tcPr(), "FFF2CC")
                 elif ficha and indice == 0:
-                    sombrear(celda._tc.get_or_add_tcPr(), "FCE4D6")
+                    sombrear(celda._tc.get_or_add_tcPr(), "FCE5CD")
                 if ficha and numero < len(filas) - 1:
                     parrafo.paragraph_format.keep_with_next = True  # la ficha no se parte entre páginas
             if numero == 0 and not ficha:
-                fila_pr = tabla.rows[0]._tr.get_or_add_trPr()
-                cabecera = OxmlElement("w:tblHeader")
-                fila_pr.append(cabecera)
+                tabla.rows[0]._tr.get_or_add_trPr().append(OxmlElement("w:tblHeader"))
         for fila_xml in tabla.rows:
-            no_partir = OxmlElement("w:cantSplit")
-            fila_xml._tr.get_or_add_trPr().append(no_partir)
+            fila_xml._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
         self.doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     def plantuml(self, fuente):
@@ -312,8 +332,8 @@ class Constructor:
         with Image.open(salida) as im:
             ancho_px = im.size[0]
         dpi = 150 if "skinparam dpi 150" in entrada.read_text(encoding="utf-8") else 96
-        ancho_cm = min(ANCHO_UTIL_CM - 0.8, max(5.0, ancho_px / dpi * 2.54))
-        self.imagen(salida, pie=f"Diagrama {self.diagramas}", ancho_cm=ancho_cm)
+        ancho_cm = min(ANCHO_UTIL_CM, max(11.0, ancho_px / dpi * 2.54 * 1.5))
+        self.imagen(salida, pie=None, ancho_cm=ancho_cm)
 
     def mermaid(self, fuente):
         BUILD.joinpath("diagramas").mkdir(parents=True, exist_ok=True)
@@ -328,7 +348,7 @@ class Constructor:
                 check=True, cwd=INFORME, timeout=180,
             )
         self.diagramas += 1
-        self.imagen(salida, pie=f"Diagrama {self.diagramas}", ancho_cm=15.5)
+        self.imagen(salida, pie=None, ancho_cm=15.5)
 
     # Markdown --------------------------------------------------------------------------------
     def markdown(self, texto, desplazar=0, prefijo=None, titulo_h1=None, renumerar=False):
@@ -458,58 +478,63 @@ class Constructor:
             texto_parrafo = " ".join(parrafo)
             if texto_parrafo.startswith("**") and texto_parrafo.endswith("**") or texto_parrafo.startswith("*Ciclo"):
                 p.paragraph_format.keep_with_next = True  # el rótulo no se separa de su diagrama o tabla
+                if texto_parrafo.startswith("**") and texto_parrafo.endswith("**") and texto_parrafo.count("**") == 2:
+                    for run in p.runs:
+                        run.font.size = Pt(13)  # como los títulos de caso de uso del modelo
             i += 1
         vaciar_lista()
 
     # Carátula e índice ----------------------------------------------------------------------
     def caratula(self):
+        """Carátula con las medidas del informe modelo (A4): tamaños, colores, escudo de 5 x 6,5 cm."""
         doc = self.doc
 
-        def linea(texto, tam, negrita=False, despues=6, alinear=WD_ALIGN_PARAGRAPH.CENTER, color=None):
+        def linea(texto="", tam=12, negrita=False, alinear=WD_ALIGN_PARAGRAPH.CENTER, antes=0, despues=0,
+                  color=None, sangria=0, interlineado=None):
             p = doc.add_paragraph()
             p.alignment = alinear
-            p.paragraph_format.space_after = Pt(despues)
-            r = p.add_run(texto)
-            r.bold = negrita
-            r.font.size = Pt(tam)
-            if color:
-                r.font.color.rgb = color
+            formato = p.paragraph_format
+            formato.space_before, formato.space_after = Pt(antes), Pt(despues)
+            formato.left_indent = Pt(sangria)
+            formato.line_spacing = interlineado or 1.15
+            if texto:
+                r = p.add_run(texto)
+                r.bold = negrita
+                r.font.size = Pt(tam)
+                if color:
+                    r.font.color.rgb = color
             return p
 
-        linea("UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO", 15, True, 10)
-        linea("FACULTAD DE INGENIERÍA EN CIENCIAS DE LA COMPUTACIÓN Y TELECOMUNICACIONES", 12, False, 24,
-              color=RGBColor(0x1F, 0x4E, 0x5F))
+        izquierda = WD_ALIGN_PARAGRAPH.LEFT
+        linea("UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO", 16, True, antes=10, despues=12, interlineado=1.3)
+        linea("FACULTAD DE INGENIERÍA EN CIENCIAS DE LA COMPUTACIÓN Y TELECOMUNICACIONES", 14, False,
+              despues=14, color=RGBColor(0x0C, 0x34, 0x3D), interlineado=1.8)
         logo = INFORME / "recursos" / "logo-facultad.png"
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_after = Pt(28)
         if logo.exists():
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_after = Pt(26)
-            p.add_run().add_picture(str(logo), width=Cm(4.6))
-        linea(f"“{TITULO}”", 17, True, 28)
-        linea(f"Número: {NUMERO}", 11, True, 12, WD_ALIGN_PARAGRAPH.LEFT)
-        linea("INTEGRANTES :", 11, True, 6, WD_ALIGN_PARAGRAPH.LEFT)
-        tabla = doc.add_table(rows=0, cols=2)
+            p.add_run().add_picture(str(logo), width=Cm(5.0), height=Cm(6.5))
+        linea(f"“{TITULO}”", 17, True, despues=12)
+        linea(f"Número: {NUMERO}", 12, True, izquierda, despues=10, sangria=36)
+        linea("INTEGRANTES :", 12, True, izquierda, despues=4, sangria=36)
         for nombre, registro in INTEGRANTES:
-            celdas = tabla.add_row().cells
-            celdas[0].width, celdas[1].width = Cm(11.5), Cm(4.5)
-            for celda, texto in ((celdas[0], f"❖  {nombre}"), (celdas[1], registro)):
-                parrafo = celda.paragraphs[0]
-                parrafo.paragraph_format.space_after = Pt(3)
-                run = parrafo.add_run(texto)
-                run.font.size = Pt(10.5)
-                if texto.startswith("["):
-                    run.font.highlight_color = 7  # amarillo: dato por completar
-        doc.add_paragraph().paragraph_format.space_after = Pt(12)
+            p = linea("", 12, False, izquierda, despues=0, sangria=54, interlineado=1.45)
+            p.paragraph_format.tab_stops.add_tab_stop(Pt(288))
+            simbolo = p.add_run("❖  ")
+            simbolo.font.size = Pt(11)
+            p.add_run(nombre).font.size = Pt(12)
+            p.add_run("\t")
+            p.add_run(registro).font.size = Pt(12)
+        linea("", 12, False, izquierda, despues=4)
         for etiqueta, valor in (("Materia: ", MATERIA), ("Sigla: ", SIGLA), ("Docente: ", DOCENTE), ("Gestión: ", GESTION)):
-            p = doc.add_paragraph()
-            p.paragraph_format.space_after = Pt(3)
+            p = linea("", 12, False, izquierda, despues=0, interlineado=1.45)
             r = p.add_run(etiqueta)
             r.bold = True
-            r.font.size = Pt(10.5)
-            r2 = p.add_run(valor)
-            r2.font.size = Pt(10.5)
-        doc.add_paragraph().paragraph_format.space_after = Pt(30)
-        linea(LUGAR, 12, True)
+            r.font.size = Pt(12)
+            p.add_run(valor).font.size = Pt(12)
+        linea("", 12, False, despues=18)
+        linea(LUGAR, 14, True)
 
     def indice(self):
         self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
