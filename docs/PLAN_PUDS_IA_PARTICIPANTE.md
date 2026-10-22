@@ -331,7 +331,7 @@ Esfuerzo en horas para una persona. La suma sin I6 es de unas **78–110 h**; co
 | `OllamaProvider` (API HTTP local), variables `AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`. |
 | Indicador en la interfaz: "IA: local (modelo)" o "IA: nube (Gemini)". Reintento hacia Gemini si el modelo local falla (configurable). |
 | Evaluación: 10 pedidos fijos contra Gemini y contra el modelo local; registrar tasa de JSON válido y de resultado correcto. |
-| Guía de instalación (Ollama + `qwen2.5` de 7–8 B en un Mac con 16 GB). |
+| Guía de instalación (Ollama + `qwen3.5:9b` en un Mac con 16 GB). |
 
 **Aceptación:** con `AI_PROVIDER=ollama` el chat funciona sin internet y la evaluación queda documentada, aunque el modelo local falle más que Gemini.
 

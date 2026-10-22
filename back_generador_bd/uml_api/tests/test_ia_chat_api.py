@@ -639,7 +639,7 @@ class ClaimSuggestionApiTests(ChatTestBase):
 class OllamaProviderTests(SimpleTestCase):
     def provider(self):
         from uml_api.services.ai_provider import OllamaProvider
-        return OllamaProvider(base_url="http://ollama.local:11434", model="qwen2.5:7b")
+        return OllamaProvider(base_url="http://ollama.local:11434", model="qwen3.5:9b")
 
     def fake_response(self, text):
         response = mock.Mock()
@@ -656,12 +656,13 @@ class OllamaProviderTests(SimpleTestCase):
         self.assertEqual(reply, "Hola desde el modelo local")
         self.assertEqual(post.call_args.args[0], "http://ollama.local:11434/api/generate")
         body = post.call_args.kwargs["json"]
-        self.assertEqual(body["model"], "qwen2.5:7b")
+        self.assertEqual(body["model"], "qwen3.5:9b")
+        self.assertIs(body["think"], False)
         self.assertEqual(body["prompt"], "pregunta")
         self.assertFalse(body["stream"])
         self.assertIn("timeout", post.call_args.kwargs)
 
-    def test_change_asks_for_json_with_the_same_prompt_gemini_uses(self):
+    def test_change_uses_the_same_instructions_gemini_uses_and_tolerates_markdown(self):
         from uml_api.services.services_gemini import build_change_prompt
 
         uml = {"classes": [], "relationships": []}
@@ -674,8 +675,10 @@ class OllamaProviderTests(SimpleTestCase):
 
         self.assertEqual(changes, {"classes": [{"name": "Factura"}]})
         body = post.call_args.kwargs["json"]
-        self.assertEqual(body["prompt"], build_change_prompt("agrega la clase Factura", uml))
-        self.assertEqual(body["format"], "json")
+        self.assertTrue(body["prompt"].startswith(build_change_prompt("agrega la clase Factura", uml)))
+        self.assertIn("ÚNICAMENTE con el JSON", body["prompt"])
+        # Qwen 3.5 no soporta salida estructurada en Ollama: no se pide `format`.
+        self.assertNotIn("format", body)
 
     def test_a_server_that_is_down_or_answers_garbage_is_an_ai_error(self):
         import requests
@@ -719,11 +722,11 @@ class ProviderInfoApiTests(APITestCase):
     def test_reports_which_provider_answers_without_exposing_secrets(self):
         from django.test import override_settings
 
-        with override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="qwen2.5:7b", GEMINI_API_KEY="secreto"):
+        with override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="qwen3.5:9b", GEMINI_API_KEY="secreto"):
             response = self.client.get("/api/ia/provider/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"provider": "ollama", "label": "IA local (qwen2.5:7b)"})
+        self.assertEqual(response.data, {"provider": "ollama", "label": "IA local (qwen3.5:9b)"})
         self.assertNotIn("secreto", str(response.data))
 
     def test_gemini_is_reported_as_cloud(self):

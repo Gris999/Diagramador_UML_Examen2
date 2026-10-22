@@ -41,7 +41,7 @@ describe('IaChatPanel', () => {
 
   beforeEach(async () => {
     history = jasmine.createSpy('history').and.returnValue(of([]));
-    provider = jasmine.createSpy('provider').and.returnValue(of({ provider: 'ollama', label: 'IA local (qwen2.5:7b)' }));
+    provider = jasmine.createSpy('provider').and.returnValue(of({ provider: 'ollama', label: 'IA local (qwen3.5:9b)' }));
     request = jasmine.createSpy('request').and.returnValue(of({ reply: 'Respuesta de la IA' }));
 
     await TestBed.configureTestingModule({
@@ -189,7 +189,7 @@ describe('IaChatPanel', () => {
   it('shows which AI answers (cloud or local model)', async () => {
     await openChat();
 
-    expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA local (qwen2.5:7b)');
+    expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA local (qwen3.5:9b)');
   });
 
   it('keeps working when the provider cannot be known', async () => {

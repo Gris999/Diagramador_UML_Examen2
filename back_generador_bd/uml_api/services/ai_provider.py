@@ -99,12 +99,15 @@ class OllamaProvider(AIProvider):
         self.base_url = (
             base_url or getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")
         ).rstrip("/")
-        self.model = model or getattr(settings, "OLLAMA_MODEL", "qwen2.5:7b")
+        self.model = model or getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
 
-    def _generate(self, prompt: str, json_format: bool = False) -> str:
-        body = {"model": self.model, "prompt": prompt, "stream": False}
-        if json_format:
-            body["format"] = "json"
+    def _generate(self, prompt: str) -> str:
+        # `think: False`: los modelos con razonamiento (Qwen 3.5) piensan en voz
+        # alta antes de responder, lo que multiplica el tiempo; aquí se quiere
+        # la respuesta directa. No se usa `format: "json"`: Qwen 3.5 en Ollama
+        # responde "structured output is unavailable"; el prompt ya exige JSON y
+        # `_parse_changes` tolera el cerco de Markdown.
+        body = {"model": self.model, "prompt": prompt, "stream": False, "think": False}
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
@@ -125,9 +128,11 @@ class OllamaProvider(AIProvider):
         return self._generate(prompt)
 
     def change(self, instruction: str, uml) -> dict:
-        return _parse_changes(
-            self._generate(build_change_prompt(instruction, uml), json_format=True)
+        prompt = (
+            build_change_prompt(instruction, uml)
+            + "\n\nResponde ÚNICAMENTE con el JSON, sin explicaciones ni Markdown."
         )
+        return _parse_changes(self._generate(prompt))
 
 
 def get_ai_provider() -> AIProvider:
@@ -143,6 +148,6 @@ def describe_ai_provider() -> dict:
     """Qué proveedor responde, para mostrarlo en la interfaz (sin datos sensibles)."""
     name = str(getattr(settings, "AI_PROVIDER", "gemini")).strip().lower()
     if name == "ollama":
-        model = getattr(settings, "OLLAMA_MODEL", "qwen2.5:7b")
+        model = getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
         return {"provider": "ollama", "label": f"IA local ({model})"}
     return {"provider": "gemini", "label": "IA en la nube (Gemini)"}
