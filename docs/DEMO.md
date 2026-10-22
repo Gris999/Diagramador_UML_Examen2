@@ -72,7 +72,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 
 ## 4. IA local, sin internet (2 min, *opcional pero recomendable*)
 
-*"Como extra, probamos también un modelo local, sin internet: Qwen 3.5 de 9 mil millones de parámetros."* (No decir que lo pidió el docente: no estaba en sus indicaciones.)
+*"El docente planteó como opcional y valorable una IA local; la probamos con Qwen 3.5 de 9 mil millones de parámetros."* (Es opcional: no es obligatorio, solo suma.)
 
 1. En el computador de quien presenta: `AI_PROVIDER=ollama` (ver [`IA_LOCAL.md`](IA_LOCAL.md)) y reiniciar Django. En el chat se lee **"IA local (qwen3.5:9b)"**.
 2. Hacer una pregunta y un cambio: funciona igual, sin enviar nada a internet.

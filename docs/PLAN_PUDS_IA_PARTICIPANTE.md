@@ -85,7 +85,7 @@ Este plan cierra primero la línea base (I0) y después construye la IA particip
 | D-02 | La IA actúa a través del navegador de quien la invoca; sus cambios se etiquetan "IA" | **Tomada** |
 | D-03 | Modos explícitos *Preguntar* y *Pedir cambio* para garantizar que la IA no actúe sin orden | Propuesta |
 | D-04 | Vista móvil = ruta de solo lectura en la misma app Angular (responsive) | Propuesta |
-| D-05 | IA local opcional, con Ollama + Qwen, detrás de un interruptor | Propuesta (el audio no lo menciona; lo recuerda Pedro) |
+| D-05 | IA local opcional, con Ollama + Qwen, detrás de un interruptor | **Mencionada por el docente en el audio** como "no obligatoria, se valora, que funcione con IA convencionales; IA studio" (apuntes de Pedro del 2026-10-14). Ollama + Qwen es la elección del equipo |
 | D-06 | Fecha de entrega y formato de los artefactos PUDS | **Pendiente** (docente) |
 | D-07 | Confirmar chat por persona vs. compartido | Opcional (docente) |
 
