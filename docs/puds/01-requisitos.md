@@ -8,7 +8,7 @@ Artefactos: **modelo de casos de uso**, **casos de uso detallados**, **requisito
 |---|---|
 | **Participante** | Persona que entra a una sala y edita el diagrama. Sin cuentas: se identifica con un nombre y un identificador anónimo guardado en el navegador (RF-23). |
 | **Host** | Participante que entró primero a la sala viva. Edita igual que los demás y además puede expulsar a otros (RF-12…RF-15). No es una persona distinta: es un **rol** temporal. |
-| **Observador** *(📋 I5)* | Persona que sigue la sala desde el móvil, solo lectura (RF-32). |
+| **Observador** *(✅ I5)* | Persona que sigue la sala desde el móvil, solo lectura (RF-32). |
 | **Administrador** *(📋 I6)* | Configura el proveedor de IA (RF-33). |
 | **IA** | Participante automático de la sala (RF-24). Solo actúa cuando un participante se lo pide. |
 | **Enterprise Architect** | Herramienta externa con la que se intercambian modelos por XMI (RF-18). |
@@ -70,7 +70,7 @@ flowchart LR
 | CU-05 | Pedirle a la IA una revisión | RF-30 | ✅ I3 |
 | CU-06 | Ver las ideas de la IA y aplicar una | RF-28 | ✅ I3 |
 | CU-07 | Retomar una sesión anterior | RF-31 | ✅ I4 |
-| CU-08 | Seguir la sala desde el móvil | RF-32 | 📋 I5 |
+| CU-08 | Seguir la sala desde el móvil | RF-32 | ✅ I5 |
 | CU-09 | Configurar el proveedor de IA | RF-33 | 📋 I6 (opcional) |
 
 ### Casos de uso críticos para la arquitectura

@@ -231,7 +231,26 @@ Alternativas descartadas: IA del lado del servidor (exigiría una copia del diag
 
 `POST mode=review` pide al proveedor un JSON con observaciones; el servidor lo valida (máximo 5, solo texto), guarda un `ActivityEvent` de tipo `ia_review` y lo difunde a la sala por el canal. Cualquier participante puede pulsar **Aplicar** en una idea: eso ejecuta un `mode=change` con el pedido de la idea, a nombre de quien aplica, y marca la idea como aplicada para todos (`ia_suggestion_applied`).
 
-### 3.6 Identificación de cada conexión *(✅)*
+### 3.6 Vista de seguimiento móvil (CU-08) *(✅ I5)*
+
+```mermaid
+flowchart LR
+  subgraph Servidor
+    G1["grupo canvas_sala<br/>(editores: define el host)"]
+    G2["grupo canvas_sala_viewers<br/>(observadores)"]
+  end
+  E[Editor] -->|operaciones| G1
+  G1 -->|relé| E
+  G1 -. relé y actividad .-> G2
+  G2 --> M["Celular /sala/ID/seguir<br/>solo lectura"]
+  M -->|solo request_full_state| G1
+```
+
+- Un observador se conecta a `/ws/canvas/<sala>/?mode=viewer`. El servidor lo mete en un grupo aparte, por lo que **no** entra al orden que define al host, no aparece en la presencia y no puede expulsar ni ser expulsado. Solo recibe operaciones y actividad (las operaciones y la actividad se envían a los dos grupos) y lo único que puede pedir es el estado completo; todo lo demás que envíe se ignora.
+- En el cliente, `DiagramService.initialize(..., {readOnly: true})` crea el lienzo sin interacción, no guarda en `localStorage` ni envía respaldos al servidor y no reconcilia entidades intermedias; `CollaborationService` no emite operaciones como observador. Aunque un error de código intentara emitir, el servidor lo descarta (doble barrera).
+- La página (`app/follow-view`) ajusta el diagrama al ancho de la pantalla, deja el desplazamiento vertical al navegador (se puede acercar con los dedos) y muestra debajo la actividad y el estado de la IA; las ideas de la IA se ven pero no tienen botón de aplicar.
+
+### 3.7 Identificación de cada conexión *(✅)*
 
 Lo primero que recibe una conexión es `{type: presence, action: self, peer}` con su propio identificador. Antes el cliente lo deducía del primer aviso de presencia, y si otra persona entraba en el mismo instante tomaba su identificador y descartaba sus cambios como "propios". Los clientes viejos siguen funcionando porque el mensaje nuevo usa la misma forma que un aviso `join`.
 
