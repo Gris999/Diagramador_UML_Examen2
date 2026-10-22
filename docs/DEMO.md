@@ -60,6 +60,16 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 6. **Sesión continua:** cerrar todas las pestañas y volver a abrir la sala → siguen el diagrama, la actividad y el chat propio.
 7. **Vista móvil de seguimiento** (celular): abrir el enlace → se ve el diagrama actualizándose en vivo y la actividad debajo; **no tiene ningún control de edición** y no cuenta como participante (no se vuelve host).
 
+## Lo que se comprobó en el ensayo del 2026-10-22 (para no sorprenderse)
+
+- **Tres personas a la vez** (Ana, Bruno y Carla) y un celular: las cuatro pantallas convergen; el celular no cuenta como participante ni tiene controles.
+- **Salir de la sala** (botón *Salir*): en 3 segundos otra persona pasa a ser host (la que lleva más tiempo conectada). **Volver a entrar** es una conexión nueva: entra como participante.
+- **Expulsar:** la persona expulsada ve el aviso *"El host te expulsó de la sala"* y vuelve al inicio.
+- **"Pensando (a pedido de X)…"** se ve en las pantallas de los demás mientras la IA trabaja.
+- **Ideas de la revisión:** si una idea propone **eliminar** algo, el navegador pide confirmación (en la demo conviene mostrarlo y aceptar); si no elimina nada (por ejemplo, renombrar), se aplica directo.
+- **Privacidad:** el chat de Bruno solo muestra lo que él mismo pidió, aunque haya aplicado una idea de la revisión de Carla (queda como un pedido suyo).
+- **Un detalle de la preparación:** si se prueba con varias pestañas **del mismo navegador**, comparten nombre e identidad; para ensayar con tres personas usar perfiles o ventanas de incógnito distintas.
+
 ## 4. IA local, sin internet (2 min, *opcional pero recomendable*)
 
 *"El docente sugirió un modelo local; lo probamos con Qwen 3.5 de 9 mil millones de parámetros."*
