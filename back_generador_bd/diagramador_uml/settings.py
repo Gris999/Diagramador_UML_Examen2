@@ -30,6 +30,8 @@ GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 AI_PROVIDER = env("AI_PROVIDER", default="gemini")
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
 OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
+# Modelo reentrenado (carpeta ml/) para los cambios al diagrama; vacío = usar OLLAMA_MODEL.
+OLLAMA_CHANGE_MODEL = env("OLLAMA_CHANGE_MODEL", default="")
 
 
 # Quick-start development settings - unsuitable for production

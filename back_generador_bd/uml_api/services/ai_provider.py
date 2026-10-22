@@ -12,6 +12,7 @@ import re
 import requests
 from django.conf import settings
 
+from . import modelo_reentrenado
 from .services_gemini import _post_gemini, build_change_prompt, call_gemini
 
 
@@ -23,6 +24,7 @@ def _parse_changes(output) -> dict:
     """Interpreta la respuesta de un cambio (JSON, con o sin cerco de Markdown)."""
     try:
         if isinstance(output, str):
+            output = modelo_reentrenado.quitar_razonamiento(output)
             output = re.sub(r"^```json\s*|\s*```$", "", output.strip(), flags=re.MULTILINE)
         changes = json.loads(output)
     except Exception as exc:
@@ -95,11 +97,14 @@ class OllamaProvider(AIProvider):
 
     request_timeout = 100
 
-    def __init__(self, base_url=None, model=None):
+    def __init__(self, base_url=None, model=None, change_model=None):
         self.base_url = (
             base_url or getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")
         ).rstrip("/")
         self.model = model or getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
+        # Modelo reentrenado para los cambios al diagrama (opcional). Las preguntas
+        # y la revisión siguen con `model`, que es de propósito general.
+        self.change_model = change_model or getattr(settings, "OLLAMA_CHANGE_MODEL", "") or ""
 
     def _generate(self, prompt: str) -> str:
         # `think: False`: los modelos con razonamiento (Qwen 3.5) piensan en voz
@@ -127,7 +132,33 @@ class OllamaProvider(AIProvider):
     def chat(self, prompt: str) -> str:
         return self._generate(prompt)
 
+    def _chat_reentrenado(self, mensajes) -> str:
+        body = {
+            "model": self.change_model,
+            "messages": mensajes,
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0, "num_predict": 700, "num_ctx": 4096},
+        }
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat", json=body, timeout=self.request_timeout
+            )
+            response.raise_for_status()
+            text = response.json()["message"]["content"]
+        except Exception as exc:
+            raise AIProviderError(
+                f"El modelo reentrenado no respondió ({type(exc).__name__})."
+            ) from None
+        if not isinstance(text, str) or not text.strip():
+            raise AIProviderError("El modelo reentrenado devolvió una respuesta vacía.")
+        return text.strip()
+
     def change(self, instruction: str, uml) -> dict:
+        if self.change_model:
+            compacto, alias = modelo_reentrenado.compactar(uml)
+            respuesta = self._chat_reentrenado(modelo_reentrenado.mensajes(compacto, instruction))
+            return modelo_reentrenado.restaurar(_parse_changes(respuesta), alias, uml)
         prompt = (
             build_change_prompt(instruction, uml)
             + "\n\nResponde ÚNICAMENTE con el JSON, sin explicaciones ni Markdown."
@@ -149,5 +180,8 @@ def describe_ai_provider() -> dict:
     name = str(getattr(settings, "AI_PROVIDER", "gemini")).strip().lower()
     if name == "ollama":
         model = getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
+        change_model = getattr(settings, "OLLAMA_CHANGE_MODEL", "")
+        if change_model:
+            return {"provider": "ollama", "label": f"IA local ({model}; cambios: {change_model} reentrenado)"}
         return {"provider": "ollama", "label": f"IA local ({model})"}
     return {"provider": "gemini", "label": "IA en la nube (Gemini)"}
