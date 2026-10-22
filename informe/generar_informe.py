@@ -114,15 +114,21 @@ def configurar_estilos(doc):
         h.paragraph_format.line_spacing = 1.15
         h.paragraph_format.keep_with_next = True
 
-    # Índice: Arial 11, sangría de 18 pt por nivel.
+    # Índice: Arial 11, compacto, con puntos hasta el número de página y sangría de 18 pt por nivel.
+    # Se definen con los identificadores que usa Word (TOC1...TOC5) para que los adopte al actualizar el índice.
+    from docx.oxml import parse_xml
+
+    ancho_texto = int(16.0 / 2.54 * 1440)  # 16 cm en veinteavos de punto
     for nivel in range(1, 6):
-        toc = estilos.add_style(f"toc {nivel}", WD_STYLE_TYPE.PARAGRAPH)
-        toc.base_style = estilos["Normal"]
-        toc.font.size = Pt(11 if nivel <= 3 else 10)
-        toc.paragraph_format.left_indent = Pt(18 * (nivel - 1))
-        toc.paragraph_format.space_after = Pt(1)
-        toc.paragraph_format.space_before = Pt(0)
-        toc.paragraph_format.line_spacing = 1.15
+        negrita = "<w:b/>" if nivel == 1 else ""
+        tam = 22 if nivel <= 3 else 20
+        estilos.element.append(parse_xml(
+            f'<w:style xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+            f'w:type="paragraph" w:styleId="TOC{nivel}"><w:name w:val="toc {nivel}"/>'
+            f'<w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:autoRedefine/><w:uiPriority w:val="39"/><w:unhideWhenUsed/>'
+            f'<w:pPr><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="{ancho_texto}"/></w:tabs>'
+            f'<w:spacing w:before="0" w:after="20" w:line="276" w:lineRule="auto"/><w:ind w:left="{360 * (nivel - 1)}"/></w:pPr>'
+            f'<w:rPr>{negrita}<w:sz w:val="{tam}"/></w:rPr></w:style>'))
 
 
 def configurar_pagina(doc):
@@ -197,7 +203,7 @@ class Constructor:
             self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         texto = re.sub(r"[`*]", "", limpiar(texto)).strip()
         # Como en los informes modelo: 1., 2. y las secciones 2.1, 2.2, 2.3 a 2.5 (nivel 2) van en mayúsculas.
-        if re.match(r"^(1\.|2\.)\s|^2\.[12](\.\d+)*\s|^2\.[345]\s", texto):
+        if (nivel == 1 and re.match(r"^(1\.|2\.)\s", texto)) or re.match(r"^2\.[12](\.\d+)*\s|^2\.[345]\s", texto):
             texto = texto.upper()
         encabezado = self.doc.add_heading(texto, level=min(nivel, 5))
         if nivel == 3 and re.match(r"^\d+[\)\.]\s", texto):
@@ -538,11 +544,6 @@ class Constructor:
 
     def indice(self):
         self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
-        p = self.doc.add_paragraph()
-        r = p.add_run("Contenido")
-        r.bold = True
-        r.font.size = Pt(16)
-        r.font.color.rgb = RGBColor(0x1F, 0x2A, 0x44)
         p = self.doc.add_paragraph()
         campo(p, r'TOC \o "1-5" \h \z \u', "Haz clic derecho y elige «Actualizar campo» para generar el índice.")
 
