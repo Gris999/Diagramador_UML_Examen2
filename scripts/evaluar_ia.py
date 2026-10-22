@@ -4,7 +4,7 @@ Uso (desde la raíz del repositorio, con el entorno virtual del backend):
 
     DJANGO_SECRET_KEY=x POSTGRES_PASSWORD=x back_generador_bd/.venv/bin/python \
         scripts/evaluar_ia.py gemini
-    ... scripts/evaluar_ia.py ollama [modelo] [url]
+    ... scripts/evaluar_ia.py ollama [modelo] [url] [modelo-reentrenado-para-cambios]
 
 Cada pedido llama al proveedor tal como lo hace el chat de la sala y verifica de
 forma automática que la respuesta sea un JSON utilizable y que haga exactamente
@@ -368,8 +368,9 @@ def main():
     if nombre == "ollama":
         modelo = sys.argv[2] if len(sys.argv) > 2 else None
         url = sys.argv[3] if len(sys.argv) > 3 else None
-        proveedor = OllamaProvider(base_url=url, model=modelo)
-        etiqueta = f"ollama ({proveedor.model})"
+        cambios = sys.argv[4] if len(sys.argv) > 4 else None
+        proveedor = OllamaProvider(base_url=url, model=modelo, change_model=cambios)
+        etiqueta = f"ollama ({proveedor.model}" + (f"; cambios: {cambios} reentrenado)" if cambios else ")")
     else:
         proveedor = GeminiProvider()
         etiqueta = "gemini"
