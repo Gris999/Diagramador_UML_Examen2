@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -482,17 +483,36 @@ class CanvasConsumer(AsyncWebsocketConsumer):
 
 
 class UMLConsumer(AsyncWebsocketConsumer):
+    """Validación del modelo con IA (Gemini) tras cada cambio que borra algo.
+
+    Gemini tarda segundos: la llamada se hace en un hilo para no congelar el
+    bucle de eventos (que atiende a todas las salas), y los pedidos que llegan
+    justo después de una validación se descartan: el cliente vuelve a pedir otra
+    en cuanto el diagrama cambie.
+    """
+
+    # Mensajes de una misma conexión se atienden de a uno: una ráfaga de pedidos
+    # (por ejemplo, al borrar varios elementos) se encolaría en una llamada a
+    # Gemini por mensaje. Se acepta como máximo una validación cada tantos segundos.
+    min_validation_interval = 5
+
     async def connect(self):
+        self._last_validation_end = None
         await self.accept()
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        action = data.get("action")
+        try:
+            data = json.loads(text_data)
+        except (TypeError, ValueError):
+            return
+        if not isinstance(data, dict) or data.get("action") != "validate_model":
+            return
+        last = self._last_validation_end
+        if last is not None and time.monotonic() - last < self.min_validation_interval:
+            return
 
-        if action == "validate_model":
-            uml_json = data.get("uml")
-
-            prompt = f"""
+        uml_json = data.get("uml")
+        prompt = f"""
 Eres un experto en diseño de bases de datos.
 Analiza si las relaciones de este UML son correctas en base a los nombres y atributos.
 
@@ -500,20 +520,24 @@ JSON UML:
 {json.dumps(uml_json, indent=2)}
 """
 
-            # Llamar a Gemini
-            raw_output = call_gemini_analysis(prompt)
-
+        try:
+            raw_output = await asyncio.to_thread(call_gemini_analysis, prompt)
+        except Exception as exc:
+            logger.warning("No se pudo validar el modelo (%s)", type(exc).__name__)
+            analysis = {"error": "No se pudo validar el modelo ahora."}
+        else:
             # 🧹 limpiar markdown (```json ... ```)
             if isinstance(raw_output, str):
                 raw_output = re.sub(r"^```json\s*|\s*```$", "", raw_output.strip(), flags=re.MULTILINE)
-
             try:
                 analysis = json.loads(raw_output)
             except Exception:
                 analysis = {"error": "Formato inválido", "raw": raw_output}
+        finally:
+            self._last_validation_end = time.monotonic()
 
-            # Enviar al front
-            await self.send(text_data=json.dumps({
-                "action": "validation_result",
-                "analysis": analysis
-            }, ensure_ascii=False))
+        # Enviar al front
+        await self.send(text_data=json.dumps({
+            "action": "validation_result",
+            "analysis": analysis
+        }, ensure_ascii=False))

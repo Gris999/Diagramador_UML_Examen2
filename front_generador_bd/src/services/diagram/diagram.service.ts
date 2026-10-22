@@ -1829,7 +1829,7 @@ export class DiagramService {
   }
   // Guarda el estado actual del diagrama en localStorage y agenda el respaldo remoto
   private persist() {
-    if (!this.graph || this.readOnly) return;
+    if (!this.graph || this.readOnly || this.roomLeft) return;
     // graph.on('add remove change', ...) dispara persist() en CUALQUIER mutación
     // del grafo (carga inicial, edición interactiva de multiplicidad, sync remoto,
     // deshacer una relación, etc.), así que es el único punto que garantiza cubrir
@@ -2113,7 +2113,9 @@ export class DiagramService {
     this.collab.closeSocketRTC();
     // Quien solo observa no vacía el grafo: la página se destruye y no hay
     // nada que sincronizar ni validar.
-    if (!this.readOnly) this.graph?.clear();
+    // `collab: true` marca el vaciado como interno: no se difunde ni dispara la
+    // validación con IA (un pedido a Gemini por cada elemento al salir de la sala).
+    if (!this.readOnly) this.graph?.clear({ collab: true });
     this.selectedCell = null;
   }
 

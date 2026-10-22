@@ -755,7 +755,22 @@ describe('DiagramService read-only mode (follow view)', () => {
     service.leaveRoom('sala');
 
     expect(backup.setBackupUml).toHaveBeenCalledTimes(1);
-    expect(clear).toHaveBeenCalled();
+    // El vaciado al salir es interno: no debe difundirse ni disparar la validación con IA.
+    expect(clear).toHaveBeenCalledOnceWith({ collab: true });
+  });
+
+  it('does not save or reconcile anything after the room was left', () => {
+    const setItem = spyOn(localStorage, 'setItem');
+    const backup = { setBackupUml: jasmine.createSpy('setBackupUml').and.returnValue({ subscribe: () => undefined }) };
+    const { service } = createService({ backup });
+    (service as any).graph = { clear: () => undefined, getLinks: () => [], getElements: () => [] };
+    service.leaveRoom('sala');
+    backup.setBackupUml.calls.reset();
+
+    service.persistState();
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(backup.setBackupUml).not.toHaveBeenCalled();
   });
 
   it('fits the diagram to the width of the screen and keeps the page scrollable', () => {
