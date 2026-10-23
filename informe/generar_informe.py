@@ -31,6 +31,7 @@ DOCS = RAIZ / "docs"
 # --- Datos de la carátula (completar lo marcado) ----------------------------------------------
 TITULO = ("Plataforma CASE Colaborativa de Modelado UML 2.5 con Inteligencia Artificial como Integrante "
           "de la Sala, Generación de Backend (Spring Boot) y Flutter, e IA Local Reentrenada")
+PARCIAL = "SEGUNDO PARCIAL"
 NUMERO = "29"
 INTEGRANTES = [("Alaca Pedro", "222007281"), ("Quenta Callejas Yohan Sebastian", "222009462")]
 MATERIA = "Ingeniería de software 1"
@@ -316,6 +317,8 @@ class Constructor:
                     sombrear(celda._tc.get_or_add_tcPr(), "FCE5CD")
                 if ficha and numero < len(filas) - 1:
                     parrafo.paragraph_format.keep_with_next = True  # la ficha no se parte entre páginas
+                if not ficha and numero == 0:
+                    parrafo.paragraph_format.keep_with_next = True  # la cabecera no se queda sola al pie de la página
             if numero == 0 and not ficha:
                 tabla.rows[0]._tr.get_or_add_trPr().append(OxmlElement("w:tblHeader"))
         for fila_xml in tabla.rows:
@@ -545,10 +548,11 @@ class Constructor:
         logo = INFORME / "recursos" / "logo-facultad.png"
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_after = Pt(28)
+        p.paragraph_format.space_after = Pt(14)
         if logo.exists():
             p.add_run().add_picture(str(logo), width=Cm(5.0), height=Cm(6.5))
         linea(f"“{TITULO}”", 17, True, despues=12)
+        linea(PARCIAL, 14, True, despues=6)
         linea(f"Número: {NUMERO}", 12, True, izquierda, despues=10, sangria=36)
         linea("INTEGRANTES :", 12, True, izquierda, despues=4, sangria=36)
         for nombre, registro in INTEGRANTES:
@@ -566,7 +570,7 @@ class Constructor:
             r.bold = True
             r.font.size = Pt(12)
             p.add_run(valor).font.size = Pt(12)
-        linea("", 12, False, despues=18)
+        linea("", 12, False, despues=4)
         linea(LUGAR, 14, True)
 
     def indice(self):
@@ -577,6 +581,39 @@ class Constructor:
 
 def leer(ruta):
     return Path(ruta).read_text(encoding="utf-8")
+
+
+# Los casos de uso de docs/puds/ tienen su propia numeración; el segundo parcial continúa la del primero:
+# lo de la IA, la identidad y la actividad pasa a CU-14 en adelante y lo demás toma el número que ya tenía.
+MAPA_CU = {1: 14, 2: 15, 3: 16, 4: 17, 5: 18, 6: 19, 7: 20, 8: 21, 9: 22, 21: 23,
+           10: 2, 11: 6, 12: 7, 13: 8, 14: 3, 15: 4, 16: 10, 17: 10, 18: 12, 19: 13, 20: 11}
+CORRECCIONES_CU = {"CP-45": "CU-08"}  # la fila trata de los observadores del celular (numeración de docs/puds)
+
+
+def pruebas_segundo_parcial(texto):
+    """Casos de prueba de lo nuevo: renumera los casos de uso y deja fuera los que solo prueban el primer parcial."""
+    salida = []
+    for linea in texto.split("\n"):
+        if linea.startswith("## 2. Casos de prueba"):
+            salida += [linea, "", "Se listan las pruebas de lo nuevo en este parcial y las de la colaboración y los roles, que "
+                       "cambiaron; las pruebas del editor, de XMI y de los generadores son del primer parcial y no se repiten.", ""]
+            continue
+        m = re.match(r"^\| (CP-\d+) \| ([^|]*) \|(.*)$", linea)
+        if not m:
+            salida.append(linea)
+            continue
+        cp, cus_texto, resto = m.groups()
+        cus_texto = CORRECCIONES_CU.get(cp, cus_texto)
+        viejos = set()
+        for a, b in re.findall(r"CU-(\d+)(?:…(\d+))?", cus_texto):
+            viejos.update(range(int(a), int(b or a) + 1))
+        if not viejos:  # transversal (por ejemplo, el despliegue)
+            salida.append(linea)
+            continue
+        nuevos = sorted({MAPA_CU[c] for c in viejos})
+        if any(n >= 14 or n in (3, 4) for n in nuevos):
+            salida.append(f"| {cp} | {', '.join(f'CU-{n:02d}' for n in nuevos)} |{resto}")
+    return "\n".join(salida)
 
 
 def seccion_de(texto, desde, hasta=None):
@@ -595,13 +632,13 @@ def main():
     contenido = INFORME / "contenido"
     # Parte 0 y 1
     b.markdown(leer(contenido / "00-introduccion.md"))
-    b.markdown(leer(contenido / "01-fundamentacion.md"))
+    b.markdown(leer(contenido / "01-introduccion.md"))
 
     # Parte 2: registro del proceso PUDS (estructura de los informes modelo)
     import parte2
 
     b.markdown(parte2.generar())
-    b.markdown(leer(DOCS / "puds" / "05-pruebas.md"), prefijo="2.5", renumerar=True,
+    b.markdown(pruebas_segundo_parcial(leer(DOCS / "puds" / "05-pruebas.md")), prefijo="2.5", renumerar=True,
                titulo_h1="Flujo de trabajo: pruebas")
 
     # Parte 3: manual
@@ -616,7 +653,6 @@ def main():
         ("Anexo A. IA local con Ollama (instalación, activación y evaluación)", DOCS / "IA_LOCAL.md", "A"),
         ("Anexo B. Reentrenamiento del modelo de IA", DOCS / "REENTRENAMIENTO_IA.md", "B"),
         ("Anexo C. Despliegue en AWS", DOCS / "DESPLIEGUE.md", "C"),
-        ("Anexo D. Entrega y limitaciones conocidas", DOCS / "ENTREGA.md", "D"),
     ]
     for titulo_anexo, ruta, letra in anexos:
         b.markdown(leer(ruta), prefijo=f"5.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
