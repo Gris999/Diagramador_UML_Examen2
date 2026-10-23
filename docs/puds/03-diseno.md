@@ -182,7 +182,7 @@ sequenceDiagram
   Note over N: Si nadie responde, usa el respaldo (GET /api/get_backup_uml/)
 ```
 
-### 3.3 Registro de actividad (CU-14, CU-15) *(✅ I1)*
+### 3.3 Registro de actividad (CU-14) *(✅ I1)*
 
 ```mermaid
 sequenceDiagram
@@ -198,7 +198,7 @@ sequenceDiagram
   N->>WS: GET /api/rooms/<sala>/activity/?since=<id>&limit=<n>
 ```
 
-### 3.4 Pedir cambio a la IA (CU-17) *(✅ I3)*
+### 3.4 Pedir cambio a la IA (CU-16) *(✅ I3)*
 
 La IA actúa **desde el navegador de quien la invoca**: el servidor devuelve los cambios propuestos, el cliente los aplica por la ruta normal de edición y cada operación viaja marcada `via_ia`. Así se propagan igual que un cambio manual y el servidor las registra como "IA … (a pedido de X)".
 
@@ -207,7 +207,7 @@ sequenceDiagram
   actor A as Ana
   participant CA as Navegador de Ana
   participant API as Django (ia/chat)
-  participant IA as Proveedor de IA
+  participant IA as Servicio de IA
   participant WS as CanvasConsumer
   participant CB as Navegador de Bruno
   A->>CA: Pedir cambio: "agrega Factura"
@@ -229,11 +229,11 @@ Antes de aplicar, la interfaz pide confirmación si el cambio **elimina** elemen
 
 Alternativas descartadas: IA del lado del servidor (exigiría una copia del diagrama en el servidor) y que el modelo decida si actuar (no verificable). En los modos `ask` y `review` el servidor **nunca** devuelve cambios; hay una prueba automática con un proveedor que devuelve un diagrama.
 
-### 3.5 Revisar y aplicar ideas (CU-18, CU-19) *(✅ I3)*
+### 3.5 Revisar y aplicar ideas (CU-17) *(✅ I3)*
 
 `POST mode=review` pide al proveedor un JSON con observaciones; el servidor lo valida (máximo 5, solo texto), guarda un `ActivityEvent` de tipo `ia_review` y lo difunde a la sala por el canal. Cualquier participante puede pulsar **Aplicar** en una idea: el navegador primero **reserva** la idea en el servidor (`POST /api/rooms/<sala>/activity/<evento>/apply/<n>/`, atómico; 409 si otra persona ya la tomó), después ejecuta un `mode=change` con el pedido de la idea, a nombre de quien aplica, y si el cambio no llega a aplicarse la libera (`DELETE`). El estado "aplicada" viaja dentro del evento (`data.applied`), por eso todos lo ven y sobrevive a recargar.
 
-### 3.6 Vista de seguimiento móvil (CU-21) *(✅ I5)*
+### 3.6 Vista de seguimiento móvil (CU-19) *(✅ I5)*
 
 ```mermaid
 flowchart LR
