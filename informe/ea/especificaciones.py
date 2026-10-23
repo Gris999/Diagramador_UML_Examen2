@@ -18,8 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import layout  # noqa: E402
-from parte2 import _mensajes, _roles, clases_analisis  # noqa: E402
-from parte2_datos import CICLOS, CUS, DEPENDENCIAS_PAQUETES, NOMBRE_ACTOR, PAQUETES  # noqa: E402
+from parte2 import _mensajes, _roles, clases_analisis, datos_cu  # noqa: E402
+from parte2_datos import (ACTORES_SECUNDARIOS, CICLOS, CICLOS_PARCIAL1, CUS, DEPENDENCIAS_PAQUETES, NOMBRE_ACTOR,  # noqa: E402
+                          PAQUETE_LIENZO, PAQUETES)
+from parte2_datos import nombre_cu as nombre_de_cu  # noqa: E402
 
 REQ = "Modelo de requisitos y análisis"
 MARGEN = 30
@@ -31,7 +33,17 @@ def num(cu):
 
 
 def nombre_cu(cu):
-    return f"{num(cu)}: {CUS[cu]['nombre']}"
+    return f"{num(cu)}: {nombre_de_cu(cu)}"
+
+
+def actores_dibujados(actores):
+    """El Diseñador es un Colaborador con más permisos: si están los dos, solo se une el Colaborador (A2) y la
+    generalización A1 -> A2 dice que el Diseñador también puede hacerlo. Así no se montan dos líneas por caso de uso."""
+    return [a for a in actores if not (a == "A1" and "A2" in actores)]
+
+
+# Casos de uso y paquete del primer parcial: se dibujan en gris para distinguirlos de los nuevos.
+GRIS_PARCIAL1 = dict(fondo="#E7E6E6", borde="#7F7F7F", texto="#404040")
 
 
 class Modelo:
@@ -95,38 +107,39 @@ def _caso(m, cu):
 def diagrama_casos_uso(m, id_, nombre, codigos):
     mostrados = list(codigos)
     for cu in codigos:
-        for inc in CUS[cu]["incluye"]:
+        for inc in datos_cu(cu)[2]:
             if inc not in mostrados:
                 mostrados.append(inc)
     primarios, secundarios = [], []
     for cu in codigos:
-        for indice, actor in enumerate(CUS[cu]["actores"]):
-            destino = primarios if (indice == 0 or actor == "A2") else secundarios
+        for actor in datos_cu(cu)[1]:
+            destino = secundarios if actor in ACTORES_SECUNDARIOS else primarios
             if actor not in primarios and actor not in secundarios:
                 destino.append(actor)
     nodos = {a: tam_actor(NOMBRE_ACTOR[a]) for a in primarios + secundarios}
     nodos.update({cu: tam_cu(nombre_cu(cu)) for cu in mostrados})
     aristas, conectores = [], []
     for cu in codigos:
-        for actor in CUS[cu]["actores"]:
+        _, actores, incluye = datos_cu(cu)
+        for actor in actores_dibujados(actores):
             if actor in primarios:
                 aristas.append((actor, cu))
                 conectores.append(dict(de=actor, a=cu, tipo="Association"))
             else:
                 aristas.append((cu, actor))
                 conectores.append(dict(de=cu, a=actor, tipo="Association"))
-        for inc in CUS[cu]["incluye"]:
+        for inc in incluye:
             aristas.append((cu, inc))
             conectores.append(dict(de=cu, a=inc, tipo="Dependency", est="include"))
-    if "A2" in primarios and "A1" in primarios:
-        aristas.append(("A2", "A1"))
-        conectores.append(dict(de="A2", a="A1", tipo="Generalization"))
+    if "A1" in primarios and "A2" in primarios:
+        aristas.append(("A1", "A2"))
+        conectores.append(dict(de="A1", a="A2", tipo="Generalization"))  # el Diseñador es un Colaborador con más permisos
     for a in primarios + secundarios:
         _actor(m, a)
     for cu in mostrados:
         _caso(m, cu)
     m.elem("SYS", "Boundary", "Plataforma CASE colaborativa", REQ)
-    # Participante y Host (generalización) van uno sobre otro, en la misma columna.
+    # Colaborador y Diseñador (generalización) van uno sobre otro, en la misma columna.
     mismo_nivel = {"A1": 0, "A2": 0} if "A2" in primarios and "A1" in primarios else None
     pos, _ = layout.dot(nodos, aristas, "LR", 16, 80, agrupar=mismo_nivel)
     x0 = min(pos[c][0] for c in mostrados) - 25
@@ -138,8 +151,12 @@ def diagrama_casos_uso(m, id_, nombre, codigos):
         pos[a] = (min(pos[a][0], x0 - 40 - nodos[a][0]), pos[a][1])
     for a in secundarios:
         pos[a] = (max(pos[a][0], x1 + 40), pos[a][1])
-    objetos = [("SYS", x0, y0, x1 - x0, y1 - y0)] + [(c, *pos[c], *nodos[c]) for c in nodos]
-    m.diagrama(id_, nombre, "Use Case", REQ, objetos, conectores)
+    objetos = [("SYS", x0, y0, x1 - x0, y1 - y0)]
+    for c in nodos:
+        extra = (GRIS_PARCIAL1,) if c in mostrados and c not in CUS else ()
+        objetos.append((c, *pos[c], *nodos[c], *extra))
+    # En el modelo completo los <<include>> se dejan para los diagramas de cada ciclo: con 23 casos de uso se montan.
+    m.diagrama(id_, nombre, "Use Case", REQ, objetos, conectores, enlaces="sin_include" if id_ == "uc-ciclo-todo" else None)
 
 
 # ---- paquetes de análisis --------------------------------------------------------------------------
@@ -185,9 +202,9 @@ def diagrama_vista_paquete(m, indice):
     nombre, _, cus = PAQUETES[indice]
     actores = []
     for cu in cus:
-        a = CUS[cu]["actores"][0]
-        if a not in actores:
-            actores.append(a)
+        for a in CUS[cu]["actores"]:
+            if a not in ACTORES_SECUNDARIOS and a not in actores:
+                actores.append(a)
     ancho, alto, internos = _caja_paquete(cus, 2 if len(cus) < 7 else 3)
     px = 160
     objetos = [(_paquete(m, indice), px, 0, ancho, alto)]
@@ -201,7 +218,9 @@ def diagrama_vista_paquete(m, indice):
         w, h = tam_actor(NOMBRE_ACTOR[a])
         objetos.append((a, 20, int(paso * i - h / 2), w, h))
     for cu in cus:
-        conectores.append(dict(de=CUS[cu]["actores"][0], a=cu, tipo="Association"))
+        for a in actores_dibujados(CUS[cu]["actores"]):
+            if a in actores:
+                conectores.append(dict(de=a, a=cu, tipo="Association"))
         for inc in CUS[cu]["incluye"]:
             if inc in cus:
                 conectores.append(dict(de=cu, a=inc, tipo="Dependency", est="include"))
@@ -210,9 +229,10 @@ def diagrama_vista_paquete(m, indice):
 
 def diagrama_dependencias_paquetes(m):
     claves = {nombre: _paquete(m, i) for i, (nombre, _, _) in enumerate(PAQUETES)}
-    sitio = {"Asistencia por IA": (330, 0), "Colaboración": (60, 170), "Actividad": (600, 170),
-             "Modelado": (330, 340), "Interoperabilidad": (30, 340), "Generación": (630, 340)}
-    objetos = [(claves[n], *sitio[n], 220, 80) for n in sitio]
+    claves[PAQUETE_LIENZO] = m.elem("PKG0", "Package", PAQUETE_LIENZO.upper(), REQ)
+    sitio = {"Asistencia inteligente": (330, 0), "Colaboración": (60, 170), "Identidad y actividad": (600, 170),
+             PAQUETE_LIENZO: (330, 340)}
+    objetos = [(claves[n], *sitio[n], 220, 80, *((GRIS_PARCIAL1,) if n == PAQUETE_LIENZO else ())) for n in sitio]
     conectores = [dict(de=claves[o], a=claves[d], tipo="Dependency") for o, d in DEPENDENCIAS_PAQUETES]
     m.diagrama("pk-dep", "Dependencias entre paquetes de análisis", "Package", REQ, objetos, conectores)
 
@@ -418,7 +438,7 @@ def diagrama_datos(m):
                ("collab_activityevent", 0, 0, *tam["collab_activityevent"]),
                ("collab_chatmessage", 680, 0, *tam["collab_chatmessage"]),
                ("collab_iaattempt", 680, 260, *tam["collab_iaattempt"]),
-               ("uml_api_backupuml", 0, 330, *tam["uml_api_backupuml"])]
+               ("uml_api_backupuml", 0, 330, *tam["uml_api_backupuml"], GRIS_PARCIAL1)]
     conectores = [dict(de=n, a="collab_participant", tipo="Association", cd="0..*", ca="1", dir="Source -> Destination")
                   for n in ("collab_activityevent", "collab_chatmessage", "collab_iaattempt")]
     m.diagrama("datos", "Modelo de datos", "Class", ruta, objetos, conectores)
@@ -612,7 +632,8 @@ def construir():
     for numero, _, _, codigos in CICLOS:
         acumulado += codigos
         diagrama_casos_uso(m, f"uc-ciclo-{numero}", f"Casos de uso del ciclo {numero}", codigos)
-    diagrama_casos_uso(m, "uc-ciclo-todo", "Modelo de casos de uso completo", acumulado)
+    primer_parcial = [cu for _, codigos in CICLOS_PARCIAL1 for cu in codigos]
+    diagrama_casos_uso(m, "uc-ciclo-todo", "Modelo de casos de uso completo (ciclos 1 a 6)", primer_parcial + acumulado)
     diagrama_paquetes_identificados(m)
     diagrama_paquetes_y_cu(m)
     for i in range(len(PAQUETES)):

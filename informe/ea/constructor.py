@@ -264,6 +264,20 @@ Sub OcultarEnlaces(d)
   Chk "Ocultar"
 End Sub
 
+Sub OcultarIncludes(d)
+  On Error Resume Next
+  Dim i, dl, k
+  For i = 0 To d.DiagramLinks.Count - 1
+    Set dl = d.DiagramLinks.GetAt(i)
+    Set k = r.GetConnectorByID(dl.ConnectorID)
+    If k.Stereotype = "include" Then
+      dl.IsHidden = True
+      dl.Update
+    End If
+  Next
+  Chk "OcultarIncludes"
+End Sub
+
 Sub OcultarAjenos(d)
   On Error Resume Next
   Dim i, dl
@@ -285,6 +299,7 @@ Sub Fin(d, idd, modo)
     OcultarEnlaces d
   Else
     OcultarAjenos d
+    If modo = 3 Then OcultarIncludes d
     If modo = 1 Then Paralelos d
   End If
   r.ReloadDiagram d.DiagramID
@@ -347,7 +362,7 @@ def _estructura(modelo):
                 f'Con {vs(d["id"])}, {vs(c["de"])}, {vs(c["a"])}, {vs(c.get("tipo", "Association"))}, '
                 f'{vs(c.get("nombre", ""))}, {vs(c.get("est", ""))}, {vs(c.get("cd", ""))}, {vs(c.get("ca", ""))}, '
                 f'{vs(c.get("dir", ""))}, {c.get("seq", 0)}')
-        modo = {"": 0, "paralelos": 1, "ocultar": 2}[d.get("enlaces", "")]
+        modo = {"": 0, "paralelos": 1, "ocultar": 2, "sin_include": 3}[d.get("enlaces", "")]
         salida.append(f'Fin dg, {vs(d["id"])}, {modo}')
     return salida
 
