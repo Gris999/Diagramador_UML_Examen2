@@ -294,6 +294,14 @@ class Constructor:
             anchos = [6.9, ANCHO_UTIL_CM - 6.9]
         elif [c.strip() for c in filas[0]] == ["NRO", "Casos de uso", "Estado", "Prioridad", "Riesgo", "Actor"]:
             anchos = [1.6, 5.6, 2.3, 2.3, 2.0, 2.2]
+        elif columnas >= 4:
+            # Anchos según el contenido, para que columnas cortas como "ID" o "CU" no se partan letra por letra.
+            pesos = [min(max(max(len(f[c]) if c < len(f) else 0 for f in filas), 8), 50) for c in range(columnas)]
+            minimos = [min(4.0, max(1.5, 0.27 * max((len(w) for f in filas if c < len(f) for w in f[c].split()), default=4)))
+                       for c in range(columnas)]
+            anchos = [max(m, ANCHO_UTIL_CM * p / sum(pesos)) for m, p in zip(minimos, pesos)]
+            factor = ANCHO_UTIL_CM / sum(anchos)
+            anchos = [a_ * factor for a_ in anchos]
         tam = 11 if (ficha or columnas <= 3 or anchos) else 10 if columnas == 4 else 9.5
         if anchos:
             tabla.autofit = False
@@ -583,15 +591,8 @@ def leer(ruta):
     return Path(ruta).read_text(encoding="utf-8")
 
 
-# Los casos de uso de docs/puds/ tienen su propia numeración; el segundo parcial continúa la del primero:
-# lo de la IA, la identidad y la actividad pasa a CU-14 en adelante y lo demás toma el número que ya tenía.
-MAPA_CU = {1: 14, 2: 15, 3: 16, 4: 17, 5: 18, 6: 19, 7: 20, 8: 21, 9: 22, 21: 23,
-           10: 2, 11: 6, 12: 7, 13: 8, 14: 3, 15: 4, 16: 10, 17: 10, 18: 12, 19: 13, 20: 11}
-CORRECCIONES_CU = {"CP-45": "CU-08"}  # la fila trata de los observadores del celular (numeración de docs/puds)
-
-
 def pruebas_segundo_parcial(texto):
-    """Casos de prueba de lo nuevo: renumera los casos de uso y deja fuera los que solo prueban el primer parcial."""
+    """Casos de prueba de lo nuevo: deja fuera los que solo prueban lo del primer parcial (editor, XMI, generadores)."""
     salida = []
     for linea in texto.split("\n"):
         if linea.startswith("## 2. Casos de prueba"):
@@ -603,16 +604,13 @@ def pruebas_segundo_parcial(texto):
             salida.append(linea)
             continue
         cp, cus_texto, resto = m.groups()
-        cus_texto = CORRECCIONES_CU.get(cp, cus_texto)
-        viejos = set()
+        codigos = set()
         for a, b in re.findall(r"CU-(\d+)(?:…(\d+))?", cus_texto):
-            viejos.update(range(int(a), int(b or a) + 1))
-        if not viejos:  # transversal (por ejemplo, el despliegue)
+            codigos.update(range(int(a), int(b or a) + 1))
+        if not codigos:  # transversal (por ejemplo, el despliegue)
             salida.append(linea)
-            continue
-        nuevos = sorted({MAPA_CU[c] for c in viejos})
-        if any(n >= 14 or n in (3, 4) for n in nuevos):
-            salida.append(f"| {cp} | {', '.join(f'CU-{n:02d}' for n in nuevos)} |{resto}")
+        elif any(n >= 14 or n in (3, 4) for n in codigos):
+            salida.append(f"| {cp} | {', '.join(f'CU-{n:02d}' for n in sorted(codigos))} |{resto}")
     return "\n".join(salida)
 
 
