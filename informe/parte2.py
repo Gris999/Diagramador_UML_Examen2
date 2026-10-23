@@ -6,7 +6,8 @@ Todos los diagramas siguen la notación UML 2.5.1.
 
 import textwrap
 
-from parte2_datos import ACTORES, CICLOS, CUS, DEPENDENCIAS_PAQUETES, NOMBRE_ACTOR, PAQUETES
+from parte2_datos import (ACTORES, ACTORES_SECUNDARIOS, CICLOS, CICLOS_PARCIAL1, CUS, CUS_PARCIAL1, DEPENDENCIAS_PAQUETES,
+                          NOMBRE_ACTOR, PAQUETE_LIENZO, PAQUETES, nombre_cu)
 
 ESTILO = """skinparam shadowing false
 skinparam defaultFontName Arial
@@ -65,18 +66,25 @@ def _actor(codigo):
 
 
 # ---- diagramas por caso de uso ---------------------------------------------------------------
+def datos_cu(cu):
+    """(nombre, actores, incluye) de un caso de uso, sea del primer parcial o nuevo."""
+    if cu in CUS:
+        return CUS[cu]["nombre"], CUS[cu]["actores"], CUS[cu]["incluye"]
+    nombre, actores = CUS_PARCIAL1[cu]
+    return nombre, actores, []
+
+
 def diagrama_casos_uso(codigos, titulo=None, id_ea=None):
-    """Actores a la izquierda, casos de uso en el centro y actores secundarios a la derecha."""
+    """Actores a la izquierda, casos de uso en el centro y la IA y el proveedor a la derecha."""
     mostrados = list(codigos)
     for codigo in codigos:
-        for inc in CUS[codigo]["incluye"]:
+        for inc in datos_cu(codigo)[2]:
             if inc not in mostrados:
                 mostrados.append(inc)
     primarios, secundarios = [], []
     for codigo in codigos:
-        actores = CUS[codigo]["actores"]
-        for indice, actor in enumerate(actores):
-            destino = primarios if (indice == 0 or actor in ("A2",)) else secundarios
+        for actor in datos_cu(codigo)[1]:
+            destino = secundarios if actor in ACTORES_SECUNDARIOS else primarios
             if actor not in primarios and actor not in secundarios:
                 destino.append(actor)
     lineas = ["left to right direction"]
@@ -85,26 +93,26 @@ def diagrama_casos_uso(codigos, titulo=None, id_ea=None):
     lineas += [_actor(a) for a in primarios + secundarios]
     lineas.append('rectangle "Plataforma CASE colaborativa" {')
     for codigo in mostrados:
-        lineas.append(f'  usecase "{codigo}:\\n{_envolver(CUS[codigo]["nombre"])}" as {_id(codigo)}')
+        lineas.append(f'  usecase "{codigo}:\\n{_envolver(nombre_cu(codigo))}" as {_id(codigo)}')
     lineas.append("}")
     for codigo in codigos:
-        datos = CUS[codigo]
-        for indice, actor in enumerate(datos["actores"]):
+        nombre, actores, incluye = datos_cu(codigo)
+        for actor in [x for x in actores if not (x == "A1" and "A2" in actores)]:
             if actor in primarios:
                 lineas.append(f"{actor} --> {_id(codigo)}")
             else:
                 lineas.append(f"{_id(codigo)} --> {actor}")
-        for inc in datos["incluye"]:
+        for inc in incluye:
             lineas.append(f"{_id(codigo)} .> {_id(inc)} : <<include>>")
-    if "A2" in primarios and "A1" in primarios:
-        lineas.append("A2 --|> A1")
+    if "A1" in primarios and "A2" in primarios:
+        lineas.append("A1 --|> A2")
     return uml("\n".join(lineas), id_ea=id_ea)
 
 
 def _roles(cu):
     """(clave -> (palabra clave PlantUML, etiqueta)) para los roles que usa el caso de uso."""
     datos = CUS[cu]
-    roles = {"U": ("actor", NOMBRE_ACTOR[datos["actores"][0]]),
+    roles = {"U": ("actor", NOMBRE_ACTOR[datos["inicia"]]),
              "IU": ("boundary", datos["iu"]), "CT": ("control", datos["control"])}
     for indice, entidad in enumerate(datos["entidades"], 1):
         roles[f"E{indice}"] = ("entity", entidad)
@@ -220,8 +228,8 @@ def diagrama_vista_paquete(indice):
     nombre, _, cus = PAQUETES[indice]
     actores = []
     for cu in cus:
-        for actor in CUS[cu]["actores"][:1]:
-            if actor not in actores:
+        for actor in CUS[cu]["actores"]:
+            if actor not in ACTORES_SECUNDARIOS and actor not in actores:
                 actores.append(actor)
     lineas = ["left to right direction"] + [_actor(a) for a in actores]
     lineas.append(f'package "{nombre.upper()}" {{')
@@ -229,7 +237,9 @@ def diagrama_vista_paquete(indice):
         lineas.append(f'  usecase "{cu}:\\n{_envolver(CUS[cu]["nombre"], 22)}" as {_id(cu)}')
     lineas.append("}")
     for cu in cus:
-        lineas.append(f"{CUS[cu]['actores'][0]} --> {_id(cu)}")
+        for actor in CUS[cu]["actores"]:
+            if actor in actores:
+                lineas.append(f"{actor} --> {_id(cu)}")
         for inc in CUS[cu]["incluye"]:
             if inc in cus:
                 lineas.append(f"{_id(cu)} .> {_id(inc)} : <<include>>")
@@ -238,9 +248,10 @@ def diagrama_vista_paquete(indice):
 
 def diagrama_dependencias_paquetes():
     lineas = ["left to right direction"]
-    for indice, (nombre, _, _) in enumerate(PAQUETES, 1):
+    nombres = [nombre for nombre, _, _ in PAQUETES] + [PAQUETE_LIENZO]
+    for indice, nombre in enumerate(nombres, 1):
         lineas.append(f'package "{nombre.upper()}" as P{indice} {{\n}}')
-    indice_de = {nombre: i for i, (nombre, _, _) in enumerate(PAQUETES, 1)}
+    indice_de = {nombre: i for i, nombre in enumerate(nombres, 1)}
     for origen, destino in DEPENDENCIAS_PAQUETES:
         lineas.append(f"P{indice_de[origen]} ..> P{indice_de[destino]}")
     return uml("\n".join(lineas), id_ea="pk-dep")
@@ -625,43 +636,47 @@ def tabla_caso_uso(cu):
 
 def parte_requisitos():
     md = ["# 2. Registro del proceso de desarrollo de software (PUDS)\n",
-          "Esta parte registra el proceso seguido con el Proceso Unificado de Desarrollo de Software: "
-          "los cinco flujos de trabajo (requisitos, análisis, diseño, implementación y pruebas) aplicados en cuatro "
-          "ciclos de vida. La etapa de despliegue se documenta de forma resumida en el Anexo C. Todos los diagramas "
-          "siguen la notación UML 2.5.1; el modelo de clases del editor puede, además, exportarse a XMI y abrirse en "
-          "Enterprise Architect (caso de uso CU16).\n",
+          "Este documento es la **continuación del primer parcial**, donde se registraron los ciclos de vida 1 a 3 "
+          "(CU-01 a CU-13: salas, modelado, colaboración, entrada por texto, imagen y voz, intercambio XMI y generación de "
+          "SQL, Spring Boot y Flutter). Aquí solo se registra lo nuevo, a partir del **ciclo de vida 4**, que incorpora lo que "
+          "pidió el docente después del primer parcial: la inteligencia artificial como integrante de la sala, la identidad "
+          "y la actividad de cada persona, el seguimiento desde el celular y la IA local reentrenada. Los cinco flujos de "
+          "trabajo (requisitos, análisis, diseño, implementación y pruebas) se aplican a los casos de uso CU-14 a CU-23, en "
+          "tres ciclos. La etapa de despliegue se documenta en el Anexo C. Todos los diagramas siguen la notación UML 2.5.1 "
+          "y están hechos en Enterprise Architect.\n",
           "## 2.1 Captura de requisitos\n",
-          "**Visión del proyecto.** Modelar un sistema con UML suele hacerse de forma individual y en herramientas de "
-          "escritorio, y pasar del modelo al código es un trabajo manual. Cuando varias personas diseñan a la vez se pierde "
-          "la visión de quién cambió qué, y la inteligencia artificial suele vivir fuera del equipo, sin conocer el "
-          "diagrama ni lo que hizo cada integrante.\n",
-          "**Objetivo general.** Construir una plataforma CASE web para modelar diagramas de clases UML 2.5 de forma "
-          "colaborativa, en la que la inteligencia artificial participe como un integrante más de la sala, y que genere a "
-          "partir del modelo un backend Spring Boot con PostgreSQL, una colección de Postman y un proyecto Flutter.\n",
+          "**Visión de esta etapa.** Cuando varias personas diseñan a la vez se pierde la visión de quién cambió qué, y la "
+          "inteligencia artificial suele vivir fuera del equipo, sin conocer el diagrama ni lo que hizo cada integrante. "
+          "Después del primer parcial se pidió que la IA sea un integrante más de la sala.\n",
+          "**Objetivo general.** Incorporar a la plataforma CASE colaborativa la inteligencia artificial como integrante de la "
+          "sala, con identidad y actividad visibles para cada persona, seguimiento desde el celular y una opción de IA local "
+          "reentrenada.\n",
           "**Objetivos específicos.**\n",
-          "- Crear y editar diagramas de clases manualmente, con importación y exportación XMI para Enterprise Architect.",
-          "- Crear o modificar el diagrama a partir de texto, imágenes y voz.",
-          "- Soportar sesiones colaborativas de 2 a 3 personas con *host* y participantes, expulsión, reconexión y "
-          "recuperación del estado.",
-          "- Incorporar la IA como integrante de la sala: no actúa hasta que se le pide, sus ideas son visibles, conoce lo "
-          "que hizo cada persona, cada persona tiene su propio chat y las sesiones pueden retomarse.",
-          "- Ofrecer una vista móvil de solo lectura, generar el backend, la colección de Postman y el proyecto Flutter, y "
-          "ofrecer una IA local reentrenada como extra valorable.\n",
-          "**Alcance.** Incluye todo lo anterior y el despliegue en AWS con HTTPS. No incluye cuentas de usuario con inicio "
-          "de sesión (el código de la sala es la llave de acceso), edición desde la vista móvil, ni infraestructura como "
-          "código.\n",
-          "### 2.1.1 Actores\n"]
+          "- Dar a cada persona un nombre visible y un identificador anónimo, y mostrar a todos un registro de actividad de la sala.",
+          "- Hacer que la IA sea un integrante: no actúa hasta que se le pide, conoce lo que hizo cada persona, cada persona tiene "
+          "su propio chat y sus ideas son visibles y aplicables por cualquiera.",
+          "- Permitir retomar una sesión anterior y seguir la sala en vivo, solo lectura, desde el celular.",
+          "- Ofrecer una IA local que funcione sin internet, reentrenada con LoRA, con la evidencia de cómo se entrenó.\n",
+          "**Alcance.** Incluye lo anterior y el despliegue en AWS con HTTPS. No incluye cuentas de usuario con inicio de "
+          "sesión (el código de la sala es la llave de acceso) ni edición desde la vista móvil.\n",
+          "### 2.1.1 Actores\n",
+          "A1 y A2 son los actores del primer parcial; A3 a A6 son nuevos.\n"]
     for c, n, d in ACTORES:
         md += [f"**{c}: {n}**\n", f"{d}\n"]
-    md += ["### 2.1.2 Casos de uso\n"]
+    md += ["### 2.1.2 Casos de uso\n",
+           "Casos de uso nuevos (ciclos 4 a 6):\n"]
     for numero, _, _, codigos in CICLOS:
         for cu in codigos:
             md.append(f"- ➢ {cu}: {CUS[cu]['nombre']}")
+    md += ["", "Casos de uso del primer parcial (ciclos 1 a 3), que los nuevos reutilizan:\n",
+           "| Ciclo | Caso de uso | Nombre |", "|---|---|---|"]
+    for numero, codigos in CICLOS_PARCIAL1:
+        md += [f"| {numero} | {cu} | {nombre_cu(cu)} |" for cu in codigos]
     md.append("")
     md += ["### 2.1.3 Priorizar casos de uso\n",
-           "Los casos de uso se agruparon en cuatro ciclos de vida según su prioridad y el riesgo que reducen: "
-           "primero los que fijan la arquitectura (colaboración en tiempo real, edición e intercambio XMI), después "
-           "los que dan identidad y contexto a la IA, luego las acciones de la IA y, al final, lo opcional.\n"]
+           "Los casos de uso nuevos se agruparon en tres ciclos de vida que continúan la numeración del primer parcial: "
+           "primero los que dan identidad y contexto a la IA, luego las acciones de la IA y la continuidad de la sesión y, "
+           "al final, la vista móvil y la IA local.\n"]
     prioridad = {"Alta": "Crítica", "Media": "Normal", "Baja": "Normal"}
     riesgo = {"Alta": "Alto", "Media": "Medio", "Baja": "Bajo"}
     for numero, nombre, iteraciones, codigos in CICLOS:
@@ -675,12 +690,14 @@ def parte_requisitos():
         md.append(f"#### Ciclo de vida #{numero}\n")
         for cu in codigos:
             md += [f"**{CUS[cu]['nombre']}.**\n", diagrama_casos_uso([cu], id_ea=f"uc-{cu.replace('-', '')}"), tabla_caso_uso(cu)]
-    md += ["### 2.1.5 Estructurar el modelo de caso de uso\n"]
+    md += ["### 2.1.5 Estructurar el modelo de caso de uso\n",
+           "En los diagramas, los casos de uso en gris son los del primer parcial que los nuevos reutilizan.\n"]
+    todos_primer_parcial = [cu for _, codigos in CICLOS_PARCIAL1 for cu in codigos]
     acumulado = []
     for numero, nombre, iteraciones, codigos in CICLOS:
         acumulado += codigos
         md += [f"#### Ciclo de vida #{numero}\n", diagrama_casos_uso(codigos, id_ea=f"uc-ciclo-{numero}")]
-    md += ["#### Modelo completo (ciclos 1 a 4)\n", diagrama_casos_uso(acumulado, id_ea="uc-ciclo-todo")]
+    md += ["#### Modelo completo (ciclos 1 a 6)\n", diagrama_casos_uso(todos_primer_parcial + acumulado, id_ea="uc-ciclo-todo")]
     return "\n".join(md)
 
 
@@ -688,7 +705,9 @@ def parte_analisis():
     md = ["## 2.2 Flujo de trabajo: análisis\n",
           "### 2.2.1 Análisis de arquitectura\n",
           "#### 2.2.1.1 Identificar paquetes\n",
-          "Se agruparon los casos de uso por afinidad funcional en seis paquetes de análisis.\n",
+          "El primer parcial identificó cinco paquetes de análisis (Gestión de lienzo, Colaboración, Asistencia inteligente, "
+           "Entrada multimodal y Exportación e integración). Los casos de uso nuevos se agruparon en tres: uno nuevo "
+           "(Identidad y actividad) y dos que se amplían (Colaboración y Asistencia inteligente).\n",
           "| Paquete | Contenido | Casos de uso |", "|---|---|---|"]
     md += [f"| **{n}** | {c} | {', '.join(cus)} |" for n, c, cus in PAQUETES]
     md += ["", diagrama_paquetes_identificados(),
@@ -721,15 +740,17 @@ def parte_diseno():
           "#### 2.3.2.1 Diseño físico (diagrama de despliegue)\n", uml(DESPLIEGUE, id_ea="despliegue"),
           "#### 2.3.2.2 Diseño lógico (diagrama de paquetes organizado en capas)\n", uml(CAPAS, id_ea="capas"),
           "#### 2.3.2.3 Diseño de datos\n",
-          "El modelo de datos persistente es pequeño: el diagrama lo guarda como una copia JSON por sala y "
-          "la IA y la colaboración añaden cuatro tablas. Lo efímero (orden de conexión y presencia) vive en Redis.\n",
+          "El primer parcial solo tenía la tabla `uml_api_backupuml` (la copia JSON del diagrama por sala). Este parcial "
+          "añade cuatro tablas, para la identidad, la actividad, los chats con la IA y los topes de uso. Lo efímero "
+          "(orden de conexión y presencia) vive en Redis.\n",
           uml(MODELO_DATOS, id_ea="datos"), "**Tablas de volumen**\n"]
-    for nombre, descripcion, filas in TABLAS:
+    for nombre, descripcion, filas in [x for x in TABLAS if x[0] != "uml_api_backupuml"]:  # esa tabla es del primer parcial
         md += [f"**{nombre}**: {descripcion}.\n",
                "| Atributo | Tipo de dato | Descripción | Tamaño | Nulo | Clave |", "|---|---|---|---|---|---|"]
         md += [f"| {a} | {t} | {d} | {s} | {n} | {k} |" for a, t, d, s, n, k in filas]
         md.append("")
-    md += ["**Script de creación (PostgreSQL)**\n", "```sql\n" + DDL + "\n```\n",
+    md += ["**Script de creación de las tablas nuevas (PostgreSQL)**\n",
+           "```sql\n" + DDL.split("CREATE TABLE uml_api_backupuml")[0].rstrip() + "\n```\n",
            "### 2.3.3 Diagrama de secuencia\n"]
     for numero, _, _, codigos in CICLOS:
         md.append(f"#### Ciclo de vida #{numero}\n")
