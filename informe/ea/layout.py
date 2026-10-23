@@ -72,3 +72,109 @@ def rejilla(tamanos, columnas, hueco_x=40, hueco_y=40):
         alto_fila = max(alto_fila, alto)
         contador += 1
     return posiciones, (ancho_max, y + alto_fila)
+
+
+# ---- acomodo por columnas con el mínimo de cruces ---------------------------------------------------------
+def _segmento_cruza_caja(p, q, caja, margen=8):
+    """¿El segmento p-q atraviesa la caja (x, y, w, h) achicada `margen` píxeles?"""
+    x, y, w, h = caja
+    x0, y0, x1, y1 = x + margen, y + margen, x + w - margen, y + h - margen
+    if x1 <= x0 or y1 <= y0:
+        return False
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    t0, t1 = 0.0, 1.0
+    for d, a in ((-dx, p[0] - x0), (dx, x1 - p[0]), (-dy, p[1] - y0), (dy, y1 - p[1])):
+        if d == 0:
+            if a < 0:
+                return False
+        else:
+            r = a / d
+            if d < 0:
+                t0 = max(t0, r)
+            else:
+                t1 = min(t1, r)
+            if t0 > t1:
+                return False
+    return True
+
+
+def _orienta(a, b, c):
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _segmentos_se_cruzan(a, b, c, d):
+    return _orienta(a, b, c) * _orienta(a, b, d) < 0 and _orienta(c, d, a) * _orienta(c, d, b) < 0
+
+
+def columnas(nodos, cols, aristas, hueco_x=170, hueco_y=30, pares_juntos=(("A1", "A2"),), semilla=7):
+    """Coloca los nodos en columnas (de izquierda a derecha) buscando el acomodo con menos líneas que atraviesan otros
+    nodos y menos cruces entre líneas. Cada columna tiene casillas en vertical; la búsqueda mueve y cambia nodos de
+    casilla (varios reinicios, con semilla fija para que el resultado sea siempre el mismo).
+
+    `pares_juntos`: nodos que conviene dejar en casillas vecinas (por ejemplo, un actor y su generalización).
+    Devuelve {clave: (x, y)} con la esquina superior izquierda de cada nodo."""
+    import itertools
+    import random
+
+    n_casillas = max(len(c) for c in cols) + 2
+    paso = max(h for _, h in nodos.values()) + hueco_y
+    anchos = [max((nodos[k][0] for k in col), default=0) for col in cols]
+    xs, x = [], 0
+    for ancho in anchos:
+        xs.append(x)
+        x += ancho + hueco_x
+    columna_de = {k: ci for ci, col in enumerate(cols) for k in col}
+
+    def posiciones(casilla):
+        pos = {}
+        for k, s in casilla.items():
+            ci = columna_de[k]
+            pos[k] = (xs[ci] + (anchos[ci] - nodos[k][0]) / 2, s * paso + (paso - hueco_y - nodos[k][1]) / 2)
+        return pos
+
+    def costo(casilla):
+        pos = posiciones(casilla)
+        centro = {k: (pos[k][0] + nodos[k][0] / 2, pos[k][1] + nodos[k][1] / 2) for k in pos}
+        total = 0.0
+        segmentos = [(centro[a], centro[b], a, b) for a, b in aristas if a in pos and b in pos]
+        for p, q, a, b in segmentos:
+            for k in pos:
+                if k not in (a, b) and _segmento_cruza_caja(p, q, (*pos[k], *nodos[k]), margen=-6):
+                    total += 100
+            total += 0.02 * abs(q[1] - p[1])
+        for (p1, q1, a1, b1), (p2, q2, a2, b2) in itertools.combinations(segmentos, 2):
+            if len({a1, b1, a2, b2}) == 4 and _segmentos_se_cruzan(p1, q1, p2, q2):
+                total += 10
+        for a, b in pares_juntos:
+            if a in casilla and b in casilla:
+                total += 30 * (abs(casilla[a] - casilla[b]) - 1)
+        return total
+
+    azar = random.Random(semilla)
+    mejor, mejor_costo = None, None
+    for _ in range(120):
+        casilla = {}
+        for col in cols:
+            libres = azar.sample(range(n_casillas), len(col))
+            casilla.update(dict(zip(col, libres)))
+        actual = costo(casilla)
+        for _ in range(400):
+            col = [c for c in cols if c]
+            col = azar.choice(col)
+            k = azar.choice(col)
+            nuevo = dict(casilla)
+            ocupadas = {casilla[o]: o for o in col}
+            destino = azar.randrange(n_casillas)
+            if destino in ocupadas and ocupadas[destino] != k:
+                nuevo[ocupadas[destino]] = casilla[k]  # intercambio
+            nuevo[k] = destino
+            c = costo(nuevo)
+            if c <= actual:
+                casilla, actual = nuevo, c
+        if mejor_costo is None or actual < mejor_costo:
+            mejor, mejor_costo = casilla, actual
+            if actual < 1:
+                break
+    pos = posiciones(mejor)
+    columnas.ultimo_costo = mejor_costo
+    return {k: (round(v[0]), round(v[1])) for k, v in pos.items()}

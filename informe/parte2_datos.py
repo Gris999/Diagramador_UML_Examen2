@@ -65,7 +65,7 @@ PAQUETES = [
 DEPENDENCIAS_PAQUETES = [
     ("Asistencia inteligente", "Identidad y actividad"), ("Asistencia inteligente", "Colaboración"),
     ("Asistencia inteligente", PAQUETE_LIENZO), ("Colaboración", "Identidad y actividad"),
-    ("Colaboración", PAQUETE_LIENZO), ("Identidad y actividad", "Colaboración"),
+    ("Colaboración", PAQUETE_LIENZO),
 ]
 
 # Nombre de cualquier caso de uso, del primer parcial o nuevo.

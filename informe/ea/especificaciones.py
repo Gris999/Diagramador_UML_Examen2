@@ -139,9 +139,17 @@ def diagrama_casos_uso(m, id_, nombre, codigos):
     for cu in mostrados:
         _caso(m, cu)
     m.elem("SYS", "Boundary", "Plataforma CASE colaborativa", REQ)
-    # Colaborador y Diseñador (generalización) van uno sobre otro, en la misma columna.
-    mismo_nivel = {"A1": 0, "A2": 0} if "A2" in primarios and "A1" in primarios else None
-    pos, _ = layout.dot(nodos, aristas, "LR", 16, 80, agrupar=mismo_nivel)
+    # Diagramas chicos: se prueban todos los órdenes de cada columna (actores, casos de uso del ciclo, casos de uso que
+    # solo se incluyen, IA y proveedor) y se elige el que menos líneas cruza sobre otros casos de uso. Los grandes
+    # (el modelo completo) usan Graphviz.
+    incluidos = {inc for cu in codigos for inc in datos_cu(cu)[2]}
+    col_actores = [a for a in ("A1", "A2", "A4", "A5") if a in primarios] + [a for a in primarios if a not in ("A1", "A2", "A4", "A5")]
+    col_cu = [cu for cu in mostrados if cu in codigos and cu not in incluidos]
+    col_inc = [cu for cu in mostrados if cu in incluidos]
+    pos = layout.columnas(nodos, [col_actores, col_cu, col_inc, list(secundarios)], aristas, hueco_x=150) if len(nodos) <= 11 else None
+    if pos is None:
+        mismo_nivel = {"A1": 0, "A2": 0} if "A2" in primarios and "A1" in primarios else None
+        pos, _ = layout.dot(nodos, aristas, "LR", 16, 80, agrupar=mismo_nivel)
     x0 = min(pos[c][0] for c in mostrados) - 25
     y0 = min(pos[c][1] for c in mostrados) - 40
     x1 = max(pos[c][0] + nodos[c][0] for c in mostrados) + 25
@@ -177,7 +185,7 @@ def diagrama_paquetes_identificados(m):
     for i, (nombre, contenido, _) in enumerate(PAQUETES):
         clave = _paquete(m, i)
         nota = m.elem(f"NT{i + 1}", "Note", "", REQ, notas=contenido)
-        x, y = (i % 2) * 560, (i // 2) * 130
+        x, y = (i % 2) * 640, (i // 2) * 130
         objetos += [(clave, x, y, 220, 90), (nota, x + 250, y, 280, 90)]
         conectores.append(dict(de=nota, a=clave, tipo="NoteLink"))
     m.diagrama("pk-identificados", "Paquetes de análisis identificados", "Package", REQ, objetos, conectores)
@@ -199,39 +207,47 @@ def diagrama_paquetes_y_cu(m):
 
 
 def diagrama_vista_paquete(m, indice):
+    """Casos de uso del paquete dentro de su caja, con los actores que los inician a la izquierda."""
     nombre, _, cus = PAQUETES[indice]
     actores = []
     for cu in cus:
-        for a in CUS[cu]["actores"]:
+        for a in actores_dibujados(CUS[cu]["actores"]):
             if a not in ACTORES_SECUNDARIOS and a not in actores:
                 actores.append(a)
-    ancho, alto, internos = _caja_paquete(cus, 2 if len(cus) < 7 else 3)
-    px = 160
-    objetos = [(_paquete(m, indice), px, 0, ancho, alto)]
-    for cu in cus:
-        _caso(m, cu)
-        objetos.append((cu, px + internos[cu][0], internos[cu][1], *tam_cu(nombre_cu(cu))))
-    conectores = []
-    paso = alto / (len(actores) + 1)
-    for i, a in enumerate(actores, 1):
-        _actor(m, a)
-        w, h = tam_actor(NOMBRE_ACTOR[a])
-        objetos.append((a, 20, int(paso * i - h / 2), w, h))
+    nodos = {a: tam_actor(NOMBRE_ACTOR[a]) for a in actores}
+    nodos.update({cu: tam_cu(nombre_cu(cu)) for cu in cus})
+    aristas, conectores = [], []
     for cu in cus:
         for a in actores_dibujados(CUS[cu]["actores"]):
             if a in actores:
+                aristas.append((a, cu))
                 conectores.append(dict(de=a, a=cu, tipo="Association"))
         for inc in CUS[cu]["incluye"]:
             if inc in cus:
+                aristas.append((cu, inc))
                 conectores.append(dict(de=cu, a=inc, tipo="Dependency", est="include"))
+    for a in actores:
+        _actor(m, a)
+    for cu in cus:
+        _caso(m, cu)
+    pos, _ = layout.dot(nodos, aristas, "LR", 40, 120)
+    x0 = min(pos[c][0] for c in cus) - 30
+    y0 = min(pos[c][1] for c in cus) - 50
+    x1 = max(pos[c][0] + nodos[c][0] for c in cus) + 30
+    y1 = max(pos[c][1] + nodos[c][1] for c in cus) + 30
+    for a in actores:  # fuera de la caja del paquete
+        pos[a] = (min(pos[a][0], x0 - 50 - nodos[a][0]), pos[a][1])
+    objetos = [(_paquete(m, indice), x0, y0, x1 - x0, y1 - y0)]
+    objetos += [(c, *pos[c], *nodos[c]) for c in nodos]
     m.diagrama(f"pk-vista-{indice + 1}", f"Vista del paquete {nombre}", "Package", REQ, objetos, conectores)
 
 
 def diagrama_dependencias_paquetes(m):
     claves = {nombre: _paquete(m, i) for i, (nombre, _, _) in enumerate(PAQUETES)}
     claves[PAQUETE_LIENZO] = m.elem("PKG0", "Package", PAQUETE_LIENZO.upper(), REQ)
-    sitio = {"Asistencia inteligente": (330, 0), "Colaboración": (60, 170), "Identidad y actividad": (600, 170),
-             PAQUETE_LIENZO: (330, 340)}
+    # Cuadrado: las dependencias van por los lados y solo una diagonal cruza el centro.
+    sitio = {"Identidad y actividad": (0, 0), "Asistencia inteligente": (430, 0), "Colaboración": (0, 250),
+             PAQUETE_LIENZO: (430, 250)}
     objetos = [(claves[n], *sitio[n], 220, 80, *((GRIS_PARCIAL1,) if n == PAQUETE_LIENZO else ())) for n in sitio]
     conectores = [dict(de=claves[o], a=claves[d], tipo="Dependency") for o, d in DEPENDENCIAS_PAQUETES]
     m.diagrama("pk-dep", "Dependencias entre paquetes de análisis", "Package", REQ, objetos, conectores)
@@ -262,7 +278,10 @@ def diagrama_comunicacion(m, cu):
         w, h = tam_actor(etiqueta) if rol in ("U", "EX") else tam_icono(etiqueta)
         nodos[clave] = (max(w, 6 * len(etiqueta)), h + 25)
     aristas = [(claves[o], claves[d]) for o, d, _, r in mensajes if not r and o != d]
-    pos, _ = layout.dot(nodos, aristas, "LR", 30, 105)
+    # Columnas: quien inicia, interfaz, control y, a la derecha, entidades y sistema externo (acomodo con menos cruces).
+    derecha = [claves[r] for r in claves if r not in ("U", "IU", "CT")]
+    pos = layout.columnas(nodos, [[claves["U"]], [claves["IU"]], [claves["CT"]], derecha], aristas, hueco_x=190, hueco_y=40,
+                          pares_juntos=())
     objetos = []
     for rol, clave in claves.items():
         w, h = tam_actor(roles[rol][1]) if rol in ("U", "EX") else tam_icono(roles[rol][1])
@@ -322,7 +341,10 @@ def diagrama_clases_analisis(m, numero, codigos):
             m.elem(clave, "Class", nombre, ruta, est=est, meths=[(o.replace("()", ""), "", "Public", "") for o in sorted(ops)])
             nodos[clave] = tam_clase(nombre, miembros)
     aristas = [(f"cla:{numero}:{o}", f"cla:{numero}:{d}") for o, d in sorted(relaciones)]
-    pos, _ = layout.dot(nodos, aristas, "LR", 40, 110)
+    en_interfaz = [f"cla:{numero}:{n}" for n in interfaces]
+    en_control = [f"cla:{numero}:{n}" for n in controles]
+    en_entidad = [f"cla:{numero}:{n}" for n in entidades]
+    pos = layout.columnas(nodos, [en_interfaz, en_control, en_entidad], aristas, hueco_x=120, hueco_y=26, pares_juntos=())
     objetos = [(k, *pos[k], *nodos[k]) for k in nodos]
     conectores = [dict(de=o, a=d, tipo="Association", dir="Source -> Destination") for o, d in aristas]
     m.diagrama(f"cla-ciclo-{numero}", f"Clases de análisis del ciclo {numero}", "Class", ruta, objetos, conectores)
@@ -372,11 +394,13 @@ def diagrama_despliegue(m):
     nodo("dp:G", "Google Gemini API (nube)", "")
     nodo("dp:MAC", "Equipo con Apple Silicon", "device")
     art("dp:OL", "Ollama + modelo reentrenado :11434", "dp:MAC")
-    objetos = [("dp:N", 0, 140, 150, 100), ("dp:A", 10, 175, 125, 50),
-               ("dp:EC2", 230, 0, 590, 410), ("dp:NG", 245, 165, 130, 70), ("dp:DK", 400, 30, 400, 360),
-               ("dp:FE", 415, 75, 175, 60), ("dp:DJ", 610, 75, 175, 60), ("dp:SP", 415, 160, 175, 60),
-               ("dp:PG", 415, 290, 175, 60), ("dp:RD", 610, 290, 175, 60),
-               ("dp:G", 900, 30, 170, 70), ("dp:MAC", 900, 230, 190, 130), ("dp:OL", 910, 270, 165, 70)]
+    # nginx a la izquierda reparte hacia FE, DJ y SP apilados; la base de datos y Redis quedan abajo a la derecha para
+    # que ninguna línea cruce una caja; Gemini arriba y Ollama a la altura de Django.
+    objetos = [("dp:N", 0, 200, 150, 100), ("dp:A", 10, 235, 125, 50),
+               ("dp:EC2", 230, 0, 610, 470), ("dp:NG", 245, 215, 130, 70), ("dp:DK", 400, 30, 420, 420),
+               ("dp:FE", 415, 75, 175, 60), ("dp:DJ", 415, 190, 175, 60), ("dp:SP", 415, 305, 175, 60),
+               ("dp:PG", 640, 280, 165, 60), ("dp:RD", 640, 370, 165, 60),
+               ("dp:G", 930, 40, 170, 70), ("dp:MAC", 930, 150, 190, 130), ("dp:OL", 940, 190, 165, 70)]
     conectores = [dict(de="dp:N", a="dp:NG", nombre="HTTPS / WSS :443"), dict(de="dp:NG", a="dp:FE", nombre="/"),
                   dict(de="dp:NG", a="dp:DJ", nombre="/api, /ws"), dict(de="dp:NG", a="dp:SP", nombre="/generate"),
                   dict(de="dp:DJ", a="dp:PG"), dict(de="dp:DJ", a="dp:RD"), dict(de="dp:DJ", a="dp:G", nombre="HTTPS"),
@@ -386,26 +410,24 @@ def diagrama_despliegue(m):
 
 def diagrama_capas(m):
     ruta = "Diseño lógico"
-    capas = [("Capa de presentación", [("cp:ui", "Componentes Angular (editor, paneles, chat, vista móvil)")]),
-             ("Capa de aplicación", [("cp:sv", "Servicios Angular (colaboración, IA, diagrama)"),
-                                     ("cp:vw", "Vistas DRF y consumidores de WebSocket")]),
-             ("Capa de dominio", [("cp:dm", "Modelo del diagrama (JointJS: clases y relaciones)"),
-                                  ("cp:md", "Modelos de datos Django (participante, actividad, chat)")]),
-             ("Capa de infraestructura", [("cp:pg", "PostgreSQL"), ("cp:rd", "Redis"),
-                                          ("cp:pv", "Proveedores de IA (Gemini, Ollama)"), ("cp:gn", "Generador Spring Boot")])]
-    ancho, objetos, y = 560, [], 0
+    capas = [("Capa de presentación", [("cp:ui", "Componentes Angular (editor, paneles, chat, vista móvil)", 2)]),
+             ("Capa de aplicación", [("cp:sv", "Servicios Angular (colaboración, IA, diagrama)", 0),
+                                     ("cp:vw", "Vistas DRF y consumidores de WebSocket", 2)]),
+             ("Capa de dominio", [("cp:dm", "Modelo del diagrama (JointJS: clases y relaciones)", 0),
+                                  ("cp:md", "Modelos de datos Django (participante, actividad, chat)", 1)]),
+             ("Capa de infraestructura", [("cp:pg", "PostgreSQL", 1), ("cp:rd", "Redis", 2),
+                                          ("cp:pv", "Proveedores de IA (Gemini, Ollama)", 3), ("cp:gn", "Generador Spring Boot", 4)])]
+    # Cinco columnas: cada componente queda debajo o junto a los que usa, y las dependencias que saltan una capa
+    # (Vistas DRF hacia Redis, IA y generador) pasan por huecos vacíos de la capa intermedia.
+    ancho_col, paso, ancho = 190, 210, 20 + 5 * 210
+    objetos, y = [], 0
     for i, (titulo, comps) in enumerate(capas, 1):
-        m.elem(f"C{i}", "Package", titulo, ruta)
-        filas = math.ceil(len(comps) / 2)
-        alto = 50 + filas * 55
-        objetos.append((f"C{i}", 0, y, ancho, alto))
-        for j, (k, nombre) in enumerate(comps):
+        m.elem(f"cp:C{i}", "Package", titulo, ruta)
+        objetos.append((f"cp:C{i}", 0, y, ancho, 120))
+        for k, nombre, col in comps:
             m.elem(k, "Component", nombre, ruta)
-            if len(comps) == 1:
-                objetos.append((k, 90, y + 50, ancho - 180, 45))
-            else:
-                objetos.append((k, 20 + (j % 2) * 270, y + 50 + (j // 2) * 55, 250, 45))
-        y += alto + 40
+            objetos.append((k, 20 + col * paso, y + 50, ancho_col, 55))
+        y += 120 + 70
     conectores = [dict(de="cp:ui", a="cp:sv", tipo="Dependency"), dict(de="cp:sv", a="cp:vw", tipo="Dependency"),
                   dict(de="cp:vw", a="cp:md", tipo="Dependency"), dict(de="cp:sv", a="cp:dm", tipo="Dependency"),
                   dict(de="cp:md", a="cp:pg", tipo="Dependency"), dict(de="cp:vw", a="cp:rd", tipo="Dependency"),
@@ -486,7 +508,9 @@ def diagrama_subsistemas(m):
             ("ss:S5", "Subsistema de interoperabilidad y generación", [("ss:in1", "XMI (Enterprise Architect)"), ("ss:in2", "Generador Spring Boot"), ("ss:in3", "Generador Flutter")])]
     dependencias = [("ss:S2", "ss:S1"), ("ss:S2", "ss:S3"), ("ss:S4", "ss:S1"), ("ss:S4", "ss:S2"), ("ss:S4", "ss:S3"), ("ss:S5", "ss:S1")]
     tamanos = {k: (290, 60 + 55 * len(comps)) for k, _, comps in subs}
-    posiciones, _ = layout.dot(tamanos, dependencias, "TB", 70, 90)
+    # Asistencia por IA arriba; edición, colaboración y actividad en una fila; interoperabilidad bajo edición. Así las
+    # dependencias no atraviesan otro subsistema.
+    posiciones = {"ss:S4": (360, 0), "ss:S1": (0, 380), "ss:S2": (360, 380), "ss:S3": (720, 380), "ss:S5": (0, 640)}
     objetos = []
     for k, titulo, comps in subs:
         m.elem(k, "Package", titulo, ruta, est="subsistema")
