@@ -45,8 +45,11 @@ skinparam packageStyle folder
 """
 
 
-def uml(cuerpo, estilo=True):
-    return f"```plantuml\n@startuml\n{ESTILO if estilo else ''}{cuerpo}\n@enduml\n```\n"
+def uml(cuerpo, estilo=True, id_ea=None):
+    """Bloque PlantUML. `id_ea` marca los diagramas que también existen en Enterprise Architect: el generador
+    del informe usa la imagen de EA (`build/ea/<id>.png`) si existe y, si no, dibuja este bloque."""
+    marca = f"' ea:{id_ea}\n" if id_ea else ""
+    return f"```plantuml\n@startuml\n{marca}{ESTILO if estilo else ''}{cuerpo}\n@enduml\n```\n"
 
 
 def _id(codigo):
@@ -62,7 +65,7 @@ def _actor(codigo):
 
 
 # ---- diagramas por caso de uso ---------------------------------------------------------------
-def diagrama_casos_uso(codigos, titulo=None):
+def diagrama_casos_uso(codigos, titulo=None, id_ea=None):
     """Actores a la izquierda, casos de uso en el centro y actores secundarios a la derecha."""
     mostrados = list(codigos)
     for codigo in codigos:
@@ -95,7 +98,7 @@ def diagrama_casos_uso(codigos, titulo=None):
             lineas.append(f"{_id(codigo)} .> {_id(inc)} : <<include>>")
     if "A2" in primarios and "A1" in primarios:
         lineas.append("A2 --|> A1")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea=id_ea)
 
 
 def _roles(cu):
@@ -125,7 +128,7 @@ def diagrama_comunicacion(cu):
     for numero, (origen, destino, texto, retorno) in enumerate(_mensajes(cu), 1):
         flecha = "..>" if retorno else "-->"
         lineas.append(f"{origen} {flecha} {destino} : {numero}: {texto}")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea=f"com-{cu.replace('-', '')}")
 
 
 def diagrama_secuencia(cu):
@@ -137,11 +140,15 @@ def diagrama_secuencia(cu):
     for origen, destino, texto, retorno in _mensajes(cu):
         flecha = "-->" if retorno else "->"
         lineas.append(f"{origen} {flecha} {destino} : {texto}")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea=f"sec-{cu.replace('-', '')}")
 
 
-def diagrama_clases_analisis(codigos):
-    """Clases de interfaz, control y entidad de los casos de uso de un ciclo, con sus operaciones."""
+def clases_analisis(codigos):
+    """Clases de interfaz, control y entidad de los casos de uso de un ciclo, con sus operaciones.
+
+    Devuelve (interfaces, controles, entidades, relaciones): los tres primeros son {nombre: {operaciones}}
+    y `relaciones` un conjunto de (origen, destino) por nombre. Lo usan el diagrama PlantUML y el modelo de EA.
+    """
     interfaces, controles, entidades, relaciones = {}, {}, {}, set()
     for cu in codigos:
         datos = CUS[cu]
@@ -164,6 +171,12 @@ def diagrama_clases_analisis(codigos):
                 relaciones.add((ct, nombre))
         for _, nombre in [(k, v[1]) for k, v in roles.items() if k.startswith("E")]:
             entidades.setdefault(nombre, set())
+    return interfaces, controles, entidades, relaciones
+
+
+def diagrama_clases_analisis(codigos, id_ea=None):
+    """Clases de interfaz, control y entidad de los casos de uso de un ciclo, con sus operaciones."""
+    interfaces, controles, entidades, relaciones = clases_analisis(codigos)
     alias = {}
 
     def declarar(nombre, estereotipo, operaciones, indice):
@@ -181,7 +194,7 @@ def diagrama_clases_analisis(codigos):
         lineas.append(declarar(nombre, "entidad", ops, indice))
     for origen, destino in sorted(relaciones):
         lineas.append(f"{alias[origen]} --> {alias[destino]}")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea=id_ea)
 
 
 # ---- paquetes de análisis -----------------------------------------------------------------------
@@ -190,7 +203,7 @@ def diagrama_paquetes_identificados():
     for indice, (nombre, contenido, cus) in enumerate(PAQUETES, 1):
         lineas.append(f'package "{nombre.upper()}" as P{indice} {{\n}}')
         lineas.append(f'note right of P{indice}\n{_envolver(contenido, 38)}\nend note')
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea="pk-identificados")
 
 
 def diagrama_paquetes_y_cu():
@@ -200,7 +213,7 @@ def diagrama_paquetes_y_cu():
         for cu in cus:
             lineas.append(f'  usecase "{cu}:\\n{_envolver(CUS[cu]["nombre"], 22)}" as {_id(cu)}')
         lineas.append("}")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea="pk-cu")
 
 
 def diagrama_vista_paquete(indice):
@@ -220,7 +233,7 @@ def diagrama_vista_paquete(indice):
         for inc in CUS[cu]["incluye"]:
             if inc in cus:
                 lineas.append(f"{_id(cu)} .> {_id(inc)} : <<include>>")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea=f"pk-vista-{indice + 1}")
 
 
 def diagrama_dependencias_paquetes():
@@ -230,7 +243,7 @@ def diagrama_dependencias_paquetes():
     indice_de = {nombre: i for i, (nombre, _, _) in enumerate(PAQUETES, 1)}
     for origen, destino in DEPENDENCIAS_PAQUETES:
         lineas.append(f"P{indice_de[origen]} ..> P{indice_de[destino]}")
-    return uml("\n".join(lineas))
+    return uml("\n".join(lineas), id_ea="pk-dep")
 
 
 # ---- diseño: C4, despliegue, capas, datos, componentes ----------------------------------------
@@ -661,13 +674,13 @@ def parte_requisitos():
     for numero, nombre, iteraciones, codigos in CICLOS:
         md.append(f"#### Ciclo de vida #{numero}\n")
         for cu in codigos:
-            md += [f"**{CUS[cu]['nombre']}.**\n", diagrama_casos_uso([cu]), tabla_caso_uso(cu)]
+            md += [f"**{CUS[cu]['nombre']}.**\n", diagrama_casos_uso([cu], id_ea=f"uc-{cu.replace('-', '')}"), tabla_caso_uso(cu)]
     md += ["### 2.1.5 Estructurar el modelo de caso de uso\n"]
     acumulado = []
     for numero, nombre, iteraciones, codigos in CICLOS:
         acumulado += codigos
-        md += [f"#### Ciclo de vida #{numero}\n", diagrama_casos_uso(codigos)]
-    md += ["#### Modelo completo (ciclos 1 a 4)\n", diagrama_casos_uso(acumulado)]
+        md += [f"#### Ciclo de vida #{numero}\n", diagrama_casos_uso(codigos, id_ea=f"uc-ciclo-{numero}")]
+    md += ["#### Modelo completo (ciclos 1 a 4)\n", diagrama_casos_uso(acumulado, id_ea="uc-ciclo-todo")]
     return "\n".join(md)
 
 
@@ -692,7 +705,7 @@ def parte_analisis():
             md += [f"**{cu}: {CUS[cu]['nombre']}**\n", diagrama_comunicacion(cu)]
     md += ["### 2.2.3 Análisis de clases\n"]
     for numero, _, _, codigos in CICLOS:
-        md += [f"#### Ciclo de vida #{numero}\n", diagrama_clases_analisis(codigos)]
+        md += [f"#### Ciclo de vida #{numero}\n", diagrama_clases_analisis(codigos, id_ea=f"cla-ciclo-{numero}")]
     md += ["### 2.2.4 Análisis de paquete\n", diagrama_dependencias_paquetes()]
     return "\n".join(md)
 
@@ -703,14 +716,14 @@ def parte_diseno():
           "#### 2.3.1.1 Diagrama de contexto del sistema\n", uml(C4_CONTEXTO, estilo=False),
           "#### 2.3.1.2 Diagrama de contenedor\n", uml(C4_CONTENEDORES, estilo=False),
           "#### 2.3.1.3 Diagrama de componentes\n", uml(C4_COMPONENTES, estilo=False),
-          "#### 2.3.1.4 Diagrama de código\n", uml(CODIGO),
+          "#### 2.3.1.4 Diagrama de código\n", uml(CODIGO, id_ea="codigo"),
           "### 2.3.2 Diseño de la arquitectura\n",
-          "#### 2.3.2.1 Diseño físico (diagrama de despliegue)\n", uml(DESPLIEGUE),
-          "#### 2.3.2.2 Diseño lógico (diagrama de paquetes organizado en capas)\n", uml(CAPAS),
+          "#### 2.3.2.1 Diseño físico (diagrama de despliegue)\n", uml(DESPLIEGUE, id_ea="despliegue"),
+          "#### 2.3.2.2 Diseño lógico (diagrama de paquetes organizado en capas)\n", uml(CAPAS, id_ea="capas"),
           "#### 2.3.2.3 Diseño de datos\n",
           "El modelo de datos persistente es pequeño: el diagrama lo guarda como una copia JSON por sala y "
           "la IA y la colaboración añaden cuatro tablas. Lo efímero (orden de conexión y presencia) vive en Redis.\n",
-          uml(MODELO_DATOS), "**Tablas de volumen**\n"]
+          uml(MODELO_DATOS, id_ea="datos"), "**Tablas de volumen**\n"]
     for nombre, descripcion, filas in TABLAS:
         md += [f"**{nombre}**: {descripcion}.\n",
                "| Atributo | Tipo de dato | Descripción | Tamaño | Nulo | Clave |", "|---|---|---|---|---|---|"]
@@ -728,8 +741,8 @@ def parte_diseno():
 def parte_implementacion():
     return "\n".join([
         "## 2.4 Flujo de trabajo: implementación\n",
-        "### 2.4.1 Diagrama de componentes\n", uml(COMPONENTES),
-        "### 2.4.2 Diagrama de subsistemas\n", uml(SUBSISTEMAS),
+        "### 2.4.1 Diagrama de componentes\n", uml(COMPONENTES, id_ea="componentes"),
+        "### 2.4.2 Diagrama de subsistemas\n", uml(SUBSISTEMAS, id_ea="subsistemas"),
     ])
 
 

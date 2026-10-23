@@ -195,6 +195,7 @@ class Constructor:
         configurar_estilos(self.doc)
         configurar_pagina(self.doc)
         self.diagramas = 0
+        self.diagramas_ea = 0
         self.contador = [0, 0, 0, 0]  # para numerar documentos incluidos
 
     # párrafos -------------------------------------------------------------------------------
@@ -321,8 +322,27 @@ class Constructor:
             fila_xml._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
         self.doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
+    def diagrama_ea(self, fuente):
+        """Imagen exportada de Enterprise Architect para el bloque, si la hay (`' ea:<id>` en la primera línea)."""
+        marca = re.search(r"^' ea:(\S+)", fuente, re.M)
+        png = BUILD / "ea" / f"{marca.group(1)}.png" if marca else None
+        if not png or not png.exists():
+            return False
+        self.diagramas += 1
+        self.diagramas_ea += 1
+        with Image.open(png) as im:
+            ancho_px = im.size[0]
+        self.imagen(png, pie=None, ancho_cm=min(ANCHO_UTIL_CM, max(6.0, ancho_px / 96 * 2.54)))
+        return True
+
     def plantuml(self, fuente):
-        """Diagrama UML con PlantUML; el tamaño final respeta el tamaño natural (150 dpi)."""
+        """Diagrama UML con PlantUML; el tamaño final respeta el tamaño natural (150 dpi).
+
+        Los diagramas que existen en Enterprise Architect (`informe/ea/`) usan esa imagen; PlantUML dibuja el
+        resto (los de C4) y sirve de respaldo si falta la imagen de EA.
+        """
+        if self.diagrama_ea(fuente):
+            return
         carpeta = BUILD / "uml"
         carpeta.mkdir(parents=True, exist_ok=True)
         huella = hashlib.sha1(fuente.encode()).hexdigest()[:10]
@@ -597,7 +617,7 @@ def main():
     BUILD.mkdir(exist_ok=True)
     salida = BUILD / "Informe.docx"
     b.doc.save(salida)
-    print("Escrito", salida, f"({salida.stat().st_size // 1024} KB, {b.diagramas} diagramas)")
+    print("Escrito", salida, f"({salida.stat().st_size // 1024} KB, {b.diagramas} diagramas, {b.diagramas_ea} de Enterprise Architect)")
 
 
 if __name__ == "__main__":
