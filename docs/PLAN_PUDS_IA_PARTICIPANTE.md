@@ -135,7 +135,7 @@ PUDS se basa en el Proceso Unificado. *(Los nombres de los artefactos se ajustan
 | Flujo | Artefactos de este plan |
 |---|---|
 | Requisitos | Lista de RF/RNF (§4), modelo de casos de uso (§7), glosario |
-| Análisis | Clases de análisis (Participante, EventoActividad, MensajeChat, Sugerencia), diagrama de robustez de CU-04 |
+| Análisis | Clases de análisis (Participante, EventoActividad, MensajeChat, Sugerencia), diagrama de robustez de CU-17 |
 | Diseño | Arquitectura (§6), modelo de datos, contratos WS/REST, diagramas de secuencia |
 | Implementación | Ramas por iteración (§10), código y migraciones |
 | Pruebas | Estrategia (§9), casos de prueba por CU, evidencias |
@@ -242,15 +242,15 @@ sequenceDiagram
 
 | ID | Caso de uso | Actor |
 |---|---|---|
-| CU-01 | Identificarse al entrar a una sala | Participante |
-| CU-02 | Ver la actividad del equipo | Participante |
-| CU-03 | Preguntar a la IA (incluye "¿qué hizo X?") | Participante |
-| CU-04 | Pedirle a la IA un cambio en el diagrama | Participante |
-| CU-05 | Pedirle a la IA una revisión | Participante |
-| CU-06 | Ver las ideas de la IA y aplicar una | Participante |
-| CU-07 | Retomar una sesión anterior | Participante |
-| CU-08 | Seguir la sala desde el móvil | Observador |
-| CU-09 | Configurar el proveedor de IA | Administrador |
+| CU-14 | Identificarse al entrar a una sala | Participante |
+| CU-15 | Ver la actividad del equipo | Participante |
+| CU-16 | Preguntar a la IA (incluye "¿qué hizo X?") | Participante |
+| CU-17 | Pedirle a la IA un cambio en el diagrama | Participante |
+| CU-18 | Pedirle a la IA una revisión | Participante |
+| CU-19 | Ver las ideas de la IA y aplicar una | Participante |
+| CU-20 | Retomar una sesión anterior | Participante |
+| CU-21 | Seguir la sala desde el móvil | Observador |
+| CU-22 | Configurar el proveedor de IA | Administrador |
 
 ---
 
@@ -485,20 +485,20 @@ Un modelo local no es práctico en una máquina virtual pequeña sin GPU. En pro
 
 | Requisito | Casos de uso | Iteración | Verificación |
 |---|---|---|---|
-| RF-23 | CU-01 | I1 | Pruebas de `hello`/presencia; aceptación I1 |
-| RF-24 | CU-01, CU-03 | I1, I3 | Spec del panel; aceptación I3 |
-| RF-25 | CU-02 | I1 | Pruebas de lista blanca; aceptación I1 |
-| RF-26 | CU-03 | I2 | Pruebas de privacidad |
-| RF-27 | CU-03 | I2 | Pruebas de contexto; aceptación I2 |
-| RF-28 | CU-04, CU-06 | I3 | Prueba "el modo preguntar no cambia el diagrama" |
-| RF-29 | CU-04 | I3 | Aceptación I3 con dos navegadores |
-| RF-30 | CU-05 | I3 | Aceptación I3 |
-| RF-31 | CU-07 | I4 | Aceptación I4 (cierre y reapertura) |
-| RF-32 | CU-08 | I5 | Aceptación en móvil físico |
-| RF-33 | CU-09 | I6 | Evaluación de 10 pedidos |
-| RNF-04 | CU-03 | I2 | Pruebas de privacidad |
-| RNF-05 | CU-03…05 | I2, I3 | Pruebas con fallo del proveedor |
-| RNF-06 | CU-02 | I1 | Prueba de que mover/redimensionar no registra |
+| RF-23 | CU-14 | I1 | Pruebas de `hello`/presencia; aceptación I1 |
+| RF-24 | CU-14, CU-16 | I1, I3 | Spec del panel; aceptación I3 |
+| RF-25 | CU-15 | I1 | Pruebas de lista blanca; aceptación I1 |
+| RF-26 | CU-16 | I2 | Pruebas de privacidad |
+| RF-27 | CU-16 | I2 | Pruebas de contexto; aceptación I2 |
+| RF-28 | CU-17, CU-19 | I3 | Prueba "el modo preguntar no cambia el diagrama" |
+| RF-29 | CU-17 | I3 | Aceptación I3 con dos navegadores |
+| RF-30 | CU-18 | I3 | Aceptación I3 |
+| RF-31 | CU-20 | I4 | Aceptación I4 (cierre y reapertura) |
+| RF-32 | CU-21 | I5 | Aceptación en móvil físico |
+| RF-33 | CU-22 | I6 | Evaluación de 10 pedidos |
+| RNF-04 | CU-16 | I2 | Pruebas de privacidad |
+| RNF-05 | CU-16…18 | I2, I3 | Pruebas con fallo del proveedor |
+| RNF-06 | CU-15 | I1 | Prueba de que mover/redimensionar no registra |
 | RNF-07 | — | I7 | Prueba de humo |
 
 ---

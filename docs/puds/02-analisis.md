@@ -6,14 +6,16 @@ Estereotipos usados (los del material de la cátedra): **interfaz** (frontera co
 
 ## 1. Paquetes de análisis
 
-| Paquete | Contenido | Casos de uso |
-|---|---|---|
-| **Modelado** | Editor, Diagrama, Clase, Relación, Entidad intermedia, Clase asociativa | CU-10, CU-20 |
-| **Asistencia por IA** | Pedido a la IA, Respuesta, Mensaje de chat, Sugerencia | CU-11, CU-12, CU-13, CU-03…CU-06 |
-| **Colaboración** | Sala, Participante, Presencia, Operación, Respaldo | CU-14, CU-15, CU-07 |
-| **Actividad** | Evento de actividad | CU-01, CU-02 |
-| **Interoperabilidad** | Documento XMI | CU-16, CU-17 |
-| **Generación** | Esquema UML, Proyecto generado | CU-18, CU-19 |
+El primer parcial identificó cinco paquetes. Este parcial los amplía y agrega uno nuevo.
+
+| Paquete | Contenido | Casos de uso | Origen |
+|---|---|---|---|
+| **Gestión de lienzo** | Editor, Diagrama, Clase, Relación, Entidad intermedia, Clase asociativa | CU-01, CU-02, CU-05 | Primer parcial |
+| **Colaboración** | Sala, Participante, Presencia, Operación, Respaldo | CU-03, CU-04; CU-20, CU-21 | Se amplía |
+| **Asistencia inteligente** | Pedido a la IA, Respuesta, Mensaje de chat, Sugerencia, Configuración del proveedor, Modelo reentrenado | CU-09; CU-16…CU-19, CU-22, CU-23 | Se amplía |
+| **Entrada multimodal** | Texto, imagen y voz como entrada del modelo | CU-06, CU-07, CU-08 | Primer parcial |
+| **Exportación e integración** | Documento XMI, Esquema UML, Proyecto generado | CU-10, CU-11, CU-12, CU-13 | Primer parcial |
+| **Identidad y actividad** | Participante, Identificador anónimo, Evento de actividad | CU-14, CU-15 | Nuevo |
 
 ## 2. Clases de análisis
 
@@ -95,7 +97,7 @@ classDiagram
 
 ## 3. Realización de casos de uso (análisis)
 
-### CU-14 Colaborar en una sala
+### CU-03 Colaborar en una sala
 
 ```mermaid
 flowchart LR
@@ -114,7 +116,7 @@ flowchart LR
   CC -->|8 guardar respaldo| Resp
 ```
 
-### CU-02 Ver la actividad del equipo
+### CU-15 Ver la actividad del equipo
 
 ```mermaid
 flowchart LR
@@ -129,7 +131,7 @@ flowchart LR
   CA -->|5 evento nuevo en vivo| PA
 ```
 
-### CU-04 Pedir cambio a la IA *(📋)*
+### CU-17 Pedir cambio a la IA *(📋)*
 
 ```mermaid
 flowchart LR
