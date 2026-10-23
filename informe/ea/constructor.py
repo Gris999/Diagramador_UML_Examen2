@@ -38,11 +38,12 @@ def vs(texto):
 
 
 CABECERA = r'''On Error Resume Next
-Dim r, raiz, pi, fso, dEl, dPk, dCn, SALIDA, LOGF
+Dim r, raiz, pi, fso, dEl, dPk, dCn, dKeep, SALIDA, LOGF
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set dEl = CreateObject("Scripting.Dictionary")
 Set dPk = CreateObject("Scripting.Dictionary")
 Set dCn = CreateObject("Scripting.Dictionary")
+Set dKeep = CreateObject("Scripting.Dictionary")
 SALIDA = "C:\ea\out\"
 LOGF = "C:\ea\log.txt"
 
@@ -183,7 +184,10 @@ Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq)
   Dim k, c, origen
   k = de & ">" & a & ">" & tipo & ">" & nombre & ">" & est
   If seq > 0 Then k = idd & ">" & k
-  If dCn.Exists(k) Then Exit Sub
+  If dCn.Exists(k) Then
+    dKeep(CStr(dCn(k))) = 1
+    Exit Sub
+  End If
   Set origen = dEl(de)
   Set c = origen.Connectors.AddNew(nombre, tipo)
   c.SupplierID = dEl(a).ElementID
@@ -200,7 +204,8 @@ Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq)
     c.SupplierEnd.Update
   End If
   origen.Connectors.Refresh
-  dCn.Add k, 1
+  dCn.Add k, c.ConnectorID
+  dKeep(CStr(c.ConnectorID)) = 1
   Chk "Con " & de & " " & a
 End Sub
 
@@ -217,11 +222,13 @@ Sub Paralelos(d)
   Next
   For i = 0 To d.DiagramLinks.Count - 1
     Set dl = d.DiagramLinks.GetAt(i)
-    Set c = r.GetConnectorByID(dl.ConnectorID)
-    a = c.ClientID
-    b = c.SupplierID
-    If a < b Then k = a & "-" & b Else k = b & "-" & a
-    If grupos.Exists(k) Then grupos(k) = grupos(k) & "," & i Else grupos.Add k, CStr(i)
+    If dKeep.Exists(CStr(dl.ConnectorID)) Then
+      Set c = r.GetConnectorByID(dl.ConnectorID)
+      a = c.ClientID
+      b = c.SupplierID
+      If a < b Then k = a & "-" & b Else k = b & "-" & a
+      If grupos.Exists(k) Then grupos(k) = grupos(k) & "," & i Else grupos.Add k, CStr(i)
+    End If
   Next
   For Each k In grupos.Keys
     ids = Split(grupos(k), ",")
@@ -257,12 +264,29 @@ Sub OcultarEnlaces(d)
   Chk "Ocultar"
 End Sub
 
+Sub OcultarAjenos(d)
+  On Error Resume Next
+  Dim i, dl
+  For i = 0 To d.DiagramLinks.Count - 1
+    Set dl = d.DiagramLinks.GetAt(i)
+    If Not dKeep.Exists(CStr(dl.ConnectorID)) Then
+      dl.IsHidden = True
+      dl.Update
+    End If
+  Next
+  Chk "OcultarAjenos"
+End Sub
+
 Sub Fin(d, idd, modo)
   On Error Resume Next
   d.DiagramObjects.Refresh
   d.DiagramLinks.Refresh
-  If modo = 1 Then Paralelos d
-  If modo = 2 Then OcultarEnlaces d
+  If modo = 2 Then
+    OcultarEnlaces d
+  Else
+    OcultarAjenos d
+    If modo = 1 Then Paralelos d
+  End If
   r.ReloadDiagram d.DiagramID
   pi.PutDiagramImageToFile d.DiagramGUID, SALIDA & idd & ".png", 1
   Chk "export " & idd
@@ -314,6 +338,7 @@ def _estructura(modelo):
             crear(o["k"])
         salida.append(f'Log "diagrama {d["id"]}"')
         salida.append(f'Set dg = Dia({vs(d["ruta"])}, {vs(d["nombre"])}, {vs(d["tipo"])})')
+        salida.append("dKeep.RemoveAll")
         for o in d["objetos"]:
             salida.append(f'Obj dg, {vs(o["k"])}, {o["x"]}, {o["y"]}, {o["w"]}, {o["h"]}, '
                           f'{_color(o.get("fondo"))}, {_color(o.get("texto"))}, {_color(o.get("borde"))}')

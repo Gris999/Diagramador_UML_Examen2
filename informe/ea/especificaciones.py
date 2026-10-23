@@ -126,11 +126,18 @@ def diagrama_casos_uso(m, id_, nombre, codigos):
     for cu in mostrados:
         _caso(m, cu)
     m.elem("SYS", "Boundary", "Plataforma CASE colaborativa", REQ)
-    pos, _ = layout.dot(nodos, aristas, "LR", 16, 80)
+    # Participante y Host (generalización) van uno sobre otro, en la misma columna.
+    mismo_nivel = {"A1": 0, "A2": 0} if "A2" in primarios and "A1" in primarios else None
+    pos, _ = layout.dot(nodos, aristas, "LR", 16, 80, agrupar=mismo_nivel)
     x0 = min(pos[c][0] for c in mostrados) - 25
     y0 = min(pos[c][1] for c in mostrados) - 40
     x1 = max(pos[c][0] + nodos[c][0] for c in mostrados) + 25
     y1 = max(pos[c][1] + nodos[c][1] for c in mostrados) + 25
+    # Los actores quedan siempre fuera del límite del sistema.
+    for a in primarios:
+        pos[a] = (min(pos[a][0], x0 - 40 - nodos[a][0]), pos[a][1])
+    for a in secundarios:
+        pos[a] = (max(pos[a][0], x1 + 40), pos[a][1])
     objetos = [("SYS", x0, y0, x1 - x0, y1 - y0)] + [(c, *pos[c], *nodos[c]) for c in nodos]
     m.diagrama(id_, nombre, "Use Case", REQ, objetos, conectores)
 
