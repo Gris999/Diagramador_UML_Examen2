@@ -18,8 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import layout  # noqa: E402
-from parte2 import _mensajes, _roles, clases_analisis, datos_cu  # noqa: E402
-from parte2_datos import (ACTORES_SECUNDARIOS, CICLOS, CICLOS_PARCIAL1, CUS, DEPENDENCIAS_PAQUETES, NOMBRE_ACTOR,  # noqa: E402
+from parte2 import _mensajes, _roles, clases_analisis, datos_cu, grupos_por_control  # noqa: E402
+from parte2_datos import (CICLOS, CICLOS_PARCIAL1, CUS, DEPENDENCIAS_PAQUETES, NOMBRE_ACTOR,  # noqa: E402
                           PAQUETE_LIENZO, PAQUETES)
 from parte2_datos import nombre_cu as nombre_de_cu  # noqa: E402
 
@@ -61,7 +61,7 @@ class Modelo:
             self.elementos[clave] = nuevo
         return clave
 
-    def diagrama(self, id_, nombre, tipo, ruta, objetos, conectores, enlaces=None):
+    def diagrama(self, id_, nombre, tipo, ruta, objetos, conectores, enlaces=None, arbol=None):
         """`objetos`: [(clave, x, y, w, h)] en orden de dibujo (los primeros quedan al fondo)."""
         minimo_x = min(o[1] for o in objetos)
         minimo_y = min(o[2] for o in objetos)
@@ -70,10 +70,29 @@ class Modelo:
         # muestra solos al coincidir dos elementos de otro diagrama.
         if enlaces is None:
             enlaces = "" if tipo == "Sequence" else "paralelos"
+        # `arbol`: estilo de línea ortogonal de EA para los conectores que no digan otro ("H": sale y entra en horizontal con el
+        # tramo vertical en el hueco entre columnas; "V": igual en vertical; "OS": cuadrada).
+        if arbol:
+            for cn in conectores:
+                if "arbol" not in cn and cn.get("tipo") not in ("Generalization", "Sequence", "NoteLink"):
+                    cn["arbol"] = arbol
         self.diagramas.append(dict(
             id=id_, nombre=nombre, tipo=tipo, ruta=ruta, enlaces=enlaces,
             objetos=[dict(k=o[0], x=o[1] + dx, y=o[2] + dy, w=o[3], h=o[4], **(o[5] if len(o) > 5 else {})) for o in objetos],
             conectores=conectores))
+
+
+K_EXPORT = 1.37  # EA exporta estos diagramas con unas 1,37 veces el tamaño de las coordenadas
+
+
+def etiqueta_tronco(dy, lineas):
+    """Posición de la etiqueta de un conector horizontal con tronco, para que quede a la izquierda del tramo vertical y a la altura
+    de la flecha de su destino (`dy`: diferencia de altura entre origen y destino, en coordenadas). Está calibrada para un hueco
+    de 500 coordenadas entre origen y destino."""
+    ancho = 6.2 * max(len(x) for x in lineas)
+    ox = ((268 - K_EXPORT * abs(dy)) * 0.2 + (166 - ancho) / 2) / K_EXPORT - 8 - 64 * (len(lineas) - 1)
+    oy = (K_EXPORT * dy - 7 * len(lineas) + 14) / K_EXPORT
+    return f"{int(ancho)}:{14 * len(lineas)}:{int(ox)}:{int(oy)}"
 
 
 # ---- tamaños ---------------------------------------------------------------------------------------
@@ -105,66 +124,51 @@ def _caso(m, cu):
 
 
 def diagrama_casos_uso(m, id_, nombre, codigos):
+    """Actores, casos de uso del diagrama y casos de uso que estos incluyen, en tres columnas. Toda línea une columnas vecinas y
+    va en horizontal y vertical (estilo árbol de EA), así que ninguna pasa por encima de un caso de uso."""
     mostrados = list(codigos)
     for cu in codigos:
         for inc in datos_cu(cu)[2]:
             if inc not in mostrados:
                 mostrados.append(inc)
-    primarios, secundarios = [], []
+    actores = []
     for cu in codigos:
         for actor in datos_cu(cu)[1]:
-            destino = secundarios if actor in ACTORES_SECUNDARIOS else primarios
-            if actor not in primarios and actor not in secundarios:
-                destino.append(actor)
-    nodos = {a: tam_actor(NOMBRE_ACTOR[a]) for a in primarios + secundarios}
+            if actor not in actores:
+                actores.append(actor)
+    actores.sort()
+    nodos = {a: tam_actor(NOMBRE_ACTOR[a]) for a in actores}
     nodos.update({cu: tam_cu(nombre_cu(cu)) for cu in mostrados})
     aristas, conectores = [], []
     for cu in codigos:
-        _, actores, incluye = datos_cu(cu)
-        for actor in actores_dibujados(actores):
-            if actor in primarios:
-                aristas.append((actor, cu))
-                conectores.append(dict(de=actor, a=cu, tipo="Association"))
-            else:
-                aristas.append((cu, actor))
-                conectores.append(dict(de=cu, a=actor, tipo="Association"))
+        _, cu_actores, incluye = datos_cu(cu)
+        for actor in actores_dibujados(cu_actores):
+            aristas.append((actor, cu))
+            conectores.append(dict(de=actor, a=cu, tipo="Association"))
         for inc in incluye:
             aristas.append((cu, inc))
             conectores.append(dict(de=cu, a=inc, tipo="Dependency", est="include"))
-    if "A1" in primarios and "A2" in primarios:
-        aristas.append(("A1", "A2"))
+    if "A1" in actores and "A2" in actores:
         conectores.append(dict(de="A1", a="A2", tipo="Generalization"))  # el Diseñador es un Colaborador con más permisos
-    for a in primarios + secundarios:
+    for a in actores:
         _actor(m, a)
     for cu in mostrados:
         _caso(m, cu)
     m.elem("SYS", "Boundary", "Plataforma CASE colaborativa", REQ)
-    # Diagramas chicos: se prueban todos los órdenes de cada columna (actores, casos de uso del ciclo, casos de uso que
-    # solo se incluyen, IA y proveedor) y se elige el que menos líneas cruza sobre otros casos de uso. Los grandes
-    # (el modelo completo) usan Graphviz.
-    incluidos = {inc for cu in codigos for inc in datos_cu(cu)[2]}
-    col_actores = [a for a in ("A1", "A2", "A4", "A5") if a in primarios] + [a for a in primarios if a not in ("A1", "A2", "A4", "A5")]
-    col_cu = [cu for cu in mostrados if cu in codigos and cu not in incluidos]
-    col_inc = [cu for cu in mostrados if cu in incluidos]
-    pos = layout.columnas(nodos, [col_actores, col_cu, col_inc, list(secundarios)], aristas, hueco_x=150) if len(nodos) <= 11 else None
-    if pos is None:
-        mismo_nivel = {"A1": 0, "A2": 0} if "A2" in primarios and "A1" in primarios else None
-        pos, _ = layout.dot(nodos, aristas, "LR", 16, 80, agrupar=mismo_nivel)
+    col_cu = [cu for cu in mostrados if cu in codigos]
+    col_inc = [cu for cu in mostrados if cu not in codigos]
+    pos = layout.columnas(nodos, [actores, col_cu, col_inc], aristas, hueco_x=150, pares_juntos=(("A1", "A2"),))
     x0 = min(pos[c][0] for c in mostrados) - 25
     y0 = min(pos[c][1] for c in mostrados) - 40
     x1 = max(pos[c][0] + nodos[c][0] for c in mostrados) + 25
     y1 = max(pos[c][1] + nodos[c][1] for c in mostrados) + 25
-    # Los actores quedan siempre fuera del límite del sistema.
-    for a in primarios:
+    for a in actores:  # los actores quedan fuera del límite del sistema
         pos[a] = (min(pos[a][0], x0 - 40 - nodos[a][0]), pos[a][1])
-    for a in secundarios:
-        pos[a] = (max(pos[a][0], x1 + 40), pos[a][1])
     objetos = [("SYS", x0, y0, x1 - x0, y1 - y0)]
     for c in nodos:
         extra = (GRIS_PARCIAL1,) if c in mostrados and c not in CUS else ()
         objetos.append((c, *pos[c], *nodos[c], *extra))
-    # En el modelo completo los <<include>> se dejan para los diagramas de cada ciclo: con 23 casos de uso se montan.
-    m.diagrama(id_, nombre, "Use Case", REQ, objetos, conectores, enlaces="sin_include" if id_ == "uc-ciclo-todo" else None)
+    m.diagrama(id_, nombre, "Use Case", REQ, objetos, conectores, arbol="H")
 
 
 # ---- paquetes de análisis --------------------------------------------------------------------------
@@ -207,49 +211,45 @@ def diagrama_paquetes_y_cu(m):
 
 
 def diagrama_vista_paquete(m, indice):
-    """Casos de uso del paquete dentro de su caja, con los actores que los inician a la izquierda."""
+    """Casos de uso del paquete dentro de su caja, con los actores que los inician a la izquierda (líneas ortogonales)."""
     nombre, _, cus = PAQUETES[indice]
-    actores = []
-    for cu in cus:
-        for a in actores_dibujados(CUS[cu]["actores"]):
-            if a not in ACTORES_SECUNDARIOS and a not in actores:
-                actores.append(a)
+    actores = sorted({a for cu in cus for a in CUS[cu]["actores"]})
     nodos = {a: tam_actor(NOMBRE_ACTOR[a]) for a in actores}
     nodos.update({cu: tam_cu(nombre_cu(cu)) for cu in cus})
     aristas, conectores = [], []
     for cu in cus:
         for a in actores_dibujados(CUS[cu]["actores"]):
-            if a in actores:
-                aristas.append((a, cu))
-                conectores.append(dict(de=a, a=cu, tipo="Association"))
-        for inc in CUS[cu]["incluye"]:
-            if inc in cus:
-                aristas.append((cu, inc))
-                conectores.append(dict(de=cu, a=inc, tipo="Dependency", est="include"))
+            aristas.append((a, cu))
+            conectores.append(dict(de=a, a=cu, tipo="Association"))
+    if "A1" in actores and "A2" in actores:
+        conectores.append(dict(de="A1", a="A2", tipo="Generalization"))
     for a in actores:
         _actor(m, a)
     for cu in cus:
         _caso(m, cu)
-    pos, _ = layout.dot(nodos, aristas, "LR", 40, 120)
+    pos = layout.columnas(nodos, [actores, list(cus)], aristas, hueco_x=190, pares_juntos=(("A1", "A2"),))
     x0 = min(pos[c][0] for c in cus) - 30
     y0 = min(pos[c][1] for c in cus) - 50
     x1 = max(pos[c][0] + nodos[c][0] for c in cus) + 30
     y1 = max(pos[c][1] + nodos[c][1] for c in cus) + 30
-    for a in actores:  # fuera de la caja del paquete
-        pos[a] = (min(pos[a][0], x0 - 50 - nodos[a][0]), pos[a][1])
     objetos = [(_paquete(m, indice), x0, y0, x1 - x0, y1 - y0)]
     objetos += [(c, *pos[c], *nodos[c]) for c in nodos]
-    m.diagrama(f"pk-vista-{indice + 1}", f"Vista del paquete {nombre}", "Package", REQ, objetos, conectores)
+    m.diagrama(f"pk-vista-{indice + 1}", f"Vista del paquete {nombre}", "Package", REQ, objetos, conectores, arbol="H")
 
 
 def diagrama_dependencias_paquetes(m):
     claves = {nombre: _paquete(m, i) for i, (nombre, _, _) in enumerate(PAQUETES)}
     claves[PAQUETE_LIENZO] = m.elem("PKG0", "Package", PAQUETE_LIENZO.upper(), REQ)
-    # Cuadrado: las dependencias van por los lados y solo una diagonal cruza el centro.
-    sitio = {"Identidad y actividad": (0, 0), "Asistencia inteligente": (430, 0), "Colaboración": (0, 250),
-             PAQUETE_LIENZO: (430, 250)}
-    objetos = [(claves[n], *sitio[n], 220, 80, *((GRIS_PARCIAL1,) if n == PAQUETE_LIENZO else ())) for n in sitio]
-    conectores = [dict(de=claves[o], a=claves[d], tipo="Dependency") for o, d in DEPENDENCIAS_PAQUETES]
+    # En L: Asistencia sobre Colaboración (vertical), Colaboración junto a Gestión de lienzo (horizontal) y Asistencia hacia
+    # Gestión por el lado y hacia abajo, sin pasar por otro paquete.
+    sitio = {"Asistencia inteligente": (0, 0), "Colaboración": (0, 260), PAQUETE_LIENZO: (460, 260)}
+    objetos = [(claves[n], *sitio[n], 240, 90, *((GRIS_PARCIAL1,) if n == PAQUETE_LIENZO else ())) for n in sitio]
+    conectores = []
+    for o, d in DEPENDENCIAS_PAQUETES:
+        cn = dict(de=claves[o], a=claves[d], tipo="Dependency")
+        if (o, d) == ("Asistencia inteligente", PAQUETE_LIENZO):
+            cn["arbol"] = "OS"
+        conectores.append(cn)
     m.diagrama("pk-dep", "Dependencias entre paquetes de análisis", "Package", REQ, objetos, conectores)
 
 
@@ -259,40 +259,50 @@ def _roles_ea(m, cu, prefijo, ruta):
     claves, roles = {}, _roles(cu)
     for rol, (tipo, etiqueta) in roles.items():
         clave = f"{prefijo}:{cu}:{rol}"
-        if rol in ("U", "EX"):
+        if rol == "U":
             m.elem(clave, "Actor", etiqueta, ruta)
         else:
-            est = {"IU": "boundary", "CT": "control"}.get(rol, "entity")
+            est = {"IU": "boundary", "EX": "boundary", "CT": "control"}.get(rol, "entity")
             m.elem(clave, "Class", etiqueta, ruta, est=est)
         claves[rol] = clave
     return claves, roles
 
 
 def diagrama_comunicacion(m, cu):
+    """Quien inicia, interfaz y control en una fila (líneas horizontales); entidades y servicio de IA en una columna a la
+    derecha del control, unidos por líneas ortogonales. Los mensajes entre el mismo par y en el mismo sentido comparten
+    línea con una etiqueta de varias filas."""
     ruta = f"Análisis de casos de uso|Comunicación {num(cu)}"
     claves, roles = _roles_ea(m, cu, "com", ruta)
     mensajes = _mensajes(cu)
-    nodos = {}
-    for rol, clave in claves.items():
-        etiqueta = roles[rol][1]
-        w, h = tam_actor(etiqueta) if rol in ("U", "EX") else tam_icono(etiqueta)
-        nodos[clave] = (max(w, 6 * len(etiqueta)), h + 25)
-    aristas = [(claves[o], claves[d]) for o, d, _, r in mensajes if not r and o != d]
-    # Columnas: quien inicia, interfaz, control y, a la derecha, entidades y sistema externo (acomodo con menos cruces).
-    derecha = [claves[r] for r in claves if r not in ("U", "IU", "CT")]
-    pos = layout.columnas(nodos, [[claves["U"]], [claves["IU"]], [claves["CT"]], derecha], aristas, hueco_x=190, hueco_y=40,
-                          pares_juntos=())
-    objetos = []
-    for rol, clave in claves.items():
-        w, h = tam_actor(roles[rol][1]) if rol in ("U", "EX") else tam_icono(roles[rol][1])
-        px, py = pos[clave]
-        objetos.append((clave, px + (nodos[clave][0] - w) // 2, py, w, h))
+    tam = {rol: (tam_actor(roles[rol][1]) if rol == "U" else (80, 70)) for rol in claves}
+    derecha = [rol for rol in claves if rol not in ("U", "IU", "CT")]
+    x, columnas_x = 0, {}
+    for rol in ("U", "IU", "CT"):
+        columnas_x[rol] = x
+        x += tam[rol][0] + (250 if rol == "U" else 330 if rol == "IU" else 420)
+    objetos, centros = [], {}
+    for rol in ("U", "IU", "CT"):
+        w, h = tam[rol]
+        objetos.append((claves[rol], columnas_x[rol], -h / 2, w, h))
+    paso = 130
+    for i, rol in enumerate(derecha):
+        w, h = tam[rol]
+        objetos.append((claves[rol], x, (i - (len(derecha) - 1) / 2) * paso - h / 2, w, h))
+    objetos = [(k, int(px), int(py), w, h) for k, px, py, w, h in objetos]
+    grupos = {}
+    for numero, (origen, destino, texto, _) in enumerate(mensajes, 1):
+        grupos.setdefault((origen, destino), []).append(f"{numero}: {texto}")
     conectores = []
-    for numero, (origen, destino, texto, retorno) in enumerate(mensajes, 1):
-        if origen == destino:
-            continue
-        conectores.append(dict(de=claves[origen], a=claves[destino], tipo="Dependency" if retorno else "Association",
-                               nombre=f"{numero}: {texto}", dir="Source -> Destination"))
+    for (origen, destino), lineas in grupos.items():
+        cn = dict(de=claves[origen], a=claves[destino], tipo="Association", nombre="\n".join(lineas), dir="Source -> Destination")
+        if destino in derecha:
+            cn["arbol"] = "H"
+            # La etiqueta va justo a la izquierda del tramo vertical, a la altura de la flecha de su entidad, para que se lea
+            # a cuál pertenece aunque varias líneas compartan el tronco.
+            dy = (derecha.index(destino) - (len(derecha) - 1) / 2) * paso
+            cn["etiq"] = etiqueta_tronco(dy, lineas)
+        conectores.append(cn)
     m.diagrama(f"com-{cu.replace('-', '')}", f"{num(cu)}: {CUS[cu]['nombre']}", "Collaboration", ruta, objetos, conectores)
 
 
@@ -320,7 +330,7 @@ def diagrama_secuencia(m, cu):
         xs.append(x)
     objetos = []
     for rol, clave in claves.items():
-        es_actor = rol in ("U", "EX")
+        es_actor = rol == "U"
         w, h = (tam_actor(roles[rol][1])[0], 90) if es_actor else (80, 70)
         objetos.append((clave, int(xs[indice[rol]] - w / 2), 0, w, h))
     conectores = [dict(de=claves[o], a=claves[d], tipo="Sequence", nombre=t, seq=n)
@@ -331,23 +341,23 @@ def diagrama_secuencia(m, cu):
 # ---- clases de análisis por ciclo --------------------------------------------------------------------
 def diagrama_clases_analisis(m, numero, codigos):
     ruta = f"Clases de análisis|Ciclo {numero}"
-    interfaces, controles, entidades, relaciones = clases_analisis(codigos)
-    nodos, objetos = {}, []
+    interfaces, controles, entidades, relaciones, externas = clases_analisis(codigos)
+    nodos = {}
     # «control» con un espacio al final: sin él EA dibuja el icono de control en lugar de la caja con operaciones.
-    for est, grupo in (("interfaz", interfaces), ("control ", controles), ("entidad", entidades)):
+    for est, grupo in (("interfaz", interfaces), ("control ", controles), ("entidad", entidades), ("interfaz", externas)):
         for nombre, ops in grupo.items():
             clave = f"cla:{numero}:{nombre}"
             miembros = sorted(o.replace("()", "") + "()" for o in ops)
             m.elem(clave, "Class", nombre, ruta, est=est, meths=[(o.replace("()", ""), "", "Public", "") for o in sorted(ops)])
             nodos[clave] = tam_clase(nombre, miembros)
     aristas = [(f"cla:{numero}:{o}", f"cla:{numero}:{d}") for o, d in sorted(relaciones)]
-    en_interfaz = [f"cla:{numero}:{n}" for n in interfaces]
-    en_control = [f"cla:{numero}:{n}" for n in controles]
-    en_entidad = [f"cla:{numero}:{n}" for n in entidades]
-    pos = layout.columnas(nodos, [en_interfaz, en_control, en_entidad], aristas, hueco_x=120, hueco_y=26, pares_juntos=())
+    cols = [[f"cla:{numero}:{n}" for n in interfaces], [f"cla:{numero}:{n}" for n in controles],
+            [f"cla:{numero}:{n}" for n in list(entidades) + list(externas)]]
+    pos = layout.columnas(nodos, cols, aristas, hueco_x=130, hueco_y=26, pares_juntos=())
     objetos = [(k, *pos[k], *nodos[k]) for k in nodos]
     conectores = [dict(de=o, a=d, tipo="Association", dir="Source -> Destination") for o, d in aristas]
-    m.diagrama(f"cla-ciclo-{numero}", f"Clases de análisis del ciclo {numero}", "Class", ruta, objetos, conectores)
+    m.diagrama(f"cla-{numero}", f"Clases de análisis del ciclo {numero.split('-')[0]}: {', '.join(c.replace('-0', '').replace('-', '') for c in codigos)}",
+               "Class", ruta, objetos, conectores, arbol="H")
 
 
 # ---- diseño ------------------------------------------------------------------------------------------
@@ -368,13 +378,13 @@ def diagrama_codigo(m):
     m.elem("co:VW", "Class", "ChatView", ruta, est="vista", meths=[
         ("ia_chat", "", "Public", "request:Request;room:str"),
         ("claim_suggestion", "", "Public", "request:Request;room:str;id:str;idx:int")])
-    nodos = {"co:AIP": (260, 90), "co:GEM": (260, 90), "co:OLL": (300, 130), "co:MOD": (330, 120), "co:GRD": (330, 90), "co:VW": (350, 90)}
-    aristas = [("co:GEM", "co:AIP"), ("co:OLL", "co:AIP"), ("co:OLL", "co:MOD"), ("co:VW", "co:AIP"), ("co:VW", "co:GRD")]
-    pos, _ = layout.dot(nodos, aristas, "BT", 50, 90)
+    # Fila de arriba: módulos y la interfaz; fila de abajo: quienes los usan, justo debajo de lo que usan (líneas verticales).
+    objetos = [("co:MOD", 0, 0, 330, 120), ("co:AIP", 430, 0, 260, 90), ("co:GRD", 790, 0, 330, 90),
+               ("co:OLL", 0, 260, 300, 130), ("co:GEM", 430, 260, 260, 90), ("co:VW", 790, 260, 350, 90)]
     conectores = [dict(de="co:GEM", a="co:AIP", tipo="Realization"), dict(de="co:OLL", a="co:AIP", tipo="Realization"),
                   dict(de="co:OLL", a="co:MOD", tipo="Dependency", nombre="usa"),
                   dict(de="co:VW", a="co:AIP", tipo="Dependency"), dict(de="co:VW", a="co:GRD", tipo="Dependency")]
-    m.diagrama("codigo", "Diagrama de código: proveedores de IA", "Class", ruta, [(k, *pos[k], *nodos[k]) for k in nodos], conectores)
+    m.diagrama("codigo", "Diagrama de código: proveedores de IA", "Class", ruta, objetos, conectores, arbol="V")
 
 
 def diagrama_despliegue(m):
@@ -384,27 +394,28 @@ def diagrama_despliegue(m):
     nodo("dp:N", "Navegador del usuario", "device")
     art("dp:A", "Aplicación Angular", "dp:N")
     nodo("dp:EC2", "AWS EC2 (Ubuntu 24.04, 2 vCPU, 2 GB)", "device")
-    nodo("dp:NG", "nginx + Let's Encrypt", "execution environment", padre="dp:EC2")
+    nodo("dp:NG", "nginx + Let's Encrypt\n/ hacia Angular\n/api y /ws hacia Django\n/generate hacia Spring", "execution environment", padre="dp:EC2")
     nodo("dp:DK", "Docker Compose", "execution environment", padre="dp:EC2")
     art("dp:FE", "angular_frontend :4000 (publicado 4200)", "dp:DK")
     art("dp:DJ", "django_backend_UML :8000 (Daphne)", "dp:DK")
     art("dp:SP", "spring_backend :7001", "dp:DK")
     art("dp:PG", "postgres_db :5432", "dp:DK", "database")
     art("dp:RD", "redis_server :6379", "dp:DK", "database")
-    nodo("dp:G", "Google Gemini API (nube)", "")
+    nodo("dp:G", "Google Gemini API (nube, HTTPS)", "")
     nodo("dp:MAC", "Equipo con Apple Silicon", "device")
     art("dp:OL", "Ollama + modelo reentrenado :11434", "dp:MAC")
     # nginx a la izquierda reparte hacia FE, DJ y SP apilados; la base de datos y Redis quedan abajo a la derecha para
     # que ninguna línea cruce una caja; Gemini arriba y Ollama a la altura de Django.
     objetos = [("dp:N", 0, 200, 150, 100), ("dp:A", 10, 235, 125, 50),
-               ("dp:EC2", 230, 0, 610, 470), ("dp:NG", 245, 215, 130, 70), ("dp:DK", 400, 30, 420, 420),
-               ("dp:FE", 415, 75, 175, 60), ("dp:DJ", 415, 190, 175, 60), ("dp:SP", 415, 305, 175, 60),
-               ("dp:PG", 640, 280, 165, 60), ("dp:RD", 640, 370, 165, 60),
-               ("dp:G", 930, 40, 170, 70), ("dp:MAC", 930, 150, 190, 130), ("dp:OL", 940, 190, 165, 70)]
-    conectores = [dict(de="dp:N", a="dp:NG", nombre="HTTPS / WSS :443"), dict(de="dp:NG", a="dp:FE", nombre="/"),
-                  dict(de="dp:NG", a="dp:DJ", nombre="/api, /ws"), dict(de="dp:NG", a="dp:SP", nombre="/generate"),
-                  dict(de="dp:DJ", a="dp:PG"), dict(de="dp:DJ", a="dp:RD"), dict(de="dp:DJ", a="dp:G", nombre="HTTPS"),
-                  dict(de="dp:DJ", a="dp:OL", tipo="Dependency", nombre="HTTP (opcional)")]
+               ("dp:EC2", 230, 0, 690, 470), ("dp:NG", 245, 190, 215, 110), ("dp:DK", 480, 30, 420, 420),
+               ("dp:DJ", 495, 75, 175, 60), ("dp:FE", 495, 190, 175, 60), ("dp:SP", 495, 305, 175, 60),
+               ("dp:PG", 720, 280, 165, 60), ("dp:RD", 720, 370, 165, 60),
+               ("dp:G", 495, -160, 175, 70), ("dp:MAC", 1010, 20, 190, 130), ("dp:OL", 1020, 60, 165, 70)]
+    conectores = [dict(de="dp:N", a="dp:NG", nombre="HTTPS / WSS :443", arbol="H"), dict(de="dp:NG", a="dp:FE", arbol="H"),
+                  dict(de="dp:NG", a="dp:DJ", arbol="H"), dict(de="dp:NG", a="dp:SP", arbol="H"),
+                  dict(de="dp:DJ", a="dp:PG", arbol="H"), dict(de="dp:DJ", a="dp:RD", arbol="H"),
+                  dict(de="dp:DJ", a="dp:G", arbol="V"),
+                  dict(de="dp:DJ", a="dp:OL", tipo="Dependency", nombre="HTTP (opcional)", arbol="H")]
     m.diagrama("despliegue", "Diagrama de despliegue", "Deployment", ruta, objetos, conectores)
 
 
@@ -428,11 +439,11 @@ def diagrama_capas(m):
             m.elem(k, "Component", nombre, ruta)
             objetos.append((k, 20 + col * paso, y + 50, ancho_col, 55))
         y += 120 + 70
-    conectores = [dict(de="cp:ui", a="cp:sv", tipo="Dependency"), dict(de="cp:sv", a="cp:vw", tipo="Dependency"),
+    conectores = [dict(de="cp:ui", a="cp:sv", tipo="Dependency"), dict(de="cp:sv", a="cp:vw", tipo="Dependency", arbol="H"),
                   dict(de="cp:vw", a="cp:md", tipo="Dependency"), dict(de="cp:sv", a="cp:dm", tipo="Dependency"),
                   dict(de="cp:md", a="cp:pg", tipo="Dependency"), dict(de="cp:vw", a="cp:rd", tipo="Dependency"),
                   dict(de="cp:vw", a="cp:pv", tipo="Dependency"), dict(de="cp:vw", a="cp:gn", tipo="Dependency")]
-    m.diagrama("capas", "Diseño lógico en capas", "Package", ruta, objetos, conectores)
+    m.diagrama("capas", "Diseño lógico en capas", "Package", ruta, objetos, conectores, arbol="V")
 
 
 TABLAS_DATOS = [
@@ -463,39 +474,34 @@ def diagrama_datos(m):
                ("uml_api_backupuml", 0, 330, *tam["uml_api_backupuml"], GRIS_PARCIAL1)]
     conectores = [dict(de=n, a="collab_participant", tipo="Association", cd="0..*", ca="1", dir="Source -> Destination")
                   for n in ("collab_activityevent", "collab_chatmessage", "collab_iaattempt")]
-    m.diagrama("datos", "Modelo de datos", "Class", ruta, objetos, conectores)
+    m.diagrama("datos", "Modelo de datos", "Class", ruta, objetos, conectores, arbol="H")
 
 
 # ---- implementación ----------------------------------------------------------------------------------
 def diagrama_componentes(m):
     ruta = "Diagrama de componentes"
-    cliente = [("cm:ED", "Editor de diagrama"), ("cm:SC", "Servicios de colaboración"), ("cm:SI", "Servicios de IA y chat"),
-               ("cm:SE", "Exportaciones e importaciones")]
-    servidor = [("cm:RW", "collab: relé de WebSocket"), ("cm:AI", "collab: actividad e identidad"), ("cm:CH", "uml_api: chat con la IA"),
-                ("cm:PR", "uml_api: proveedores de IA"), ("cm:XF", "uml_api: XMI y generador Flutter")]
+    # Cada par que se comunica queda en la misma fila (línea horizontal) o en la misma columna (línea vertical).
     m.elem("cm:PKC", "Package", "Cliente (navegador)", ruta)
     m.elem("cm:PKS", "Package", "Servidor Django", ruta)
-    objetos = [("cm:PKC", 0, 0, 260, 330), ("cm:PKS", 420, 0, 280, 400)]
-    for i, (k, n) in enumerate(cliente):
-        m.elem(k, "Component", n, ruta)
-        objetos.append((k, 25, 50 + i * 70, 210, 45))
-    for i, (k, n) in enumerate(servidor):
-        m.elem(k, "Component", n, ruta)
-        objetos.append((k, 450, 50 + i * 70, 220, 45))
-    for k, n, est in (("cm:GS", "Generador Spring Boot", ""), ("cm:PG", "PostgreSQL", "database"), ("cm:RE", "Redis", "database"),
-                      ("cm:GE", "Gemini", ""), ("cm:OL", "Ollama (modelo reentrenado)", "")):
-        m.elem(k, "Component", n, ruta, est=est)
-    objetos += [("cm:GS", 20, 400, 200, 45), ("cm:PG", 880, 130, 160, 45), ("cm:RE", 880, 30, 160, 45),
-                ("cm:GE", 880, 250, 160, 45), ("cm:OL", 880, 340, 200, 45)]
-    conectores = [dict(de="cm:ED", a="cm:SC", tipo="Dependency"),
-                  dict(de="cm:SC", a="cm:RW", tipo="Dependency", nombre="WebSocket"),
-                  dict(de="cm:SI", a="cm:CH", tipo="Dependency", nombre="REST"),
-                  dict(de="cm:SE", a="cm:XF", tipo="Dependency", nombre="REST"),
-                  dict(de="cm:SE", a="cm:GS", tipo="Dependency", nombre="HTTPS"),
-                  dict(de="cm:RW", a="cm:AI", tipo="Dependency"), dict(de="cm:RW", a="cm:RE", tipo="Dependency"),
-                  dict(de="cm:AI", a="cm:PG", tipo="Dependency"), dict(de="cm:CH", a="cm:PR", tipo="Dependency"),
-                  dict(de="cm:CH", a="cm:PG", tipo="Dependency"), dict(de="cm:PR", a="cm:GE", tipo="Dependency"),
-                  dict(de="cm:PR", a="cm:OL", tipo="Dependency")]
+    nombres = {"cm:ED": "Editor de diagrama", "cm:SC": "Servicios de colaboración", "cm:SI": "Servicios de IA y chat",
+               "cm:SE": "Exportaciones e importaciones", "cm:AI": "collab: actividad e identidad", "cm:RW": "collab: relé de WebSocket",
+               "cm:CH": "uml_api: chat con la IA", "cm:XF": "uml_api: XMI y generador Flutter", "cm:PR": "uml_api: proveedores de IA",
+               "cm:GS": "Generador Spring Boot", "cm:RE": "Redis", "cm:PG": "PostgreSQL", "cm:GE": "Gemini", "cm:OL": "Ollama (modelo reentrenado)"}
+    for k, n in nombres.items():
+        m.elem(k, "Component", n, ruta, est="database" if k in ("cm:RE", "cm:PG") else "")
+    fila = {0: 50, 1: 140, 2: 230, 3: 320}
+    objetos = [("cm:PKC", 0, 0, 280, 400), ("cm:PKS", 380, 0, 300, 400),
+               ("cm:ED", 25, fila[0], 230, 45), ("cm:SC", 25, fila[1], 230, 45), ("cm:SI", 25, fila[2], 230, 45), ("cm:SE", 25, fila[3], 230, 45),
+               ("cm:AI", 410, fila[0], 240, 45), ("cm:RW", 410, fila[1], 240, 45), ("cm:CH", 410, fila[2], 240, 45), ("cm:XF", 410, fila[3], 240, 45),
+               ("cm:GS", 25, 480, 230, 45),
+               ("cm:PG", 800, fila[0], 190, 45), ("cm:RE", 800, fila[1], 190, 45), ("cm:PR", 800, fila[2], 190, 45),
+               ("cm:GE", 1110, fila[2], 190, 45), ("cm:OL", 1110, fila[3], 230, 45)]
+    conectores = [dict(de="cm:ED", a="cm:SC", tipo="Dependency", arbol="V"), dict(de="cm:SC", a="cm:RW", tipo="Dependency", nombre="WebSocket", arbol="H"),
+                  dict(de="cm:SI", a="cm:CH", tipo="Dependency", nombre="REST", arbol="H"), dict(de="cm:SE", a="cm:XF", tipo="Dependency", nombre="REST", arbol="H"),
+                  dict(de="cm:SE", a="cm:GS", tipo="Dependency", nombre="HTTPS", arbol="V"), dict(de="cm:RW", a="cm:AI", tipo="Dependency", arbol="V"),
+                  dict(de="cm:RW", a="cm:RE", tipo="Dependency", arbol="H"), dict(de="cm:AI", a="cm:PG", tipo="Dependency", arbol="H"),
+                  dict(de="cm:CH", a="cm:PR", tipo="Dependency", arbol="H"), dict(de="cm:CH", a="cm:PG", tipo="Dependency", arbol="H"),
+                  dict(de="cm:PR", a="cm:GE", tipo="Dependency", arbol="H"), dict(de="cm:PR", a="cm:OL", tipo="Dependency", arbol="H")]
     m.diagrama("componentes", "Diagrama de componentes", "Component", ruta, objetos, conectores)
 
 
@@ -519,7 +525,9 @@ def diagrama_subsistemas(m):
         for j, (ck, cn) in enumerate(comps):
             m.elem(ck, "Component", cn, ruta)
             objetos.append((ck, x + 20, y + 50 + j * 55, 250, 42))
-    conectores = [dict(de=o, a=d, tipo="Dependency") for o, d in dependencias]
+    # Las dependencias de la fila del medio van en horizontal; las demás, en vertical.
+    horizontales = {("ss:S2", "ss:S1"), ("ss:S2", "ss:S3")}
+    conectores = [dict(de=o, a=d, tipo="Dependency", arbol="H" if (o, d) in horizontales else "V") for o, d in dependencias]
     m.diagrama("subsistemas", "Diagrama de subsistemas", "Package", ruta, objetos, conectores)
 
 
@@ -534,16 +542,17 @@ def diagrama_flujo_despliegue(m):
     m.elem("fl:R", "Component", "redis", ruta, est="database")
     m.elem("fl:P", "Component", "postgres", ruta, est="database")
     m.elem("fl:T", "Component", "Quick Tunnel de Cloudflare\n(respaldo, nginx :8080)", ruta)
-    nodos = {"fl:U": (90, 110), "fl:N": (200, 90), "fl:F": (190, 60), "fl:D": (170, 60), "fl:S": (200, 60),
-             "fl:R": (150, 60), "fl:P": (150, 60), "fl:T": (230, 80)}
-    aristas = [("fl:U", "fl:N"), ("fl:N", "fl:F"), ("fl:N", "fl:D"), ("fl:N", "fl:S"), ("fl:D", "fl:R"), ("fl:D", "fl:P"), ("fl:T", "fl:N")]
-    pos, _ = layout.dot(nodos, aristas, "LR", 40, 110)
-    conectores = [dict(de="fl:U", a="fl:N", nombre="HTTPS 443"), dict(de="fl:N", a="fl:F", nombre="/"),
-                  dict(de="fl:N", a="fl:D", nombre="/api  /ws"), dict(de="fl:N", a="fl:S", nombre="/generate"),
-                  dict(de="fl:D", a="fl:R"), dict(de="fl:D", a="fl:P"),
-                  dict(de="fl:T", a="fl:N", tipo="Dependency")]
-    m.diagrama("despliegue-flujo", "Flujo de tráfico del despliegue", "Deployment", ruta,
-               [(k, *pos[k], *nodos[k]) for k in nodos], conectores)
+    # nginx en la fila del medio; Angular arriba, Django en la fila de nginx y Spring abajo; el túnel arriba de nginx.
+    objetos = [("fl:U", 0, -55, 90, 110), ("fl:N", 230, -45, 200, 90), ("fl:T", 220, -230, 230, 80),
+               ("fl:F", 930, -190, 190, 60), ("fl:D", 930, -30, 170, 60), ("fl:S", 930, 130, 200, 60),
+               ("fl:R", 1360, -100, 150, 60), ("fl:P", 1360, 40, 150, 60)]
+    conectores = [dict(de="fl:U", a="fl:N", nombre="HTTPS 443", arbol="H"),
+                  dict(de="fl:N", a="fl:F", nombre="/", arbol="H", etiq=etiqueta_tronco(-160, ["/"])),
+                  dict(de="fl:N", a="fl:D", nombre="/api  /ws", arbol="H"),
+                  dict(de="fl:N", a="fl:S", nombre="/generate", arbol="H", etiq=etiqueta_tronco(160, ["/generate"])),
+                  dict(de="fl:D", a="fl:R", arbol="H"), dict(de="fl:D", a="fl:P", arbol="H"),
+                  dict(de="fl:T", a="fl:N", tipo="Dependency", arbol="V")]
+    m.diagrama("despliegue-flujo", "Flujo de tráfico del despliegue", "Deployment", ruta, objetos, conectores)
 
 
 # ---- C4 ----------------------------------------------------------------------------------------------
@@ -579,20 +588,26 @@ def _rel(de, a, texto, tecnologia=""):
 
 def diagrama_c4_contexto(m):
     ruta = "Diseño C4|Contexto"
-    p1 = _c4(m, "c4c:participante", "persona", "Participante", "Persona", "Diseña diagramas de clases UML en equipo", ruta)
-    p2 = _c4(m, "c4c:observador", "persona", "Observador", "Persona", "Sigue la sala desde el celular, en solo lectura", ruta)
+    p1 = _c4(m, "c4c:disenador", "persona", "Diseñador", "Persona", "Crea la sala y expulsa a quien haga falta", ruta)
+    p2 = _c4(m, "c4c:colaborador", "persona", "Colaborador", "Persona", "Diseña el diagrama de clases UML en equipo", ruta)
     s = _c4(m, "c4c:sistema", "sistema", "Plataforma CASE colaborativa", "Sistema de software",
             "Modelado UML 2.5, IA como integrante de la sala, generación de código", ruta)
     g = _c4(m, "c4c:gemini", "externo", "Google Gemini", "Sistema externo", "IA en la nube", ruta)
     o = _c4(m, "c4c:ollama", "externo", "Ollama + modelo reentrenado", "Sistema externo", "IA local, sin internet", ruta)
     ea = _c4(m, "c4c:ea", "externo", "Enterprise Architect", "Sistema externo", "Herramienta CASE (intercambio XMI)", ruta)
-    objetos = [_caja(p1, "persona", 0, 0, 200, 150), _caja(p2, "persona", 0, 260, 200, 150),
-               _caja(s, "sistema", 420, 130, 280, 150),
-               _caja(g, "externo", 920, 0, 250, 120), _caja(o, "externo", 920, 190, 250, 120), _caja(ea, "externo", 920, 380, 250, 120)]
-    conectores = [_rel(p1, s, "Edita y conversa con la IA", "HTTPS / WebSocket"), _rel(p2, s, "Sigue en vivo", "HTTPS"),
-                  _rel(s, g, "Pide respuestas", "HTTPS"), _rel(s, o, "Pide respuestas (opcional)", "HTTP"),
-                  _rel(s, ea, "Importa y exporta modelos", "XMI")]
-    m.diagrama("c4-contexto", "Diagrama de contexto del sistema", "Component", ruta, objetos, conectores, enlaces="paralelos")
+    # Las dos personas a la izquierda y los tres sistemas externos a la derecha, a 500 coordenadas del sistema.
+    objetos = [_caja(p1, "persona", 0, -140, 220, 150), _caja(p2, "persona", 0, 140, 220, 150),
+               _caja(s, "sistema", 720, 0, 280, 150),
+               _caja(g, "externo", 1500, -190, 250, 120), _caja(o, "externo", 1500, 15, 250, 120), _caja(ea, "externo", 1500, 220, 250, 120)]
+    centro = 75
+    def rel(de, a, texto, tecnologia, y_de, y_a):
+        lineas = [texto, f"[{tecnologia}]"]
+        return _rel(de, a, texto, tecnologia) | {"arbol": "H", "etiq": etiqueta_tronco(y_a - y_de, lineas)}
+    conectores = [_rel(p1, s, "Crea y gestiona la sala", "HTTPS / WebSocket") | {"arbol": "H"},
+                  _rel(p2, s, "Edita y conversa con la IA", "HTTPS / WebSocket") | {"arbol": "H"},
+                  rel(s, g, "Pide respuestas", "HTTPS", centro, -130), rel(s, o, "Pide respuestas (opcional)", "HTTP", centro, 75),
+                  rel(s, ea, "Importa y exporta modelos", "XMI", centro, 280)]
+    m.diagrama("c4-contexto", "Diagrama de contexto del sistema", "Component", ruta, objetos, conectores)
 
 
 def diagrama_c4_contenedores(m):
@@ -606,17 +621,20 @@ def diagrama_c4_contenedores(m):
     rd = _c4(m, "c4k:redis", "contenedor", "Estado de salas", "Base de datos", "Capa de canales y orden de conexión (host)", ruta, "Redis 7")
     g = _c4(m, "c4k:gemini", "externo", "Google Gemini", "Sistema externo", "IA en la nube", ruta)
     o = _c4(m, "c4k:ollama", "externo", "Ollama", "Sistema externo", "IA local con modelo reentrenado", ruta)
-    objetos = [_caja(p, "persona", 100, 0, 200, 150),
-               ("c4k:limite", 0, 190, 1080, 600),
-               _caja(web, "contenedor", 40, 280, 270, 150), _caja(api, "contenedor", 440, 280, 300, 160),
+    objetos = [_caja(p, "persona", 75, 0, 200, 150),
+               ("c4k:limite", 0, 190, 1150, 600),
+               _caja(web, "contenedor", 40, 280, 270, 150), _caja(api, "contenedor", 530, 280, 300, 160),
                _caja(gen, "contenedor", 40, 570, 270, 150),
-               _caja(pg, "contenedor", 440, 600, 250, 150), _caja(rd, "contenedor", 770, 600, 250, 150),
-               _caja(g, "externo", 1200, 250, 250, 120), _caja(o, "externo", 1200, 440, 250, 120)]
-    conectores = [_rel(p, web, "Usa", "HTTPS"), _rel(web, api, "Edición y chat", "REST + WebSocket"),
-                  _rel(web, gen, "Genera backend", "HTTPS"), _rel(api, pg, "Lee y escribe", "SQL"),
-                  _rel(api, rd, "Presencia y roles", "RESP"), _rel(api, g, "Pide respuestas", "HTTPS"),
-                  _rel(api, o, "Pide respuestas (opcional)", "HTTP")]
-    m.diagrama("c4-contenedores", "Diagrama de contenedor", "Component", ruta, objetos, conectores, enlaces="paralelos")
+               _caja(pg, "contenedor", 530, 600, 250, 150), _caja(rd, "contenedor", 860, 600, 250, 150),
+               _caja(g, "externo", 1330, 215, 250, 120), _caja(o, "externo", 1330, 385, 250, 120)]
+    # Línea vertical entre elementos de arriba y abajo, horizontal entre los de al lado.
+    centro_api = 360
+    conectores = [_rel(p, web, "Usa", "HTTPS") | {"arbol": "V"}, _rel(web, api, "Edición y chat", "REST + WebSocket") | {"arbol": "H"},
+                  _rel(web, gen, "Genera backend", "HTTPS") | {"arbol": "V"}, _rel(api, pg, "Lee y escribe", "SQL") | {"arbol": "V"},
+                  _rel(api, rd, "Presencia", "RESP") | {"arbol": "V"},
+                  _rel(api, g, "Pide respuestas", "HTTPS") | {"arbol": "H", "etiq": etiqueta_tronco(275 - centro_api, ["Pide respuestas", "[HTTPS]"])},
+                  _rel(api, o, "Pide respuestas (opcional)", "HTTP") | {"arbol": "H", "etiq": etiqueta_tronco(445 - centro_api, ["Pide respuestas (opcional)", "[HTTP]"])}]
+    m.diagrama("c4-contenedores", "Diagrama de contenedor", "Component", ruta, objetos, conectores)
 
 
 def diagrama_c4_componentes(m):
@@ -632,18 +650,21 @@ def diagrama_c4_componentes(m):
     guard = _c4(m, "c4m:guard", "componente", "Guardia de cambios", "Componente", "Valida tamaño y cuenta lo que se eliminaría", ruta, "uml_api")
     provider = _c4(m, "c4m:provider", "componente", "Proveedores de IA", "Componente", "Interfaz con Gemini y Ollama (modelo reentrenado)", ruta, "uml_api")
     xmi = _c4(m, "c4m:xmi", "componente", "XMI y generador Flutter", "Componente", "Intercambio con Enterprise Architect y proyecto móvil", ruta, "uml_api")
-    objetos = [("c4m:limite", 0, 0, 1000, 470),
-               _caja(web, "contenedor", 330, -250, 270, 150),
-               _caja(canvas, "componente", 30, 50, 290, 150), _caja(chat, "componente", 350, 50, 290, 150), _caja(xmi, "componente", 670, 50, 290, 150),
-               _caja(act, "componente", 30, 290, 290, 140), _caja(guard, "componente", 350, 290, 290, 140), _caja(provider, "componente", 670, 290, 290, 140),
-               _caja(rd, "contenedor", -330, 70, 230, 110), _caja(pg, "contenedor", -330, 310, 230, 110),
-               _caja(prov, "externo", 1120, 310, 230, 110)]
-    conectores = [_rel(web, canvas, "Operaciones", "WebSocket"), _rel(web, chat, "Pedidos", "REST"),
-                  _rel(web, xmi, "Importa y exporta", "REST"), _rel(canvas, act, "Registra"),
-                  _rel(canvas, rd, "Roles"), _rel(act, pg, "Guarda"), _rel(chat, guard, "Valida"),
-                  _rel(chat, provider, "Pide"), _rel(provider, prov, "Pide respuestas", "HTTP"),
-                  _rel(chat, pg, "Guarda chats")]
-    m.diagrama("c4-componentes", "Diagrama de componentes (C4)", "Component", ruta, objetos, conectores, enlaces="paralelos")
+    # Cuatro columnas: la guardia y el XMI a la derecha del chat, PostgreSQL justo debajo del chat y Redis a la izquierda del
+    # relé. Así cada línea va en horizontal o vertical sin cruzar un componente.
+    objetos = [("c4m:limite", 0, 0, 1500, 470),
+               _caja(web, "contenedor", 540, -250, 270, 150),
+               _caja(canvas, "componente", 30, 50, 290, 150), _caja(chat, "componente", 410, 50, 290, 150),
+               _caja(guard, "componente", 790, 50, 290, 150), _caja(xmi, "componente", 1170, 50, 290, 150),
+               _caja(act, "componente", 30, 290, 290, 140), _caja(provider, "componente", 790, 290, 290, 140),
+               _caja(rd, "contenedor", -330, 70, 230, 110), _caja(pg, "contenedor", 410, 570, 290, 110),
+               _caja(prov, "externo", 1570, 305, 230, 110)]
+    conectores = [_rel(web, canvas, "Operaciones", "WebSocket") | {"arbol": "V"}, _rel(web, chat, "Pedidos", "REST") | {"arbol": "V"},
+                  _rel(web, xmi, "Importa y exporta", "REST") | {"arbol": "V"}, _rel(canvas, act, "Registra") | {"arbol": "V"},
+                  _rel(canvas, rd, "Roles") | {"arbol": "H"}, _rel(act, pg, "Guarda") | {"arbol": "V"},
+                  _rel(chat, guard, "Valida") | {"arbol": "H"}, _rel(chat, provider, "Pide") | {"arbol": "H"},
+                  _rel(provider, prov, "Pide respuestas", "HTTP") | {"arbol": "H"}, _rel(chat, pg, "Guarda chats") | {"arbol": "V"}]
+    m.diagrama("c4-componentes", "Diagrama de componentes (C4)", "Component", ruta, objetos, conectores)
 
 
 # ---- conjunto ----------------------------------------------------------------------------------------
@@ -656,8 +677,8 @@ def construir():
     for numero, _, _, codigos in CICLOS:
         acumulado += codigos
         diagrama_casos_uso(m, f"uc-ciclo-{numero}", f"Casos de uso del ciclo {numero}", codigos)
-    primer_parcial = [cu for _, codigos in CICLOS_PARCIAL1 for cu in codigos]
-    diagrama_casos_uso(m, "uc-ciclo-todo", "Modelo de casos de uso completo (ciclos 1 a 6)", primer_parcial + acumulado)
+    # Modelo de este parcial: los seis casos de uso nuevos y, en gris, los del primer parcial que reutilizan.
+    diagrama_casos_uso(m, "uc-ciclo-todo", "Modelo de casos de uso de este parcial (ciclos 4 a 6)", acumulado)
     diagrama_paquetes_identificados(m)
     diagrama_paquetes_y_cu(m)
     for i in range(len(PAQUETES)):
@@ -667,7 +688,8 @@ def construir():
         for cu in codigos:
             diagrama_comunicacion(m, cu)
     for numero, _, _, codigos in CICLOS:
-        diagrama_clases_analisis(m, numero, codigos)
+        for indice, (_, cus) in enumerate(grupos_por_control(codigos), 1):
+            diagrama_clases_analisis(m, f"{numero}-{indice}", cus)
     diagrama_codigo(m)
     diagrama_despliegue(m)
     diagrama_capas(m)

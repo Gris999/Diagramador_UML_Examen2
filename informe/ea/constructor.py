@@ -38,12 +38,14 @@ def vs(texto):
 
 
 CABECERA = r'''On Error Resume Next
-Dim r, raiz, pi, fso, dEl, dPk, dCn, dKeep, SALIDA, LOGF
+Dim r, raiz, pi, fso, dEl, dPk, dCn, dKeep, dArbol, dEtiq, SALIDA, LOGF
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set dEl = CreateObject("Scripting.Dictionary")
 Set dPk = CreateObject("Scripting.Dictionary")
 Set dCn = CreateObject("Scripting.Dictionary")
 Set dKeep = CreateObject("Scripting.Dictionary")
+Set dArbol = CreateObject("Scripting.Dictionary")
+Set dEtiq = CreateObject("Scripting.Dictionary")
 SALIDA = "C:\ea\out\"
 LOGF = "C:\ea\log.txt"
 
@@ -179,13 +181,14 @@ Sub Obj(d, clave, l, t, w, h, fondo, texto, borde)
   Chk "Obj " & clave
 End Sub
 
-Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq)
+Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq, arbol, etiq)
   On Error Resume Next
   Dim k, c, origen
   k = de & ">" & a & ">" & tipo & ">" & nombre & ">" & est
   If seq > 0 Then k = idd & ">" & k
   If dCn.Exists(k) Then
     dKeep(CStr(dCn(k))) = 1
+    If arbol <> "" Then dArbol(CStr(dCn(k))) = arbol
     Exit Sub
   End If
   Set origen = dEl(de)
@@ -206,6 +209,8 @@ Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq)
   origen.Connectors.Refresh
   dCn.Add k, c.ConnectorID
   dKeep(CStr(c.ConnectorID)) = 1
+  If arbol <> "" Then dArbol(CStr(c.ConnectorID)) = arbol
+  If etiq <> "" Then dEtiq(CStr(c.ConnectorID)) = etiq
   Chk "Con " & de & " " & a
 End Sub
 
@@ -264,6 +269,33 @@ Sub OcultarEnlaces(d)
   Chk "Ocultar"
 End Sub
 
+Sub Arboles(d)
+  On Error Resume Next
+  Dim i, dl, s, id, k
+  For i = 0 To d.DiagramLinks.Count - 1
+    Set dl = d.DiagramLinks.GetAt(i)
+    id = CStr(dl.ConnectorID)
+    If dArbol.Exists(id) Then
+      s = dl.Style
+      k = InStr(s, "Mode=")
+      If k > 0 Then s = Left(s, k + 4) & "3" & Mid(s, k + 6)
+      If InStr(s, "TREE=") > 0 Then
+        s = Left(s, InStr(s, "TREE=") - 1) & "TREE=" & dArbol(id) & ";"
+      Else
+        s = s & "TREE=" & dArbol(id) & ";"
+      End If
+      dl.Style = s
+      dl.Update
+      If dEtiq.Exists(id) Then
+        k = Split(dEtiq(id), ":")
+        dl.Geometry = "EDGE=2;$LLB=;LLT=;LMT=CX=" & k(0) & ":CY=" & k(1) & ":OX=" & k(2) & ":OY=" & k(3) & ":HDN=0:BLD=0:ITA=0:UND=0:CLR=-1:ALN=0:DIR=0:ROT=0;LMB=;LRT=;LRB=;IRHS=;ILHS=;"
+        dl.Update
+      End If
+    End If
+  Next
+  Chk "Arboles"
+End Sub
+
 Sub OcultarIncludes(d)
   On Error Resume Next
   Dim i, dl, k
@@ -299,6 +331,7 @@ Sub Fin(d, idd, modo)
     OcultarEnlaces d
   Else
     OcultarAjenos d
+    Arboles d
     If modo = 3 Then OcultarIncludes d
     If modo = 1 Then Paralelos d
   End If
@@ -361,7 +394,7 @@ def _estructura(modelo):
             salida.append(
                 f'Con {vs(d["id"])}, {vs(c["de"])}, {vs(c["a"])}, {vs(c.get("tipo", "Association"))}, '
                 f'{vs(c.get("nombre", ""))}, {vs(c.get("est", ""))}, {vs(c.get("cd", ""))}, {vs(c.get("ca", ""))}, '
-                f'{vs(c.get("dir", ""))}, {c.get("seq", 0)}')
+                f'{vs(c.get("dir", ""))}, {c.get("seq", 0)}, {vs(c.get("arbol", ""))}, {vs(c.get("etiq", ""))}')
         modo = {"": 0, "paralelos": 1, "ocultar": 2, "sin_include": 3}[d.get("enlaces", "")]
         salida.append(f'Fin dg, {vs(d["id"])}, {modo}')
     return salida
