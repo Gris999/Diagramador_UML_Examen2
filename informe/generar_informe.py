@@ -297,7 +297,7 @@ class Constructor:
         elif columnas >= 4:
             # Anchos según el contenido, para que columnas cortas como "ID" o "CU" no se partan letra por letra.
             pesos = [min(max(max(len(f[c]) if c < len(f) else 0 for f in filas), 8), 50) for c in range(columnas)]
-            minimos = [min(4.0, max(1.5, 0.27 * max((len(w) for f in filas if c < len(f) for w in f[c].split()), default=4)))
+            minimos = [min(2.7, max(1.5, 0.3 * max((len(w) for f in filas if c < len(f) for w in f[c].split()), default=4) + 0.45))
                        for c in range(columnas)]
             anchos = [max(m, ANCHO_UTIL_CM * p / sum(pesos)) for m, p in zip(minimos, pesos)]
             factor = ANCHO_UTIL_CM / sum(anchos)
@@ -519,6 +519,11 @@ class Constructor:
                 parrafo.append(lineas[i + 1].strip())
                 i += 1
             p = self.parrafo(" ".join(parrafo))
+            siguiente = i + 1
+            while siguiente < len(lineas) and not lineas[siguiente].strip():
+                siguiente += 1
+            if siguiente < len(lineas) and lineas[siguiente].startswith("|"):
+                p.paragraph_format.keep_with_next = True  # el párrafo que presenta una tabla no se queda solo al pie de la página
             texto_parrafo = " ".join(parrafo)
             if texto_parrafo.startswith("**") and texto_parrafo.endswith("**") or texto_parrafo.startswith("*Ciclo"):
                 p.paragraph_format.keep_with_next = True  # el rótulo no se separa de su diagrama o tabla
@@ -642,18 +647,19 @@ def main():
     # Parte 3: manual
     b.markdown(leer(contenido / "03-manual.md"))
 
-    # Bibliografía
+    # Conclusión y bibliografía
+    b.markdown(leer(contenido / "03b-conclusion.md"))
     b.markdown(leer(contenido / "04-bibliografia.md"))
 
     # Anexos
-    b.titulo("5. Anexos", 1, salto_pagina=True)
+    b.titulo("6. Anexos", 1, salto_pagina=True)
     anexos = [
         ("Anexo A. IA local con Ollama (instalación, activación y evaluación)", DOCS / "IA_LOCAL.md", "A"),
         ("Anexo B. Reentrenamiento del modelo de IA", DOCS / "REENTRENAMIENTO_IA.md", "B"),
         ("Anexo C. Despliegue en AWS", DOCS / "DESPLIEGUE.md", "C"),
     ]
     for titulo_anexo, ruta, letra in anexos:
-        b.markdown(leer(ruta), prefijo=f"5.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
+        b.markdown(leer(ruta), prefijo=f"6.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
 
     BUILD.mkdir(exist_ok=True)
     salida = BUILD / "Informe.docx"

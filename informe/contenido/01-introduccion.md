@@ -12,13 +12,13 @@ Aquí no se repite nada de eso: el registro del proceso (PUDS) **sigue desde el 
 
 ## 1.2 Qué se agrega en este parcial
 
-Después del primer parcial el docente pidió que la inteligencia artificial deje de ser una herramienta aparte y pase a ser **un integrante más de la sala**. De ahí salen los tres ciclos nuevos:
+Después del primer parcial el docente pidió que la inteligencia artificial deje de ser una herramienta aparte y pase a ser **un integrante más de la sala**: un desarrollador que no hace nada hasta que se lo piden, que sabe lo que hizo cada persona y cuyas ideas todos pueden ver. De ahí salen los tres ciclos nuevos, con seis casos de uso:
 
-- **Ciclo 4: identidad, actividad y chat con la IA.** Cada persona tiene un nombre visible y un identificador anónimo; la sala tiene un registro de actividad que todos ven; y cada persona conversa con la IA en un chat privado (CU-14 a CU-16).
-- **Ciclo 5: la IA actúa a pedido y la sesión continúa.** La IA modifica el diagrama solo cuando se lo piden, revisa el modelo y publica ideas que cualquiera puede aplicar; y la persona puede retomar su sesión con el diagrama, la actividad y su chat (CU-17 a CU-20).
-- **Ciclo 6: vista móvil, IA local y reentrenamiento.** Una vista de solo lectura para seguir la sala desde el celular, un proveedor de IA configurable y un modelo local, reentrenado con LoRA, que funciona sin internet (CU-21 a CU-23).
+- **Ciclo 4: identidad, actividad y consulta a la IA.** Cada persona tiene un nombre visible y un identificador anónimo; la sala tiene un registro de actividad que todos ven (CU-14); y cualquier persona puede preguntarle a la IA sobre el diagrama o sobre lo que hizo el equipo (CU-15).
+- **Ciclo 5: la IA actúa a pedido y la sesión continúa.** La IA modifica el diagrama solo cuando se lo piden (CU-16), revisa el modelo y publica ideas que cualquiera puede aplicar (CU-17); y la persona puede retomar su sesión con el diagrama, la actividad y su conversación (CU-18).
+- **Ciclo 6: seguimiento desde el celular.** Una vista de solo lectura para seguir la sala en vivo (CU-19).
 
-Además, este parcial agrega la justificación de las tecnologías (capítulo 0), el modelo C4 en el diseño y el despliegue en AWS con dominio y HTTPS (Anexo C).
+Además se agregan, como requisitos adicionales y no como casos de uso, una **IA local reentrenada con LoRA** que funciona sin internet (extra valorable que pidió el docente), el control del costo y de la privacidad de la IA y el despliegue en AWS con dominio y HTTPS (sección 2.1.6 y Anexos A a C). También se agregan la justificación de las tecnologías (capítulo 0) y el modelo C4 en el diseño.
 
 ## 1.3 Capítulo 10: Lenguaje de modelado de software (modelo C4)
 
