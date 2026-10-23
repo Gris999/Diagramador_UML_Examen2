@@ -166,11 +166,14 @@ Function Dia(ruta, nombre, tipo)
   Set Dia = d
 End Function
 
-Sub Obj(d, clave, l, t, w, h)
+Sub Obj(d, clave, l, t, w, h, fondo, texto, borde)
   On Error Resume Next
   Dim o
   Set o = d.DiagramObjects.AddNew("l=" & l & ";r=" & (l + w) & ";t=" & (-t) & ";b=" & (-(t + h)) & ";", "")
   o.ElementID = dEl(clave).ElementID
+  If fondo >= 0 Then o.BackgroundColor = fondo
+  If texto >= 0 Then o.FontColor = texto
+  If borde >= 0 Then o.BorderColor = borde
   o.Update
   Chk "Obj " & clave
 End Sub
@@ -278,6 +281,14 @@ Log "inicio"
 '''
 
 
+def _color(hexa):
+    """Color de EA (entero B*65536 + G*256 + R) a partir de '#RRGGBB'; -1 deja el color por defecto."""
+    if not hexa:
+        return -1
+    r, g, b = int(hexa[1:3], 16), int(hexa[3:5], 16), int(hexa[5:7], 16)
+    return r + g * 256 + b * 65536
+
+
 def _estructura(modelo):
     """Líneas VBScript que crean elementos, diagramas y conectores de `modelo`."""
     elementos = modelo["elementos"]
@@ -304,7 +315,8 @@ def _estructura(modelo):
         salida.append(f'Log "diagrama {d["id"]}"')
         salida.append(f'Set dg = Dia({vs(d["ruta"])}, {vs(d["nombre"])}, {vs(d["tipo"])})')
         for o in d["objetos"]:
-            salida.append(f'Obj dg, {vs(o["k"])}, {o["x"]}, {o["y"]}, {o["w"]}, {o["h"]}')
+            salida.append(f'Obj dg, {vs(o["k"])}, {o["x"]}, {o["y"]}, {o["w"]}, {o["h"]}, '
+                          f'{_color(o.get("fondo"))}, {_color(o.get("texto"))}, {_color(o.get("borde"))}')
         for c in d["conectores"]:
             salida.append(
                 f'Con {vs(d["id"])}, {vs(c["de"])}, {vs(c["a"])}, {vs(c.get("tipo", "Association"))}, '

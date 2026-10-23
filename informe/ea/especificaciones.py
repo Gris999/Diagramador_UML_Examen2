@@ -60,7 +60,7 @@ class Modelo:
             enlaces = "" if tipo == "Sequence" else "paralelos"
         self.diagramas.append(dict(
             id=id_, nombre=nombre, tipo=tipo, ruta=ruta, enlaces=enlaces,
-            objetos=[dict(k=k, x=x + dx, y=y + dy, w=w, h=h) for k, x, y, w, h in objetos],
+            objetos=[dict(k=o[0], x=o[1] + dx, y=o[2] + dy, w=o[3], h=o[4], **(o[5] if len(o) > 5 else {})) for o in objetos],
             conectores=conectores))
 
 
@@ -472,6 +472,129 @@ def diagrama_subsistemas(m):
     m.diagrama("subsistemas", "Diagrama de subsistemas", "Package", ruta, objetos, conectores)
 
 
+def diagrama_flujo_despliegue(m):
+    """Flujo de tráfico del Anexo C (docs/DESPLIEGUE.md)."""
+    ruta = "Anexo C|Flujo de despliegue"
+    m.elem("fl:U", "Actor", "Usuarios", ruta)
+    m.elem("fl:N", "Node", "nginx + Let's Encrypt", ruta, est="execution environment")
+    m.elem("fl:F", "Component", "angular-app :4200", ruta)
+    m.elem("fl:D", "Component", "django :8000", ruta)
+    m.elem("fl:S", "Component", "spring-backend :7001", ruta)
+    m.elem("fl:R", "Component", "redis", ruta, est="database")
+    m.elem("fl:P", "Component", "postgres", ruta, est="database")
+    m.elem("fl:T", "Component", "Quick Tunnel de Cloudflare\n(respaldo, nginx :8080)", ruta)
+    nodos = {"fl:U": (90, 110), "fl:N": (200, 90), "fl:F": (190, 60), "fl:D": (170, 60), "fl:S": (200, 60),
+             "fl:R": (150, 60), "fl:P": (150, 60), "fl:T": (230, 80)}
+    aristas = [("fl:U", "fl:N"), ("fl:N", "fl:F"), ("fl:N", "fl:D"), ("fl:N", "fl:S"), ("fl:D", "fl:R"), ("fl:D", "fl:P"), ("fl:T", "fl:N")]
+    pos, _ = layout.dot(nodos, aristas, "LR", 40, 110)
+    conectores = [dict(de="fl:U", a="fl:N", nombre="HTTPS 443"), dict(de="fl:N", a="fl:F", nombre="/"),
+                  dict(de="fl:N", a="fl:D", nombre="/api  /ws"), dict(de="fl:N", a="fl:S", nombre="/generate"),
+                  dict(de="fl:D", a="fl:R"), dict(de="fl:D", a="fl:P"),
+                  dict(de="fl:T", a="fl:N", tipo="Dependency")]
+    m.diagrama("despliegue-flujo", "Flujo de tráfico del despliegue", "Deployment", ruta,
+               [(k, *pos[k], *nodos[k]) for k in nodos], conectores)
+
+
+# ---- C4 ----------------------------------------------------------------------------------------------
+# EA no trae una tecnología C4: se usan elementos UML (actor, componente, límite) con los colores del modelo C4.
+C4_COLORES = {
+    "persona": dict(fondo="#08427B", texto="#000000", borde="#073B6F"),
+    "sistema": dict(fondo="#1168BD", texto="#FFFFFF", borde="#0B4884"),
+    "externo": dict(fondo="#999999", texto="#FFFFFF", borde="#6B6B6B"),
+    "contenedor": dict(fondo="#438DD5", texto="#FFFFFF", borde="#3C7FC0"),
+    "componente": dict(fondo="#85BBF0", texto="#000000", borde="#78A8D8"),
+}
+
+
+def _c4(m, clave, rol, nombre, tipo, descripcion, ruta, tecnologia=""):
+    """Elemento C4 con el texto en tres líneas: nombre, [tipo: tecnología] y descripción."""
+    corchete = f"[{tipo}: {tecnologia}]" if tecnologia else f"[{tipo}]"
+    texto = f"{nombre}\n{corchete}\n\n{descripcion}" if descripcion else f"{nombre}\n{corchete}"
+    if rol == "persona":
+        m.elem(clave, "Actor", texto, ruta)
+    else:
+        m.elem(clave, "Component", texto, ruta, est="database" if tipo.startswith("Base de datos") else "")
+    return clave
+
+
+def _caja(clave, rol, x, y, w=240, h=130):
+    return (clave, x, y, w, h, C4_COLORES[rol])
+
+
+def _rel(de, a, texto, tecnologia=""):
+    nombre = f"{texto}\n[{tecnologia}]" if tecnologia else texto
+    return dict(de=de, a=a, tipo="Association", nombre=nombre, dir="Source -> Destination")
+
+
+def diagrama_c4_contexto(m):
+    ruta = "Diseño C4|Contexto"
+    p1 = _c4(m, "c4c:participante", "persona", "Participante", "Persona", "Diseña diagramas de clases UML en equipo", ruta)
+    p2 = _c4(m, "c4c:observador", "persona", "Observador", "Persona", "Sigue la sala desde el celular, en solo lectura", ruta)
+    s = _c4(m, "c4c:sistema", "sistema", "Plataforma CASE colaborativa", "Sistema de software",
+            "Modelado UML 2.5, IA como integrante de la sala, generación de código", ruta)
+    g = _c4(m, "c4c:gemini", "externo", "Google Gemini", "Sistema externo", "IA en la nube", ruta)
+    o = _c4(m, "c4c:ollama", "externo", "Ollama + modelo reentrenado", "Sistema externo", "IA local, sin internet", ruta)
+    ea = _c4(m, "c4c:ea", "externo", "Enterprise Architect", "Sistema externo", "Herramienta CASE (intercambio XMI)", ruta)
+    objetos = [_caja(p1, "persona", 0, 0, 200, 150), _caja(p2, "persona", 0, 260, 200, 150),
+               _caja(s, "sistema", 420, 130, 280, 150),
+               _caja(g, "externo", 920, 0, 250, 120), _caja(o, "externo", 920, 190, 250, 120), _caja(ea, "externo", 920, 380, 250, 120)]
+    conectores = [_rel(p1, s, "Edita y conversa con la IA", "HTTPS / WebSocket"), _rel(p2, s, "Sigue en vivo", "HTTPS"),
+                  _rel(s, g, "Pide respuestas", "HTTPS"), _rel(s, o, "Pide respuestas (opcional)", "HTTP"),
+                  _rel(s, ea, "Importa y exporta modelos", "XMI")]
+    m.diagrama("c4-contexto", "Diagrama de contexto del sistema", "Component", ruta, objetos, conectores, enlaces="paralelos")
+
+
+def diagrama_c4_contenedores(m):
+    ruta = "Diseño C4|Contenedores"
+    p = _c4(m, "c4k:p", "persona", "Participante", "Persona", "Edita el diagrama", ruta)
+    m.elem("c4k:limite", "Boundary", "Plataforma CASE colaborativa", ruta)
+    web = _c4(m, "c4k:web", "contenedor", "Aplicación web", "Contenedor", "Editor, chat con la IA, actividad, vista móvil", ruta, "Angular 20 (SSR) + JointJS")
+    api = _c4(m, "c4k:api", "contenedor", "API y tiempo real", "Contenedor", "REST, WebSocket, actividad, proveedores de IA, XMI, generador Flutter", ruta, "Django 5 + Channels + Daphne")
+    gen = _c4(m, "c4k:gen", "contenedor", "Generador de backend", "Contenedor", "Proyecto Spring + PostgreSQL y colección Postman", ruta, "Spring Boot 3.5 (Java 21)")
+    pg = _c4(m, "c4k:pg", "contenedor", "Base de datos", "Base de datos", "Respaldo, participantes, actividad y chats", ruta, "PostgreSQL 17")
+    rd = _c4(m, "c4k:redis", "contenedor", "Estado de salas", "Base de datos", "Capa de canales y orden de conexión (host)", ruta, "Redis 7")
+    g = _c4(m, "c4k:gemini", "externo", "Google Gemini", "Sistema externo", "IA en la nube", ruta)
+    o = _c4(m, "c4k:ollama", "externo", "Ollama", "Sistema externo", "IA local con modelo reentrenado", ruta)
+    objetos = [_caja(p, "persona", 100, 0, 200, 150),
+               ("c4k:limite", 0, 190, 1080, 600),
+               _caja(web, "contenedor", 40, 280, 270, 150), _caja(api, "contenedor", 440, 280, 300, 160),
+               _caja(gen, "contenedor", 40, 570, 270, 150),
+               _caja(pg, "contenedor", 440, 600, 250, 150), _caja(rd, "contenedor", 770, 600, 250, 150),
+               _caja(g, "externo", 1200, 250, 250, 120), _caja(o, "externo", 1200, 440, 250, 120)]
+    conectores = [_rel(p, web, "Usa", "HTTPS"), _rel(web, api, "Edición y chat", "REST + WebSocket"),
+                  _rel(web, gen, "Genera backend", "HTTPS"), _rel(api, pg, "Lee y escribe", "SQL"),
+                  _rel(api, rd, "Presencia y roles", "RESP"), _rel(api, g, "Pide respuestas", "HTTPS"),
+                  _rel(api, o, "Pide respuestas (opcional)", "HTTP")]
+    m.diagrama("c4-contenedores", "Diagrama de contenedor", "Component", ruta, objetos, conectores, enlaces="paralelos")
+
+
+def diagrama_c4_componentes(m):
+    ruta = "Diseño C4|Componentes"
+    web = _c4(m, "c4m:web", "contenedor", "Aplicación web", "Contenedor", "Editor y paneles", ruta, "Angular")
+    pg = _c4(m, "c4m:pg", "contenedor", "PostgreSQL", "Base de datos", "", ruta)
+    rd = _c4(m, "c4m:redis", "contenedor", "Redis", "Base de datos", "", ruta)
+    prov = _c4(m, "c4m:prov", "externo", "Gemini / Ollama", "Sistema externo", "Proveedores de IA", ruta)
+    m.elem("c4m:limite", "Boundary", "API y tiempo real (Django)", ruta)
+    canvas = _c4(m, "c4m:canvas", "componente", "CanvasConsumer", "Componente", "Relé de operaciones, presencia, roles y observadores", ruta, "Channels")
+    act = _c4(m, "c4m:act", "componente", "Actividad e identidad", "Componente", "Registra quién hizo qué y valida el nombre", ruta, "collab")
+    chat = _c4(m, "c4m:chat", "componente", "Chat con la IA", "Componente", "Preguntar, pedir cambio y revisar; topes de uso; reserva de ideas", ruta, "DRF")
+    guard = _c4(m, "c4m:guard", "componente", "Guardia de cambios", "Componente", "Valida tamaño y cuenta lo que se eliminaría", ruta, "uml_api")
+    provider = _c4(m, "c4m:provider", "componente", "Proveedores de IA", "Componente", "Interfaz con Gemini y Ollama (modelo reentrenado)", ruta, "uml_api")
+    xmi = _c4(m, "c4m:xmi", "componente", "XMI y generador Flutter", "Componente", "Intercambio con Enterprise Architect y proyecto móvil", ruta, "uml_api")
+    objetos = [("c4m:limite", 0, 0, 1000, 470),
+               _caja(web, "contenedor", 330, -250, 270, 150),
+               _caja(canvas, "componente", 30, 50, 290, 150), _caja(chat, "componente", 350, 50, 290, 150), _caja(xmi, "componente", 670, 50, 290, 150),
+               _caja(act, "componente", 30, 290, 290, 140), _caja(guard, "componente", 350, 290, 290, 140), _caja(provider, "componente", 670, 290, 290, 140),
+               _caja(rd, "contenedor", -330, 70, 230, 110), _caja(pg, "contenedor", -330, 310, 230, 110),
+               _caja(prov, "externo", 1120, 310, 230, 110)]
+    conectores = [_rel(web, canvas, "Operaciones", "WebSocket"), _rel(web, chat, "Pedidos", "REST"),
+                  _rel(web, xmi, "Importa y exporta", "REST"), _rel(canvas, act, "Registra"),
+                  _rel(canvas, rd, "Roles"), _rel(act, pg, "Guarda"), _rel(chat, guard, "Valida"),
+                  _rel(chat, provider, "Pide"), _rel(provider, prov, "Pide respuestas", "HTTP"),
+                  _rel(chat, pg, "Guarda chats")]
+    m.diagrama("c4-componentes", "Diagrama de componentes (C4)", "Component", ruta, objetos, conectores, enlaces="paralelos")
+
+
 # ---- conjunto ----------------------------------------------------------------------------------------
 def construir():
     m = Modelo()
@@ -502,6 +625,10 @@ def construir():
             diagrama_secuencia(m, cu)
     diagrama_componentes(m)
     diagrama_subsistemas(m)
+    diagrama_c4_contexto(m)
+    diagrama_c4_contenedores(m)
+    diagrama_c4_componentes(m)
+    diagrama_flujo_despliegue(m)
     return dict(elementos=m.elementos, diagramas=m.diagramas)
 
 
