@@ -7,7 +7,7 @@ Todos los diagramas siguen la notación UML 2.5.1.
 import textwrap
 
 from parte2_datos import (ACTORES, ACTORES_SECUNDARIOS, CICLOS, CICLOS_PARCIAL1, CUS, CUS_PARCIAL1, DEPENDENCIAS_PAQUETES,
-                          NOMBRE_ACTOR, PAQUETE_LIENZO, PAQUETES, nombre_cu)
+                          NOMBRE_ACTOR, PAQUETE_LIENZO, PAQUETES, REQUISITOS_ADICIONALES, nombre_cu)
 
 ESTILO = """skinparam shadowing false
 skinparam defaultFontName Arial
@@ -117,7 +117,7 @@ def _roles(cu):
     for indice, entidad in enumerate(datos["entidades"], 1):
         roles[f"E{indice}"] = ("entity", entidad)
     if datos["externo"]:
-        roles["EX"] = ("participant" if True else "actor", datos["externo"])
+        roles["EX"] = ("boundary", datos["externo"])  # interfaz con un sistema externo (no es un actor)
     return roles
 
 
@@ -129,10 +129,7 @@ def diagrama_comunicacion(cu):
     roles = _roles(cu)
     lineas = ["top to bottom direction", "skinparam nodesep 40", "skinparam ranksep 50"]
     for clave, (tipo, etiqueta) in roles.items():
-        if clave == "EX":
-            lineas.append(f'rectangle "{etiqueta}" as EX')
-        else:
-            lineas.append(f'{tipo} "{etiqueta}" as {clave}')
+        lineas.append(f'{tipo} "{etiqueta}" as {clave}')
     for numero, (origen, destino, texto, retorno) in enumerate(_mensajes(cu), 1):
         flecha = "..>" if retorno else "-->"
         lineas.append(f"{origen} {flecha} {destino} : {numero}: {texto}")
@@ -143,21 +140,30 @@ def diagrama_secuencia(cu):
     roles = _roles(cu)
     lineas = []
     for clave, (tipo, etiqueta) in roles.items():
-        palabra = "participant" if clave == "EX" else tipo
-        lineas.append(f'{palabra} "{etiqueta}" as {clave}')
+        lineas.append(f'{tipo} "{etiqueta}" as {clave}')
     for origen, destino, texto, retorno in _mensajes(cu):
         flecha = "-->" if retorno else "->"
         lineas.append(f"{origen} {flecha} {destino} : {texto}")
     return uml("\n".join(lineas), id_ea=f"sec-{cu.replace('-', '')}")
 
 
+def grupos_por_control(codigos):
+    """Agrupa los casos de uso de un ciclo por su clase de control: [(control, [casos de uso])]. Cada grupo tiene su propio
+    diagrama de clases, para que las líneas de dos controles no compartan el mismo tramo."""
+    grupos = {}
+    for cu in codigos:
+        grupos.setdefault(CUS[cu]["control"], []).append(cu)
+    return list(grupos.items())
+
+
 def clases_analisis(codigos):
     """Clases de interfaz, control y entidad de los casos de uso de un ciclo, con sus operaciones.
 
-    Devuelve (interfaces, controles, entidades, relaciones): los tres primeros son {nombre: {operaciones}}
-    y `relaciones` un conjunto de (origen, destino) por nombre. Lo usan el diagrama PlantUML y el modelo de EA.
+    Devuelve (interfaces, controles, entidades, relaciones, externas): los cuatro primeros {nombre: {operaciones}}
+    salvo `relaciones`, un conjunto de (origen, destino) por nombre; `externas` son las interfaces con sistemas
+    externos (el servicio de IA). Lo usan el diagrama PlantUML y el modelo de EA.
     """
-    interfaces, controles, entidades, relaciones = {}, {}, {}, set()
+    interfaces, controles, entidades, externas, relaciones = {}, {}, {}, {}, set()
     for cu in codigos:
         datos = CUS[cu]
         roles = _roles(cu)
@@ -173,18 +179,22 @@ def clases_analisis(codigos):
                 interfaces[iu].add(operacion)
             elif destino == "CT" and origen == "IU":
                 controles[ct].add(operacion)
+            elif destino == "EX":
+                nombre = roles["EX"][1]
+                externas.setdefault(nombre, set()).add(operacion)
+                relaciones.add((ct, nombre))
             elif destino.startswith("E"):
                 nombre = roles[destino][1]
                 entidades.setdefault(nombre, set()).add(operacion)
                 relaciones.add((ct, nombre))
-        for _, nombre in [(k, v[1]) for k, v in roles.items() if k.startswith("E")]:
+        for _, nombre in [(k, v[1]) for k, v in roles.items() if k.startswith("E") and k != "EX"]:
             entidades.setdefault(nombre, set())
-    return interfaces, controles, entidades, relaciones
+    return interfaces, controles, entidades, relaciones, externas
 
 
 def diagrama_clases_analisis(codigos, id_ea=None):
     """Clases de interfaz, control y entidad de los casos de uso de un ciclo, con sus operaciones."""
-    interfaces, controles, entidades, relaciones = clases_analisis(codigos)
+    interfaces, controles, entidades, relaciones, externas = clases_analisis(codigos)
     alias = {}
 
     def declarar(nombre, estereotipo, operaciones, indice):
@@ -200,6 +210,8 @@ def diagrama_clases_analisis(codigos, id_ea=None):
         lineas.append(declarar(nombre, "control", ops, indice))
     for indice, (nombre, ops) in enumerate(entidades.items(), 1):
         lineas.append(declarar(nombre, "entidad", ops, indice))
+    for indice, (nombre, ops) in enumerate(externas.items(), 1):
+        lineas.append(declarar(nombre, "interfaz", ops, indice + 50))
     for origen, destino in sorted(relaciones):
         lineas.append(f"{alias[origen]} --> {alias[destino]}")
     return uml("\n".join(lineas), id_ea=id_ea)
@@ -260,14 +272,14 @@ def diagrama_dependencias_paquetes():
 # ---- diseño: C4, despliegue, capas, datos, componentes ----------------------------------------
 C4_CONTEXTO = """!include <C4/C4_Context>
 LAYOUT_WITH_LEGEND()
-Person(participante, "Participante", "Diseña diagramas de clases UML en equipo")
-Person(observador, "Observador", "Sigue la sala desde el celular, en solo lectura")
+Person(disenador, "Diseñador", "Crea la sala y expulsa a quien haga falta")
+Person(colaborador, "Colaborador", "Diseña diagramas de clases UML en equipo")
 System(sistema, "Plataforma CASE colaborativa", "Modelado UML 2.5, IA como integrante de la sala, generación de código")
 System_Ext(gemini, "Google Gemini", "IA en la nube")
 System_Ext(ollama, "Ollama + modelo reentrenado", "IA local, sin internet")
 System_Ext(ea, "Enterprise Architect", "Herramienta CASE (intercambio XMI)")
-Rel(participante, sistema, "Edita y conversa con la IA", "HTTPS / WebSocket")
-Rel(observador, sistema, "Sigue en vivo", "HTTPS")
+Rel(disenador, sistema, "Crea y gestiona la sala", "HTTPS / WebSocket")
+Rel(colaborador, sistema, "Edita y conversa con la IA", "HTTPS / WebSocket")
 Rel(sistema, gemini, "Pide respuestas", "HTTPS")
 Rel(sistema, ollama, "Pide respuestas (opcional)", "HTTP")
 Rel(sistema, ea, "Importa y exporta modelos", "XMI")
@@ -275,7 +287,7 @@ Rel(sistema, ea, "Importa y exporta modelos", "XMI")
 
 C4_CONTENEDORES = """!include <C4/C4_Container>
 LAYOUT_WITH_LEGEND()
-Person(p, "Participante", "Edita el diagrama")
+Person(p, "Colaborador", "Edita el diagrama")
 System_Boundary(s, "Plataforma CASE colaborativa") {
   Container(web, "Aplicación web", "Angular 20 (SSR) + JointJS", "Editor, chat con la IA, actividad, vista móvil")
   Container(api, "API y tiempo real", "Django 5 + Channels + Daphne", "REST, WebSocket, registro de actividad, proveedores de IA, XMI, generador Flutter")
@@ -639,31 +651,41 @@ def parte_requisitos():
           "Este documento es la **continuación del primer parcial**, donde se registraron los ciclos de vida 1 a 3 "
           "(CU-01 a CU-13: salas, modelado, colaboración, entrada por texto, imagen y voz, intercambio XMI y generación de "
           "SQL, Spring Boot y Flutter). Aquí solo se registra lo nuevo, a partir del **ciclo de vida 4**, que incorpora lo que "
-          "pidió el docente después del primer parcial: la inteligencia artificial como integrante de la sala, la identidad "
-          "y la actividad de cada persona, el seguimiento desde el celular y la IA local reentrenada. Los cinco flujos de "
-          "trabajo (requisitos, análisis, diseño, implementación y pruebas) se aplican a los casos de uso CU-14 a CU-23, en "
+          "pidió el docente después del primer parcial: la inteligencia artificial como un integrante más de la sala, que "
+          "conoce el diagrama y lo que hizo cada persona; la identidad y la actividad de cada integrante; la persistencia de "
+          "las sesiones; el seguimiento desde el celular y, como extra valorable, una IA local reentrenada. Los cinco flujos de "
+          "trabajo (requisitos, análisis, diseño, implementación y pruebas) se aplican a los casos de uso CU-14 a CU-19, en "
           "tres ciclos. La etapa de despliegue se documenta en el Anexo C. Todos los diagramas siguen la notación UML 2.5.1 "
           "y están hechos en Enterprise Architect.\n",
           "## 2.1 Captura de requisitos\n",
           "**Visión de esta etapa.** Cuando varias personas diseñan a la vez se pierde la visión de quién cambió qué, y la "
           "inteligencia artificial suele vivir fuera del equipo, sin conocer el diagrama ni lo que hizo cada integrante. "
-          "Después del primer parcial se pidió que la IA sea un integrante más de la sala.\n",
+          "Después del primer parcial se pidió que la IA sea un integrante más de la sala: un desarrollador que no hace nada "
+          "hasta que se lo piden, pero que sabe lo que pasa y cuyas ideas todos pueden ver.\n",
           "**Objetivo general.** Incorporar a la plataforma CASE colaborativa la inteligencia artificial como integrante de la "
-          "sala, con identidad y actividad visibles para cada persona, seguimiento desde el celular y una opción de IA local "
-          "reentrenada.\n",
+          "sala, con identidad y actividad visibles para cada persona, sesiones que continúan y seguimiento desde el celular.\n",
           "**Objetivos específicos.**\n",
           "- Dar a cada persona un nombre visible y un identificador anónimo, y mostrar a todos un registro de actividad de la sala.",
-          "- Hacer que la IA sea un integrante: no actúa hasta que se le pide, conoce lo que hizo cada persona, cada persona tiene "
-          "su propio chat y sus ideas son visibles y aplicables por cualquiera.",
+          "- Hacer que la IA sea un integrante: no actúa hasta que se le pide, conoce lo que hizo cada persona y sus ideas son "
+          "visibles y aplicables por cualquiera.",
           "- Permitir retomar una sesión anterior y seguir la sala en vivo, solo lectura, desde el celular.",
           "- Ofrecer una IA local que funcione sin internet, reentrenada con LoRA, con la evidencia de cómo se entrenó.\n",
           "**Alcance.** Incluye lo anterior y el despliegue en AWS con HTTPS. No incluye cuentas de usuario con inicio de "
           "sesión (el código de la sala es la llave de acceso) ni edición desde la vista móvil.\n",
           "### 2.1.1 Actores\n",
-          "A1 y A2 son los actores del primer parcial; A3 a A6 son nuevos.\n"]
+          "Los actores son los mismos del primer parcial: A1 Diseñador y A2 Colaborador. No se agregaron actores nuevos.\n"]
     for c, n, d in ACTORES:
         md += [f"**{c}: {n}**\n", f"{d}\n"]
-    md += ["### 2.1.2 Casos de uso\n",
+    md += ["**Quién no es un actor.** Siguiendo el Proceso Unificado, un actor es un rol de quien interactúa con el sistema "
+           "desde fuera. Por eso no se modelan como actores: la **IA**, porque aunque se muestra como un integrante más de la sala "
+           "es una función del propio sistema y solo actúa cuando A1 o A2 se lo piden; el **servicio de IA** (Gemini u Ollama), "
+           "porque es una pieza de la arquitectura que se ve en el diagrama de contexto C4; el **administrador** que elige el "
+           "proveedor de IA, porque es una variable de configuración del servidor y no una función que el sistema ofrezca; y el "
+           "**observador del celular**, porque son las mismas personas A1 y A2 usando la vista de solo lectura.\n",
+           "### 2.1.2 Casos de uso\n",
+           "Cada caso de uso es un objetivo completo de un actor, con un resultado que se puede observar. No se dividieron en "
+           "pasos: por ejemplo, identificarse y ver la actividad es un solo caso de uso, y la revisión de la IA incluye aplicar sus "
+           "ideas. Lo que no lo inicia un actor (la IA local, la privacidad, el costo) son requisitos adicionales (sección 2.1.6).\n",
            "Casos de uso nuevos (ciclos 4 a 6):\n"]
     for numero, _, _, codigos in CICLOS:
         for cu in codigos:
@@ -675,8 +697,8 @@ def parte_requisitos():
     md.append("")
     md += ["### 2.1.3 Priorizar casos de uso\n",
            "Los casos de uso nuevos se agruparon en tres ciclos de vida que continúan la numeración del primer parcial: "
-           "primero los que dan identidad y contexto a la IA, luego las acciones de la IA y la continuidad de la sesión y, "
-           "al final, la vista móvil y la IA local.\n"]
+           "primero los que dan identidad y contexto a la IA y la primera consulta, luego los cambios y la revisión de la IA y la "
+           "continuidad de la sesión y, al final, la vista móvil.\n"]
     prioridad = {"Alta": "Crítica", "Media": "Normal", "Baja": "Normal"}
     riesgo = {"Alta": "Alto", "Media": "Medio", "Baja": "Bajo"}
     for numero, nombre, iteraciones, codigos in CICLOS:
@@ -691,13 +713,18 @@ def parte_requisitos():
         for cu in codigos:
             md += [f"**{CUS[cu]['nombre']}.**\n", diagrama_casos_uso([cu], id_ea=f"uc-{cu.replace('-', '')}"), tabla_caso_uso(cu)]
     md += ["### 2.1.5 Estructurar el modelo de caso de uso\n",
-           "En los diagramas, los casos de uso en gris son los del primer parcial que los nuevos reutilizan.\n"]
-    todos_primer_parcial = [cu for _, codigos in CICLOS_PARCIAL1 for cu in codigos]
+           "En los diagramas, los casos de uso en gris son los del primer parcial que los nuevos reutilizan con <<include>>; "
+           "el Diseñador (A1) es un Colaborador (A2) con permisos adicionales, por eso se une con una generalización.\n"]
     acumulado = []
     for numero, nombre, iteraciones, codigos in CICLOS:
         acumulado += codigos
         md += [f"#### Ciclo de vida #{numero}\n", diagrama_casos_uso(codigos, id_ea=f"uc-ciclo-{numero}")]
-    md += ["#### Modelo completo (ciclos 1 a 6)\n", diagrama_casos_uso(todos_primer_parcial + acumulado, id_ea="uc-ciclo-todo")]
+    md += ["#### Modelo de este parcial (ciclos 4 a 6)\n", diagrama_casos_uso(acumulado, id_ea="uc-ciclo-todo")]
+    md += ["### 2.1.6 Requisitos adicionales\n",
+           "Son los requisitos que no los inicia un actor y por eso no son casos de uso, pero condicionan el diseño.\n",
+           "| ID | Requisito | Descripción | Verificación |", "|---|---|---|---|"]
+    md += [f"| {i} | {n} | {d} | {v} |" for i, n, d, v in REQUISITOS_ADICIONALES]
+    md.append("")
     return "\n".join(md)
 
 
@@ -706,8 +733,8 @@ def parte_analisis():
           "### 2.2.1 Análisis de arquitectura\n",
           "#### 2.2.1.1 Identificar paquetes\n",
           "El primer parcial identificó cinco paquetes de análisis (Gestión de lienzo, Colaboración, Asistencia inteligente, "
-           "Entrada multimodal y Exportación e integración). Los casos de uso nuevos se agruparon en tres: uno nuevo "
-           "(Identidad y actividad) y dos que se amplían (Colaboración y Asistencia inteligente).\n",
+           "Entrada multimodal y Exportación e integración). Los casos de uso nuevos no necesitaron un paquete "
+           "nuevo: se agruparon en dos de ellos, que se amplían (Colaboración y Asistencia inteligente).\n",
           "| Paquete | Contenido | Casos de uso |", "|---|---|---|"]
     md += [f"| **{n}** | {c} | {', '.join(cus)} |" for n, c, cus in PAQUETES]
     md += ["", diagrama_paquetes_identificados(),
@@ -717,14 +744,20 @@ def parte_analisis():
         md += [f"**Paquete {nombre}**\n", diagrama_vista_paquete(indice)]
     md += ["### 2.2.2 Análisis de caso de uso\n", "#### 2.2.2.1 Diagrama de comunicación\n",
            "Cada caso de uso se realiza con tres tipos de clase: de **interfaz** (frontera con el actor), de **control** "
-           "(coordina el caso de uso) y de **entidad** (información de larga vida). Los mensajes llevan el orden en que ocurren.\n"]
+           "(coordina el caso de uso) y de **entidad** (información de larga vida). Se siguen las reglas del análisis de robustez: "
+           "el actor solo habla con la interfaz, la interfaz solo con el control, y solo el control toca las entidades y la "
+           "interfaz con el servicio de IA (un sistema externo, no un actor). Los mensajes llevan el orden en que ocurren.\n"]
     for numero, _, _, codigos in CICLOS:
         md.append(f"##### Ciclo de vida #{numero}\n")
         for cu in codigos:
             md += [f"**{cu}: {CUS[cu]['nombre']}**\n", diagrama_comunicacion(cu)]
     md += ["### 2.2.3 Análisis de clases\n"]
     for numero, _, _, codigos in CICLOS:
-        md += [f"#### Ciclo de vida #{numero}\n", diagrama_clases_analisis(codigos, id_ea=f"cla-ciclo-{numero}")]
+        md.append(f"#### Ciclo de vida #{numero}\n")
+        for indice, (control, cus) in enumerate(grupos_por_control(codigos), 1):
+            if len(grupos_por_control(codigos)) > 1:
+                md.append(f"**{', '.join(c.replace('-0', '').replace('-', '') for c in cus)}: {control}**\n")
+            md.append(diagrama_clases_analisis(cus, id_ea=f"cla-{numero}-{indice}"))
     md += ["### 2.2.4 Análisis de paquete\n", diagrama_dependencias_paquetes()]
     return "\n".join(md)
 
