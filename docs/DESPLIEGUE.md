@@ -7,6 +7,7 @@ Estado verificado el **2026-10-21**. Sitio: **https://diagramador.dev**
 Todo corre en **una instancia EC2** (Ubuntu 24.04, 2 vCPU, ~2 GB de RAM) con Docker Compose. **nginx** recibe el tráfico en los puertos 80/443, termina HTTPS (certificado de Let's Encrypt) y reparte hacia los servicios. El dominio lo gestiona name.com (registro `A` hacia la IP pública de la instancia).
 
 ```mermaid
+%% ea:despliegue-flujo
 flowchart LR
   U[Usuarios] -->|HTTPS 443| N[nginx + Let's Encrypt]
   N -->|/| F[angular-app :4200]

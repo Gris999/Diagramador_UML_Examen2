@@ -362,6 +362,13 @@ class Constructor:
         self.imagen(salida, pie=None, ancho_cm=ancho_cm)
 
     def mermaid(self, fuente):
+        # `%% ea:<id>` en el bloque: se usa la imagen de Enterprise Architect si existe (ver `plantuml`).
+        marca = re.search(r"^%% ea:(\S+)", fuente, re.M)
+        if marca and (BUILD / "ea" / f"{marca.group(1)}.png").exists():
+            self.diagramas += 1
+            self.diagramas_ea += 1
+            self.imagen(BUILD / "ea" / f"{marca.group(1)}.png", pie=None, ancho_cm=ANCHO_UTIL_CM)
+            return
         BUILD.joinpath("diagramas").mkdir(parents=True, exist_ok=True)
         huella = hashlib.sha1(fuente.encode()).hexdigest()[:10]
         entrada = BUILD / "diagramas" / f"{huella}.mmd"

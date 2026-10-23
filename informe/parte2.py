@@ -713,9 +713,9 @@ def parte_analisis():
 def parte_diseno():
     md = ["## 2.3 Flujo de trabajo: diseño\n",
           "### 2.3.1 Patrón de desarrollo C4\n",
-          "#### 2.3.1.1 Diagrama de contexto del sistema\n", uml(C4_CONTEXTO, estilo=False),
-          "#### 2.3.1.2 Diagrama de contenedor\n", uml(C4_CONTENEDORES, estilo=False),
-          "#### 2.3.1.3 Diagrama de componentes\n", uml(C4_COMPONENTES, estilo=False),
+          "#### 2.3.1.1 Diagrama de contexto del sistema\n", uml(C4_CONTEXTO, estilo=False, id_ea="c4-contexto"),
+          "#### 2.3.1.2 Diagrama de contenedor\n", uml(C4_CONTENEDORES, estilo=False, id_ea="c4-contenedores"),
+          "#### 2.3.1.3 Diagrama de componentes\n", uml(C4_COMPONENTES, estilo=False, id_ea="c4-componentes"),
           "#### 2.3.1.4 Diagrama de código\n", uml(CODIGO, id_ea="codigo"),
           "### 2.3.2 Diseño de la arquitectura\n",
           "#### 2.3.2.1 Diseño físico (diagrama de despliegue)\n", uml(DESPLIEGUE, id_ea="despliegue"),
