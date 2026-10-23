@@ -10,6 +10,13 @@ osascript <<APPLESCRIPT
 with timeout of 1200 seconds
   tell application "Microsoft Word"
     activate
+    -- si el informe quedó abierto de una vez anterior, se cierra sin guardar: si no, Word reutiliza esa copia vieja y la
+    -- guarda encima del archivo recién generado
+    repeat with abierto in (get documents)
+      try
+        if (full name of abierto) is "$DOCX" then close abierto saving no
+      end try
+    end repeat
     open POSIX file "$DOCX"
     set d to active document
     -- el primer campo del cuerpo es el índice
