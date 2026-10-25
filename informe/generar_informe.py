@@ -293,7 +293,7 @@ class Constructor:
         if ficha:
             anchos = [6.9, ANCHO_UTIL_CM - 6.9]
         elif [c.strip() for c in filas[0]] == ["NRO", "Casos de uso", "Estado", "Prioridad", "Riesgo", "Actor"]:
-            anchos = [1.6, 5.6, 2.3, 2.3, 2.0, 2.2]
+            anchos = [1.4, 5.0, 2.2, 2.3, 2.8, 2.3]
         elif columnas >= 4:
             # Anchos según el contenido, para que columnas cortas como "ID" o "CU" no se partan letra por letra.
             pesos = [min(max(max(len(f[c]) if c < len(f) else 0 for f in filas), 8), 50) for c in range(columnas)]
@@ -318,7 +318,15 @@ class Constructor:
                 parrafo.paragraph_format.space_before = Pt(4)
                 parrafo.paragraph_format.line_spacing = 1.15
                 encabezado = numero == 0 and not ficha
-                agregar_inline(parrafo, texto, tam=tam, negrita=(ficha and indice == 0))
+                # `<br>` separa párrafos dentro de una celda (pasos numerados de una ficha, por ejemplo)
+                lineas_celda = texto.split("<br>")
+                agregar_inline(parrafo, lineas_celda[0], tam=tam, negrita=(ficha and indice == 0))
+                for extra in lineas_celda[1:]:
+                    siguiente = celda.add_paragraph()
+                    siguiente.paragraph_format.space_after = Pt(2)
+                    siguiente.paragraph_format.space_before = Pt(0)
+                    siguiente.paragraph_format.line_spacing = 1.15
+                    agregar_inline(siguiente, extra, tam=tam)
                 if encabezado:
                     sombrear(celda._tc.get_or_add_tcPr(), "FFF2CC")
                 elif ficha and indice == 0:
