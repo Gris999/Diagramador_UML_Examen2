@@ -18,7 +18,15 @@ import especificaciones  # noqa: E402
 DESTINO = AQUI.parent / "build" / "ea"
 
 if __name__ == "__main__":
-    modelo = especificaciones.construir()
+    # `--solo requisitos`: solo los diagramas de casos de uso del flujo de requisitos (modelo/requisitos.py).
+    if "--solo" in sys.argv and sys.argv[sys.argv.index("--solo") + 1] == "requisitos":
+        import casos_de_uso
+
+        base = especificaciones.Modelo()
+        casos_de_uso.construir(base)
+        modelo = dict(elementos=base.elementos, diagramas=base.diagramas)
+    else:
+        modelo = especificaciones.construir()
     print(f"{len(modelo['diagramas'])} diagramas, {len(modelo['elementos'])} elementos")
     log = constructor.ejecutar(modelo, DESTINO, espera=1500)
     errores = [linea for linea in log.splitlines() if "ERROR" in linea]
