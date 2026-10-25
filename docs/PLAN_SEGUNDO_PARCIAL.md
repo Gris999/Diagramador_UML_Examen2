@@ -149,6 +149,24 @@ El libro de Jacobson, Booch y Rumbaugh no está disponible gratis y no descargu�
 
 Si tienes el libro en PDF de forma legítima, lo cotejo página por página antes de cerrar F2.
 
+## 9 ter. Cotejo con el libro (PDF que aportó Pedro, leído por OCR el 2026-10-25)
+
+Libro: Jacobson, Booch y Rumbaugh, *El Proceso Unificado de Desarrollo de Software* (edición en español). Secciones citadas, no páginas, porque el OCR no conserva la paginación impresa.
+
+| Regla | Dónde está en el libro | Estado en el plan |
+|---|---|---|
+| Los sistemas externos son actores; los actores que se solapan se generalizan | 7.2.2, 7.4.1.1 | Confirmado (A3; A1 especializa A2) |
+| Hay que identificar actores de mantenimiento y operación **cuando existen** | 7.4.1.1, 7.4.1.2 | Pendiente de decidir: no hay función de operación dentro de la herramienta; se justifica en «Quién no es un actor» (RA-01) |
+| Nombre de caso de uso con verbo que refleja el objetivo; resultado de valor observable para un actor concreto; evita casos demasiado pequeños («Planificación de Pagos no añadiría valor») | 7.4.1.2 | Confirmado (un CRUD = un caso) |
+| El actor necesita casos para su trabajo de crear, cambiar, rastrear, eliminar o estudiar objetos | 7.4.1.2 | Confirmado |
+| Priorizar produce la vista de la arquitectura del modelo de casos de uso | 7.4.2, 7.2.4 | Confirmado |
+| Detalle: camino básico, caminos alternativos, precondición, postcondiciones, caminos no permitidos, requisitos especiales | 7.4.3 | Confirmado |
+| Extensión: lleva condición y punto de extensión; `include` con cautela; no descomponer funcionalmente los casos de uso | 7.4.5.2, 7.4.5.3 | **Corregido**: se agregó condición y punto de extensión (`CONDICION_EXTENSION`) |
+| Clase de análisis: responsabilidades (no operaciones con firma), atributos de alto nivel, relaciones conceptuales, estereotipo interfaz/control/entidad | 8.4.2 | Confirmado; es lo que F2 debe cumplir |
+| Una clase de interfaz central por cada actor humano y por cada actor que es sistema externo | 8.6.2 | Confirmado |
+| Realización de caso de uso – análisis: flujo de sucesos, diagramas de clases participantes, diagramas de interacción (colaboración), requisitos especiales; traza al caso de uso | 8.4.3 | Confirmado |
+| Diagramas de colaboración con mensajes numerados en el análisis; secuencia solo cuando importa el orden | 8.4.3.2 | Confirmado |
+
 ## 10. Verificación de extremo a extremo
 
 1. Cada diagrama: lista de la sección 5 y mirar la imagen completa.
