@@ -8,7 +8,6 @@ import { RelationshipService } from '../../services/diagram/relationship.service
 import { UmlClass, Attribute, Method } from '../../models/uml-class.model';
 import { DiagramExportService } from '../../services/exports/diagram-export.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
-import { ChatbotService } from '../../services/IA/chatbot.service';
 import { UmlValidationService } from '../../services/colaboration/uml-validation.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { XmiService } from '../../services/interop/xmi.service';
@@ -39,7 +38,6 @@ export class Diagram implements AfterViewInit, OnDestroy {
     private relationshipService: RelationshipService,
     private exportService: DiagramExportService,
     private backendGen: BackendGeneratorService,
-    private chatbot: ChatbotService,
     private umlValidation: UmlValidationService,
     private route: ActivatedRoute,
     private xmiService: XmiService,
@@ -76,10 +74,6 @@ export class Diagram implements AfterViewInit, OnDestroy {
 
           this.sidePanel.saveClicked.subscribe(() => this.saveDiagram());
 
-          this.sidePanel.generateClicked.subscribe((prompt: string) => {
-            this.generateFromPrompt(prompt);
-          });
-          
           this.umlValidation.connect((result) => {
             this.sidePanel.updateValidationResult(result);
           });
@@ -192,33 +186,6 @@ export class Diagram implements AfterViewInit, OnDestroy {
           width: 180,
           height: 110
         };
-      }
-    });
-  }
-
-  generateFromPrompt(prompt: string) {
-    this.chatbot.isLoading.set(true);
-    const currentUml = this.diagramService.exportToJson();
-    this.chatbot.generateDiagram(prompt, currentUml).subscribe({
-      next: (json) => {
-        console.log('Respuesta del chatbot:', json);
-
-        if (!json || json.error) {
-          console.error('Respuesta inválida del chatbot:', json);
-          alert(
-            json?.error ||
-            'La IA no devolvió un modelo UML válido.'
-          );
-          this.chatbot.isLoading.set(false);
-          return;
-        }
-
-        this.diagramService.loadFromJson(json, true);
-        this.chatbot.isLoading.set(false);
-      },
-      error: (err) => {
-        console.error('Error al generar diagrama desde chatbot', err);
-        this.chatbot.isLoading.set(false);
       }
     });
   }
