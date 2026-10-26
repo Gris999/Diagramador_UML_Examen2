@@ -801,10 +801,11 @@ def parte_implementacion():
 
 
 def generar():
-    """Capítulo 2 del informe. Se va migrando flujo por flujo al nuevo modelo (`modelo/`): hoy solo está migrado el de requisitos."""
+    """Capítulo 2 del informe. Se va migrando flujo por flujo al nuevo modelo (`modelo/`): hoy están migrados requisitos y análisis."""
+    import seccion_analisis
     import seccion_requisitos
 
-    return seccion_requisitos.generar()
+    return seccion_requisitos.generar() + "\n" + seccion_analisis.generar()
 
 
 def generar_anterior():

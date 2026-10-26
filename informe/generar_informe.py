@@ -326,6 +326,7 @@ class Constructor:
                     siguiente.paragraph_format.space_after = Pt(2)
                     siguiente.paragraph_format.space_before = Pt(0)
                     siguiente.paragraph_format.line_spacing = 1.15
+                    siguiente.paragraph_format.keep_with_next = ficha and numero < len(filas) - 1  # toda la fila va con la siguiente
                     agregar_inline(siguiente, extra, tam=tam)
                 if encabezado:
                     sombrear(celda._tc.get_or_add_tcPr(), "FFF2CC")
@@ -448,7 +449,7 @@ class Constructor:
                 vaciar_lista()
                 filas = []
                 while i < len(lineas) and lineas[i].startswith("|"):
-                    if not re.match(r"^\|[\s:\-|]+\|\s*$", lineas[i]):
+                    if not re.match(r"^\|[\s:\-|]*-[\s:\-|]*\|\s*$", lineas[i]):  # la línea `| | |` (ficha) no es un separador
                         protegido = re.sub(r"`[^`]*`", lambda m: m.group(0).replace("|", "\u2502"), lineas[i])
                         celdas = [c.strip().replace("\u2502", "|").replace("\\|", "|") for c in protegido.strip().strip("|").split("|")]
                         filas.append(celdas)
@@ -530,8 +531,10 @@ class Constructor:
             siguiente = i + 1
             while siguiente < len(lineas) and not lineas[siguiente].strip():
                 siguiente += 1
-            if siguiente < len(lineas) and lineas[siguiente].startswith("|"):
-                p.paragraph_format.keep_with_next = True  # el párrafo que presenta una tabla no se queda solo al pie de la página
+            if siguiente < len(lineas) and (lineas[siguiente].startswith("|") or (
+                    " ".join(parrafo).endswith(":") and lineas[siguiente].startswith(("```", "!["))
+            )):
+                p.paragraph_format.keep_with_next = True  # el párrafo que presenta una tabla o un diagrama no se queda solo al pie de la página
             texto_parrafo = " ".join(parrafo)
             if texto_parrafo.startswith("**") and texto_parrafo.endswith("**") or texto_parrafo.startswith("*Ciclo"):
                 p.paragraph_format.keep_with_next = True  # el rótulo no se separa de su diagrama o tabla
