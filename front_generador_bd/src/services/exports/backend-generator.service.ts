@@ -40,6 +40,7 @@ export class BackendGeneratorService {
       error: (err) => {
         console.error('Error generando backend:', err);
         this.loading.set(false);
+        alert('No se pudo generar el backend. Inténtalo de nuevo en unos momentos.');
       }
     });
   }

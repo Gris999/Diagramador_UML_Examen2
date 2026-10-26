@@ -28,6 +28,7 @@ export class FrontendGeneratorService {
       error: (error) => {
         console.error('Error al generar el frontend:', error);
         this.loading.set(false);
+        alert('No se pudo generar la aplicación móvil. Revisa que el diagrama tenga clases e inténtalo de nuevo.');
       }
     });
   }
