@@ -49,10 +49,14 @@
     </div>
     <input
       type="text"
-      [(ngModel)]="joinCode"
+      [ngModel]="joinCode"
+      (ngModelChange)="onCodeChange($event)"
       placeholder="Ingresa el código del lienzo"
       class="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
     />
+    @if (joinError) {
+      <p class="text-sm text-red-600 mb-4" role="alert" data-testid="join-error">{{ joinError }}</p>
+    }
     <button
       (click)="unirseAlLienzo()"
       [disabled]="!joinCode.trim()"
