@@ -20,13 +20,19 @@ DESTINO = AQUI.parent / "build" / "ea"
 
 if __name__ == "__main__":
     # `--solo requisitos`: diagramas de casos de uso (modelo/requisitos.py). `--solo analisis`: diagramas del análisis
-    # (modelo/analisis.py); `--solo analisis:COL-01,COL-09` solo esas colaboraciones (para probar).
+    # (modelo/analisis.py); `--solo analisis:COL-01,COL-09` solo esas colaboraciones (para probar). `--solo diseno[:COL-01,ARQ]`: lo mismo para el diseño.
     solo = sys.argv[sys.argv.index("--solo") + 1] if "--solo" in sys.argv else ""
     if solo == "requisitos":
         import casos_de_uso
 
         base = especificaciones.Modelo()
         casos_de_uso.construir(base)
+        modelo = dict(elementos=base.elementos, diagramas=base.diagramas)
+    elif solo.startswith("diseno"):
+        import diseno
+
+        base = especificaciones.Modelo()
+        diseno.construir(base, solo.split(":")[1].split(",") if ":" in solo else None)
         modelo = dict(elementos=base.elementos, diagramas=base.diagramas)
     elif solo.startswith("analisis"):
         import analisis
