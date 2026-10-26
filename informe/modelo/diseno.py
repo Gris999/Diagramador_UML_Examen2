@@ -82,14 +82,14 @@ OBJETOS = {
     "help_knowledge": _o("ayuda", B + "uml_api/services/help_knowledge.py", "<help_knowledge.py>", nuevo=True, rotulo="help_knowledge", est="module"),
     "RedisRateLimiter": _o("ayuda", B + "collab/limits.py", "RedisRateLimiter", nuevo=True),
     # puertos y adaptadores de la conversación y la actividad (C1, C3)
-    "ConversationStore": _o("ia", B + "collab/ports.py", "ConversationStore", nuevo=True, est="interface"),
+    "ConversationStore": _o("ia", B + "collab/ports.py", "ConversationStore", est="interface"),
     "ActivityStore": _o("nucleo", B + "collab/ports.py", "ActivityStore", nuevo=True, est="interface"),
-    "TurnStore": _o("ia", B + "collab/ports.py", "TurnStore", nuevo=True, est="interface"),
-    "ORMConversationStore": _o("ia", B + "collab/conversation.py", "ORMConversationStore", nuevo=True),
+    "TurnStore": _o("ia", B + "collab/ports.py", "TurnStore", est="interface"),
+    "ORMConversationStore": _o("ia", B + "collab/conversation.py", "ORMConversationStore"),
     "MongoConversationStore": _o("ia", B + "collab/mongo_stores.py", "MongoConversationStore", nuevo=True),
     "MongoActivityStore": _o("nucleo", B + "collab/mongo_stores.py", "MongoActivityStore", nuevo=True),
-    "RedisTurnStore": _o("ia", B + "collab/turn.py", "RedisTurnStore", nuevo=True),
-    "stores": _o("ia", B + "collab/stores.py", "<stores.py>", nuevo=True, rotulo="stores", est="module"),
+    "RedisTurnStore": _o("ia", B + "collab/turn.py", "RedisTurnStore"),
+    "stores": _o("ia", B + "collab/stores.py", "<stores.py>", rotulo="stores", est="module"),
     # intercambio y generación
     "XmiService": _o("intercambio", F + "services/interop/xmi.service.ts", "XmiService"),
     "DiagramExportService": _o("intercambio", F + "services/exports/diagram-export.service.ts", "DiagramExportService"),
@@ -159,7 +159,7 @@ INTERFACES = [
          motivo="Guardar y leer la actividad de la sala; PostgreSQL hoy, MongoDB en C3, elegidos con una variable de entorno.", nuevo=True),
     dict(nombre="AIProvider", sub="ia", realiza=["GeminiProvider", "OllamaProvider"], operaciones=["chat", "change"],
          motivo="Servicio de IA intercambiable (nube o local) sin que el resto lo note."),
-    dict(nombre="ConversationStore", sub="ia", realiza=["ORMConversationStore", "MongoConversationStore"], operaciones=["append_exchange", "history"],
+    dict(nombre="ConversationStore", sub="ia", realiza=["ORMConversationStore", "MongoConversationStore"], operaciones=["append_exchange", "history", "discard_exchange"],
          motivo="La conversación única de la sala con la IA (C1); PostgreSQL o MongoDB (C3).", nuevo=True),
     dict(nombre="TurnStore", sub="ia", realiza=["RedisTurnStore"], operaciones=["take", "release", "current"],
          motivo="Un solo pedido a la IA a la vez por sala (C1).", nuevo=True),
@@ -191,8 +191,7 @@ ASOCIACIONES = [
     ("CanvasConsumer", "RedisGroupRoleStore", "usa (role_store_class)"), ("CanvasConsumer", "RedisGroupIdentityStore", "usa (identity_store_class)"),
     ("CanvasConsumer", "ORMActivityStore", "usa (activity_store_class)"), ("CanvasConsumer", "groups", "importa"),
     ("ORMActivityStore", "Participant", "importa"), ("ORMActivityStore", "ActivityEvent", "importa"),
-    ("chat_views", "Participant", "importa"), ("chat_views", "ActivityEvent", "importa"), ("chat_views", "ChatMessage", "importa"),
-    ("chat_views", "IaAttempt", "importa"), ("chat_views", "ai_provider", "importa"), ("chat_views", "change_guard", "importa"),
+    ("chat_views", "Participant", "importa"), ("chat_views", "ActivityEvent", "importa"), ("chat_views", "IaAttempt", "importa"), ("chat_views", "ai_provider", "importa"), ("chat_views", "change_guard", "importa"),
     ("chat_views", "ia_context", "importa"), ("chat_views", "activity", "importa"), ("chat_views", "groups", "importa"),
     ("GeminiProvider", "AIProvider", "hereda de"), ("OllamaProvider", "AIProvider", "hereda de"),
     ("ai_provider", "GeminiProvider", "crea"), ("ai_provider", "OllamaProvider", "crea"),
@@ -202,7 +201,7 @@ ASOCIACIONES = [
     ("GenerateController", "ProjectGenerator", "inyecta"), ("ProjectGenerator", "PostmanCollectionGenerator", "usa"),
     # clases nuevas (C1 a C4): no se comprueban hasta que existan
     ("CanvasConsumer", "ActivityStore", "usa"), ("ORMActivityStore", "ActivityStore", "realiza"), ("MongoActivityStore", "ActivityStore", "realiza"),
-    ("chat_views", "ConversationStore", "usa"), ("chat_views", "TurnStore", "usa"), ("chat_views", "ActivityStore", "usa"),
+    ("chat_views", "stores", "importa"), ("chat_views", "ActivityStore", "usa"),
     ("ORMConversationStore", "ConversationStore", "realiza"), ("MongoConversationStore", "ConversationStore", "realiza"),
     ("RedisTurnStore", "TurnStore", "realiza"), ("stores", "ActivityStore", "crea"), ("stores", "ConversationStore", "crea"), ("stores", "TurnStore", "crea"),
     ("help_views", "RedisRateLimiter", "usa"), ("help_views", "help_knowledge", "importa"), ("help_views", "AIProvider", "usa"),
@@ -465,6 +464,16 @@ def validar(exigir_nuevos=False, analisis=None):
             for op in ops:
                 if c is not None and op not in c["metodos"] and op not in c["atributos"]:
                     errores.append(f"traza de {nombre_analisis}: {clave} no tiene la operación {op}")
+    from modelo import realizaciones as _R
+
+    for clave, ops in _R.OPERACIONES_NUEVAS.items():
+        o = OBJETOS.get(clave)
+        if o is None:
+            errores.append(f"OPERACIONES_NUEVAS: {clave} no es una clase de diseño")
+        elif C.existe(o["archivo"], o["clase"]) and exigir_nuevos:
+            faltan = [op for op in ops if not C.existe(o["archivo"], o["clase"], op)]
+            if faltan:
+                errores.append(f"{clave}: las operaciones {faltan} se diseñaron como nuevas y todavía no existen")
     if analisis is not None:
         for clave in analisis.CLASES:
             if clave not in TRAZA:
@@ -494,9 +503,6 @@ def validar(exigir_nuevos=False, analisis=None):
         for k in cambio["nuevas"] + cambio["cambian"]:
             if k not in OBJETOS:
                 errores.append(f"{cambio['id']}: {k} no es una clase de diseño")
-        for k in cambio["nuevas"]:
-            if k in OBJETOS and not OBJETOS[k]["nuevo"] and not exigir_nuevos:
-                errores.append(f"{cambio['id']}: {k} figura como nueva pero no está marcada con nuevo=True")
     if errores:
         raise ValueError("Modelo de diseño inconsistente:\n  " + "\n  ".join(errores))
 

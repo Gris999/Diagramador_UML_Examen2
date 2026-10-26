@@ -11,10 +11,10 @@ un producto externo (no se comprueba). Las operaciones de las clases nuevas (cam
 # Operaciones de las clases que se programan en los cambios C1 a C4 (el diseño las fija antes de que existan) y operaciones nuevas de clases que ya existen.
 OPERACIONES_NUEVAS = {
     "ActivityStore": ["identify", "record", "recent", "since", "get", "update_data"],
-    "ConversationStore": ["append_exchange", "history"],
+    "ConversationStore": ["append_exchange", "history", "discard_exchange"],
     "TurnStore": ["take", "release", "current"],
-    "ORMConversationStore": ["append_exchange", "history"],
-    "MongoConversationStore": ["append_exchange", "history"],
+    "ORMConversationStore": ["append_exchange", "history", "discard_exchange"],
+    "MongoConversationStore": ["append_exchange", "history", "discard_exchange"],
     "MongoActivityStore": ["identify", "record", "recent", "since", "get", "update_data"],
     "RedisTurnStore": ["take", "release", "current"],
     "stores": ["get_activity_store", "get_conversation_store", "get_turn_store", "get_rate_limiter"],
