@@ -36,6 +36,8 @@ REDIS_HOST = env("REDIS_HOST", default="redis_server")
 REDIS_PORT = env.int("REDIS_PORT", default=6379)
 # El turno de la IA vive en Redis; en las pruebas (`manage.py test`) y sin Redis se usa la memoria del proceso.
 TURN_STORE = env("TURN_STORE", default="memory" if "test" in sys.argv else "redis")
+# Los topes de uso del asistente de ayuda se cuentan en Redis; en las pruebas y sin Redis, en la memoria del proceso.
+RATE_LIMITER = env("RATE_LIMITER", default="memory" if "test" in sys.argv else "redis")
 # Dónde se guardan la actividad y la conversación con la IA: "postgres" (por defecto) o "mongo".
 ACTIVITY_STORE = env("ACTIVITY_STORE", default="postgres")
 CONVERSATION_STORE = env("CONVERSATION_STORE", default="postgres")

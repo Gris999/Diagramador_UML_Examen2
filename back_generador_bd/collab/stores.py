@@ -6,6 +6,7 @@ from django.conf import settings
 
 from .activity import ORMActivityStore
 from .conversation import ORMConversationStore
+from .limits import InMemoryRateLimiter, RedisRateLimiter
 from .turn import InMemoryTurnStore, RedisTurnStore
 
 
@@ -46,3 +47,9 @@ def get_turn_store():
     if settings.TURN_STORE == "memory":
         return InMemoryTurnStore()
     return RedisTurnStore(_redis_client())
+
+
+def get_rate_limiter():
+    if settings.RATE_LIMITER == "memory":
+        return InMemoryRateLimiter()
+    return RedisRateLimiter(_redis_client())

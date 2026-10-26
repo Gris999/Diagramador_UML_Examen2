@@ -85,3 +85,11 @@ class TurnStore(ABC):
     @abstractmethod
     def current(self, room):
         """Nombre de quien tiene el turno, o `None`."""
+
+
+class RateLimiter(ABC):
+    """Tope de pedidos por clave: a lo más `limit` en cada ventana de `window_seconds` (protege el gasto de la IA)."""
+
+    @abstractmethod
+    def allow(self, key, limit, window_seconds):
+        """Cuenta un pedido de `key`; devuelve `False` si ya se pasó del tope de la ventana actual."""
