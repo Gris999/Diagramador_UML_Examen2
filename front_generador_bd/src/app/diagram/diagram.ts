@@ -14,6 +14,7 @@ import { XmiService } from '../../services/interop/xmi.service';
 import { ParticipantsPanel } from '../participants-panel/participants-panel';
 import { P2PService } from '../../services/colaboration/p2p.service';
 import { ActivityPanel } from '../activity-panel/activity-panel';
+import { HelpPanel } from '../help-panel/help-panel';
 import { IaChatPanel } from '../ia-chat-panel/ia-chat-panel';
 
 @Component({
@@ -21,7 +22,7 @@ import { IaChatPanel } from '../ia-chat-panel/ia-chat-panel';
   standalone: true,
   templateUrl: './diagram.html',
   styleUrls: ['./diagram.css'],
-  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel]
+  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel, HelpPanel]
 })
 export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;

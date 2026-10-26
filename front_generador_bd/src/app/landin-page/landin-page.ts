@@ -3,10 +3,11 @@ import { Router } from '@angular/router';
 import { v4 as uuid } from 'uuid';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HelpPanel } from '../help-panel/help-panel';
 
 @Component({
   selector: 'app-landin-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, HelpPanel],
   templateUrl: './landin-page.html',
   styleUrls: ['./landin-page.css']
 })
