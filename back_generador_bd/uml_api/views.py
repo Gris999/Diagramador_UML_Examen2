@@ -21,8 +21,7 @@ from pathlib import Path
 from .services.flutter_generator import FlutterCRUDGenerator
 from .services.xmi_service import XMIError, export_uml_to_xmi, import_xmi_to_uml
 from .utils.zip_utils import compress_folder_to_zip
-from collab.activity import serialize_activity_event
-from collab.models import ActivityEvent
+from collab.stores import get_activity_store
 
 
 class GenerateUMLView(APIView):
@@ -73,17 +72,15 @@ def get_room_activity(request, room):
     except (TypeError, ValueError):
         since = 0
 
-    events = ActivityEvent.objects.filter(room=room)
+    store = get_activity_store()
     if since > 0:
         # Seguimiento incremental: los eventos nuevos desde el último conocido.
-        page = list(events.filter(id__gt=since).order_by("id")[:limit])
+        events = store.since(room, since, limit)
     else:
         # Historial inicial: los más recientes, de más viejo a más nuevo.
-        page = list(events.order_by("-id")[:limit])[::-1]
+        events = store.recent(room, limit)
 
-    return Response({
-        "events": [serialize_activity_event(event) for event in page],
-    })
+    return Response({"events": events})
 
 
 @api_view(['POST'])

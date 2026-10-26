@@ -7,6 +7,7 @@ from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from collab.activity import ORMActivityStore
 from collab.models import ActivityEvent, ChatMessage, IaAttempt, Participant
 from collab.stores import get_turn_store
 from collab.turn import InMemoryTurnStore
@@ -470,7 +471,7 @@ class ChatReliabilityTests(ChatTestBase):
         self.provider.reply = self.review_reply([{"texto": "Falta una clave", "pedido": "agrega id"}])
 
         with mock.patch.object(
-            ActivityEvent.objects, "create", side_effect=RuntimeError("base caída")
+            ORMActivityStore, "create", side_effect=RuntimeError("base caída")
         ):
             response = self.ask(self.ana, "revisa", mode="review")
 

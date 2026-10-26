@@ -11,10 +11,10 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from uml_api.services.services_gemini import call_gemini_analysis
 import re
 
-from .activity import ORMActivityStore
 from .groups import room_group_name, viewers_group_name
 from .identity import RedisGroupIdentityStore
 from .roles import RedisGroupRoleStore
+from .stores import get_activity_store
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 class CanvasConsumer(AsyncWebsocketConsumer):
     role_store_class = RedisGroupRoleStore
     identity_store_class = RedisGroupIdentityStore
-    activity_store_class = ORMActivityStore
+    # Si es None se usa el adaptador que eligen los ajustes (`collab.stores`); las pruebas lo reemplazan por uno en memoria.
+    activity_store_class = None
     activity_types = {"add_class", "delete", "add_link", "edit_text"}
     edit_coalesce_seconds = 5
     # Tope del registro de actividad: no limita el relé, solo lo que se guarda.
@@ -61,7 +62,7 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             self.channel_layer,
             self.room_group_name,
         )
-        self.activity_store = self.activity_store_class()
+        self.activity_store = (self.activity_store_class or get_activity_store)()
         self.participant_id = None
         self.display_name = None
         self._edit_activity_times = {}

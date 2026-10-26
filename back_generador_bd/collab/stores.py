@@ -4,8 +4,13 @@ from functools import lru_cache
 
 from django.conf import settings
 
+from .activity import ORMActivityStore
 from .conversation import ORMConversationStore
 from .turn import InMemoryTurnStore, RedisTurnStore
+
+
+def get_activity_store():
+    return ORMActivityStore()
 
 
 def get_conversation_store():

@@ -89,7 +89,7 @@ def summarize_uml(uml) -> str:
 def build_chat_prompt(*, participant_name, uml, events, history, message) -> str:
     """Prompt del modo Preguntar: la IA responde, no modifica el diagrama."""
     activity = "\n".join(
-        f"- {_text(event.actor_name, 40) or 'Alguien'}: {_text(event.summary, 120)}"
+        f"- {_text(event['actor_name'], 40) or 'Alguien'}: {_text(event['summary'], 120)}"
         for event in events
     ) or "(todavía no hay actividad)"
 

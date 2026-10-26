@@ -4,16 +4,14 @@ from datetime import datetime, timedelta
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from collab.activity import serialize_activity_event
 from collab.groups import room_group_name, viewers_group_name
-from collab.models import ActivityEvent, IaAttempt, Participant
-from collab.stores import get_conversation_store, get_turn_store
+from collab.models import IaAttempt, Participant
+from collab.stores import get_activity_store, get_conversation_store, get_turn_store
 from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider
 from .services.change_guard import count_destructive, validate_changes
 from .services.ia_context import (
@@ -120,7 +118,7 @@ def _release_turn(turnos, room, participant):
 
 def _publish_activity(room, event):
     """Avisa a la sala en vivo; si el canal falla, el evento igual queda guardado."""
-    message = {"type": "activity", "event": serialize_activity_event(event)}
+    message = {"type": "activity", "event": event}
     try:
         layer = get_channel_layer()
         for group in (room_group_name(room), viewers_group_name(room)):
@@ -130,9 +128,7 @@ def _publish_activity(room, event):
 
 
 def _answer(provider, room, participant, body, message):
-    events = list(
-        ActivityEvent.objects.filter(room=room).order_by("-id")[:MAX_EVENTS]
-    )[::-1]
+    events = get_activity_store().recent(room, MAX_EVENTS)
     history = get_conversation_store().history(room, MAX_HISTORY)
     prompt = build_chat_prompt(
         participant_name=participant.display_name,
@@ -178,12 +174,12 @@ def _review(provider, room, participant, body, message):
     conversation = get_conversation_store()
     ids = conversation.append_exchange(room, participant, "review", message, reply)
     try:
-        event = ActivityEvent.objects.create(
+        event = get_activity_store().create(
             room=room,
-            actor=participant,
+            actor_id=participant.id,
             actor_name="IA",
             actor_kind="ia",
-            type="ia_review",
+            event_type="ia_review",
             summary=f"revisó el diagrama a pedido de {participant.display_name}: {count}"[:255],
             data={"findings": findings, "requested_by": participant.display_name},
         )
@@ -269,22 +265,17 @@ def ia_provider_info(request):
     return Response(describe_ai_provider())
 
 
-def _reviewable_event(room, event_id, index):
-    """Evento de revisión de esa sala con una idea aplicable en `index`, o None."""
-    event = ActivityEvent.objects.select_for_update().filter(
-        id=event_id, room=room, type="ia_review"
-    ).first()
-    if event is None:
-        return None
-    findings = event.data.get("findings") if isinstance(event.data, dict) else None
-    if (
-        not isinstance(findings, list)
-        or not 0 <= index < len(findings)
-        or not isinstance(findings[index], dict)
-        or not findings[index].get("prompt")
-    ):
-        return None
-    return event
+def _has_idea(event, index):
+    """El evento es una revisión de la IA con una idea aplicable en `index`."""
+    if event is None or event["type"] != "ia_review":
+        return False
+    findings = event["data"].get("findings") if isinstance(event["data"], dict) else None
+    return (
+        isinstance(findings, list)
+        and 0 <= index < len(findings)
+        and isinstance(findings[index], dict)
+        and bool(findings[index].get("prompt"))
+    )
 
 
 RESERVED = "reserved"
@@ -305,6 +296,54 @@ def _is_live(entry, now):
     return now - reserved_at < RESERVATION_TTL
 
 
+class _Refused(Exception):
+    """El cambio a una idea no procede; lleva la respuesta que se le da a quien lo pidió."""
+
+    def __init__(self, response):
+        self.response = response
+
+
+def _claim(data, method, index, participant):
+    """Aplica reservar (POST), confirmar (PUT) o liberar (DELETE) a las ideas de una revisión; devuelve el `data` nuevo."""
+    now = timezone.now()
+    entries = [a for a in data.get("applied", []) if isinstance(a, dict)]
+    existing = next((a for a in entries if a.get("index") == index), None)
+    others = [a for a in entries if a.get("index") != index]
+    mine = existing is not None and existing.get("by_id") == participant.id
+    taken = existing is not None and _is_live(existing, now)
+    entry = {"index": index, "by": participant.display_name, "by_id": participant.id}
+
+    if method == "POST":
+        if taken and not (mine and existing.get("state") == RESERVED):
+            raise _Refused(Response(
+                {"error": "Otra persona ya aplicó o está aplicando esta idea."},
+                status=status.HTTP_409_CONFLICT,
+            ))
+        entries = others + [{**entry, "state": RESERVED, "reserved_at": now.isoformat()}]
+    elif method == "PUT":
+        if taken and not mine:
+            raise _Refused(Response(
+                {"error": "Otra persona ya aplicó o está aplicando esta idea."},
+                status=status.HTTP_409_CONFLICT,
+            ))
+        # Si la reserva venció pero nadie la tomó, el cambio ya se aplicó:
+        # se registra igual para que no se pueda aplicar dos veces.
+        entries = others + [{**entry, "state": APPLIED, "applied_at": now.isoformat()}]
+    else:
+        if existing is None:
+            raise _Refused(None)
+        if not mine:
+            raise _Refused(_forbidden())
+        if existing.get("state", APPLIED) != RESERVED:
+            raise _Refused(Response(
+                {"error": "La idea ya está aplicada."},
+                status=status.HTTP_409_CONFLICT,
+            ))
+        entries = others
+
+    return {**data, "applied": entries}
+
+
 @api_view(["POST", "PUT", "DELETE"])
 def claim_suggestion(request, room, event_id, index):
     """Ciclo de una idea de la IA: reservar (POST), confirmar (PUT) o liberar (DELETE).
@@ -317,49 +356,16 @@ def claim_suggestion(request, room, event_id, index):
     if participant is None:
         return _forbidden()
 
-    with transaction.atomic():
-        event = _reviewable_event(room, event_id, index)
-        if event is None:
-            return Response({"error": "Idea no encontrada."}, status=status.HTTP_404_NOT_FOUND)
+    store = get_activity_store()
+    event = store.get(room, event_id)
+    if not _has_idea(event, index):
+        return Response({"error": "Idea no encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
-        now = timezone.now()
-        entries = [a for a in event.data.get("applied", []) if isinstance(a, dict)]
-        existing = next((a for a in entries if a.get("index") == index), None)
-        others = [a for a in entries if a.get("index") != index]
-        mine = existing is not None and existing.get("by_id") == participant.id
-        taken = existing is not None and _is_live(existing, now)
-        entry = {"index": index, "by": participant.display_name, "by_id": participant.id}
-
-        if request.method == "POST":
-            if taken and not (mine and existing.get("state") == RESERVED):
-                return Response(
-                    {"error": "Otra persona ya aplicó o está aplicando esta idea."},
-                    status=status.HTTP_409_CONFLICT,
-                )
-            entries = others + [{**entry, "state": RESERVED, "reserved_at": now.isoformat()}]
-        elif request.method == "PUT":
-            if taken and not mine:
-                return Response(
-                    {"error": "Otra persona ya aplicó o está aplicando esta idea."},
-                    status=status.HTTP_409_CONFLICT,
-                )
-            # Si la reserva venció pero nadie la tomó, el cambio ya se aplicó:
-            # se registra igual para que no se pueda aplicar dos veces.
-            entries = others + [{**entry, "state": APPLIED, "applied_at": now.isoformat()}]
-        else:
-            if existing is None:
-                return Response({"event": serialize_activity_event(event)})
-            if not mine:
-                return _forbidden()
-            if existing.get("state", APPLIED) != RESERVED:
-                return Response(
-                    {"error": "La idea ya está aplicada."},
-                    status=status.HTTP_409_CONFLICT,
-                )
-            entries = others
-
-        event.data = {**event.data, "applied": entries}
-        event.save(update_fields=["data"])
+    try:
+        event = store.update_data(room, event_id, lambda data: _claim(data, request.method, index, participant))
+    except _Refused as refused:
+        # Liberar una idea que nadie reservó no cambia nada: se devuelve el evento tal cual.
+        return refused.response or Response({"event": event})
 
     _publish_activity(room, event)
-    return Response({"event": serialize_activity_event(event)})
+    return Response({"event": event})
