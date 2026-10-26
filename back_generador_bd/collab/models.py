@@ -47,9 +47,10 @@ class ActivityEvent(models.Model):
 
 
 class ChatMessage(models.Model):
-    """Mensaje del chat privado entre un participante y la IA.
+    """Mensaje de la conversación de la sala con la IA.
 
-    Solo su dueño puede leerlo: la API siempre filtra por participante.
+    La conversación es una sola por sala: la leen y la alimentan todas las personas de la sala. `participant` es quien preguntó (también en la
+    respuesta de la IA) y `author_name` quién lo dijo.
     """
 
     ROLE_USER = "user"
@@ -61,6 +62,7 @@ class ChatMessage(models.Model):
         on_delete=models.CASCADE,
         related_name="chat_messages",
     )
+    author_name = models.CharField(max_length=40, blank=True, default="")
     role = models.CharField(max_length=8)
     mode = models.CharField(max_length=8, default="ask")
     content = models.TextField()
@@ -71,6 +73,10 @@ class ChatMessage(models.Model):
             models.Index(
                 fields=("participant", "id"),
                 name="chat_participant_id_idx",
+            ),
+            models.Index(
+                fields=("room", "id"),
+                name="chat_room_id_idx",
             ),
         ]
 
