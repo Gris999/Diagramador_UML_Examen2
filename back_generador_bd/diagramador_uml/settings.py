@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
+
 import environ
 from corsheaders.defaults import default_headers
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -28,6 +30,12 @@ GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 # por ejemplo Qwen). Con ollama, OLLAMA_BASE_URL debe ser alcanzable desde el
 # contenedor de Django (en Docker Desktop: http://host.docker.internal:11434).
 AI_PROVIDER = env("AI_PROVIDER", default="gemini")
+
+# Redis (canales de la sala y turno de la IA) y los adaptadores de los puertos de `collab.ports`: ver `collab.stores`.
+REDIS_HOST = env("REDIS_HOST", default="redis_server")
+REDIS_PORT = env.int("REDIS_PORT", default=6379)
+# El turno de la IA vive en Redis; en las pruebas (`manage.py test`) y sin Redis se usa la memoria del proceso.
+TURN_STORE = env("TURN_STORE", default="memory" if "test" in sys.argv else "redis")
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
 OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
 # Modelo reentrenado (carpeta ml/) para los cambios al diagrama; vacío = usar OLLAMA_MODEL.
