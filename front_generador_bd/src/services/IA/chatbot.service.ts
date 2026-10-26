@@ -6,38 +6,22 @@ import { environment } from '../../environments/environment';
 export class ChatbotService {
   constructor(private http: HttpClient) {}
 
-  public isLoading=signal<boolean>(false);
+  /** Mientras es verdadero, «Generar modelo» muestra que la IA está trabajando. */
+  public isLoading = signal<boolean>(false);
 
-  generateDiagram(prompt: string, uml: any | null = null) {
-    return this.http.post<any>(`${environment.endpoint_python}api/chatbot/`, {
-      prompt,
-      uml
-    });
-  }
-
-  generateDiagramFromAudio(audio: Blob, uml: any | null = null) {
+  /**
+   * Convierte la voz en el texto de la instrucción. Solo transcribe: la instrucción se manda después a la IA de la sala
+   * (`IaActionsService.request`), igual que si se hubiera escrito, para que pase por los topes, la actividad y la conversación.
+   */
+  transcribeAudio(audio: Blob) {
     const formData = new FormData();
 
-    const mimeType =
-      audio.type.split(';', 1)[0] || 'audio/webm';
+    const mimeType = audio.type.split(';', 1)[0] || 'audio/webm';
+    const extension = mimeType === 'audio/ogg' ? 'ogg' : 'webm';
 
-    const extension =
-      mimeType === 'audio/ogg' ? 'ogg' : 'webm';
+    formData.append('audio', audio, `instruccion-uml.${extension}`);
+    formData.append('transcribe_only', '1');
 
-    formData.append(
-      'audio',
-      audio,
-      `instruccion-uml.${extension}`
-    );
-
-    if (uml) {
-      formData.append('uml', JSON.stringify(uml));
-    }
-
-    return this.http.post<any>(
-      `${environment.endpoint_python}api/uml_from_audio/`,
-      formData
-    );
+    return this.http.post<{ transcript: string }>(`${environment.endpoint_python}api/uml_from_audio/`, formData);
   }
-
 }
