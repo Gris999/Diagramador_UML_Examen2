@@ -197,11 +197,18 @@ def analyze_uml_audio(request):
         audio_file.read()
     ).decode("utf-8")
 
+    transcribe_only = str(request.data.get("transcribe_only", "")).lower() in ("1", "true")
+
     try:
         transcript = call_gemini_transcribe_audio(
             audio_base64,
             mime_type=mime_type,
         )
+
+        if transcribe_only:
+            # La instrucción se manda después por el chat de la sala (ia_chat): así pasa por los topes, el turno,
+            # la actividad y la conversación como cualquier otro pedido a la IA.
+            return Response({"transcript": transcript}, status=status.HTTP_200_OK)
 
         output = call_gemini(transcript, current_uml=current_uml)
 

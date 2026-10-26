@@ -12,7 +12,8 @@ from rest_framework.response import Response
 
 from collab.activity import serialize_activity_event
 from collab.groups import room_group_name, viewers_group_name
-from collab.models import ActivityEvent, ChatMessage, IaAttempt, Participant
+from collab.models import ActivityEvent, IaAttempt, Participant
+from collab.stores import get_conversation_store, get_turn_store
 from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider
 from .services.change_guard import count_destructive, validate_changes
 from .services.ia_context import (
@@ -34,6 +35,9 @@ MAX_REQUESTS_PER_MINUTE = 12
 MAX_ROOM_REQUESTS_PER_MINUTE = 30
 MAX_GLOBAL_REQUESTS_PER_MINUTE = 60
 ATTEMPT_RETENTION = timedelta(hours=1)
+# La IA atiende un pedido a la vez por sala: el turno vence solo a los 130 s, un poco más que lo que espera el navegador (110 s), para que si
+# quien pidió se desconecta la sala no quede esperando para siempre.
+TURN_TTL_SECONDS = 130
 
 
 def _participant_for(request, room):
@@ -75,16 +79,6 @@ def _forbidden():
     )
 
 
-def serialize_chat_message(message):
-    return {
-        "id": message.id,
-        "role": message.role,
-        "mode": message.mode,
-        "content": message.content,
-        "created_at": message.created_at.isoformat(),
-    }
-
-
 def _bad_request(message):
     return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -96,23 +90,32 @@ def _ia_unavailable():
     )
 
 
-def _store_exchange(room, participant, mode, message, reply):
-    """Guarda pregunta y respuesta juntas: o quedan las dos o ninguna."""
-    with transaction.atomic():
-        ChatMessage.objects.create(
-            room=room,
-            participant=participant,
-            role=ChatMessage.ROLE_USER,
-            mode=mode,
-            content=message,
+def _take_turn(room, participant):
+    """Toma el turno de la sala. Devuelve `(turnos, respuesta)`: `respuesta` es el 409 si la IA está atendiendo a otra persona.
+
+    Si Redis falla la sala sigue funcionando sin turno (se registra el fallo): los topes de uso siguen protegiendo el costo.
+    """
+    turnos = get_turn_store()
+    try:
+        taken, holder = turnos.take(room, participant.id, participant.display_name, TURN_TTL_SECONDS)
+    except Exception as exc:
+        logger.warning("No se pudo tomar el turno de la IA en la sala %s (%s)", room, type(exc).__name__)
+        return None, None
+    if not taken:
+        return None, Response(
+            {"error": f"La IA está atendiendo a {holder}. Espera a que termine."},
+            status=status.HTTP_409_CONFLICT,
         )
-        ChatMessage.objects.create(
-            room=room,
-            participant=participant,
-            role=ChatMessage.ROLE_IA,
-            mode=mode,
-            content=reply,
-        )
+    return turnos, None
+
+
+def _release_turn(turnos, room, participant):
+    if turnos is None:
+        return
+    try:
+        turnos.release(room, participant.id)
+    except Exception as exc:
+        logger.warning("No se pudo devolver el turno de la IA en la sala %s (%s)", room, type(exc).__name__)
 
 
 def _publish_activity(room, event):
@@ -130,9 +133,7 @@ def _answer(provider, room, participant, body, message):
     events = list(
         ActivityEvent.objects.filter(room=room).order_by("-id")[:MAX_EVENTS]
     )[::-1]
-    history = list(
-        ChatMessage.objects.filter(participant=participant).order_by("-id")[:MAX_HISTORY]
-    )[::-1]
+    history = get_conversation_store().history(room, MAX_HISTORY)
     prompt = build_chat_prompt(
         participant_name=participant.display_name,
         uml=body.get("uml"),
@@ -141,7 +142,7 @@ def _answer(provider, room, participant, body, message):
         message=message,
     )
     reply = provider.chat(prompt)
-    _store_exchange(room, participant, "ask", message, reply)
+    get_conversation_store().append_exchange(room, participant, "ask", message, reply)
     return Response({"reply": reply})
 
 
@@ -149,7 +150,7 @@ def _change(provider, room, participant, body, message):
     changes = provider.change(message, body.get("uml"))
     validate_changes(changes)
     reply = "Listo, apliqué el cambio en el diagrama."
-    _store_exchange(room, participant, "change", message, reply)
+    get_conversation_store().append_exchange(room, participant, "change", message, reply)
     return Response({
         "reply": reply,
         "changes": changes,
@@ -173,9 +174,10 @@ def _review(provider, room, participant, body, message):
     else:
         count = f"{len(findings)} observaciones"
 
-    # La conversación y el evento público se guardan juntos.
-    with transaction.atomic():
-        _store_exchange(room, participant, "review", message, reply)
+    # La conversación y el evento público se guardan juntos: si el evento no se puede guardar, se deshace la conversación.
+    conversation = get_conversation_store()
+    ids = conversation.append_exchange(room, participant, "review", message, reply)
+    try:
         event = ActivityEvent.objects.create(
             room=room,
             actor=participant,
@@ -185,6 +187,9 @@ def _review(provider, room, participant, body, message):
             summary=f"revisó el diagrama a pedido de {participant.display_name}: {count}"[:255],
             data={"findings": findings, "requested_by": participant.display_name},
         )
+    except Exception:
+        conversation.discard_exchange(room, ids)
+        raise
     _publish_activity(room, event)
 
     suggestions = [
@@ -219,22 +224,28 @@ def ia_chat(request, room):
             f"El mensaje no puede superar {MAX_MESSAGE_CHARS} caracteres."
         )
 
-    if not _reserve_attempt(room, participant):
-        return Response(
-            {"error": "Demasiadas preguntas seguidas. Espera un momento."},
-            status=status.HTTP_429_TOO_MANY_REQUESTS,
-        )
-
+    turnos, busy = _take_turn(room, participant)
+    if busy is not None:
+        return busy
     try:
-        return MODE_HANDLERS[mode](get_ai_provider(), room, participant, body, message)
-    except AIProviderError as exc:
-        logger.warning("La IA no pudo responder en la sala %s: %s", room, exc)
-        return _ia_unavailable()
-    except Exception as exc:
-        logger.warning(
-            "Fallo inesperado del proveedor de IA (%s)", type(exc).__name__
-        )
-        return _ia_unavailable()
+        if not _reserve_attempt(room, participant):
+            return Response(
+                {"error": "Demasiadas preguntas seguidas. Espera un momento."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        try:
+            return MODE_HANDLERS[mode](get_ai_provider(), room, participant, body, message)
+        except AIProviderError as exc:
+            logger.warning("La IA no pudo responder en la sala %s: %s", room, exc)
+            return _ia_unavailable()
+        except Exception as exc:
+            logger.warning(
+                "Fallo inesperado del proveedor de IA (%s)", type(exc).__name__
+            )
+            return _ia_unavailable()
+    finally:
+        _release_turn(turnos, room, participant)
 
 
 @api_view(["GET"])
@@ -249,11 +260,8 @@ def chat_history(request, room):
         limit = 50
     limit = min(max(limit, 1), 100)
 
-    # Solo los mensajes de quien pregunta, los más recientes, del más viejo al más nuevo.
-    messages = list(
-        ChatMessage.objects.filter(participant=participant).order_by("-id")[:limit]
-    )[::-1]
-    return Response({"messages": [serialize_chat_message(m) for m in messages]})
+    # La conversación de la sala (la de todos), los mensajes más recientes, del más viejo al más nuevo.
+    return Response({"messages": get_conversation_store().history(room, limit)})
 
 
 @api_view(["GET"])
