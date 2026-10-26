@@ -107,8 +107,8 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOW_ALL_ORIGINS = False
-# Cabecera con el token anónimo del participante (chat privado con la IA).
-CORS_ALLOW_HEADERS = (*default_headers, "x-participant-token")
+# Cabeceras con el token anónimo del participante (chat con la IA de la sala) y el de quien pregunta a la ayuda.
+CORS_ALLOW_HEADERS = (*default_headers, "x-participant-token", "x-help-token")
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=["http://localhost:4200", "http://localhost:4000"],

@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 from unittest import mock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APITestCase
 
 from collab.limits import InMemoryRateLimiter
@@ -137,6 +137,20 @@ class HelpLimitTests(HelpApiBase):
     def test_if_the_limiter_cannot_be_reached_the_question_is_still_answered(self):
         with mock.patch("uml_api.help_views.get_rate_limiter", side_effect=ConnectionError("redis caído")):
             self.assertEqual(self.ask("hola").status_code, 200)
+
+
+class HelpCorsTests(HelpApiBase):
+    @override_settings(CORS_ALLOWED_ORIGINS=["http://localhost:4200"])
+    def test_the_browser_may_send_the_help_token_header_from_the_frontend_origin(self):
+        response = self.client.options(
+            HELP_URL,
+            HTTP_ORIGIN="http://localhost:4200",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS="content-type,x-help-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("x-help-token", response["Access-Control-Allow-Headers"])
 
 
 class HelpProviderFailureTests(HelpApiBase):
