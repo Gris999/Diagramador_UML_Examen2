@@ -36,6 +36,11 @@ REDIS_HOST = env("REDIS_HOST", default="redis_server")
 REDIS_PORT = env.int("REDIS_PORT", default=6379)
 # El turno de la IA vive en Redis; en las pruebas (`manage.py test`) y sin Redis se usa la memoria del proceso.
 TURN_STORE = env("TURN_STORE", default="memory" if "test" in sys.argv else "redis")
+# Dónde se guardan la actividad y la conversación con la IA: "postgres" (por defecto) o "mongo".
+ACTIVITY_STORE = env("ACTIVITY_STORE", default="postgres")
+CONVERSATION_STORE = env("CONVERSATION_STORE", default="postgres")
+MONGO_URL = env("MONGO_URL", default="mongodb://localhost:27017")
+MONGO_DB = env("MONGO_DB", default="diagramador")
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
 OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
 # Modelo reentrenado (carpeta ml/) para los cambios al diagrama; vacío = usar OLLAMA_MODEL.

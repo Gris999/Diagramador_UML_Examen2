@@ -9,12 +9,30 @@ from .conversation import ORMConversationStore
 from .turn import InMemoryTurnStore, RedisTurnStore
 
 
+def _unknown(setting, value):
+    return ValueError(f"{setting}={value!r} no es un adaptador conocido (postgres o mongo).")
+
+
 def get_activity_store():
-    return ORMActivityStore()
+    if settings.ACTIVITY_STORE == "postgres":
+        return ORMActivityStore()
+    if settings.ACTIVITY_STORE == "mongo":
+        from . import mongo
+        from .mongo_stores import MongoActivityStore
+
+        return MongoActivityStore(mongo.get_database())
+    raise _unknown("ACTIVITY_STORE", settings.ACTIVITY_STORE)
 
 
 def get_conversation_store():
-    return ORMConversationStore()
+    if settings.CONVERSATION_STORE == "postgres":
+        return ORMConversationStore()
+    if settings.CONVERSATION_STORE == "mongo":
+        from . import mongo
+        from .mongo_stores import MongoConversationStore
+
+        return MongoConversationStore(mongo.get_database())
+    raise _unknown("CONVERSATION_STORE", settings.CONVERSATION_STORE)
 
 
 @lru_cache(maxsize=1)
