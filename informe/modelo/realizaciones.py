@@ -10,12 +10,13 @@ un producto externo (no se comprueba). Las operaciones de las clases nuevas (cam
 
 # Operaciones de las clases que se programan en los cambios C1 a C4 (el diseño las fija antes de que existan) y operaciones nuevas de clases que ya existen.
 OPERACIONES_NUEVAS = {
-    "ActivityStore": ["identify", "record", "recent", "since", "get", "update_data"],
+    "ActivityStore": ["identify_now", "create", "recent", "since", "get", "update_data", "identify", "record"],
+    "ORMActivityStore": ["identify_now", "create", "recent", "since", "get", "update_data"],
     "ConversationStore": ["append_exchange", "history", "discard_exchange"],
     "TurnStore": ["take", "release", "current"],
     "ORMConversationStore": ["append_exchange", "history", "discard_exchange"],
     "MongoConversationStore": ["append_exchange", "history", "discard_exchange"],
-    "MongoActivityStore": ["identify", "record", "recent", "since", "get", "update_data"],
+    "MongoActivityStore": ["identify_now", "create", "recent", "since", "get", "update_data"],
     "RedisTurnStore": ["take", "release", "current"],
     "stores": ["get_activity_store", "get_conversation_store", "get_turn_store", "get_rate_limiter"],
     "NotificationService": ["requestPermission", "notifyChange", "notifyIdea"],
@@ -265,7 +266,7 @@ REALIZACIONES = [
        ["La imagen viaja al servicio de IA: no se guarda en el servidor.", "Solo PNG, JPG o WebP de hasta 10 MB."]),
     _r("COL-11",
        ["`ia_chat` en modo `ask` o `review`: `_answer` arma el contexto y responde por `AIProvider.chat`; `_review` pide hasta cinco ideas, las interpreta con `parse_review` y publica "
-        "un evento `ia_review` con ellas (`ActivityStore.record`) que difunde `_publish_activity`. La pregunta y la respuesta se guardan juntas con "
+        "un evento `ia_review` con ellas (`ActivityStore.create`) que difunde `_publish_activity`. La pregunta y la respuesta se guardan juntas con "
         "`ConversationStore.append_exchange` y `IaChatPanel` las muestra a toda la sala."],
        [_e("a", "Preguntar a la IA", [
            ("U", "IaChatPanel", "send", ""),
@@ -281,7 +282,7 @@ REALIZACIONES = [
             ("chat_views", "ia_context", "build_review_prompt", "uml"),
             ("chat_views", "GeminiProvider", "chat", "prompt"),
             ("chat_views", "ia_context", "parse_review", "raw"),
-            ("chat_views", "ActivityStore", "record", "room, actor='IA', type='ia_review', data{findings}"),
+            ("chat_views", "ActivityStore", "create", "room, actor='IA', type='ia_review', data{findings}"),
             ("chat_views", "chat_views", "_publish_activity", "room, event"),
             ("chat_views", "ConversationStore", "append_exchange", "room, participant, 'review', message, reply")])],
        ["Hay una sola instancia de IA por sala: el turno (`TurnStore`) evita que dos pedidos se mezclen.", "Cada idea es un texto y una instrucción; ninguna se aplica sola."]),

@@ -55,7 +55,7 @@ OBJETOS = {
     "activity": _o("nucleo", B + "collab/activity.py", "<activity.py>", rotulo="activity", est="module"),
     "vistas_actividad": _o("actividad", B + "uml_api/views.py", "<views.py>", ops=["get_room_activity"], rotulo="views (actividad)", est="module"),
     "FollowView": _o("seguimiento", F + "app/follow-view/follow-view.ts", "FollowView"),
-    "NotificationService": _o("seguimiento", F + "services/colaboration/notification.service.ts", "NotificationService", nuevo=True),
+    "NotificationService": _o("seguimiento", F + "services/colaboration/notification.service.ts", "NotificationService"),
     # asistencia inteligente
     "IaChatPanel": _o("ia", F + "app/ia-chat-panel/ia-chat-panel.ts", "IaChatPanel"),
     "SidePanel": _o("carcasa", F + "app/side-panel/side-panel.ts", "SidePanel"),
@@ -76,18 +76,18 @@ OBJETOS = {
     "vistas_ia": _o("ia", B + "uml_api/views.py", "<views.py>", ops=["analyze_uml_image", "analyze_uml_audio"], rotulo="views (IA)", est="module"),
     "UMLConsumer": _o("ia", B + "collab/consumers.py", "UMLConsumer", est="active"),
     # asistente de ayuda (C4)
-    "HelpPanel": _o("ayuda", F + "app/help-panel/help-panel.ts", "HelpPanel", nuevo=True),
-    "HelpService": _o("ayuda", F + "services/IA/help.service.ts", "HelpService", nuevo=True),
-    "help_views": _o("ayuda", B + "uml_api/help_views.py", "<help_views.py>", nuevo=True, rotulo="help_views", est="module"),
-    "help_knowledge": _o("ayuda", B + "uml_api/services/help_knowledge.py", "<help_knowledge.py>", nuevo=True, rotulo="help_knowledge", est="module"),
-    "RedisRateLimiter": _o("ayuda", B + "collab/limits.py", "RedisRateLimiter", nuevo=True),
+    "HelpPanel": _o("ayuda", F + "app/help-panel/help-panel.ts", "HelpPanel"),
+    "HelpService": _o("ayuda", F + "services/IA/help.service.ts", "HelpService"),
+    "help_views": _o("ayuda", B + "uml_api/help_views.py", "<help_views.py>", rotulo="help_views", est="module"),
+    "help_knowledge": _o("ayuda", B + "uml_api/services/help_knowledge.py", "<help_knowledge.py>", rotulo="help_knowledge", est="module"),
+    "RedisRateLimiter": _o("ayuda", B + "collab/limits.py", "RedisRateLimiter"),
     # puertos y adaptadores de la conversación y la actividad (C1, C3)
     "ConversationStore": _o("ia", B + "collab/ports.py", "ConversationStore", est="interface"),
-    "ActivityStore": _o("nucleo", B + "collab/ports.py", "ActivityStore", nuevo=True, est="interface"),
+    "ActivityStore": _o("nucleo", B + "collab/ports.py", "ActivityStore", est="interface"),
     "TurnStore": _o("ia", B + "collab/ports.py", "TurnStore", est="interface"),
     "ORMConversationStore": _o("ia", B + "collab/conversation.py", "ORMConversationStore"),
-    "MongoConversationStore": _o("ia", B + "collab/mongo_stores.py", "MongoConversationStore", nuevo=True),
-    "MongoActivityStore": _o("nucleo", B + "collab/mongo_stores.py", "MongoActivityStore", nuevo=True),
+    "MongoConversationStore": _o("ia", B + "collab/mongo_stores.py", "MongoConversationStore"),
+    "MongoActivityStore": _o("nucleo", B + "collab/mongo_stores.py", "MongoActivityStore"),
     "RedisTurnStore": _o("ia", B + "collab/turn.py", "RedisTurnStore"),
     "stores": _o("ia", B + "collab/stores.py", "<stores.py>", rotulo="stores", est="module"),
     # intercambio y generación
@@ -155,16 +155,16 @@ INTERFACES = [
     dict(nombre="DiagramApi", sub="edicion", realiza=["DiagramService"], operaciones=["getGraph", "getJoint", "createUmlClass", "loadFromJson", "exportToJson"],
          archivo=F + "services/colaboration/diagram-api.ts", clase="DiagramApi",
          motivo="Lo que la colaboración necesita del diagrama; evita que el servicio de colaboración dependa del servicio del diagrama."),
-    dict(nombre="ActivityStore", sub="nucleo", realiza=["ORMActivityStore", "MongoActivityStore"], operaciones=["identify", "record", "recent", "get", "update_data"],
-         motivo="Guardar y leer la actividad de la sala; PostgreSQL hoy, MongoDB en C3, elegidos con una variable de entorno.", nuevo=True),
+    dict(nombre="ActivityStore", sub="nucleo", realiza=["ORMActivityStore", "MongoActivityStore"], operaciones=["identify_now", "create", "recent", "since", "get", "update_data", "identify", "record"],
+         motivo="Guardar y leer la actividad de la sala; PostgreSQL o MongoDB, elegidos con una variable de entorno (C3). `identify` y `record` son las versiones asíncronas que usa el canal en vivo."),
     dict(nombre="AIProvider", sub="ia", realiza=["GeminiProvider", "OllamaProvider"], operaciones=["chat", "change"],
          motivo="Servicio de IA intercambiable (nube o local) sin que el resto lo note."),
     dict(nombre="ConversationStore", sub="ia", realiza=["ORMConversationStore", "MongoConversationStore"], operaciones=["append_exchange", "history", "discard_exchange"],
-         motivo="La conversación única de la sala con la IA (C1); PostgreSQL o MongoDB (C3).", nuevo=True),
+         motivo="La conversación única de la sala con la IA (C1); PostgreSQL o MongoDB (C3)."),
     dict(nombre="TurnStore", sub="ia", realiza=["RedisTurnStore"], operaciones=["take", "release", "current"],
-         motivo="Un solo pedido a la IA a la vez por sala (C1).", nuevo=True),
+         motivo="Un solo pedido a la IA a la vez por sala (C1)."),
     dict(nombre="RateLimiter", sub="ayuda", realiza=["RedisRateLimiter"], operaciones=["allow"],
-         motivo="Tope de uso del asistente de ayuda por persona y para todo el servicio (C4).", nuevo=True),
+         motivo="Tope de uso del asistente de ayuda por persona y para todo el servicio (C4)."),
 ]
 
 # Dependencias entre subsistemas: las mismas que entre paquetes del análisis (se comprueba en `validar`).
@@ -175,7 +175,7 @@ ASOCIACIONES = [
     ("Diagram", "DiagramService", "inyecta"), ("Diagram", "XmiService", "inyecta"), ("Diagram", "DiagramExportService", "inyecta"),
     ("Diagram", "BackendGeneratorService", "inyecta"), ("Diagram", "P2PService", "inyecta"),
     ("SidePanel", "DiagramService", "inyecta"), ("SidePanel", "SqlExportService", "inyecta"), ("SidePanel", "FrontendGeneratorService", "inyecta"),
-    ("SidePanel", "ChatbotService", "inyecta"), ("SidePanel", "UmlImageServiceTs", "inyecta"), ("SidePanel", "IaActionsService", "inyecta", "C1"),
+    ("SidePanel", "ChatbotService", "inyecta"), ("SidePanel", "UmlImageServiceTs", "inyecta"), ("SidePanel", "IaActionsService", "inyecta"),
     ("DiagramService", "CollaborationService", "inyecta"), ("DiagramService", "BackupService", "inyecta"), ("DiagramService", "EditionService", "inyecta"),
     ("RelationshipService", "DiagramService", "inyecta"),
     ("CollaborationService", "P2PService", "inyecta"), ("CollaborationService", "BackupService", "inyecta"),
@@ -185,27 +185,26 @@ ASOCIACIONES = [
     ("IaChatService", "IdentityService", "inyecta"), ("IaChatPanel", "IaActionsService", "inyecta"), ("IaChatPanel", "IaChatService", "inyecta"),
     ("ActivityPanel", "IaActionsService", "inyecta"), ("ActivityPanel", "P2PService", "inyecta"),
     ("FollowView", "DiagramService", "inyecta"), ("FollowView", "CollaborationService", "inyecta"),
-    ("FollowView", "P2PService", "inyecta", "C2"), ("FollowView", "NotificationService", "inyecta", "C2"),
+    ("FollowView", "P2PService", "inyecta"), ("FollowView", "NotificationService", "inyecta"),
     ("ParticipantsPanel", "P2PService", "inyecta"), ("ParticipantsPanel", "CollaborationService", "inyecta"),
     ("HelpPanel", "HelpService", "inyecta"),
     ("CanvasConsumer", "RedisGroupRoleStore", "usa (role_store_class)"), ("CanvasConsumer", "RedisGroupIdentityStore", "usa (identity_store_class)"),
-    ("CanvasConsumer", "ORMActivityStore", "usa (activity_store_class)"), ("CanvasConsumer", "groups", "importa"),
+    ("CanvasConsumer", "stores", "importa"), ("CanvasConsumer", "groups", "importa"),
     ("ORMActivityStore", "Participant", "importa"), ("ORMActivityStore", "ActivityEvent", "importa"),
-    ("chat_views", "Participant", "importa"), ("chat_views", "ActivityEvent", "importa"), ("chat_views", "IaAttempt", "importa"), ("chat_views", "ai_provider", "importa"), ("chat_views", "change_guard", "importa"),
+    ("chat_views", "Participant", "importa"), ("chat_views", "IaAttempt", "importa"), ("chat_views", "ai_provider", "importa"), ("chat_views", "change_guard", "importa"),
     ("chat_views", "ia_context", "importa"), ("chat_views", "activity", "importa"), ("chat_views", "groups", "importa"),
     ("GeminiProvider", "AIProvider", "hereda de"), ("OllamaProvider", "AIProvider", "hereda de"),
     ("ai_provider", "GeminiProvider", "crea"), ("ai_provider", "OllamaProvider", "crea"),
-    ("vistas_respaldo", "BackupUML", "importa"), ("vistas_actividad", "ActivityEvent", "importa"), ("vistas_actividad", "activity", "importa"),
+    ("vistas_respaldo", "BackupUML", "importa"), ("vistas_actividad", "stores", "importa"),
     ("vistas_intercambio", "xmi_service", "importa"), ("vistas_intercambio", "FlutterCRUDGenerator", "importa"),
     ("vistas_ia", "services_gemini", "importa"),
     ("GenerateController", "ProjectGenerator", "inyecta"), ("ProjectGenerator", "PostmanCollectionGenerator", "usa"),
-    # clases nuevas (C1 a C4): no se comprueban hasta que existan
-    ("CanvasConsumer", "ActivityStore", "usa"), ("ORMActivityStore", "ActivityStore", "realiza"), ("MongoActivityStore", "ActivityStore", "realiza"),
-    ("chat_views", "stores", "importa"), ("chat_views", "ActivityStore", "usa"),
+    # clases de los cambios C1 a C4 (ya programadas; el código las nombra a través de `stores`, que elige el adaptador)
+    ("ORMActivityStore", "ActivityStore", "realiza"), ("MongoActivityStore", "ActivityStore", "realiza"),
+    ("chat_views", "stores", "importa"),
     ("ORMConversationStore", "ConversationStore", "realiza"), ("MongoConversationStore", "ConversationStore", "realiza"),
     ("RedisTurnStore", "TurnStore", "realiza"), ("stores", "ActivityStore", "crea"), ("stores", "ConversationStore", "crea"), ("stores", "TurnStore", "crea"),
-    ("help_views", "RedisRateLimiter", "usa"), ("help_views", "help_knowledge", "importa"), ("help_views", "AIProvider", "usa"),
-    ("HelpService", "help_views", "llama a"),
+    ("stores", "RedisRateLimiter", "crea"), ("help_views", "stores", "importa"), ("help_views", "help_knowledge", "importa"), ("help_views", "ai_provider", "importa"),
 ]
 
 # ---- clases activas (9.5.1.3.2) ----------------------------------------------------------------------------
@@ -252,7 +251,7 @@ TRAZA = {
     "Sala": [("groups", ["room_group_name", "viewers_group_name"])],
     "Participante": [("Participant", []), ("RedisGroupRoleStore", ["join", "members"]), ("RedisGroupIdentityStore", ["set", "names"]),
                      ("IdentityService", ["getIdentity"])],
-    "EventoActividad": [("ActivityEvent", []), ("MongoActivityStore", ["record"])],
+    "EventoActividad": [("ActivityEvent", []), ("MongoActivityStore", ["create"])],
     "Lienzo": [("Diagram", ["ngAfterViewInit", "onDragEnded"])],
     "ControlModelado": [("DiagramService", ["createUmlClass", "createTypedRelationship", "loadFromJson"]),
                         ("EditionService", ["scheduleAutoResize"]), ("RelationshipService", ["createTypedRelationship"])],
@@ -264,7 +263,7 @@ TRAZA = {
     "OperacionEdicion": [("CollaborationService", ["broadcast", "applyRemoteOp"])],
     "RespaldoDiagrama": [("BackupUML", []), ("BackupService", ["setBackupUml", "getBackup"]), ("vistas_respaldo", ["set_backupUML", "get_backupUML"])],
     "PanelActividad": [("ActivityPanel", ["ngOnInit", "apply"])],
-    "ControlActividad": [("CanvasConsumer", ["_record_activity"]), ("ORMActivityStore", ["record"]), ("vistas_actividad", ["get_room_activity"]),
+    "ControlActividad": [("CanvasConsumer", ["_record_activity"]), ("ActivityStore", ["record"]), ("vistas_actividad", ["get_room_activity"]),
                          ("activity", ["serialize_activity_event"])],
     "VistaSeguimiento": [("FollowView", ["ngAfterViewInit"]), ("NotificationService", ["requestPermission", "notifyChange", "notifyIdea"])],
     "ControlSeguimiento": [("CanvasConsumer", ["_connect_viewer", "_allow_viewer_state_request"])],
@@ -295,7 +294,7 @@ TRAZA = {
     "ProyectoGenerado": [("ProjectGenerator", ["generate"]), ("FlutterCRUDGenerator", ["generate_project"])],
     "PantallaInicio": [("LandinPage", ["crearNuevoLienzo", "unirseAlLienzo"]), ("IdentityService", ["getIdentity"])],
     "PanelParticipantes": [("ParticipantsPanel", ["remove", "isCurrent"])],
-    "ControlIngreso": [("CanvasConsumer", ["connect", "_handle_hello"]), ("RedisGroupRoleStore", ["join"]), ("ORMActivityStore", ["identify"])],
+    "ControlIngreso": [("CanvasConsumer", ["connect", "_handle_hello"]), ("RedisGroupRoleStore", ["join"]), ("ActivityStore", ["identify"])],
     "ControlExpulsion": [("P2PService", ["removeParticipant"]), ("SignalingService", ["removeParticipant"]), ("CanvasConsumer", ["receive", "force_disconnect"]),
                          ("RedisGroupRoleStore", ["remove_by_host"])],
     "ControlRecuperacion": [("Diagram", ["ngAfterViewInit"]), ("CollaborationService", ["init"]), ("BackupService", ["getBackup"]),
@@ -328,7 +327,9 @@ CAMBIOS = [
                      "(`P2PService.liveActivityEvents`): «Ana añadió una clase» o «La IA publicó una revisión con 3 ideas».",
                      "No hay servidor de avisos ni suscripción push: es solo lectura y sin cuenta."],
          pruebas=["Sin permiso concedido no se crea ninguna notificación.",
-                  "Con permiso, un evento nuevo de otro autor crea una notificación y uno propio no."]),
+                  "Con permiso, un evento nuevo crea una notificación; los que ya estaban al activar los avisos y los repetidos no (la vista es de solo lectura: nunca "
+                  "es autora de un evento, así que todo evento nuevo es de otra persona o de la IA).",
+                  "Si el navegador no deja crear la notificación directamente (Android), se muestra con el service worker."]),
     dict(id="C3", nombre="MongoDB para la conversación y la actividad", casos=["CU5", "CU6", "CU9"], rf="RNF-03",
          motivo="La conversación y la actividad son documentos que solo se agregan, con un `data` que cambia según el tipo, y se consultan por sala y por tiempo: encajan en una "
                 "base documental. El ingeniero pidió una base NoSQL. PostgreSQL conserva lo relacional y Redis lo efímero.",
@@ -348,7 +349,7 @@ CAMBIOS = [
          nuevas=["HelpPanel", "HelpService", "help_views", "help_knowledge", "RedisRateLimiter"], cambian=["ai_provider"],
          decisiones=["`POST /api/ia/help/` (`ia_help`) no depende de una sala: sirve desde la página principal. Recibe la pregunta y hasta 6 mensajes anteriores, "
                      "que guarda el navegador: la conversación es personal y no se almacena en el servidor.",
-                     "`help_knowledge.load_knowledge()` lee `docs/AYUDA.md` (el manual y la lista de funciones) y `build_help_prompt` le dice a la IA que responda solo "
+                     "`help_knowledge.load_knowledge()` lee `uml_api/knowledge/AYUDA.md` (el manual y la lista de funciones; vive dentro del backend para que viaje en su imagen de Docker) y `build_help_prompt` le dice a la IA que responda solo "
                      "sobre la herramienta.",
                      "Tope de uso: `RateLimiter.allow` con 6 preguntas por minuto por persona (token) y 30 por minuto en todo el servicio.",
                      "Usa el mismo `AIProvider` que el chat: nube o local según la variable de entorno."],
@@ -592,6 +593,7 @@ if __name__ == "__main__":
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from modelo import analisis
-    validar(analisis=analisis)
-    validar_realizaciones(analisis)
+    # Estricto: todo lo que el diseño dice existe en el código (clases, operaciones, asociaciones, trazas y cada mensaje de las secuencias).
+    validar(exigir_nuevos=True, analisis=analisis)
+    validar_realizaciones(analisis, nuevas={"_": []})
     print(len(OBJETOS), "clases de diseño;", len(SUBSISTEMAS), "subsistemas;", len(INTERFACES), "interfaces")
