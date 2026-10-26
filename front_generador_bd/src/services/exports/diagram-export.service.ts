@@ -75,11 +75,15 @@ export class DiagramExportService {
           ...(cell.get('junctionOrigin') ? { junctionOrigin: cell.get('junctionOrigin') } : {})
         });
       } else if (cell.isLink?.()) {
+        const sourceId = cell.get('source')?.id;
+        const targetId = cell.get('target')?.id;
+        // Una relación sin clase en alguno de sus extremos no es una relación UML: no se guarda, no se comparte ni se exporta.
+        if (!sourceId || !targetId) return;
         relationships.push({
           id: cell.id,
           type: cell.get('relationType') || 'association',
-          sourceId: cell.get('source')?.id,
-          targetId: cell.get('target')?.id,
+          sourceId,
+          targetId,
           labels: (cell.get('labels') || []).map((lbl: any) => lbl.attrs?.text?.text),
           vertices: cell.get('vertices') || [],
           ...(cell.get('generatedJunctionLeg') ? { generated: true } : {}),

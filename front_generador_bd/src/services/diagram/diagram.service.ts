@@ -80,6 +80,8 @@ export class DiagramService {
         defaultConnector: { name: 'rounded' },
         defaultLink: () => this.buildRelationship(),
         validateConnection: (cvS: any, _mS: any, cvT: any, _mT: any) => cvS !== cvT,
+        // Una relación une dos clases: si se suelta sobre el lienzo vacío, desaparece en lugar de quedar colgada.
+        linkPinning: false,
       });
       /**************************************************************************************************
        * ATAJOS DE TECLADO: copiar, pegar, duplicar, cortar

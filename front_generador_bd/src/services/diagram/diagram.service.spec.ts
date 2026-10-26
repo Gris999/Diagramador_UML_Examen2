@@ -693,6 +693,15 @@ describe('DiagramService backup persistence and room lifecycle', () => {
     expect(backup.setBackupUml).not.toHaveBeenCalled();
   });
 
+  it('does not let a relationship end on the empty canvas: it must join two classes', async () => {
+    const { service, collab } = createServiceWithMocks();
+    Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
+
+    await service.initialize(document.createElement('div'), 'room-1');
+
+    expect((service as any).paper.options.linkPinning).toBeFalse();
+  });
+
   it('stops its animation-frame loops when the room is left, and restarts them for the next one', async () => {
     const { service, collab } = createServiceWithMocks();
     Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
