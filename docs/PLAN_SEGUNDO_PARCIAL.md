@@ -174,8 +174,9 @@ Libro: Jacobson, Booch y Rumbaugh, *El Proceso Unificado de Desarrollo de Softwa
 | F0 Plan | Aprobado | este documento |
 | F1 Requisitos | Hecha: 14 casos de uso, 3 actores, fichas, priorización, estructura, glosario, RA; 20 diagramas en EA | `informe/modelo/requisitos.py`, `informe/seccion_requisitos.py`, `informe/ea/casos_de_uso.py` |
 | F2 Análisis | Hecha: 8 paquetes (2 de servicio), 41 clases, 18 colaboraciones, 44 diagramas en EA, sección 2.2 del informe; `validar()` comprueba las reglas del libro | `informe/modelo/analisis.py`, `informe/seccion_analisis.py`, `informe/ea/analisis.py` |
-| F3 Diseño | Pendiente | |
-| F4–F7 | Pendientes | |
+| F3 Diseño | Hecha: 9 subsistemas, 68 clases de diseño comprobadas contra el código, 8 interfaces, 35 secuencias, diseño de C1 a C4, 70 diagramas en EA y la sección 2.3 | `informe/modelo/codigo.py`, `informe/modelo/diseno.py`, `informe/modelo/realizaciones.py`, `informe/seccion_diseno.py`, `informe/ea/diseno.py` |
+| F4 Implementación | Pendiente: programar C1 a C4 desde el diseño (las pruebas primero) | |
+| F5–F7 | Pendientes | |
 
 Herramientas que dejó F2 (para F3): los diagramas con mensajes en EA ubican sus etiquetas midiendo en dos pasadas (`informe/ea/etiquetas.py`); las posiciones se guardan en `informe/build/layout_cache.json`; `generar_diagramas.py --solo analisis[:COL-01,…]` genera solo el análisis.
 
