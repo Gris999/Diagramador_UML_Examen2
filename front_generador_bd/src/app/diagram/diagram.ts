@@ -45,6 +45,9 @@ export class Diagram implements AfterViewInit, OnDestroy {
     private p2p: P2PService,
     private router: Router
   ) {
+    // El servicio de colaboración vive toda la sesión: si esta persona fue expulsada antes y vuelve a entrar sin recargar la página, su expulsión
+    // anterior no cuenta (entra como una persona nueva, CU4).
+    this.p2p.removed.set(false);
     // Si el host expulsa a esta persona, la conexión se cierra: se le avisa y
     // vuelve al inicio en lugar de quedarse con una sala congelada.
     effect(() => {
