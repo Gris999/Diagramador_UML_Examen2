@@ -46,7 +46,7 @@ Requested by the instructor on 2026-10-13: the AI becomes one more member of the
 - **RF-23** — Each participant has a visible name and an anonymous identifier kept in their browser.
 - **RF-24** — The AI appears as a member in the participants panel.
 - **RF-25** — Each room has an activity log, visible to everyone, with author, type and summary of each meaningful action.
-- **RF-26** — Each participant has an individual chat with the AI; no other participant can read it.
+- **RF-26** — Each room has one conversation with the AI, shared by everyone in the room; every message shows who wrote it. *(Changed on 2026-10-26 from an individual chat per person: the instructor asked for one model and one instance per room, with no private conversations.)*
 - **RF-27** — The AI answers about any member's activity using the log.
 - **RF-28** — The AI changes the diagram only when a participant explicitly orders it; its ideas are shown as suggestions anyone can apply.
 - **RF-29** — AI changes are applied and propagated to everyone, labeled "IA, a pedido de X".
@@ -54,13 +54,16 @@ Requested by the instructor on 2026-10-13: the AI becomes one more member of the
 - **RF-31** — On returning to a room, the diagram, the activity log and the participant's own chat are recovered.
 - **RF-32** — A mobile follow-along view exists (live, read-only): `/sala/<room>/seguir`.
 - **RF-33** — *(Optional)* The AI provider is configurable: Gemini or local (Ollama/Qwen).
+- **RF-34** — The mobile follow-along view can notify the person of each new event of the room (a change or an AI review) through the browser's notifications, only after the person turns them on with a button and only while the page is open.
+- **RF-35** — A help assistant, available from the landing page and inside a room, teaches how to use the tool from the tool's own manual (`back_generador_bd/uml_api/knowledge/AYUDA.md`). Its conversation is personal and kept in the browser; it answers only about the tool and has per-person and global usage limits.
 
 Additional non-functional requirements:
 
-- **RNF-04** — Privacy: a person's chat is not accessible to others.
+- **RNF-04** — *(Replaced on 2026-10-26.)* The AI serves one request at a time per room; if it is busy the next person is told who it is attending. The conversation is public to the room, so there is no chat privacy requirement any more.
 - **RNF-05** — Resilience: if the AI fails, a clear message is shown and the diagram is neither lost nor corrupted.
 - **RNF-06** — The activity log must not degrade editing: continuous actions (move, resize) are not logged.
 - **RNF-07** — Deployment is reproducible and has a smoke test.
+- **RNF-08** — The room activity and the AI conversation are documents that are only appended to, so they can be stored in a document database (MongoDB) instead of PostgreSQL by configuration (`ACTIVITY_STORE`, `CONVERSATION_STORE`), behind ports and adapters; participants stay relational (PostgreSQL) and ephemeral state in Redis. `python manage.py migrar_a_mongo` copies the existing history.
 
 ## Interoperability
 
