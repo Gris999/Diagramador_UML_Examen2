@@ -176,7 +176,8 @@ Libro: Jacobson, Booch y Rumbaugh, *El Proceso Unificado de Desarrollo de Softwa
 | F2 Análisis | Hecha: 8 paquetes (2 de servicio), 41 clases, 18 colaboraciones, 44 diagramas en EA, sección 2.2 del informe; `validar()` comprueba las reglas del libro | `informe/modelo/analisis.py`, `informe/seccion_analisis.py`, `informe/ea/analisis.py` |
 | F3 Diseño | Hecha: 9 subsistemas, 68 clases de diseño comprobadas contra el código, 8 interfaces, 35 secuencias, diseño de C1 a C4, 70 diagramas en EA y la sección 2.3 | `informe/modelo/codigo.py`, `informe/modelo/diseno.py`, `informe/modelo/realizaciones.py`, `informe/seccion_diseno.py`, `informe/ea/diseno.py` |
 | F4 Implementación | Hecha el 2026-10-26: C1 (chat compartido y turno), C2 (avisos del celular), C3 (puertos y adaptadores de MongoDB, `migrar_a_mongo`, servicio `mongo`), C4 (asistente de ayuda y tope de uso), con las pruebas primero; `diseno.validar(exigir_nuevos=True)` y las realizaciones comprobadas solo contra el código pasan. Pendiente de F4: componentes y plan de integración (implementación), matriz de trazabilidad | `back_generador_bd/collab/`, `back_generador_bd/uml_api/help_views.py`, `front_generador_bd/src/app/help-panel`, `follow-view`, `informe/modelo/diseno.py` |
-| F5–F7 | Pendientes | |
+| F5 Pruebas | Hecha el 2026-10-27: 66 casos de prueba (uno por camino de los 14 casos de uso) comprobados contra el repositorio, 21 procedimientos manuales ejecutados, 7 defectos encontrados y corregidos, evaluación de compleción y fiabilidad, y la sección 2.5 generada | `informe/modelo/pruebas.py`, `informe/seccion_pruebas.py` |
+| F6–F7 | Pendientes | |
 
 Herramientas que dejó F2 (para F3): los diagramas con mensajes en EA ubican sus etiquetas midiendo en dos pasadas (`informe/ea/etiquetas.py`); las posiciones se guardan en `informe/build/layout_cache.json`; `generar_diagramas.py --solo analisis[:COL-01,…]` genera solo el análisis.
 
