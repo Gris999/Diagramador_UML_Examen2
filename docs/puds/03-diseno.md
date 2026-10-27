@@ -63,7 +63,7 @@ flowchart TB
 | Colaboración (cliente) | `front_generador_bd/src/services/colaboration/` | `SignalingService` (WebSocket), `P2PService` (presencia y roles), `CollaborationService` (operaciones y estado completo) |
 | Exportaciones | `front_generador_bd/src/services/exports/` | SQL, imagen PNG, respaldo, llamada al generador Spring |
 | Interoperabilidad | `front_generador_bd/src/services/interop/xmi.service.ts` y `back_generador_bd/uml_api/services/xmi_service.py` | `POST /api/xmi/export/`, `POST /api/xmi/import/` |
-| IA asistida | `front_generador_bd/src/services/IA/`, `imports/` y `back_generador_bd/uml_api/services/services_gemini.py` | `POST /api/chatbot/`, `/api/uml_from_image/`, `/api/uml_from_audio/` |
+| IA asistida | `front_generador_bd/src/services/IA/`, `imports/` y `back_generador_bd/uml_api/services/services_gemini.py` | `/api/rooms/<sala>/ia/chat/`, `/api/uml_from_image/`, `/api/uml_from_audio/` |
 | Colaboración (servidor) | `back_generador_bd/collab/` | WebSocket `/ws/canvas/<sala>/` con mensajes `hello`, `broadcast`, `signal`, `remove_participant` y eventos `presence` (`self`, `join`, `leave`, `remove`, `state`) y `activity` |
 | Chat con la IA | `back_generador_bd/uml_api/chat_views.py`, `services/ai_provider.py`, `services/ia_context.py`; cliente: `services/IA/ia-chat.service.ts`, `ia-actions.service.ts`, `app/ia-chat-panel` | `POST /api/rooms/<sala>/ia/chat/` (`mode`: `ask`, `change`, `review`) y `GET /api/rooms/<sala>/chat/`, ambos con la cabecera `X-Participant-Token` |
 | Actividad | `back_generador_bd/collab/activity.py`, `uml_api/views.py`; cliente: `app/activity-panel` | `GET /api/rooms/<sala>/activity/?since=&limit=` |

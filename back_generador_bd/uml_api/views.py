@@ -1,6 +1,5 @@
 import tempfile
 from django.http import FileResponse, HttpResponse
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import BackupUML
@@ -22,41 +21,6 @@ from .services.flutter_generator import FlutterCRUDGenerator
 from .services.xmi_service import XMIError, export_uml_to_xmi, import_xmi_to_uml
 from .utils.zip_utils import compress_folder_to_zip
 from collab.stores import get_activity_store
-
-
-class GenerateUMLView(APIView):
-    def post(self, request):
-        prompt = request.data.get("prompt")
-        current_uml = request.data.get("uml")
-        if not prompt:
-            return Response({"error": "El campo 'prompt' es requerido"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            output = call_gemini(prompt, current_uml=current_uml)
-        except Exception:
-            return Response(
-                {
-                    "error": (
-                        "No se pudo procesar la solicitud "
-                        "con el servicio de IA."
-                    )
-                },
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        # 🧹 Limpiar bloque de código Markdown si viene envuelto en ```json ... ```
-        if isinstance(output, str):
-            output = re.sub(r"^```json\s*|\s*```$", "",
-                            output.strip(), flags=re.MULTILINE)
-
-        try:
-            parsed_json = json.loads(output)
-        except Exception:
-            return Response({
-                "error": "La IA devolvió un modelo UML inválido."
-            }, status=status.HTTP_502_BAD_GATEWAY)
-
-        return Response(parsed_json, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
