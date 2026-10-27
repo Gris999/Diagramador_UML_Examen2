@@ -33,7 +33,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | Colaboración de 2–3 personas, host/participantes, expulsar, reconexión y recuperación de estado | Hecho |
 | XMI con Enterprise Architect (en ambos sentidos, con pruebas de seguridad) | Hecho |
 | Generación Spring Boot + PostgreSQL, colección Postman, proyecto Flutter con SQLite sin conexión | Hecho |
-| IA como integrante de la sala: identidad, actividad, chat privado, cambios a pedido, revisión con ideas aplicables, sesiones continuas, vista móvil | Hecho (RF-23 a RF-32) |
+| IA como integrante de la sala: identidad, actividad, chat (compartido por la sala desde el segundo parcial), cambios a pedido, revisión con ideas aplicables, sesiones continuas, vista móvil | Hecho (RF-23 a RF-32) |
 | IA local (Ollama + Qwen 3.5 9B) | Hecho: evaluado con verificaciones estrictas, 10/10 pedidos correctos (RF-33) |
 | Despliegue en AWS con dominio y HTTPS | Parcial: manual y repetible; sin infraestructura como código ni CI/CD |
 | IA local **dentro de la app móvil generada** | Parcial: el asistente de la app Flutter es un intérprete de comandos determinista, no un modelo |
