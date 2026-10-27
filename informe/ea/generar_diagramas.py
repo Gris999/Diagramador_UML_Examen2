@@ -21,6 +21,7 @@ DESTINO = AQUI.parent / "build" / "ea"
 if __name__ == "__main__":
     # `--solo requisitos`: diagramas de casos de uso (modelo/requisitos.py). `--solo analisis`: diagramas del análisis
     # (modelo/analisis.py); `--solo analisis:COL-01,COL-09` solo esas colaboraciones (para probar). `--solo diseno[:COL-01,ARQ]`: lo mismo para el diseño.
+    # `--solo implementacion`: los componentes de cada subsistema de implementación.
     solo = sys.argv[sys.argv.index("--solo") + 1] if "--solo" in sys.argv else ""
     if solo == "requisitos":
         import casos_de_uso
@@ -40,8 +41,25 @@ if __name__ == "__main__":
         base = especificaciones.Modelo()
         analisis.construir(base, solo.split(":")[1].split(",") if ":" in solo else None)
         modelo = dict(elementos=base.elementos, diagramas=base.diagramas)
+    elif solo.startswith("implementacion"):
+        import implementacion
+
+        base = especificaciones.Modelo()
+        implementacion.construir(base)
+        modelo = dict(elementos=base.elementos, diagramas=base.diagramas)
     else:
-        modelo = especificaciones.construir()
+        # Sin `--solo`: todos los diagramas del informe de este parcial, en un solo modelo de EA (un único `modelo.qea`).
+        import analisis
+        import casos_de_uso
+        import diseno
+        import implementacion
+
+        base = especificaciones.Modelo()
+        casos_de_uso.construir(base)
+        analisis.construir(base)
+        diseno.construir(base)
+        implementacion.construir(base)
+        modelo = dict(elementos=base.elementos, diagramas=base.diagramas)
     print(f"{len(modelo['diagramas'])} diagramas, {len(modelo['elementos'])} elementos")
     if etiquetas.hay_automaticos(modelo):
         # EA pone las etiquetas de los mensajes donde no se leen: se mide la primera pasada y se corrigen (ver etiquetas.py).

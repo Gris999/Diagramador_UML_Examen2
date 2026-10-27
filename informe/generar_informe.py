@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_ORIENT
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -39,6 +39,7 @@ SIGLA = "INF 422"
 DOCENTE = "Ing. Martínez Canedo Rolando Antonio"
 GESTION = "Semestre 2 - 2026"
 LUGAR = "Santa Cruz - Bolivia"
+SITIO_DESPLEGADO = "https://diagramador.dev"
 
 REFERENCIAS = {
     "01-requisitos.md": "la sección 2.2", "02-analisis.md": "la sección 2.3", "03-diseno.md": "la sección 2.4",
@@ -572,10 +573,10 @@ class Constructor:
         logo = INFORME / "recursos" / "logo-facultad.png"
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_after = Pt(14)
+        p.paragraph_format.space_after = Pt(8)
         if logo.exists():
-            p.add_run().add_picture(str(logo), width=Cm(5.0), height=Cm(6.5))
-        linea(f"“{TITULO}”", 17, True, despues=12)
+            p.add_run().add_picture(str(logo), width=Cm(3.6), height=Cm(4.7))
+        linea(f"“{TITULO}”", 16, True, despues=8)
         linea(PARCIAL, 14, True, despues=6)
         linea(f"Número: {NUMERO}", 12, True, izquierda, despues=10, sangria=36)
         linea("INTEGRANTES :", 12, True, izquierda, despues=4, sangria=36)
@@ -587,15 +588,46 @@ class Constructor:
             p.add_run(nombre).font.size = Pt(12)
             p.add_run("\t")
             p.add_run(registro).font.size = Pt(12)
-        linea("", 12, False, izquierda, despues=4)
         for etiqueta, valor in (("Materia: ", MATERIA), ("Sigla: ", SIGLA), ("Docente: ", DOCENTE), ("Gestión: ", GESTION)):
             p = linea("", 12, False, izquierda, despues=0, interlineado=1.45)
             r = p.add_run(etiqueta)
             r.bold = True
             r.font.size = Pt(12)
             p.add_run(valor).font.size = Pt(12)
-        linea("", 12, False, despues=4)
+        linea("", 12, False, despues=2)
+        self.codigos_qr()
+        linea("", 12, False, despues=2)
         linea(LUGAR, 14, True)
+
+    def codigos_qr(self):
+        """Dos códigos QR en la carátula: el repositorio de GitHub (el remoto `origin`) y el sitio desplegado."""
+        import subprocess
+
+        import qrcode
+
+        repositorio = subprocess.run(["git", "-C", str(RAIZ), "remote", "get-url", "origin"], capture_output=True, text=True, check=True).stdout.strip()
+        repositorio = repositorio.removesuffix(".git")
+        destinos = [("Código fuente en GitHub", repositorio, "qr-github.png"), ("Sitio desplegado", SITIO_DESPLEGADO, "qr-despliegue.png")]
+        (INFORME / "recursos").mkdir(exist_ok=True)
+        tabla = self.doc.add_table(rows=2, cols=2)
+        tabla.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for columna, (rotulo, url, archivo) in enumerate(destinos):
+            ruta = INFORME / "recursos" / archivo
+            qrcode.make(url, box_size=8, border=1).save(ruta)
+            celda = tabla.cell(0, columna)
+            p = celda.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(0)
+            p.add_run().add_picture(str(ruta), width=Cm(2.5), height=Cm(2.5))
+            pie = tabla.cell(1, columna).paragraphs[0]
+            pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            pie.paragraph_format.space_after = Pt(0)
+            r = pie.add_run(rotulo)
+            r.bold = True
+            r.font.size = Pt(9)
+            pie.add_run("\n").font.size = Pt(8)
+            u = pie.add_run(url.removeprefix("https://"))
+            u.font.size = Pt(8)
 
     def indice(self):
         self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
@@ -617,6 +649,11 @@ def seccion_de(texto, desde, hasta=None):
 def main():
     sys.path.insert(0, str(INFORME))
     b = Constructor()
+    # Entran dos carátulas (dos copias), cada una con los códigos QR del repositorio y del sitio desplegado.
+    b.caratula()
+    # La segunda carátula empieza una sección nueva, para que tampoco lleve número de página.
+    segunda = b.doc.add_section(WD_SECTION.NEW_PAGE)
+    segunda.different_first_page_header_footer = True
     b.caratula()
     b.indice()
 
