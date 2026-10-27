@@ -284,8 +284,18 @@ REALIZACIONES = [
             ("chat_views", "ia_context", "parse_review", "raw"),
             ("chat_views", "ActivityStore", "create", "room, actor='IA', type='ia_review', data{findings}"),
             ("chat_views", "chat_views", "_publish_activity", "room, event"),
-            ("chat_views", "ConversationStore", "append_exchange", "room, participant, 'review', message, reply")])],
-       ["Hay una sola instancia de IA por sala: el turno (`TurnStore`) evita que dos pedidos se mezclen.", "Cada idea es un texto y una instrucción; ninguna se aplica sola."]),
+            ("chat_views", "ConversationStore", "append_exchange", "room, participant, 'review', message, reply")]),
+        _e("c", "Alterno: analizar la consistencia del modelo", [
+            ("U", "SidePanel", "analyzeNow", ""),
+            ("SidePanel", "UmlValidationService", "validateModel", "umlJson"),
+            ("UmlValidationService", "UMLConsumer", "receive", "{action: validate_model, uml}"),
+            ("UMLConsumer", "UMLConsumer", "_validate_pending", ""),
+            ("UMLConsumer", "UMLConsumer", "_analyze", "uml_json"),
+            ("UMLConsumer", "services_gemini", "call_gemini_analysis", "prompt"),
+            ("UmlValidationService", "Diagram", "·onResult", "validation_result"),
+            ("Diagram", "SidePanel", "updateValidationResult", "result")])],
+       ["Hay una sola instancia de IA por sala: el turno (`TurnStore`) evita que dos pedidos se mezclen.", "Cada idea es un texto y una instrucción; ninguna se aplica sola.",
+        "El análisis de consistencia no bloquea el servidor: una ráfaga de cambios cuesta una sola llamada a la IA (`UMLConsumer._validate_pending`)."]),
     _r("COL-12",
        ["`ActivityPanel.apply` pide a `IaActionsService.applySuggestion` aplicar una idea: primero la reserva (`IaChatService.claimSuggestion`, POST de `claim_suggestion`), que responde "
         "409 si otra persona la tomó; si la reserva queda, ejecuta la instrucción como un pedido de cambio (COL-08 y COL-09) y, cuando el cambio llegó al diagrama, la confirma "

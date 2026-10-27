@@ -421,10 +421,10 @@ def diagrama_datos_mongo(m):
     for nombre, cols in D.COLECCIONES:
         m.elem(f"dm:{nombre}", "Class", nombre, ruta, est="collection", attrs=[(c, t, "", "Public") for c, t, _ in cols])
         tam[nombre] = (300, 40 + 17 * len(cols))
-    objetos = [("dm:activity_events", 0, 0, *tam["activity_events"], NUEVO), ("dm:conversation_messages", 450, 0, *tam["conversation_messages"], NUEVO),
+    objetos = [("dm:activity_events", 0, 0, *tam["activity_events"], NUEVO), ("dm:chat_messages", 450, 0, *tam["chat_messages"], NUEVO),
                ("dm:counters", 450, 300, *tam["counters"], NUEVO)]
     conectores = [dict(de="dm:activity_events", a="dm:counters", tipo="Dependency", nombre="id con $inc", arbol="V"),
-                  dict(de="dm:conversation_messages", a="dm:counters", tipo="Dependency", nombre="id con $inc", arbol="V")]
+                  dict(de="dm:chat_messages", a="dm:counters", tipo="Dependency", nombre="id con $inc", arbol="V")]
     m.diagrama("dd-mongo", "Colecciones de MongoDB (C3)", "Class", ruta, objetos, conectores)
 
 

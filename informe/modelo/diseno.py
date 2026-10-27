@@ -75,6 +75,7 @@ OBJETOS = {
     "IaAttempt": _o("ia", B + "collab/models.py", "IaAttempt", est="entity"),
     "vistas_ia": _o("ia", B + "uml_api/views.py", "<views.py>", ops=["analyze_uml_image", "analyze_uml_audio"], rotulo="views (IA)", est="module"),
     "UMLConsumer": _o("ia", B + "collab/consumers.py", "UMLConsumer", est="active"),
+    "UmlValidationService": _o("ia", F + "services/colaboration/uml-validation.service.ts", "UmlValidationService"),
     # asistente de ayuda (C4)
     "HelpPanel": _o("ayuda", F + "app/help-panel/help-panel.ts", "HelpPanel"),
     "HelpService": _o("ayuda", F + "services/IA/help.service.ts", "HelpService"),
@@ -174,6 +175,7 @@ INTERFACES = [
 ASOCIACIONES = [
     ("Diagram", "DiagramService", "inyecta"), ("Diagram", "XmiService", "inyecta"), ("Diagram", "DiagramExportService", "inyecta"),
     ("Diagram", "BackendGeneratorService", "inyecta"), ("Diagram", "P2PService", "inyecta"),
+    ("SidePanel", "UmlValidationService", "inyecta"), ("Diagram", "UmlValidationService", "inyecta"),
     ("SidePanel", "DiagramService", "inyecta"), ("SidePanel", "SqlExportService", "inyecta"), ("SidePanel", "FrontendGeneratorService", "inyecta"),
     ("SidePanel", "ChatbotService", "inyecta"), ("SidePanel", "UmlImageServiceTs", "inyecta"), ("SidePanel", "IaActionsService", "inyecta"),
     ("DiagramService", "CollaborationService", "inyecta"), ("DiagramService", "BackupService", "inyecta"), ("DiagramService", "EditionService", "inyecta"),
@@ -376,14 +378,14 @@ TABLAS = [
 ]
 # MongoDB (C3): colecciones; los documentos conservan un identificador entero por sala para no cambiar la API.
 COLECCIONES = [
-    ("activity_events", [("_id", "ObjectId", ""), ("id", "int", "único, de la colección counters"), ("room", "string", "índice con created_at"),
-                         ("actor_id", "int", "id del participante en PostgreSQL, sin clave foránea"), ("actor_name", "string", ""), ("actor_kind", "string", ""),
+    ("activity_events", [("_id", "int", "el identificador del evento: sale de la colección counters"), ("room", "string", "índice con _id"),
+                         ("actor", "int", "id del participante en PostgreSQL, sin clave foránea"), ("actor_name", "string", ""), ("actor_kind", "string", ""),
                          ("type", "string", ""), ("target_id", "string", ""), ("summary", "string", ""), ("data", "document", "según el tipo"),
                          ("v", "int", "versión para actualizar `data` sin pisar a otro"), ("created_at", "date", "")]),
-    ("conversation_messages", [("_id", "ObjectId", ""), ("id", "int", "único, de la colección counters"), ("room", "string", "índice con id"),
-                               ("participant_id", "int", ""), ("author_name", "string", ""), ("role", "string", ""), ("mode", "string", ""),
-                               ("content", "string", ""), ("created_at", "date", "")]),
-    ("counters", [("_id", "string", "activity_events o conversation_messages"), ("seq", "int", "último identificador entregado")]),
+    ("chat_messages", [("_id", "int", "el identificador del mensaje: sale de la colección counters"), ("room", "string", "índice con _id"),
+                       ("participant", "int", "id del participante en PostgreSQL"), ("author_name", "string", ""), ("role", "string", "user o ia"),
+                       ("mode", "string", "ask, change o review"), ("content", "string", ""), ("created_at", "date", "")]),
+    ("counters", [("_id", "string", "activity_events o chat_messages"), ("seq", "int", "último identificador entregado")]),
 ]
 
 # ---- nodos y despliegue (9.5.1.1) ---------------------------------------------------------------------------

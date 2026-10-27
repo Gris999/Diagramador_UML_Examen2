@@ -124,7 +124,7 @@ CASOS = {
         pantalla="03-editor.png"),
     "CU3": dict(
         nombre="Colaborar en la edición del diagrama", actores=["A1", "A2"], ciclo=2, origen="Primer parcial",
-        prioridad="crítico", riesgo="crítico", estado="validado", rf=["RF-06", "RF-08", "RF-09", "RF-10"],
+        prioridad="crítico", riesgo="crítico", estado="validado", rf=["RF-06", "RF-08", "RF-09", "RF-10", "RF-13", "RF-15", "RF-16", "RF-17"],
         motivo="Fija el canal de tiempo real, los roles y la recuperación de estado; la arquitectura entera depende de él.",
         proposito="Que dos o tres personas editen el mismo diagrama a la vez y vean al instante lo que hacen las demás.",
         precondicion="Los actores están en la misma sala (CU1).",
@@ -243,7 +243,7 @@ CASOS = {
         pantalla="08-exportaciones.png"),
     "CU12": dict(
         nombre="Generar la aplicación móvil", actores=["A1"], ciclo=3, origen="Primer parcial",
-        prioridad="importante", riesgo="significativo", estado="validado", rf=["RF-21", "RNF-01"],
+        prioridad="importante", riesgo="significativo", estado="validado", rf=["RF-21", "RF-22", "RNF-01"],
         motivo="Cubre la salida móvil con persistencia sin conexión.",
         proposito="Obtener un proyecto Flutter con base de datos local SQLite, para que la aplicación funcione sin conexión.",
         precondicion="El diagrama tiene clases (CU2).",
@@ -258,7 +258,7 @@ CASOS = {
         pantalla="08-exportaciones.png"),
     "CU6": dict(
         nombre="Consultar la actividad del equipo", actores=["A1", "A2"], ciclo=4, origen="Nuevo",
-        prioridad="importante", riesgo="significativo", estado="validado", rf=["RF-23", "RF-25"],
+        prioridad="importante", riesgo="significativo", estado="validado", rf=["RF-23", "RF-25", "RNF-06"],
         motivo="Es el contexto que usa la IA para saber quién hizo qué, y lo que usa una persona que llega tarde para ponerse al día.",
         proposito="Ver, en tiempo real, quién está en la sala y qué hizo cada integrante, incluida la IA.",
         precondicion="El actor está en una sala con su nombre visible (CU1).",
@@ -301,7 +301,7 @@ CASOS = {
         pantalla="07-revision-ideas.png"),
     "CU13": dict(
         nombre="Mantenerse informado desde el celular", actores=["A1", "A2"], ciclo=4, origen="Nuevo",
-        prioridad="importante", riesgo="ordinario", estado="aprobado", rf=["RF-32"],
+        prioridad="importante", riesgo="ordinario", estado="aprobado", rf=["RF-32", "RF-34"],
         motivo="Lo pidió el ingeniero para quien está viajando: informarse de lo que pasa sin tener que editar.",
         proposito="Ver en vivo cómo cambia el diagrama y qué hace el equipo desde el celular, en solo lectura, y recibir avisos de lo importante.",
         precondicion="El actor tiene el enlace de seguimiento de la sala.",
@@ -320,7 +320,7 @@ CASOS = {
         pantalla="09-vista-movil.png"),
     "CU14": dict(
         nombre="Aprender a usar la herramienta con el asistente de ayuda", actores=["A1", "A2", "A3"], ciclo=4, origen="Nuevo",
-        prioridad="secundario", riesgo="ordinario", estado="aprobado", rf=[],
+        prioridad="secundario", riesgo="ordinario", estado="aprobado", rf=["RF-35"],
         motivo="El ingeniero pidió un mecanismo para que el usuario aprenda a usar la herramienta sin problema: un asistente de IA que conozca el proyecto.",
         proposito="Resolver una duda de uso («¿cómo exporto el diagrama?») preguntándole a un asistente de IA que conoce el manual y las funciones.",
         precondicion="Ninguna: está disponible desde la página principal y dentro de la sala.",
