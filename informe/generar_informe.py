@@ -607,29 +607,6 @@ def leer(ruta):
     return Path(ruta).read_text(encoding="utf-8")
 
 
-def pruebas_segundo_parcial(texto):
-    """Casos de prueba de lo nuevo: deja fuera los que solo prueban lo del primer parcial (editor, XMI, generadores)."""
-    salida = []
-    for linea in texto.split("\n"):
-        if linea.startswith("## 2. Casos de prueba"):
-            salida += [linea, "", "Se listan las pruebas de lo nuevo en este parcial y las de la colaboración y los roles, que "
-                       "cambiaron; las pruebas del editor, de XMI y de los generadores son del primer parcial y no se repiten.", ""]
-            continue
-        m = re.match(r"^\| (CP-\d+) \| ([^|]*) \|(.*)$", linea)
-        if not m:
-            salida.append(linea)
-            continue
-        cp, cus_texto, resto = m.groups()
-        codigos = set()
-        for a, b in re.findall(r"CU-(\d+)(?:…(\d+))?", cus_texto):
-            codigos.update(range(int(a), int(b or a) + 1))
-        if not codigos:  # transversal (por ejemplo, el despliegue)
-            salida.append(linea)
-        elif any(n >= 14 or n in (3, 4) for n in codigos):
-            salida.append(f"| {cp} | {', '.join(f'CU-{n:02d}' for n in sorted(codigos))} |{resto}")
-    return "\n".join(salida)
-
-
 def seccion_de(texto, desde, hasta=None):
     """Recorta un Markdown entre dos títulos (el primero incluido, el segundo excluido)."""
     inicio = texto.index(desde)
@@ -652,8 +629,6 @@ def main():
     import parte2
 
     b.markdown(parte2.generar())
-    b.markdown(pruebas_segundo_parcial(leer(DOCS / "puds" / "05-pruebas.md")), prefijo="2.5", renumerar=True,
-               titulo_h1="Flujo de trabajo: pruebas")
 
     # Parte 3: manual
     b.markdown(leer(contenido / "03-manual.md"))
