@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable, timeout } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -13,6 +13,8 @@ const IA_REQUEST_TIMEOUT_MS = 110_000;
 export type IaChatMessage = {
   id: number;
   role: 'user' | 'ia';
+  /** Quién lo dijo: el nombre de la persona o «IA». La conversación es la de toda la sala. */
+  author_name?: string;
   mode?: IaChatMode;
   content: string;
   created_at: string;
@@ -32,9 +34,28 @@ export type IaChatResponse = {
   cancelled?: boolean;
 };
 
+/** Texto para la persona cuando un pedido a la IA falla (lo usan el chat y el cuadro «Generar modelo»). */
+export function iaErrorMessage(failure: unknown): string {
+  if (failure instanceof HttpErrorResponse) {
+    if (failure.status === 409) {
+      return typeof failure.error?.error === 'string'
+        ? failure.error.error
+        : 'La IA está atendiendo a otra persona. Espera a que termine.';
+    }
+    if (failure.status === 429) return 'Demasiadas preguntas seguidas. Espera un momento.';
+    if (failure.status === 403) {
+      return 'Todavía no te identificaste en la sala. Recarga la página e inténtalo de nuevo.';
+    }
+    if (failure.status === 400 && typeof failure.error?.error === 'string') {
+      return failure.error.error;
+    }
+  }
+  return 'La IA no pudo responder ahora. Intenta de nuevo.';
+}
+
 /**
- * Chat privado de cada participante con la IA de la sala. El token anónimo del
- * navegador identifica a quien pregunta; el servidor solo devuelve sus mensajes.
+ * Conversación de la sala con la IA: la ven y la alimentan todas las personas de la sala. El token anónimo del
+ * navegador identifica a quien pregunta; el servidor devuelve los mensajes de la sala con el autor de cada uno.
  */
 @Injectable({ providedIn: 'root' })
 export class IaChatService {

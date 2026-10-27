@@ -5,6 +5,8 @@ cada uno para que los diagramas queden ordenados y con pocos cruces. Todas las m
 del lienzo de EA (a 100 %). El origen es la esquina superior izquierda y `y` crece hacia abajo.
 """
 
+from pathlib import Path
+
 import subprocess
 
 PUNTOS_POR_PX = 72 / 96  # Graphviz trabaja en puntos; EA en píxeles lógicos
@@ -106,12 +108,47 @@ def _segmentos_se_cruzan(a, b, c, d):
     return _orienta(a, b, c) * _orienta(a, b, d) < 0 and _orienta(c, d, a) * _orienta(c, d, b) < 0
 
 
-def columnas(nodos, cols, aristas, hueco_x=170, hueco_y=30, pares_juntos=(("A1", "A2"),), semilla=7):
+def _ruta_arbol(a, b, caja_a, caja_b, tronco=50):
+    """Puntos del trazo de una línea de estilo árbol de EA (sale en horizontal, sube o baja por un tramo vertical a `tronco` unidades del
+    destino y entra en horizontal); entre elementos de la misma columna, un tramo vertical."""
+    (xa, ya, wa, ha), (xb, yb, wb, hb) = caja_a, caja_b
+    ca, cb = (xa + wa / 2, ya + ha / 2), (xb + wb / 2, yb + hb / 2)
+    if abs(ca[0] - cb[0]) < 1:
+        return [ca, cb]
+    if cb[0] > ca[0]:
+        t = xb - tronco
+    else:
+        t = xb + wb + tronco
+    return [ca, (t, ca[1]), (t, cb[1]), cb]
+
+
+def columnas(nodos, cols, aristas, hueco_x=170, hueco_y=30, pares_juntos=(("A1", "A2"),), semilla=7, arbol=False):
+    """Ver `_columnas`. Guarda el resultado en `build/layout_cache.json`: la búsqueda tarda segundos por diagrama y el resultado solo
+    depende de los argumentos (la semilla es fija)."""
+    import hashlib
+    import json
+
+    llave = hashlib.sha1(json.dumps([nodos, cols, sorted(map(list, aristas)), hueco_x, hueco_y, [list(p) for p in pares_juntos], semilla,
+                                     arbol], sort_keys=True, default=list).encode()).hexdigest()
+    archivo = Path(__file__).resolve().parent.parent / "build" / "layout_cache.json"
+    try:
+        cache = json.loads(archivo.read_text())
+    except (OSError, ValueError):
+        cache = {}
+    if llave not in cache:
+        cache[llave] = {k: list(v) for k, v in _columnas(nodos, cols, aristas, hueco_x, hueco_y, pares_juntos, semilla, arbol).items()}
+        archivo.parent.mkdir(exist_ok=True)
+        archivo.write_text(json.dumps(cache))
+    return {k: tuple(v) for k, v in cache[llave].items()}
+
+
+def _columnas(nodos, cols, aristas, hueco_x=170, hueco_y=30, pares_juntos=(("A1", "A2"),), semilla=7, arbol=False):
     """Coloca los nodos en columnas (de izquierda a derecha) buscando el acomodo con menos líneas que atraviesan otros
     nodos y menos cruces entre líneas. Cada columna tiene casillas en vertical; la búsqueda mueve y cambia nodos de
     casilla (varios reinicios, con semilla fija para que el resultado sea siempre el mismo).
 
     `pares_juntos`: nodos que conviene dejar en casillas vecinas (por ejemplo, un actor y su generalización).
+    `arbol`: las líneas se miden con el trazo ortogonal de estilo árbol de EA en lugar de la recta entre centros.
     Devuelve {clave: (x, y)} con la esquina superior izquierda de cada nodo."""
     import itertools
     import random
@@ -136,15 +173,26 @@ def columnas(nodos, cols, aristas, hueco_x=170, hueco_y=30, pares_juntos=(("A1",
         pos = posiciones(casilla)
         centro = {k: (pos[k][0] + nodos[k][0] / 2, pos[k][1] + nodos[k][1] / 2) for k in pos}
         total = 0.0
-        segmentos = [(centro[a], centro[b], a, b) for a, b in aristas if a in pos and b in pos]
-        for p, q, a, b in segmentos:
-            for k in pos:
-                if k not in (a, b) and _segmento_cruza_caja(p, q, (*pos[k], *nodos[k]), margen=-6):
-                    total += 100
-            total += 0.02 * abs(q[1] - p[1])
-        for (p1, q1, a1, b1), (p2, q2, a2, b2) in itertools.combinations(segmentos, 2):
-            if len({a1, b1, a2, b2}) == 4 and _segmentos_se_cruzan(p1, q1, p2, q2):
-                total += 10
+        lineas = []  # (puntos, a, b)
+        for a, b in aristas:
+            if a in pos and b in pos:
+                if arbol:
+                    puntos = _ruta_arbol(a, b, (*pos[a], *nodos[a]), (*pos[b], *nodos[b]))
+                else:
+                    puntos = [centro[a], centro[b]]
+                lineas.append((puntos, a, b))
+        for puntos, a, b in lineas:
+            for p, q in zip(puntos, puntos[1:]):
+                for k in pos:
+                    if k not in (a, b) and _segmento_cruza_caja(p, q, (*pos[k], *nodos[k]), margen=-6):
+                        total += 100
+            total += 0.02 * abs(puntos[-1][1] - puntos[0][1])
+        for (pts1, a1, b1), (pts2, a2, b2) in itertools.combinations(lineas, 2):
+            if len({a1, b1, a2, b2}) == 4:
+                for p1, q1 in zip(pts1, pts1[1:]):
+                    for p2, q2 in zip(pts2, pts2[1:]):
+                        if _segmentos_se_cruzan(p1, q1, p2, q2):
+                            total += 10
         for a, b in pares_juntos:
             if a in casilla and b in casilla:
                 total += 30 * (abs(casilla[a] - casilla[b]) - 1)

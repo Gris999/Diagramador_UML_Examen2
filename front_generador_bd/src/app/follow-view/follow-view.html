@@ -18,6 +18,26 @@
     </span>
   </header>
 
+  @if (notificationPermission() !== 'unsupported') {
+    <div class="flex items-center justify-between gap-2 bg-slate-700 px-3 py-1 text-[11px] text-slate-200">
+      @if (notificationPermission() === 'granted') {
+        <span data-testid="follow-notifications-on">🔔 Avisos activados mientras esta página esté abierta</span>
+      } @else if (notificationPermission() === 'denied') {
+        <span data-testid="follow-notifications-blocked">🔕 Los avisos están bloqueados en el navegador</span>
+      } @else {
+        <span>Recibe un aviso cuando alguien cambie el diagrama</span>
+        <button
+          type="button"
+          class="shrink-0 rounded bg-white px-2 py-0.5 font-medium text-slate-800"
+          data-testid="follow-notifications"
+          (click)="enableNotifications()"
+        >
+          🔔 Activar avisos
+        </button>
+      }
+    </div>
+  }
+
   <div
     #scroll
     class="relative min-h-[40vh] flex-1 overflow-auto bg-white"

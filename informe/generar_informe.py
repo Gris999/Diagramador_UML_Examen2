@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_ORIENT
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -39,6 +39,7 @@ SIGLA = "INF 422"
 DOCENTE = "Ing. Martínez Canedo Rolando Antonio"
 GESTION = "Semestre 2 - 2026"
 LUGAR = "Santa Cruz - Bolivia"
+SITIO_DESPLEGADO = "https://diagramador.dev"
 
 REFERENCIAS = {
     "01-requisitos.md": "la sección 2.2", "02-analisis.md": "la sección 2.3", "03-diseno.md": "la sección 2.4",
@@ -293,7 +294,7 @@ class Constructor:
         if ficha:
             anchos = [6.9, ANCHO_UTIL_CM - 6.9]
         elif [c.strip() for c in filas[0]] == ["NRO", "Casos de uso", "Estado", "Prioridad", "Riesgo", "Actor"]:
-            anchos = [1.6, 5.6, 2.3, 2.3, 2.0, 2.2]
+            anchos = [1.4, 5.0, 2.2, 2.3, 2.8, 2.3]
         elif columnas >= 4:
             # Anchos según el contenido, para que columnas cortas como "ID" o "CU" no se partan letra por letra.
             pesos = [min(max(max(len(f[c]) if c < len(f) else 0 for f in filas), 8), 50) for c in range(columnas)]
@@ -318,7 +319,16 @@ class Constructor:
                 parrafo.paragraph_format.space_before = Pt(4)
                 parrafo.paragraph_format.line_spacing = 1.15
                 encabezado = numero == 0 and not ficha
-                agregar_inline(parrafo, texto, tam=tam, negrita=(ficha and indice == 0))
+                # `<br>` separa párrafos dentro de una celda (pasos numerados de una ficha, por ejemplo)
+                lineas_celda = texto.split("<br>")
+                agregar_inline(parrafo, lineas_celda[0], tam=tam, negrita=(ficha and indice == 0))
+                for extra in lineas_celda[1:]:
+                    siguiente = celda.add_paragraph()
+                    siguiente.paragraph_format.space_after = Pt(2)
+                    siguiente.paragraph_format.space_before = Pt(0)
+                    siguiente.paragraph_format.line_spacing = 1.15
+                    siguiente.paragraph_format.keep_with_next = ficha and numero < len(filas) - 1  # toda la fila va con la siguiente
+                    agregar_inline(siguiente, extra, tam=tam)
                 if encabezado:
                     sombrear(celda._tc.get_or_add_tcPr(), "FFF2CC")
                 elif ficha and indice == 0:
@@ -440,7 +450,7 @@ class Constructor:
                 vaciar_lista()
                 filas = []
                 while i < len(lineas) and lineas[i].startswith("|"):
-                    if not re.match(r"^\|[\s:\-|]+\|\s*$", lineas[i]):
+                    if not re.match(r"^\|[\s:\-|]*-[\s:\-|]*\|\s*$", lineas[i]):  # la línea `| | |` (ficha) no es un separador
                         protegido = re.sub(r"`[^`]*`", lambda m: m.group(0).replace("|", "\u2502"), lineas[i])
                         celdas = [c.strip().replace("\u2502", "|").replace("\\|", "|") for c in protegido.strip().strip("|").split("|")]
                         filas.append(celdas)
@@ -522,8 +532,10 @@ class Constructor:
             siguiente = i + 1
             while siguiente < len(lineas) and not lineas[siguiente].strip():
                 siguiente += 1
-            if siguiente < len(lineas) and lineas[siguiente].startswith("|"):
-                p.paragraph_format.keep_with_next = True  # el párrafo que presenta una tabla no se queda solo al pie de la página
+            if siguiente < len(lineas) and (lineas[siguiente].startswith("|") or (
+                    " ".join(parrafo).endswith(":") and lineas[siguiente].startswith(("```", "!["))
+            )):
+                p.paragraph_format.keep_with_next = True  # el párrafo que presenta una tabla o un diagrama no se queda solo al pie de la página
             texto_parrafo = " ".join(parrafo)
             if texto_parrafo.startswith("**") and texto_parrafo.endswith("**") or texto_parrafo.startswith("*Ciclo"):
                 p.paragraph_format.keep_with_next = True  # el rótulo no se separa de su diagrama o tabla
@@ -561,10 +573,10 @@ class Constructor:
         logo = INFORME / "recursos" / "logo-facultad.png"
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_after = Pt(14)
+        p.paragraph_format.space_after = Pt(8)
         if logo.exists():
-            p.add_run().add_picture(str(logo), width=Cm(5.0), height=Cm(6.5))
-        linea(f"“{TITULO}”", 17, True, despues=12)
+            p.add_run().add_picture(str(logo), width=Cm(3.6), height=Cm(4.7))
+        linea(f"“{TITULO}”", 16, True, despues=8)
         linea(PARCIAL, 14, True, despues=6)
         linea(f"Número: {NUMERO}", 12, True, izquierda, despues=10, sangria=36)
         linea("INTEGRANTES :", 12, True, izquierda, despues=4, sangria=36)
@@ -576,15 +588,46 @@ class Constructor:
             p.add_run(nombre).font.size = Pt(12)
             p.add_run("\t")
             p.add_run(registro).font.size = Pt(12)
-        linea("", 12, False, izquierda, despues=4)
         for etiqueta, valor in (("Materia: ", MATERIA), ("Sigla: ", SIGLA), ("Docente: ", DOCENTE), ("Gestión: ", GESTION)):
             p = linea("", 12, False, izquierda, despues=0, interlineado=1.45)
             r = p.add_run(etiqueta)
             r.bold = True
             r.font.size = Pt(12)
             p.add_run(valor).font.size = Pt(12)
-        linea("", 12, False, despues=4)
+        linea("", 12, False, despues=2)
+        self.codigos_qr()
+        linea("", 12, False, despues=2)
         linea(LUGAR, 14, True)
+
+    def codigos_qr(self):
+        """Dos códigos QR en la carátula: el repositorio de GitHub (el remoto `origin`) y el sitio desplegado."""
+        import subprocess
+
+        import qrcode
+
+        repositorio = subprocess.run(["git", "-C", str(RAIZ), "remote", "get-url", "origin"], capture_output=True, text=True, check=True).stdout.strip()
+        repositorio = repositorio.removesuffix(".git")
+        destinos = [("Código fuente en GitHub", repositorio, "qr-github.png"), ("Sitio desplegado", SITIO_DESPLEGADO, "qr-despliegue.png")]
+        (INFORME / "recursos").mkdir(exist_ok=True)
+        tabla = self.doc.add_table(rows=2, cols=2)
+        tabla.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for columna, (rotulo, url, archivo) in enumerate(destinos):
+            ruta = INFORME / "recursos" / archivo
+            qrcode.make(url, box_size=8, border=1).save(ruta)
+            celda = tabla.cell(0, columna)
+            p = celda.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(0)
+            p.add_run().add_picture(str(ruta), width=Cm(2.5), height=Cm(2.5))
+            pie = tabla.cell(1, columna).paragraphs[0]
+            pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            pie.paragraph_format.space_after = Pt(0)
+            r = pie.add_run(rotulo)
+            r.bold = True
+            r.font.size = Pt(9)
+            pie.add_run("\n").font.size = Pt(8)
+            u = pie.add_run(url.removeprefix("https://"))
+            u.font.size = Pt(8)
 
     def indice(self):
         self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
@@ -594,29 +637,6 @@ class Constructor:
 
 def leer(ruta):
     return Path(ruta).read_text(encoding="utf-8")
-
-
-def pruebas_segundo_parcial(texto):
-    """Casos de prueba de lo nuevo: deja fuera los que solo prueban lo del primer parcial (editor, XMI, generadores)."""
-    salida = []
-    for linea in texto.split("\n"):
-        if linea.startswith("## 2. Casos de prueba"):
-            salida += [linea, "", "Se listan las pruebas de lo nuevo en este parcial y las de la colaboración y los roles, que "
-                       "cambiaron; las pruebas del editor, de XMI y de los generadores son del primer parcial y no se repiten.", ""]
-            continue
-        m = re.match(r"^\| (CP-\d+) \| ([^|]*) \|(.*)$", linea)
-        if not m:
-            salida.append(linea)
-            continue
-        cp, cus_texto, resto = m.groups()
-        codigos = set()
-        for a, b in re.findall(r"CU-(\d+)(?:…(\d+))?", cus_texto):
-            codigos.update(range(int(a), int(b or a) + 1))
-        if not codigos:  # transversal (por ejemplo, el despliegue)
-            salida.append(linea)
-        elif any(n >= 14 or n in (3, 4) for n in codigos):
-            salida.append(f"| {cp} | {', '.join(f'CU-{n:02d}' for n in sorted(codigos))} |{resto}")
-    return "\n".join(salida)
 
 
 def seccion_de(texto, desde, hasta=None):
@@ -629,6 +649,11 @@ def seccion_de(texto, desde, hasta=None):
 def main():
     sys.path.insert(0, str(INFORME))
     b = Constructor()
+    # Entran dos carátulas (dos copias), cada una con los códigos QR del repositorio y del sitio desplegado.
+    b.caratula()
+    # La segunda carátula empieza una sección nueva, para que tampoco lleve número de página.
+    segunda = b.doc.add_section(WD_SECTION.NEW_PAGE)
+    segunda.different_first_page_header_footer = True
     b.caratula()
     b.indice()
 
@@ -641,8 +666,6 @@ def main():
     import parte2
 
     b.markdown(parte2.generar())
-    b.markdown(pruebas_segundo_parcial(leer(DOCS / "puds" / "05-pruebas.md")), prefijo="2.5", renumerar=True,
-               titulo_h1="Flujo de trabajo: pruebas")
 
     # Parte 3: manual
     b.markdown(leer(contenido / "03-manual.md"))

@@ -1,3 +1,4 @@
+import { Subject } from 'rxjs';
 import { BackendGeneratorService } from './backend-generator.service';
 
 describe('BackendGeneratorService generator endpoint resolution', () => {
@@ -33,5 +34,37 @@ describe('BackendGeneratorService generator endpoint resolution', () => {
     const calledUrl = http.post.calls.mostRecent().args[0] as string;
     expect(calledUrl).not.toContain('fournext.me');
     expect(calledUrl.endsWith(':7001/generate')).toBeTrue();
+  });
+
+  describe('when the generator answers', () => {
+    let zip: Subject<Blob>;
+
+    beforeEach(() => {
+      zip = new Subject<Blob>();
+      http.post.and.returnValue(zip);
+    });
+
+    it('tells the person when the generator does not answer, downloads nothing and stops the spinner', () => {
+      const alertSpy = spyOn(window, 'alert');
+      spyOn(console, 'error');
+
+      service.generateBackend({ classes: [], relationships: [] });
+      expect(service.loading()).toBeTrue();
+      zip.error(new Error('sin respuesta'));
+
+      expect(alertSpy).toHaveBeenCalledOnceWith('No se pudo generar el backend. Inténtalo de nuevo en unos momentos.');
+      expect(service.loading()).toBeFalse();
+    });
+
+    it('does not show any error when the generator answers', () => {
+      const alertSpy = spyOn(window, 'alert');
+
+      service.generateBackend({ classes: [], relationships: [] });
+      zip.next(new Blob(['zip']));
+      zip.complete();
+
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(service.loading()).toBeFalse();
+    });
   });
 });

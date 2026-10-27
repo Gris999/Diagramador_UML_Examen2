@@ -75,27 +75,11 @@ class AIEndpointTests(SimpleTestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch("uml_api.views.call_gemini", return_value='{"classes": [], "relationships": []}')
-    def test_generate_uml_success_passes_current_uml(self, call):
-        current_uml = {"classes": [{"id": "existing", "name": "Existing"}]}
+    def test_the_old_unprotected_text_to_model_endpoint_is_gone(self):
+        # Pedirle a la IA que modifique el diagrama solo se puede hacer por el control de la sala (turno, topes de uso, actividad y conversación).
+        response = self.client.post("/api/chatbot/", {"prompt": "crear clase"}, format="json")
 
-        response = self.client.post(
-            "/api/chatbot/",
-            {"prompt": "edita Existing", "uml": current_uml},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        call.assert_called_once_with("edita Existing", current_uml=current_uml)
-
-    @patch("uml_api.views.call_gemini", side_effect=RuntimeError("private details"))
-    def test_generate_uml_service_error_is_sanitized_502(self, call):
-        response = self.client.post(
-            "/api/chatbot/", {"prompt": "crear clase"}, format="json"
-        )
-
-        self.assertEqual(response.status_code, 502)
-        self.assertNotIn("private details", response.data["error"])
+        self.assertEqual(response.status_code, 404)
 
     @patch("uml_api.views.call_gemini_from_image", side_effect=RuntimeError("private details"))
     def test_image_service_error_is_sanitized_502(self, image_service):
@@ -130,6 +114,40 @@ class AIEndpointTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         generate.assert_called_once_with("agrega una clase", current_uml=current_uml)
+
+    @patch("uml_api.views.call_gemini")
+    @patch("uml_api.views.call_gemini_transcribe_audio", return_value="agrega una clase Factura")
+    def test_transcribe_only_returns_the_text_and_does_not_model_it(self, transcribe, generate):
+        """C1: la voz solo transcribe; la instrucción sigue después el mismo camino que el chat (topes, actividad, conversación)."""
+        audio = SimpleUploadedFile(
+            "instruction.webm", b"audio data", content_type="audio/webm"
+        )
+
+        response = self.client.post(
+            "/api/uml_from_audio/",
+            {"audio": audio, "transcribe_only": "1"},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"transcript": "agrega una clase Factura"})
+        generate.assert_not_called()
+
+    @patch("uml_api.views.call_gemini")
+    @patch("uml_api.views.call_gemini_transcribe_audio", side_effect=RuntimeError("private details"))
+    def test_transcribe_only_errors_are_sanitized_too(self, transcribe, generate):
+        audio = SimpleUploadedFile(
+            "instruction.webm", b"audio data", content_type="audio/webm"
+        )
+
+        response = self.client.post(
+            "/api/uml_from_audio/",
+            {"audio": audio, "transcribe_only": "true"},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn("private details", response.data["error"])
 
     @patch("uml_api.views.call_gemini_transcribe_audio", side_effect=RuntimeError("private details"))
     def test_audio_service_error_is_sanitized_502(self, transcribe):

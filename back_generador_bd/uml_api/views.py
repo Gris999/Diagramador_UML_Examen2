@@ -1,6 +1,5 @@
 import tempfile
 from django.http import FileResponse, HttpResponse
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import BackupUML
@@ -21,43 +20,7 @@ from pathlib import Path
 from .services.flutter_generator import FlutterCRUDGenerator
 from .services.xmi_service import XMIError, export_uml_to_xmi, import_xmi_to_uml
 from .utils.zip_utils import compress_folder_to_zip
-from collab.activity import serialize_activity_event
-from collab.models import ActivityEvent
-
-
-class GenerateUMLView(APIView):
-    def post(self, request):
-        prompt = request.data.get("prompt")
-        current_uml = request.data.get("uml")
-        if not prompt:
-            return Response({"error": "El campo 'prompt' es requerido"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            output = call_gemini(prompt, current_uml=current_uml)
-        except Exception:
-            return Response(
-                {
-                    "error": (
-                        "No se pudo procesar la solicitud "
-                        "con el servicio de IA."
-                    )
-                },
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        # 🧹 Limpiar bloque de código Markdown si viene envuelto en ```json ... ```
-        if isinstance(output, str):
-            output = re.sub(r"^```json\s*|\s*```$", "",
-                            output.strip(), flags=re.MULTILINE)
-
-        try:
-            parsed_json = json.loads(output)
-        except Exception:
-            return Response({
-                "error": "La IA devolvió un modelo UML inválido."
-            }, status=status.HTTP_502_BAD_GATEWAY)
-
-        return Response(parsed_json, status=status.HTTP_200_OK)
+from collab.stores import get_activity_store
 
 
 @api_view(["GET"])
@@ -73,17 +36,15 @@ def get_room_activity(request, room):
     except (TypeError, ValueError):
         since = 0
 
-    events = ActivityEvent.objects.filter(room=room)
+    store = get_activity_store()
     if since > 0:
         # Seguimiento incremental: los eventos nuevos desde el último conocido.
-        page = list(events.filter(id__gt=since).order_by("id")[:limit])
+        events = store.since(room, since, limit)
     else:
         # Historial inicial: los más recientes, de más viejo a más nuevo.
-        page = list(events.order_by("-id")[:limit])[::-1]
+        events = store.recent(room, limit)
 
-    return Response({
-        "events": [serialize_activity_event(event) for event in page],
-    })
+    return Response({"events": events})
 
 
 @api_view(['POST'])
@@ -197,11 +158,18 @@ def analyze_uml_audio(request):
         audio_file.read()
     ).decode("utf-8")
 
+    transcribe_only = str(request.data.get("transcribe_only", "")).lower() in ("1", "true")
+
     try:
         transcript = call_gemini_transcribe_audio(
             audio_base64,
             mime_type=mime_type,
         )
+
+        if transcribe_only:
+            # La instrucción se manda después por el chat de la sala (ia_chat): así pasa por los topes, el turno,
+            # la actividad y la conversación como cualquier otro pedido a la IA.
+            return Response({"transcript": transcript}, status=status.HTTP_200_OK)
 
         output = call_gemini(transcript, current_uml=current_uml)
 
