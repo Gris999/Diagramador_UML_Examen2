@@ -124,6 +124,122 @@ class ProjectGeneratorCompileTest {
         assertEquals(0, exitCode, "El proyecto generado con PK faltante y PK String debe compilar");
     }
 
+    /**
+     * Recursive (self-referencing) associations used to generate two fields with the same name in the same
+     * class ({@code private Empleado empleado;} and {@code private List<Empleado> empleado;}), so the project
+     * did not compile. A tree (Empleado supervisa a Empleado) now gets a parent and a list of children, and a
+     * second relationship from another class to the same entity keeps its own field.
+     */
+    @Test
+    @Timeout(value = 6, unit = TimeUnit.MINUTES)
+    void selfReferencingOneToManyCompilesWithParentAndChildren() throws Exception {
+        UmlClass empleado = umlClass("emp", "Empleado", attr("id", "int"), attr("nombre", "string"));
+        UmlClass departamento = umlClass("dep", "Departamento", attr("id", "int"), attr("titulo", "string"));
+
+        UmlSchema schema = new UmlSchema();
+        schema.setClasses(List.of(empleado, departamento));
+        // Empleado 0..1 -- 0..* Empleado (un jefe supervisa a muchos) y Departamento 1 -- * Empleado
+        schema.setRelationships(List.of(
+                relationship("r1", "association", "emp", "emp", "0..1", "0..*"),
+                relationship("r2", "association", "dep", "emp", "1", "0..*")));
+
+        Path extractDir = generateInto(schema, "selfref");
+
+        String empleadoEntity = Files.readString(extractDir.resolve("src/main/java/com/example/selfref/model/Empleado.java"));
+        assertTrue(empleadoEntity.contains("private Empleado padre;"), "la clase recursiva debe tener su referencia al padre");
+        assertTrue(empleadoEntity.contains("private List<Empleado> hijos"), "la clase recursiva debe tener la lista de hijos");
+        assertTrue(empleadoEntity.contains("mappedBy = \"padre\""), "la lista de hijos debe apuntar al campo padre");
+        assertTrue(empleadoEntity.contains("private Departamento departamento;"),
+                "la relación con otra clase conserva su campo normal");
+
+        // Las peticiones de ejemplo de Postman usan las mismas claves que los controladores esperan.
+        JsonNode postman = new ObjectMapper().readTree(extractDir.resolve("selfref-app-postman-collection.json").toFile());
+        String createEmpleadoBody = null;
+        for (JsonNode folder : postman.get("item")) {
+            if (!"Empleado".equals(folder.get("name").asText())) continue;
+            for (JsonNode request : folder.get("item")) {
+                if ("Create Empleado".equals(request.get("name").asText())) {
+                    createEmpleadoBody = request.get("request").get("body").get("raw").asText();
+                }
+            }
+        }
+        assertTrue(createEmpleadoBody != null && createEmpleadoBody.contains("\"padreid\"")
+                        && createEmpleadoBody.contains("\"departamentoid\""),
+                "el cuerpo de ejemplo de Postman debe usar padreid y departamentoid: " + createEmpleadoBody);
+
+        assertEquals(0, runMavenPackage(extractDir.resolve("pom.xml")),
+                "Un proyecto con una asociación recursiva 1:N debe compilar");
+    }
+
+    @Test
+    @Timeout(value = 6, unit = TimeUnit.MINUTES)
+    void selfReferencingManyToManyCompilesWithAJoinEntity() throws Exception {
+        UmlClass persona = umlClass("per", "Persona", attr("id", "int"), attr("nombre", "string"));
+
+        UmlSchema schema = new UmlSchema();
+        schema.setClasses(List.of(persona));
+        // Persona *--* Persona (amistades)
+        schema.setRelationships(List.of(relationship("r1", "association", "per", "per", "*", "*")));
+
+        Path extractDir = generateInto(schema, "selfmn");
+
+        String join = Files.readString(extractDir.resolve("src/main/java/com/example/selfmn/model/PersonaPersona.java"));
+        assertTrue(join.contains("private Persona origen;") && join.contains("private Persona destino;"),
+                "la entidad intermedia de una M:N recursiva debe tener un campo para cada extremo");
+
+        assertEquals(0, runMavenPackage(extractDir.resolve("pom.xml")),
+                "Un proyecto con una M:N recursiva debe compilar");
+    }
+
+    /**
+     * What the editor sends for a recursive many-to-many: it already replaced the association by an intermediate
+     * class and two 1:N legs, both between the same two classes. Two relationships between the same pair of classes
+     * (like Vuelo and Aeropuerto as origin and destination) must not produce duplicated fields or methods either.
+     */
+    @Test
+    @Timeout(value = 6, unit = TimeUnit.MINUTES)
+    void twoRelationshipsBetweenTheSameClassesCompile() throws Exception {
+        UmlClass vuelo = umlClass("vue", "Vuelo", attr("id", "int"), attr("codigo", "string"));
+        UmlClass aeropuerto = umlClass("aer", "Aeropuerto", attr("id", "int"), attr("nombre", "string"));
+        UmlClass persona = umlClass("per", "Persona", attr("id", "int"), attr("nombre", "string"));
+        UmlClass amistad = umlClass("junction:per:per:r9", "Persona_Persona", attr("id", "int"));
+
+        UmlSchema schema = new UmlSchema();
+        schema.setClasses(List.of(vuelo, aeropuerto, persona, amistad));
+        schema.setRelationships(List.of(
+                // Aeropuerto 1 -- * Vuelo, dos veces: salida y llegada
+                relationship("r1", "association", "aer", "vue", "1", "0..*"),
+                relationship("r2", "association", "aer", "vue", "1", "0..*"),
+                // las dos patas de una M:N recursiva ya convertida por el editor
+                relationship("junction-link:junction:per:per:r9:source", "association", "per", "junction:per:per:r9", "1", "0..*"),
+                relationship("junction-link:junction:per:per:r9:target", "association", "per", "junction:per:per:r9", "1", "0..*")));
+
+        Path extractDir = generateInto(schema, "parallel");
+
+        String vueloEntity = Files.readString(extractDir.resolve("src/main/java/com/example/parallel/model/Vuelo.java"));
+        assertEquals(2, countOccurrences(vueloEntity, "@ManyToOne"), "Vuelo debe tener dos referencias a Aeropuerto");
+
+        assertEquals(0, runMavenPackage(extractDir.resolve("pom.xml")),
+                "Un proyecto con dos relaciones entre las mismas clases debe compilar");
+    }
+
+    private Path generateInto(UmlSchema schema, String packageSuffix) throws Exception {
+        ProjectGenerator projectGenerator =
+                new ProjectGenerator(new DefaultMustacheFactory(), new PostmanCollectionGenerator());
+        Path zip = projectGenerator.generate(schema, "com.example." + packageSuffix, packageSuffix + "-app");
+        Path extractDir = Files.createTempDirectory(packageSuffix + "-extract-");
+        ZipUtil.unpack(zip.toFile(), extractDir.toFile());
+        return extractDir;
+    }
+
+    private int countOccurrences(String text, String needle) {
+        int count = 0;
+        for (int i = text.indexOf(needle); i >= 0; i = text.indexOf(needle, i + needle.length())) {
+            count++;
+        }
+        return count;
+    }
+
     // ===================== schema =====================
 
     private UmlSchema buildSampleSchema() {

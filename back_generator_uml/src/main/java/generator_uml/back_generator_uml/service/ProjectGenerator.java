@@ -108,9 +108,13 @@ public class ProjectGenerator {
         // ====== DETECTAR RELACIONES MUCHOS A MUCHOS Y CREAR ENTIDADES INTERMEDIAS ======
         List<Map<String, Object>> intermediateEntities = new ArrayList<>();
         Set<String> processedManyToManyRelations = new HashSet<>();
+        // Nombre de cada campo de relacion (ver RelationNaming): igual que antes salvo cuando habria dos campos iguales en una clase.
+        final Map<Integer, RelationNaming.Names> relationNames = RelationNaming.assign(schema);
+        int preRelIndex = -1;
         
         if (schema.getRelationships() != null) {
             for (var rel : schema.getRelationships()) {
+                preRelIndex++;
                 if ("association".equals(rel.getType())
                         || "aggregation".equals(rel.getType())
                         || "composition".equals(rel.getType())
@@ -155,8 +159,11 @@ public class ProjectGenerator {
                             // Ordenar para consistencia en nombres
                             String firstEntity = sourceEntity.compareTo(targetEntity) < 0 ? sourceEntity : targetEntity;
                             String secondEntity = sourceEntity.compareTo(targetEntity) < 0 ? targetEntity : sourceEntity;
-                            String firstEntityField = NamingUtil.toField(firstEntity);
-                            String secondEntityField = NamingUtil.toField(secondEntity);
+                            // En una M:N recursiva (una clase con ella misma) los dos extremos son la misma clase: se llaman origen y destino.
+                            RelationNaming.Names relNames = relationNames.get(preRelIndex);
+                            boolean recursive = rel.getSourceId().equals(rel.getTargetId());
+                            String firstEntityField = recursive ? relNames.joinToSource : NamingUtil.toField(firstEntity);
+                            String secondEntityField = recursive ? relNames.joinToTarget : NamingUtil.toField(secondEntity);
                             
                             // Nombre de la entidad intermedia
                             String intermediateEntityName = firstEntity + secondEntity;
@@ -184,17 +191,20 @@ public class ProjectGenerator {
                             intermediateManyToOne.add(Map.of(
                                 "TargetEntity", firstEntity,
                                 "targetField", firstEntityField,
-                                "ignoreBackReference", NamingUtil.toField(intermediateEntityName),
+                                "setter", RelationNaming.setterFor(firstEntityField),
+                                "ignoreBackReference", recursive ? relNames.sourceSide : NamingUtil.toField(intermediateEntityName),
                                 "targetPkType", pkTypeByClassId.getOrDefault(firstEntityId, "Long")
                             ));
                             intermediateManyToOne.add(Map.of(
                                 "TargetEntity", secondEntity,
                                 "targetField", secondEntityField,
-                                "ignoreBackReference", NamingUtil.toField(intermediateEntityName),
+                                "setter", RelationNaming.setterFor(secondEntityField),
+                                "ignoreBackReference", recursive ? relNames.targetSide : NamingUtil.toField(intermediateEntityName),
                                 "targetPkType", pkTypeByClassId.getOrDefault(secondEntityId, "Long")
                             ));
                             intermediateCtx.put("manyToOne", intermediateManyToOne);
                             intermediateCtx.put("hasManyToOne", true);
+                            intermediateCtx.put("serviceTargets", distinctTargets(intermediateManyToOne));
                             
                             // Sin otras relaciones
                             intermediateCtx.put("oneToMany", new ArrayList<>());
@@ -320,9 +330,11 @@ public class ProjectGenerator {
 
             // Para eliminar atributos ‘xxxId’ redundantes si hay relación
             Set<String> fkPlaceholderNames = new HashSet<>();
+            int relIndex = -1;
 
             if (schema.getRelationships() != null) {
                 for (var rel : schema.getRelationships()) {
+                    relIndex++;
                     String sourceName = schema.getClasses().stream()
                             .filter(cl -> cl.getId().equals(rel.getSourceId()))
                             .map(UmlClass::getName)
@@ -337,6 +349,7 @@ public class ProjectGenerator {
 
                     String sourceEntity = NamingUtil.toJavaClass(sourceName);
                     String targetEntity = NamingUtil.toJavaClass(targetName);
+                    final RelationNaming.Names relNames = relationNames.get(relIndex);
 
                     if ("generalization".equals(rel.getType()) && rel.getSourceId().equals(c.getId())) {
                         parentClass = targetEntity;
@@ -387,7 +400,8 @@ public class ProjectGenerator {
                                 // source *..1 target => Source tiene ManyToOne hacia Target
                                 manyToOne.add(Map.of(
                                         "TargetEntity", targetEntity,
-                                        "targetField", NamingUtil.toField(targetEntity),
+                                        "targetField", relNames.sourceSide,
+                                        "setter", RelationNaming.setterFor(relNames.sourceSide),
                                         "targetPkType", pkTypeByClassId.getOrDefault(rel.getTargetId(), "Long")
                                 ));
                             } else if (!sourceIsMany && !targetIsMany) {
@@ -395,7 +409,8 @@ public class ProjectGenerator {
                                 boolean isComposition = "composition".equals(rel.getType());
                                 oneToOne.add(Map.of(
                                         "TargetEntity", targetEntity,
-                                        "targetField", NamingUtil.toField(targetEntity),
+                                        "targetField", relNames.sourceSide,
+                                        "setter", RelationNaming.setterFor(relNames.sourceSide),
                                         "composition", isComposition,
                                         "targetPkType", pkTypeByClassId.getOrDefault(rel.getTargetId(), "Long")
                                 ));
@@ -407,19 +422,19 @@ public class ProjectGenerator {
                                 String firstEntity = sourceEntity.compareTo(targetEntity) < 0 ? sourceEntity : targetEntity;
                                 String secondEntity = sourceEntity.compareTo(targetEntity) < 0 ? targetEntity : sourceEntity;
                                 String intermediateEntityName = firstEntity + secondEntity;
-                                String mappedByField = NamingUtil.toField(sourceEntity);
+                                String mappedByField = relNames.joinToSource;
                                 
                                 oneToMany.add(Map.of(
                                         "TargetEntity", intermediateEntityName,
-                                        "collectionField", NamingUtil.toField(intermediateEntityName),
+                                        "collectionField", relNames.sourceSide,
                                         "mappedBy", mappedByField
                                 ));
                             } else if (!sourceIsMany && targetIsMany) {
                                 // source 1..* target => Source tiene OneToMany
                                 oneToMany.add(Map.of(
                                         "TargetEntity", targetEntity,
-                                        "collectionField", NamingUtil.toField(targetEntity),
-                                        "mappedBy", NamingUtil.toField(sourceEntity)
+                                        "collectionField", relNames.sourceSide,
+                                        "mappedBy", relNames.targetSide
                                 ));
                             }
                         }
@@ -430,14 +445,15 @@ public class ProjectGenerator {
                                 // source *..1 target => Target tiene OneToMany hacia Source
                                 oneToMany.add(Map.of(
                                         "TargetEntity", sourceEntity,
-                                        "collectionField", NamingUtil.toField(sourceEntity),
-                                        "mappedBy", NamingUtil.toField(targetEntity)
+                                        "collectionField", relNames.targetSide,
+                                        "mappedBy", relNames.sourceSide
                                 ));
                             } else if (targetIsMany && !sourceIsMany) {
                                 // source 1..* target => Target tiene ManyToOne hacia Source
                                 manyToOne.add(Map.of(
                                         "TargetEntity", sourceEntity,
-                                        "targetField", NamingUtil.toField(sourceEntity),
+                                        "targetField", relNames.targetSide,
+                                        "setter", RelationNaming.setterFor(relNames.targetSide),
                                         "targetPkType", pkTypeByClassId.getOrDefault(rel.getSourceId(), "Long")
                                 ));
                             } else if (targetIsMany && sourceIsMany) {
@@ -445,11 +461,11 @@ public class ProjectGenerator {
                                 String firstEntity = sourceEntity.compareTo(targetEntity) < 0 ? sourceEntity : targetEntity;
                                 String secondEntity = sourceEntity.compareTo(targetEntity) < 0 ? targetEntity : sourceEntity;
                                 String intermediateEntityName = firstEntity + secondEntity;
-                                String mappedByField = NamingUtil.toField(targetEntity);
+                                String mappedByField = relNames.joinToTarget;
                                 
                                 oneToMany.add(Map.of(
                                         "TargetEntity", intermediateEntityName,
-                                        "collectionField", NamingUtil.toField(intermediateEntityName),
+                                        "collectionField", relNames.targetSide,
                                         "mappedBy", mappedByField
                                 ));
                             }
@@ -520,6 +536,7 @@ public class ProjectGenerator {
             entityCtx.put("needsOnDeleteImport", needsOnDeleteImport);
             entityCtx.put("hasManyToOne", !manyToOne.isEmpty());
             entityCtx.put("hasOneToOne", !oneToOne.isEmpty());
+            entityCtx.put("serviceTargets", distinctTargets(manyToOne, oneToOne));
 
             // PK para Controller/Service
             if (isChild) {
@@ -588,6 +605,25 @@ public class ProjectGenerator {
         Path zip = root.getParent().resolve(artifactId + ".zip");
         ZipUtil.pack(root.toFile(), zip.toFile());
         return zip;
+    }
+
+    /**
+     * The classes a generated service must be able to look up by id: one repository and one finder per class, even when
+     * several relationships (or a recursive one) point at the same class.
+     */
+    @SafeVarargs
+    private static List<Map<String, Object>> distinctTargets(List<Map<String, Object>>... relationLists) {
+        Map<String, Map<String, Object>> byEntity = new LinkedHashMap<>();
+        for (List<Map<String, Object>> relations : relationLists) {
+            for (Map<String, Object> relation : relations) {
+                String entity = (String) relation.get("TargetEntity");
+                byEntity.putIfAbsent(entity, Map.of(
+                        "TargetEntity", entity,
+                        "repoField", NamingUtil.toField(entity),
+                        "targetPkType", relation.get("targetPkType")));
+            }
+        }
+        return new ArrayList<>(byEntity.values());
     }
 
     private boolean isNumericType(String javaType) {
