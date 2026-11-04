@@ -1,6 +1,9 @@
 <section
   class="max-w-full shrink-0 rounded border border-gray-300 bg-white px-2 py-1.5 shadow-sm"
   [class.w-72]="!fluid()"
+  [class.h-28]="!fluid()"
+  [class.flex]="!fluid()"
+  [class.flex-col]="!fluid()"
   [class.w-full]="fluid()"
   aria-label="Actividad de la sala"
   data-testid="activity-panel"
@@ -10,7 +13,7 @@
   @if (events().length === 0) {
     <p class="text-xs text-gray-500">Todavía no hay actividad.</p>
   } @else {
-    <ul class="max-h-48 space-y-1 overflow-y-auto pr-1" data-testid="activity-list">
+    <ul class="max-h-48 min-h-0 space-y-1 overflow-y-auto pr-1" [class.flex-1]="!fluid()" data-testid="activity-list">
       @for (event of events(); track event.id) {
         <li class="border-b border-gray-100 pb-1 text-xs last:border-b-0" data-testid="activity-entry">
           <div class="flex items-baseline justify-between gap-2">
