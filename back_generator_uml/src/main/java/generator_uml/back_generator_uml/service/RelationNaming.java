@@ -17,6 +17,8 @@ import java.util.Set;
  * name in one class and the generated project did not compile. The names are the same as before when nothing clashes;
  * only a clash changes them: a recursive 1:N association gets {@code padre} and {@code hijos}, a recursive N:M gets
  * {@code origen} and {@code destino} in the join entity, and any other repeated name gets a number ({@code aeropuerto2}).
+ * Names stay lowercase without separators, as the rest of the generated fields: the Flutter generator reads the JSON keys
+ * that way and applies the same rules.
  *
  * <p>Both the project generator and the Postman collection generator ask this class, so the keys of the sample request
  * bodies match the fields of the entities.
@@ -98,8 +100,8 @@ final class RelationNaming {
                 String joinField = NamingUtil.toField(first + second);
                 names.joinToSource = recursive ? "origen" : NamingUtil.toField(sourceEntity);
                 names.joinToTarget = recursive ? "destino" : NamingUtil.toField(targetEntity);
-                names.sourceSide = unique(usedByClass, source.getId(), recursive ? joinField + "Origen" : joinField);
-                names.targetSide = unique(usedByClass, target.getId(), recursive ? joinField + "Destino" : joinField);
+                names.sourceSide = unique(usedByClass, source.getId(), recursive ? joinField + "origen" : joinField);
+                names.targetSide = unique(usedByClass, target.getId(), recursive ? joinField + "destino" : joinField);
             } else if (sourceIsMany) {
                 // source *..1 target: the source holds the reference, the target holds the collection
                 names.sourceSide = unique(usedByClass, source.getId(), recursive ? "padre" : NamingUtil.toField(targetEntity));
