@@ -3,20 +3,20 @@
 | | |
 |---|---|
 | **Proyecto** | Diagramador UML colaborativo con IA como integrante de la sala (Ingeniería de Software I, grupo 29) |
-| **Versión** | `v1.0` es el primer parcial (etiqueta en `develop`). El segundo parcial está en la rama `feat/segundo-parcial-puds` (pull request 2 hacia `develop`), todavía sin etiqueta |
+| **Versión** | `v1.0` es el primer parcial (etiqueta en `develop`). El segundo parcial entró a `develop` con el pull request 2 (commit de fusión `ac1efb6`), todavía sin etiqueta |
 | **Repositorio** | https://github.com/Gris999/Diagramador_UML_Examen2 (la rama por defecto es `develop`: es la que abre el código QR de GitHub de la carátula) |
-| **Sitio desplegado** | https://diagramador.dev (AWS EC2, HTTPS). **Todavía tiene la versión del 2026-10-22**: el chat compartido, los avisos, el asistente de ayuda y MongoDB no están desplegados |
+| **Sitio desplegado** | https://diagramador.dev (AWS EC2, HTTPS). Desplegado el 2026-11-04 con el segundo parcial (chat compartido, avisos, asistente de ayuda); MongoDB está en el código pero no activado en el servidor |
 | **Fecha de entrega** | Martes **2026-11-10, a más tardar a las 8 a.m.**, en la plataforma (de *DOCUMENTACION DEL 2DO PARCIAL.docx*). La fecha de una presentación oral, si la hay, no está confirmada |
-| **Estado al 2026-11-04** | Código y pruebas en verde en la rama; informe de 319 páginas generado; sin desplegar; pruebas físicas pendientes (sección 5) |
+| **Estado al 2026-11-04** | Pull request 2 fusionado en `develop` (`ac1efb6`); desplegado en AWS con la prueba de humo en orden; informe de 319 páginas generado; pruebas físicas pendientes (sección 5) |
 
 ## 1. Qué se entrega
 
 | Entrega | Dónde está |
 |---|---|
-| Código fuente (frontend, backend, generador Spring) | Repositorio: `develop` tras fusionar el pull request 2 |
+| Código fuente (frontend, backend, generador Spring) | Repositorio: `develop` (pull request 2 fusionado) |
 | Informe del segundo parcial (PDF y Word) y el modelo de Enterprise Architect | `informe/build/Informe.pdf`, `informe/build/Informe.docx` y `informe/build/ea/modelo.qea` (no se versionan; se suben a la plataforma). Se generan con lo que hay en `informe/` |
 | Plan del segundo parcial (fases, decisiones, calendario) | [`PLAN_SEGUNDO_PARCIAL.md`](PLAN_SEGUNDO_PARCIAL.md) |
-| Aplicación funcionando | https://diagramador.dev (versión anterior hasta que se despliegue) y, en local, la rama |
+| Aplicación funcionando | https://diagramador.dev (segundo parcial desplegado el 2026-11-04) y, en local, `develop` |
 | Documentación PUDS por disciplina | El informe (sección 2) y [`puds/`](puds/README.md) |
 | Plan de trabajo PUDS de la IA integrante | [`PLAN_PUDS_IA_PARTICIPANTE.md`](PLAN_PUDS_IA_PARTICIPANTE.md) |
 | Estado de cada requisito | [`GAP_MATRIX.md`](GAP_MATRIX.md) y [`REQUIREMENTS.md`](REQUIREMENTS.md) |
@@ -36,7 +36,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | XMI con Enterprise Architect (en ambos sentidos, con pruebas de seguridad) | Hecho en el primer parcial; **por repetir** tras los cambios del segundo |
 | Generación Spring Boot + PostgreSQL, colección Postman, proyecto Flutter con SQLite sin conexión | Hecho; el Flutter sin red en un dispositivo está **por repetir** |
 | IA como integrante de la sala: identidad, actividad, chat (**una sola conversación para toda la sala** desde el segundo parcial), cambios a pedido, revisión con ideas aplicables, sesiones continuas, vista móvil | Hecho (RF-23 a RF-32) |
-| Avisos en la vista del celular (RF-34), asistente de ayuda (RF-35) y MongoDB para la actividad y la conversación (RNF-08) | Hecho en local; **sin desplegar**; el aviso en un celular real está sin probar |
+| Avisos en la vista del celular (RF-34), asistente de ayuda (RF-35) y MongoDB para la actividad y la conversación (RNF-08) | Hecho y desplegado (MongoDB queda como opción: no está activado en el servidor); el aviso en un celular real está sin probar |
 | IA local (Ollama + Qwen 3.5 9B) y modelo de 4 mil millones de parámetros reentrenado | Hecho: 10/10 pedidos correctos (RF-33); el reentrenado, en los anexos del informe |
 | Despliegue en AWS con dominio y HTTPS | Parcial: manual y repetible; sin infraestructura como código ni CI/CD |
 | IA local **dentro de la app móvil generada** | Parcial: el asistente de la app Flutter es un intérprete de comandos determinista, no un modelo |
@@ -49,6 +49,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | Frontend (Karma) | 288 correctas, 0 fallos; `ng build` sin errores |
 | Django (`manage.py test` con `settings_test`, sin Docker) | 354 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
 | Spring (incluye compilar de verdad el proyecto generado) | 9 correctas |
+| Sitio desplegado | `scripts/smoke-test.sh` el 2026-11-04: 12 comprobaciones, todo en orden. La ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) da 404 |
 | Modelos del informe contra el repositorio | Pasan los seis validadores: 69 clases de diseño, 74 asociaciones, 226 mensajes de secuencia, 66 casos de prueba (uno por camino de los 14 casos de uso) y 229 pruebas citadas |
 | Pruebas manuales | 21 procedimientos ejecutados en el navegador con Gemini real (2026-10-26 y 27) y, el 2026-10-22, tres identidades + vista móvil sobre el sitio desplegado |
 | Revisión de código | Dos rondas independientes antes del primer parcial, la revisión automática antes de cada commit y la revisión del pull request 2: 9 hallazgos, uno corregido (el 3, MongoDB) y ocho aplazados |
@@ -61,7 +62,7 @@ Comandos exactos: [`puds/05-pruebas.md`](puds/05-pruebas.md) §3.
 1. **Sin cuentas:** el código de la sala es la capacidad de acceso; la vista móvil es de solo lectura pero **no** es un permiso separado (`DESPLIEGUE.md` §7).
 2. **La conversación con la IA es de toda la sala** (decisión del docente): cualquiera que tenga el código la lee. Antes era privada por persona.
 3. **Atribución a la IA** (`via_ia`) la declara el navegador: es transparencia, no auditoría a prueba de manipulación.
-4. **Servidor pequeño** (2 vCPU, ~2 GB): la IA local no corre allí; la nube (Gemini) sí. MongoDB está listo y probado, pero no se activa en AWS hasta medir cuánta memoria queda libre. Si el servidor se reinicia, las personas conectadas pierden la conexión y deben volver a entrar; el diagrama se recupera desde el respaldo.
+4. **Servidor pequeño** (2 vCPU, ~2 GB): la IA local no corre allí; la nube (Gemini) sí. MongoDB está listo y probado, pero no está activado en AWS: con todos los servicios corriendo quedan unos 1.100 a 1.200 MB disponibles y ya hay swap en uso (`DESPLIEGUE.md` §8). Si el servidor se reinicia, las personas conectadas pierden la conexión y deben volver a entrar; el diagrama se recupera desde el respaldo.
 5. **Dominio** `diagramador.dev` vence el 2027-10-21 (renovación automática apagada a propósito).
 6. **Pruebas en dispositivos reales pendientes:** la vista móvil y los avisos se probaron en una ventana del tamaño de un celular, no en un teléfono; la app Flutter sin red y el XMI con Enterprise Architect no se repitieron tras los cambios del segundo parcial.
 7. **Sin topes de uso propios** en las rutas de imagen y de audio (el chat y la ayuda sí los tienen).
@@ -70,8 +71,9 @@ Comandos exactos: [`puds/05-pruebas.md`](puds/05-pruebas.md) §3.
 
 ## 5. Lo que tiene que hacer una persona antes de entregar
 
-- [ ] **Revisar y fusionar el pull request 2 a `develop`** (sin esto el código QR de GitHub de la carátula muestra el primer parcial).
-- [ ] **Autorizar el despliegue en AWS** y hacerlo: aplicar la migración `collab/0005_chatmessage_author_name`, medir la memoria libre antes de pensar en MongoDB y correr `scripts/smoke-test.sh` (`DESPLIEGUE.md`).
+- [x] **Pull request 2 fusionado a `develop`** el 2026-11-04 (`ac1efb6`): el código QR de GitHub de la carátula ya muestra el segundo parcial.
+- [x] **Desplegado en AWS** el 2026-11-04: migración `collab/0005_chatmessage_author_name` aplicada, memoria medida y `scripts/smoke-test.sh` en orden (`DESPLIEGUE.md` §4).
+- [ ] **Decidir si se activa MongoDB en el servidor** (opcional; `DESPLIEGUE.md` §8).
 - [ ] **Pruebas físicas:** exportar e importar XMI con Enterprise Architect, generar el Flutter y usarlo sin red en un dispositivo, recibir una notificación en un celular real y trabajar con tres navegadores sobre el sitio desplegado.
 - [ ] **Revisar el PDF página por página** e imprimir las dos carátulas.
 - [ ] **Confirmar con el docente** si hay presentación oral y qué día.

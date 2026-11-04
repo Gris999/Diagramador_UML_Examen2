@@ -1,6 +1,6 @@
 # Despliegue en AWS (EC2) con dominio y HTTPS
 
-Estado verificado el **2026-10-21**. Sitio: **https://diagramador.dev**
+Estado verificado el **2026-11-04** (con el segundo parcial desplegado). Sitio: **https://diagramador.dev**
 
 ## 1. Resumen
 
@@ -61,6 +61,10 @@ docker-compose -f docker-compose.app.yml up -d --no-deps --no-build <servicio>
 
 Para el `.env` de Django, restaurar la copia `.env.bak-<fecha>` y recrear el servicio con `up -d --no-deps --force-recreate django`.
 
+### Último despliegue (2026-11-04, segundo parcial)
+
+Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios conectados. Antes se respaldaron las imágenes `django` y `angular-app` como `antes-20261104-1559` y el commit anterior (`6710b82`) en `~/respaldos-despliegue/head-antes-20261104-1559.txt`. `spring-backend` no cambió y no se tocó. Se hizo `git pull --ff-only origin develop`, se construyeron `django` (ahora con `pymongo` y `mongomock`) y `angular-app` con `docker-compose -f docker-compose.app.yml build <servicio>` y se reiniciaron uno a la vez con `up -d --no-deps`. Al arrancar, Django aplicó la migración `collab.0005_chatmessage_author_name` (una columna y un índice). Resultado: `scripts/smoke-test.sh` en orden; la ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) responde 404. Para volver atrás: volver a etiquetar como `latest` las dos imágenes `antes-20261104-1559` (`docker tag`, como en «Volver atrás») y, en el servidor, `git checkout 6710b82` (el código de Django se monta desde esa carpeta).
+
 ## 5. Dominio y HTTPS
 
 1. Dominio registrado en name.com (oferta de GitHub Student Developer Pack, primer año gratis). **La renovación automática está apagada: vence el 2027-10-21** y hay que renovarlo a mano o cambiar de nombre antes.
@@ -71,7 +75,7 @@ Para el `.env` de Django, restaurar la copia `.env.bak-<fecha>` y recrear el ser
 
 ## 6. Pruebas de humo
 
-**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-10-22, todo en orden.
+**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-11-04, todo en orden (12 comprobaciones, tras desplegar el segundo parcial).
 
 Desde cualquier equipo, sustituyendo el dominio:
 
@@ -108,4 +112,4 @@ La actividad de la sala y la conversación con la IA se guardan en PostgreSQL po
 2. Copiar el historial que ya existe: `docker exec django_backend_UML python manage.py migrar_a_mongo` (se puede repetir sin duplicar y no toca PostgreSQL, que queda como respaldo).
 3. Poner `ACTIVITY_STORE=mongo` y `CONVERSATION_STORE=mongo` y recrear `django` (`up -d --no-deps --force-recreate django`). Volver atrás es poner `postgres` en las dos variables.
 
-**Pendiente antes de activarlo en la EC2 de 2 GB:** medir cuánta memoria queda libre con todos los servicios corriendo (`docker stats`, `free -m`). Si no alcanza, la alternativa es MongoDB Atlas gratuito cambiando solo `MONGO_URL`. Las pruebas contra un MongoDB real se corren con `MONGO_TEST_URL` (ver la sección 2.5 del informe).
+**Medición en la EC2 de 2 GB (2026-11-04), con todos los servicios corriendo y sin MongoDB:** 1.906 MB de memoria en total, de 690 a 817 MB usados, de 1.088 a 1.267 MB disponibles (la caché cuenta como disponible) y de 537 a 686 MB de swap en uso; los seis contenedores suman unos 150 MB. Con la caché de WiredTiger en 0,25 GB, MongoDB cabría, pero la máquina ya usa swap, así que **no se activó en el servidor**: la actividad y la conversación siguen en PostgreSQL. Para medir de nuevo: `docker stats --no-stream` y `free -m`. Si no alcanzara, la alternativa es MongoDB Atlas gratuito cambiando solo `MONGO_URL`. Las pruebas contra un MongoDB real se corren con `MONGO_TEST_URL` (ver la sección 2.5 del informe).
