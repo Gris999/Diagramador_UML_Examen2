@@ -575,7 +575,7 @@ class Constructor:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_after = Pt(8)
         if logo.exists():
-            p.add_run().add_picture(str(logo), width=Cm(3.6), height=Cm(4.7))
+            p.add_run().add_picture(str(logo), width=Cm(3.1), height=Cm(4.0))
         linea(f"“{TITULO}”", 16, True, despues=8)
         linea(PARCIAL, 14, True, despues=6)
         linea(f"Número: {NUMERO}", 12, True, izquierda, despues=10, sangria=36)
@@ -594,10 +594,8 @@ class Constructor:
             r.bold = True
             r.font.size = Pt(12)
             p.add_run(valor).font.size = Pt(12)
-        linea("", 12, False, despues=2)
         self.codigos_qr()
-        linea("", 12, False, despues=2)
-        linea(LUGAR, 14, True)
+        linea(LUGAR, 14, True, antes=4)
 
     def codigos_qr(self):
         """Dos códigos QR en la carátula: el repositorio de GitHub (el remoto `origin`) y el sitio desplegado."""
@@ -618,7 +616,7 @@ class Constructor:
             p = celda.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_after = Pt(0)
-            p.add_run().add_picture(str(ruta), width=Cm(2.5), height=Cm(2.5))
+            p.add_run().add_picture(str(ruta), width=Cm(2.3), height=Cm(2.3))
             pie = tabla.cell(1, columna).paragraphs[0]
             pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
             pie.paragraph_format.space_after = Pt(0)

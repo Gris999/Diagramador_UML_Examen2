@@ -16,7 +16,7 @@ from modelo import diseno as D  # noqa: E402
 from modelo import implementacion as I  # noqa: E402
 
 MODELO = "Modelo de implementación"
-ANCHO, ALTO = 250, 56
+ANCHO, ALTO = 215, 50
 
 
 def _profundidad(nodos, aristas):
@@ -56,12 +56,12 @@ def diagrama_componentes_subsistema(m, sub):
     for ruta_archivo in archivos:
         columnas.setdefault(prof[ruta_archivo], []).append(ruta_archivo)
     cols = [columnas[n] for n in sorted(columnas)]
-    # una columna muy larga se parte en varias para que el diagrama no quede altísimo
+    # una columna de más de ocho archivos se parte en varias para que el diagrama no quede altísimo ni demasiado ancho
     partidas = []
     for c in cols:
-        partidas += [c[i:i + 6] for i in range(0, len(c), 6)]
+        partidas += [c[i:i + 8] for i in range(0, len(c), 8)]
     tam = {a: (ANCHO, ALTO) for a in archivos}
-    pos = layout.columnas(tam, partidas, aristas, hueco_x=110, hueco_y=24, pares_juntos=(), arbol=True)
+    pos = layout.columnas(tam, partidas, aristas, hueco_x=90, hueco_y=22, pares_juntos=(), arbol=True)
     x0 = min(pos[a][0] for a in archivos) - 30
     y0 = min(pos[a][1] for a in archivos) - 55
     x1 = max(pos[a][0] + ANCHO for a in archivos) + 30
