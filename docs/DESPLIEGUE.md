@@ -1,6 +1,6 @@
 # Despliegue en AWS (EC2) con dominio y HTTPS
 
-Estado verificado el **2026-11-04** (con el segundo parcial desplegado). Sitio: **https://diagramador.dev**
+Estado verificado el **2026-11-04** (con el segundo parcial desplegado y MongoDB Atlas activo). Sitio: **https://diagramador.dev**
 
 ## 1. Resumen
 
@@ -29,14 +29,15 @@ El frontend decide sus direcciones al abrirse la página (`front_generador_bd/sr
 | Generador | `spring_backend` | 7001 | Spring Boot 3.5, Java 21 |
 | Redis | `redis_server` | 6379 | Capa de canales, roles de sala, turno de la IA por sala y topes de uso de la ayuda |
 | PostgreSQL | `postgres_db` | 5432 (publicado como 5433) | Participantes, topes de la IA, respaldo de diagramas y, por defecto, la actividad y la conversación |
-| MongoDB (opcional, perfil `mongo`) | `mongo_db` | 27017 (solo `127.0.0.1` del host) | Actividad y conversación con la IA si `ACTIVITY_STORE` / `CONVERSATION_STORE` valen `mongo` (sección 8). No arranca con `up -d` a secas |
+| MongoDB Atlas (nube) | — (no es un contenedor del servidor) | 27017, hacia el clúster `diagramador` | Actividad y conversación con la IA: `ACTIVITY_STORE` y `CONVERSATION_STORE` valen `mongo` desde el 2026-11-04 (sección 8) |
+| MongoDB local (opcional, perfil `mongo`) | `mongo_db` | 27017 (solo `127.0.0.1` del host) | Alternativa para correr MongoDB en la propia máquina (sección 8). No arranca con `up -d` a secas y no está en uso en el servidor |
 | pgAdmin | `pgadmin` | 80 (publicado como 5050) | Solo administración |
 
 Todos los contenedores tienen política de reinicio `unless-stopped`; Docker y nginx arrancan con la máquina.
 
 ## 3. Configuración (nombres de variables, nunca valores)
 
-- `back_generador_bd/.env` (no versionado): `DJANGO_SECRET_KEY`, `DEBUG` (**debe ser `False`**), `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `POSTGRES_*`, `REDIS_*`, `GEMINI_API_KEY`, `GEMINI_MODEL` y, solo si se usa MongoDB, `ACTIVITY_STORE`, `CONVERSATION_STORE`, `MONGO_URL`, `MONGO_DB`, `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`. El dominio nuevo debe agregarse a las tres listas.
+- `back_generador_bd/.env` (no versionado): `DJANGO_SECRET_KEY`, `DEBUG` (**debe ser `False`**), `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `POSTGRES_*`, `REDIS_*`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `ACTIVITY_STORE`, `CONVERSATION_STORE`, `MONGO_URL` (con la clave del usuario de Atlas; solo en el servidor) y `MONGO_DB` y, solo si se levanta el contenedor `mongo_db`, `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`. El dominio nuevo debe agregarse a las tres listas.
 - `.env` en la raíz del repositorio (no versionado): `APP_CORS_ALLOWED_ORIGINS`, orígenes extra separados por comas que Spring **suma** a los suyos (ver `SecurityConfiguration`). Se pasa al contenedor desde `docker-compose.app.yml`.
 - Los archivos `.env` nunca se suben a git.
 
@@ -63,7 +64,7 @@ Para el `.env` de Django, restaurar la copia `.env.bak-<fecha>` y recrear el ser
 
 ### Último despliegue (2026-11-04, segundo parcial)
 
-Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios conectados. Antes se respaldaron las imágenes `django` y `angular-app` como `antes-20261104-1559` y el commit anterior (`6710b82`) en `~/respaldos-despliegue/head-antes-20261104-1559.txt`. `spring-backend` no cambió y no se tocó. Se hizo `git pull --ff-only origin develop`, se construyeron `django` (ahora con `pymongo` y `mongomock`) y `angular-app` con `docker-compose -f docker-compose.app.yml build <servicio>` y se reiniciaron uno a la vez con `up -d --no-deps`. Al arrancar, Django aplicó la migración `collab.0005_chatmessage_author_name` (una columna y un índice). Resultado: `scripts/smoke-test.sh` en orden; la ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) responde 404. Para volver atrás: volver a etiquetar como `latest` las dos imágenes `antes-20261104-1559` (`docker tag`, como en «Volver atrás») y, en el servidor, `git checkout 6710b82` (el código de Django se monta desde esa carpeta).
+Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios conectados. Antes se respaldaron las imágenes `django` y `angular-app` como `antes-20261104-1559` y el commit anterior (`6710b82`) en `~/respaldos-despliegue/head-antes-20261104-1559.txt`. `spring-backend` no cambió y no se tocó. Se hizo `git pull --ff-only origin develop`, se construyeron `django` (ahora con `pymongo` y `mongomock`) y `angular-app` con `docker-compose -f docker-compose.app.yml build <servicio>` y se reiniciaron uno a la vez con `up -d --no-deps`. Al arrancar, Django aplicó la migración `collab.0005_chatmessage_author_name` (una columna y un índice). Resultado: `scripts/smoke-test.sh` en orden; la ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) responde 404. Ese mismo día, después, se activó MongoDB Atlas (sección 8; además se trajo el arreglo del PR 4 y se recreó `django` dos veces más). Para volver atrás: volver a etiquetar como `latest` las dos imágenes `antes-20261104-1559` (`docker tag`, como en «Volver atrás») y, en el servidor, `git checkout 6710b82` (el código de Django se monta desde esa carpeta).
 
 ## 5. Dominio y HTTPS
 
@@ -71,7 +72,7 @@ Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios
 2. Registro `A` (host vacío) hacia la IP pública de la instancia, TTL 300.
 3. Sitio nginx propio para el dominio en el puerto 80 con el mismo reparto de rutas que el del túnel (`/api/`, `/ws/` con Upgrade, `/generate`, `/`).
 4. Certificado: `sudo certbot --nginx -d <dominio> --redirect -m <correo> --agree-tos --no-eff-email --non-interactive`. Certbot agrega el servidor 443 y la redirección 301. La renovación la hace el temporizador `certbot.timer`.
-5. Si la IP pública de la instancia puede cambiar (apagado y encendido), asignar una IP elástica.
+5. Si la IP pública de la instancia puede cambiar (apagado y encendido), asignar una IP elástica. Con MongoDB Atlas (sección 8) es más importante: Atlas solo acepta la IP del servidor, y si cambia hay que agregar la nueva en su lista de IP permitidas.
 
 ## 6. Pruebas de humo
 
@@ -104,12 +105,24 @@ WebSocket: una petición HTTP/1.1 con `Upgrade: websocket` a `/ws/canvas/<sala>/
 - No hay CI/CD ni infraestructura como código: el despliegue es manual y repetible con los pasos de la sección 4.
 - El **Quick Tunnel de Cloudflare** sigue como respaldo, pero es un proceso manual (no un servicio) y su dirección cambia si se reinicia. Si cambia, agregarla a `APP_CORS_ALLOWED_ORIGINS` y reiniciar Spring.
 
-## 8. MongoDB (opcional, construcción C3)
+## 8. MongoDB (construcción C3)
 
-La actividad de la sala y la conversación con la IA se guardan en PostgreSQL por defecto. Para guardarlas en MongoDB:
+### En producción: MongoDB Atlas (desde el 2026-11-04)
+
+La actividad de la sala y la conversación con la IA se guardan en **MongoDB Atlas**, el servicio gestionado de MongoDB, y no en un contenedor del servidor: plan gratuito (512 MB de almacenamiento), AWS región N. Virginia, clúster `diagramador` (MongoDB 8.0). Así MongoDB no usa la memoria de la máquina de 2 GB. PostgreSQL sigue guardando los participantes, los topes de uso de la IA y el respaldo del diagrama.
+
+- **Acceso:** el usuario de base de datos `diagramador_app` (con permisos de administración del proyecto de Atlas) y una lista de IP permitidas que solo tiene la del servidor (`18.188.167.127/32`). La clave vive únicamente dentro de `MONGO_URL`, en `back_generador_bd/.env` del servidor; nunca va a git.
+- **Variables del servidor** (`back_generador_bd/.env`): `MONGO_URL` (`mongodb+srv://…`), `MONGO_DB=diagramador`, `ACTIVITY_STORE=mongo` y `CONVERSATION_STORE=mongo`. La copia del `.env` anterior al cambio es `.env.bak-20261104-1634`.
+- **Cómo se hizo, en este orden:** (1) código y las variables `MONGO_URL` y `MONGO_DB` en el servidor, sin cambiar de base; (2) prueba de conexión desde el contenedor (primera conexión 0,4 s, ida y vuelta de unos 15 ms); (3) las 19 pruebas de contrato de los adaptadores contra Atlas con `docker exec django_backend_UML sh -c 'MONGO_TEST_URL="$MONGO_URL" python manage.py test collab.tests.test_mongo_integration --settings=diagramador_uml.settings_test'` (crean y borran bases `prueba_…`); (4) `docker exec django_backend_UML python manage.py migrar_a_mongo`: 34 eventos y 10 mensajes, iguales a los de PostgreSQL salvo la hora, que Mongo guarda a milisegundos, y el nombre de autor de los mensajes viejos, que toma el del participante (se repitió sin duplicar); (5) `ACTIVITY_STORE=mongo` y `CONVERSATION_STORE=mongo` y `up -d --no-deps --force-recreate django`; (6) prueba de punta a punta dentro del servidor: una persona simulada editó el diagrama por WebSocket y preguntó a la IA; el evento y los dos mensajes quedaron en Atlas (PostgreSQL no creció) y el historial se leyó de Atlas.
+- **Si Atlas no responde o la IP del servidor cambia:** el chat compartido y el registro de actividad fallan; la edición del diagrama entre las personas sigue funcionando. Para volver a PostgreSQL: poner `postgres` en las dos variables (o borrar esas dos líneas) y recrear `django`. **Lo escrito en Atlas desde el cambio no se copia de vuelta a PostgreSQL** (no hay comando para eso). Si la IP cambia y se quiere seguir con Atlas, basta agregar la IP nueva en «Network Access» de Atlas; por eso conviene reservar una IP elástica (sección 5).
+- **Los datos de las salas están en una nube de un tercero** (MongoDB, Inc., sobre AWS). Lo que los protege es la lista de IP permitidas y la clave.
+
+### Alternativa: MongoDB en un contenedor propio
+
+Por defecto la actividad y la conversación se guardan en PostgreSQL. Para guardarlas en un MongoDB que corra en la propia máquina:
 
 1. Poner en `back_generador_bd/.env` los nombres de la sección 3 (las claves solo en el servidor, nunca en git) y levantar el servicio con su perfil: `docker-compose -f docker-compose.db.yml --env-file back_generador_bd/.env --profile mongo up -d mongo`. Usa `mongo:7` con autenticación (`--auth`), la caché de WiredTiger acotada a 0,25 GB y el puerto publicado solo en `127.0.0.1`. El servicio no está en la ejecución normal (`up -d` levanta solo PostgreSQL y pgAdmin) y recibe únicamente `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`, no el `.env` completo. Si `--env-file` se olvida, esas dos variables quedan vacías: no se crea ningún usuario y, con `--auth`, una conexión desde otro contenedor o desde fuera no puede leer ni escribir (comprobado el 2026-11-04 con contenedores de prueba). El perfil exige `docker-compose` 1.28 o más nuevo en el servidor (`docker-compose --version`).
 2. Copiar el historial que ya existe: `docker exec django_backend_UML python manage.py migrar_a_mongo` (se puede repetir sin duplicar y no toca PostgreSQL, que queda como respaldo).
 3. Poner `ACTIVITY_STORE=mongo` y `CONVERSATION_STORE=mongo` y recrear `django` (`up -d --no-deps --force-recreate django`). Volver atrás es poner `postgres` en las dos variables.
 
-**Medición en la EC2 de 2 GB (2026-11-04), con todos los servicios corriendo y sin MongoDB:** 1.906 MB de memoria en total, de 690 a 817 MB usados, de 1.088 a 1.267 MB disponibles (la caché cuenta como disponible) y de 537 a 686 MB de swap en uso; los seis contenedores suman unos 150 MB. Con la caché de WiredTiger en 0,25 GB, MongoDB cabría, pero la máquina ya usa swap, así que **no se activó en el servidor**: la actividad y la conversación siguen en PostgreSQL. Para medir de nuevo: `docker stats --no-stream` y `free -m`. Si no alcanzara, la alternativa es MongoDB Atlas gratuito cambiando solo `MONGO_URL`. Las pruebas contra un MongoDB real se corren con `MONGO_TEST_URL` (ver la sección 2.5 del informe).
+**Por qué el servidor usa Atlas y no este contenedor.** Medición en la EC2 de 2 GB (2026-11-04), con todos los servicios corriendo y sin MongoDB: 1.906 MB de memoria en total, de 690 a 817 MB usados, de 1.088 a 1.267 MB disponibles (la caché cuenta como disponible) y de 537 a 686 MB de swap en uso; los seis contenedores suman unos 150 MB. Con la caché de WiredTiger en 0,25 GB un contenedor cabría, pero la máquina ya usa swap; con Atlas solo cambia `MONGO_URL`. Para medir de nuevo: `docker stats --no-stream` y `free -m`. Las pruebas contra un MongoDB real se corren con `MONGO_TEST_URL` (ver la sección 2.5 del informe).

@@ -72,7 +72,8 @@ def generar():
     md += ["### 2.4.4 Ejecutables y nodos\n",
            "Los ejecutables (`<<executable>>`) son los contenedores de Docker Compose; cada uno se asigna a un nodo del modelo de despliegue (sección 2.3.1). "
            "Los archivos `docker-compose.app.yml` (aplicación) y `docker-compose.db.yml` (bases de datos) los definen, y el modelo coincide con ellos: cada contenedor "
-           "del modelo está en los archivos y cada contenedor de los archivos está en el modelo (`pgadmin` es solo una herramienta de desarrollo).\n",
+           "del modelo está en los archivos y cada contenedor de los archivos está en el modelo (`pgadmin` es solo una herramienta de desarrollo). "
+           "`mongo_db` es opcional (se levanta con el perfil `mongo`) y en el servidor de AWS no corre: desde el 2026-11-04 la actividad y la conversación están en MongoDB Atlas.\n",
            "| Ejecutable `<<executable>>` | Se construye de | Puertos publicados | Archivo | Función |", "|---|---|---|---|---|"]
     for f in filas:
         c = f["compose"]

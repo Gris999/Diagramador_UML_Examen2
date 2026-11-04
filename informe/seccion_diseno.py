@@ -152,7 +152,10 @@ def generar():
     md += ["### 2.3.1 Diseño de la arquitectura\n",
            "#### Nodos y configuración de red\n",
            "La configuración física sigue el patrón de tres capas del libro: los clientes (navegadores), la lógica de la aplicación (Django y Spring Boot) y los "
-           "datos (PostgreSQL, Redis y MongoDB), detrás de nginx con HTTPS. El tráfico de tiempo real usa WebSocket sobre el mismo puerto 443.\n",
+           "datos (PostgreSQL, Redis y MongoDB), detrás de nginx con HTTPS. El tráfico de tiempo real usa WebSocket sobre el mismo puerto 443. "
+           "Una aclaración sobre el diagrama: dibuja `mongo_db` como un contenedor del servidor, que es la opción de diseño (se levanta con el perfil `mongo` de Docker Compose); "
+           "en el servidor de AWS ese contenedor no corre, porque la actividad y la conversación se guardan en MongoDB Atlas, un servicio gestionado en la nube al que solo "
+           "puede entrar la IP del servidor.\n",
            _uml_respaldo("di-despliegue", "Diagrama de despliegue"), _tabla_nodos(), _tabla_conexiones(),
            "#### Capas y subsistemas\n",
            "Los subsistemas de las dos capas superiores salen de los paquetes del análisis, con una traza a cada uno (9.5.1.2.1): un paquete de análisis, un "
