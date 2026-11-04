@@ -29,7 +29,7 @@ El frontend decide sus direcciones al abrirse la página (`front_generador_bd/sr
 | Generador | `spring_backend` | 7001 | Spring Boot 3.5, Java 21 |
 | Redis | `redis_server` | 6379 | Capa de canales, roles de sala, turno de la IA por sala y topes de uso de la ayuda |
 | PostgreSQL | `postgres_db` | 5432 (publicado como 5433) | Participantes, topes de la IA, respaldo de diagramas y, por defecto, la actividad y la conversación |
-| MongoDB (opcional) | `mongo_db` | 27017 (solo `127.0.0.1` del host) | Actividad y conversación con la IA si `ACTIVITY_STORE` / `CONVERSATION_STORE` valen `mongo` (sección 8) |
+| MongoDB (opcional, perfil `mongo`) | `mongo_db` | 27017 (solo `127.0.0.1` del host) | Actividad y conversación con la IA si `ACTIVITY_STORE` / `CONVERSATION_STORE` valen `mongo` (sección 8). No arranca con `up -d` a secas |
 | pgAdmin | `pgadmin` | 80 (publicado como 5050) | Solo administración |
 
 Todos los contenedores tienen política de reinicio `unless-stopped`; Docker y nginx arrancan con la máquina.
@@ -104,7 +104,7 @@ WebSocket: una petición HTTP/1.1 con `Upgrade: websocket` a `/ws/canvas/<sala>/
 
 La actividad de la sala y la conversación con la IA se guardan en PostgreSQL por defecto. Para guardarlas en MongoDB:
 
-1. Poner en `back_generador_bd/.env` los nombres de la sección 3 (las claves solo en el servidor, nunca en git) y levantar el servicio: `docker-compose -f docker-compose.db.yml up -d mongo`. Usa `mongo:7` con la caché de WiredTiger acotada a 0,25 GB y el puerto publicado solo en `127.0.0.1`.
+1. Poner en `back_generador_bd/.env` los nombres de la sección 3 (las claves solo en el servidor, nunca en git) y levantar el servicio con su perfil: `docker-compose -f docker-compose.db.yml --env-file back_generador_bd/.env --profile mongo up -d mongo`. Usa `mongo:7` con autenticación (`--auth`), la caché de WiredTiger acotada a 0,25 GB y el puerto publicado solo en `127.0.0.1`. El servicio no está en la ejecución normal (`up -d` levanta solo PostgreSQL y pgAdmin) y recibe únicamente `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`, no el `.env` completo. Si `--env-file` se olvida, esas dos variables quedan vacías: no se crea ningún usuario y, con `--auth`, una conexión desde otro contenedor o desde fuera no puede leer ni escribir (comprobado el 2026-11-04 con contenedores de prueba). El perfil exige `docker-compose` 1.28 o más nuevo en el servidor (`docker-compose --version`).
 2. Copiar el historial que ya existe: `docker exec django_backend_UML python manage.py migrar_a_mongo` (se puede repetir sin duplicar y no toca PostgreSQL, que queda como respaldo).
 3. Poner `ACTIVITY_STORE=mongo` y `CONVERSATION_STORE=mongo` y recrear `django` (`up -d --no-deps --force-recreate django`). Volver atrás es poner `postgres` en las dos variables.
 

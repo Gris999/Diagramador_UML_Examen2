@@ -19,13 +19,18 @@ services:
 
   # MongoDB guarda la conversación con la IA y el registro de actividad si ACTIVITY_STORE / CONVERSATION_STORE valen "mongo" (ver
   # back_generador_bd/.env.example). La memoria de WiredTiger se acota para que quepa junto a los demás contenedores en una máquina de 2 GB.
+  # Es opcional: solo arranca con su perfil y recibe únicamente su usuario y su clave (por nombre; los valores salen del entorno), no el .env completo:
+  #   docker compose -f docker-compose.db.yml --env-file back_generador_bd/.env --profile mongo up -d mongo
+  # `--auth` hace que, sin usuario y clave, nadie pueda leer ni escribir.
   mongo:
     image: mongo:7
     container_name: mongo_db
     restart: always
-    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
-    env_file:
-      - ./back_generador_bd/.env
+    profiles: ["mongo"]
+    command: ["mongod", "--auth", "--wiredTigerCacheSizeGB", "0.25"]
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME
+      - MONGO_INITDB_ROOT_PASSWORD
     ports:
       - "127.0.0.1:27017:27017"
     volumes:
