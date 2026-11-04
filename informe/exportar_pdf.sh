@@ -10,11 +10,11 @@ osascript <<APPLESCRIPT
 with timeout of 1200 seconds
   tell application "Microsoft Word"
     activate
-    -- si el informe quedó abierto de una vez anterior, se cierra sin guardar: si no, Word reutiliza esa copia vieja y la
-    -- guarda encima del archivo recién generado
-    repeat with abierto in (get documents)
+    -- Si el informe quedó abierto de una vez anterior, se cierra sin guardar: si no, Word reutiliza esa copia vieja y la guarda
+    -- encima del archivo recién generado. Se compara por nombre porque Word entrega rutas con otro formato que la POSIX.
+    repeat with n from (count of documents) to 1 by -1
       try
-        if (full name of abierto) is "$DOCX" then close abierto saving no
+        if (name of document n) is "Informe.docx" then close document n saving no
       end try
     end repeat
     open POSIX file "$DOCX"

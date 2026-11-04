@@ -2,6 +2,8 @@
 
 Este directorio reúne los **artefactos del Proceso Unificado de Desarrollo de Software (PUDS)** del proyecto. La organización sigue el material de la cátedra (*El Proceso Unificado de Desarrollo de Software*, A.U.S. Gustavo Torossi): cuatro fases, cinco disciplinas y, por cada disciplina, los artefactos de la tabla "Resumen de Trabajadores, Actividades y Artefactos" (páginas 23–25 del PDF).
 
+> **Estado de este directorio (2026-10-27).** Estos documentos son el registro del primer parcial y de la primera versión de la IA como integrante de la sala (con el modelo de 19 casos de uso y el chat privado). El **segundo parcial reemplaza el modelo**: los 14 casos de uso, el análisis, el diseño, la implementación, las pruebas y la validación están en `informe/modelo/` y se generan al informe (capítulo 2); allí manda el modelo y se comprueba contra el código. Aquí se conservan como historia del proceso.
+>
 > **Convención.** ✅ implementado y verificado · 🔄 en construcción · 📋 planificado. Lo marcado *(verificado)* se comprobó leyendo el código o ejecutando pruebas; *(propuesta)* es diseño que todavía no existe.
 > **Estado al 2026-10-22.** Fecha de entrega estimada: 2026-11-04 *(por confirmar con el docente)*.
 

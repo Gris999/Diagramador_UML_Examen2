@@ -1,9 +1,10 @@
 import { isPlatformBrowser } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { CollaborationService } from '../../services/colaboration/collaboration.service';
+import { IdentityService } from '../../services/colaboration/identity.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
-import { IaChatMessage, IaChatMode, IaChatService } from '../../services/IA/ia-chat.service';
+import { IaChatMessage, IaChatMode, IaChatService, iaErrorMessage } from '../../services/IA/ia-chat.service';
 
 const MAX_MESSAGE_CHARS = 2000;
 
@@ -17,6 +18,8 @@ export class IaChatPanel implements OnInit {
   private readonly actions = inject(IaActionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly platformId = inject(PLATFORM_ID);
+  private readonly identity = inject(IdentityService);
+  private readonly collab = inject(CollaborationService);
 
   @ViewChild('messageList') messageList?: ElementRef<HTMLElement>;
 
@@ -42,6 +45,20 @@ export class IaChatPanel implements OnInit {
 
   private roomId: string | null = null;
   private historyLoaded = false;
+  private wasThinking = false;
+
+  constructor() {
+    // La conversación es de toda la sala: cuando la IA termina un pedido (de quien sea) se vuelve a leer lo que dijeron los demás.
+    effect(() => {
+      const thinking = this.collab.iaStatus().state === 'thinking';
+      const finished = this.wasThinking && !thinking;
+      this.wasThinking = thinking;
+      if (finished && this.open()) this.refreshHistory();
+    });
+  }
+
+  /** Nombre con el que esta persona figura en la sala: sirve para distinguir sus mensajes de los de los demás. */
+  readonly myName = computed(() => this.identity.getIdentity().name);
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
@@ -85,12 +102,12 @@ export class IaChatPanel implements OnInit {
 
     this.error.set('');
     this.sending.set(true);
-    this.append({ role: 'user', content: text, mode });
+    this.append({ role: 'user', content: text, mode, author_name: this.myName() });
     this.draft.set('');
 
     this.actions.request(this.roomId, mode, text).subscribe({
       next: response => {
-        this.append({ role: 'ia', content: response.reply, mode });
+        this.append({ role: 'ia', content: response.reply, mode, author_name: 'IA' });
         this.sending.set(false);
       },
       error: (failure: unknown) => {
@@ -125,12 +142,26 @@ export class IaChatPanel implements OnInit {
     });
   }
 
-  private append(message: { role: 'user' | 'ia'; content: string; mode?: IaChatMode }): void {
+  /** Vuelve a leer la conversación de la sala; si no trae nada se deja lo que hay en pantalla (la conversación solo crece). */
+  private refreshHistory(): void {
+    if (!this.roomId) return;
+    this.chat.history(this.roomId).subscribe({
+      next: history => {
+        if (history.length === 0) return;
+        this.messages.set(history);
+        this.scrollToEnd();
+      },
+      error: () => undefined
+    });
+  }
+
+  private append(message: { role: 'user' | 'ia'; content: string; mode?: IaChatMode; author_name?: string }): void {
     this.messages.update(current => [
       ...current,
       {
         id: -(current.length + 1),
         role: message.role,
+        author_name: message.author_name,
         mode: message.mode,
         content: message.content,
         created_at: new Date().toISOString()
@@ -140,16 +171,7 @@ export class IaChatPanel implements OnInit {
   }
 
   private messageFor(failure: unknown): string {
-    if (failure instanceof HttpErrorResponse) {
-      if (failure.status === 429) return 'Demasiadas preguntas seguidas. Espera un momento.';
-      if (failure.status === 403) {
-        return 'Todavía no te identificaste en la sala. Recarga la página e inténtalo de nuevo.';
-      }
-      if (failure.status === 400 && typeof failure.error?.error === 'string') {
-        return failure.error.error;
-      }
-    }
-    return 'La IA no pudo responder ahora. Intenta de nuevo.';
+    return iaErrorMessage(failure);
   }
 
   private scrollToEnd(): void {

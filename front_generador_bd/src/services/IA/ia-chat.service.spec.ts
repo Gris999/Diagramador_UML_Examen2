@@ -4,7 +4,8 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
 import { IdentityService } from '../colaboration/identity.service';
-import { IaChatService } from './ia-chat.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import { iaErrorMessage, IaChatService } from './ia-chat.service';
 
 describe('IaChatService', () => {
   let service: IaChatService;
@@ -111,5 +112,29 @@ describe('IaChatService', () => {
     expect(release.request.method).toBe('DELETE');
     expect(release.request.headers.get('X-Participant-Token')).toBe(token);
     release.flush({});
+  });
+});
+
+
+describe('iaErrorMessage', () => {
+  it('tells the user to wait when the AI is serving someone else, using the name the server gives', () => {
+    const failure = new HttpErrorResponse({ status: 409, error: { error: 'La IA está atendiendo a Beto. Espera a que termine.' } });
+
+    expect(iaErrorMessage(failure)).toBe('La IA está atendiendo a Beto. Espera a que termine.');
+  });
+
+  it('has a generic wait message for a 409 without a body', () => {
+    expect(iaErrorMessage(new HttpErrorResponse({ status: 409 }))).toContain('atendiendo');
+  });
+
+  it('explains throttling and an unidentified participant', () => {
+    expect(iaErrorMessage(new HttpErrorResponse({ status: 429 }))).toContain('Demasiadas preguntas');
+    expect(iaErrorMessage(new HttpErrorResponse({ status: 403 }))).toContain('identificaste');
+  });
+
+  it('shows the server message of a validation error and a generic one for everything else', () => {
+    expect(iaErrorMessage(new HttpErrorResponse({ status: 400, error: { error: 'El mensaje es requerido.' } }))).toBe('El mensaje es requerido.');
+    expect(iaErrorMessage(new HttpErrorResponse({ status: 502 }))).toContain('La IA no pudo responder ahora');
+    expect(iaErrorMessage(new Error('boom'))).toContain('La IA no pudo responder ahora');
   });
 });

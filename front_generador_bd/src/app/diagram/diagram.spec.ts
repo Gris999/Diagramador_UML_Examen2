@@ -60,3 +60,46 @@ describe('Diagram', () => {
     expect(alertSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('Diagram opened after an expulsion', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [Diagram],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'sala-prueba' } } } }
+      ]
+    }).compileComponents();
+  });
+
+  it('does not treat a person expelled earlier as expelled again when they come back to the room', () => {
+    const alertSpy = spyOn(window, 'alert');
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    // El servicio vive toda la sesión: el aviso de la expulsión anterior sigue ahí cuando la persona vuelve a entrar sin recargar la página.
+    TestBed.inject(P2PService).removed.set(true);
+
+    TestBed.createComponent(Diagram);
+    TestBed.tick();
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('still expels the person when the host removes them while they are in the new visit', () => {
+    const alertSpy = spyOn(window, 'alert');
+    spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    spyOn(TestBed.inject(DiagramService), 'clearStorage');
+    spyOn(TestBed.inject(DiagramService), 'closeDiagram');
+    TestBed.inject(P2PService).removed.set(true);
+    TestBed.createComponent(Diagram);
+    TestBed.tick();
+
+    TestBed.inject(P2PService).removed.set(true);
+    TestBed.tick();
+
+    expect(alertSpy).toHaveBeenCalledOnceWith('El host te expulsó de la sala.');
+  });
+});
+

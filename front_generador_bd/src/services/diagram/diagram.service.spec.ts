@@ -693,6 +693,15 @@ describe('DiagramService backup persistence and room lifecycle', () => {
     expect(backup.setBackupUml).not.toHaveBeenCalled();
   });
 
+  it('does not let a relationship end on the empty canvas: it must join two classes', async () => {
+    const { service, collab } = createServiceWithMocks();
+    Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
+
+    await service.initialize(document.createElement('div'), 'room-1');
+
+    expect((service as any).paper.options.linkPinning).toBeFalse();
+  });
+
   it('stops its animation-frame loops when the room is left, and restarts them for the next one', async () => {
     const { service, collab } = createServiceWithMocks();
     Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
@@ -926,6 +935,62 @@ describe('DiagramService merging AI updates into existing classes', () => {
     load(service, element, { classes: [{ id: 'c1', name: 'Cliente' }], relationships: [] }, true);
 
     expect(collab.broadcast).not.toHaveBeenCalled();
+  });
+});
+
+describe('DiagramService removals shared with the room', () => {
+  async function openRoom() {
+    const broadcast = jasmine.createSpy('broadcast');
+    const validateModel = jasmine.createSpy('validateModel');
+    const collab = { broadcast, registerDiagramApi: () => undefined, init: () => undefined, closeSocketRTC: () => undefined };
+    const service = new DiagramService(
+      { scheduleAutoResize: () => undefined, updatePorts: () => undefined } as any,
+      collab as any,
+      { export: () => ({ classes: [], relationships: [] }) } as any,
+      { validateModel } as any,
+      { setBackupUml: () => ({ subscribe: () => undefined }) } as any
+    );
+    spyOn(localStorage, 'getItem').and.returnValue(null);
+    spyOn(localStorage, 'setItem').and.callFake(() => undefined);
+    await service.initialize(document.createElement('div'), 'room-1');
+    const graph = (service as any).graph;
+    const joint = (service as any).joint;
+    graph.addCell(new joint.shapes.standard.Rectangle({ id: 'A', position: { x: 0, y: 0 }, size: { width: 50, height: 30 } }));
+    graph.addCell(new joint.shapes.standard.Rectangle({ id: 'B', position: { x: 200, y: 0 }, size: { width: 50, height: 30 } }));
+    broadcast.calls.reset();
+    validateModel.calls.reset();
+    return { graph, joint, broadcast, validateModel };
+  }
+
+  const deletions = (broadcast: jasmine.Spy) => broadcast.calls.allArgs().filter(([message]: any[]) => message.t === 'delete');
+
+  it('does not tell the room that a relationship was deleted when it was dropped on the empty canvas and never shared', async () => {
+    const { graph, joint, broadcast, validateModel } = await openRoom();
+    const loose = new joint.dia.Link({ source: { id: 'A' }, target: { x: 120, y: 200 } });
+    graph.addCell(loose);
+
+    loose.remove();
+
+    expect(deletions(broadcast)).toEqual([]);
+    expect(validateModel).not.toHaveBeenCalled();
+  });
+
+  it('still tells the room when a relationship between two classes is deleted', async () => {
+    const { graph, joint, broadcast } = await openRoom();
+    const shared = new joint.dia.Link({ source: { id: 'A' }, target: { id: 'B' } });
+    graph.addCell(shared);
+
+    shared.remove();
+
+    expect(deletions(broadcast).map(([message]: any[]) => message.id)).toEqual([shared.id]);
+  });
+
+  it('still tells the room when a class is deleted', async () => {
+    const { graph, broadcast } = await openRoom();
+
+    graph.getCell('A').remove();
+
+    expect(deletions(broadcast).map(([message]: any[]) => message.id)).toEqual(['A']);
   });
 });
 

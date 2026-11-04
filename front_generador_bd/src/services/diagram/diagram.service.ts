@@ -80,6 +80,8 @@ export class DiagramService {
         defaultConnector: { name: 'rounded' },
         defaultLink: () => this.buildRelationship(),
         validateConnection: (cvS: any, _mS: any, cvT: any, _mT: any) => cvS !== cvT,
+        // Una relación une dos clases: si se suelta sobre el lienzo vacío, desaparece en lugar de quedar colgada.
+        linkPinning: false,
       });
       /**************************************************************************************************
        * ATAJOS DE TECLADO: copiar, pegar, duplicar, cortar
@@ -195,6 +197,8 @@ export class DiagramService {
 
       this.graph.on('remove', (cell: any, _collection: any, opt: any = {}) => {
         if (opt?.collab) return; // viene de remoto, no re-emitir
+        // Una relación sin una clase en cada extremo nunca se compartió (add_link solo se emite con ambos): borrarla no es noticia para la sala.
+        if (cell.isLink?.() && (!cell.get('source')?.id || !cell.get('target')?.id)) return;
         this.collab.broadcast({ t: 'delete', id: cell.id });
         const umlJson = this.exportService.export(this.graph);
         this.umlValidationService.validateModel(umlJson);

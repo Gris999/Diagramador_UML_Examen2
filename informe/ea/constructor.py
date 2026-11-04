@@ -181,7 +181,7 @@ Sub Obj(d, clave, l, t, w, h, fondo, texto, borde)
   Chk "Obj " & clave
 End Sub
 
-Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq, arbol, etiq)
+Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq, arbol, etiq, agr)
   On Error Resume Next
   Dim k, c, origen
   k = de & ">" & a & ">" & tipo & ">" & nombre & ">" & est
@@ -198,6 +198,10 @@ Sub Con(idd, de, a, tipo, nombre, est, cd, ca, dir, seq, arbol, etiq)
   If seq > 0 Then c.SequenceNo = seq
   If dir <> "" Then c.Direction = dir
   c.Update
+  If agr > 0 Then
+    c.ClientEnd.Aggregation = agr
+    c.ClientEnd.Update
+  End If
   If cd <> "" Then
     c.ClientEnd.Cardinality = cd
     c.ClientEnd.Update
@@ -250,7 +254,7 @@ Sub Paralelos(d)
         Else
           geo = "SX=" & off & ";SY=0;EX=" & off & ";EY=0;"
         End If
-        dl.Geometry = geo
+        dl.Geometry = geo & dl.Geometry
         dl.Update
       Next
     End If
@@ -288,7 +292,9 @@ Sub Arboles(d)
       dl.Update
       If dEtiq.Exists(id) Then
         k = Split(dEtiq(id), ":")
-        dl.Geometry = "EDGE=2;$LLB=;LLT=;LMT=CX=" & k(0) & ":CY=" & k(1) & ":OX=" & k(2) & ":OY=" & k(3) & ":HDN=0:BLD=0:ITA=0:UND=0:CLR=-1:ALN=0:DIR=0:ROT=0;LMB=;LRT=;LRB=;IRHS=;ILHS=;"
+        clr = "-1"
+        If UBound(k) >= 4 Then clr = k(4)
+        dl.Geometry = "EDGE=2;$LLB=;LLT=;LMT=CX=" & k(0) & ":CY=" & k(1) & ":OX=" & k(2) & ":OY=" & k(3) & ":HDN=0:BLD=0:ITA=0:UND=0:CLR=" & clr & ":ALN=0:DIR=0:ROT=0;LMB=;LRT=;LRB=;IRHS=;ILHS=;"
         dl.Update
       End If
     End If
@@ -394,7 +400,7 @@ def _estructura(modelo):
             salida.append(
                 f'Con {vs(d["id"])}, {vs(c["de"])}, {vs(c["a"])}, {vs(c.get("tipo", "Association"))}, '
                 f'{vs(c.get("nombre", ""))}, {vs(c.get("est", ""))}, {vs(c.get("cd", ""))}, {vs(c.get("ca", ""))}, '
-                f'{vs(c.get("dir", ""))}, {c.get("seq", 0)}, {vs(c.get("arbol", ""))}, {vs(c.get("etiq", ""))}')
+                f'{vs(c.get("dir", ""))}, {c.get("seq", 0)}, {vs(c.get("arbol", ""))}, {vs(c.get("etiq", ""))}, {c.get("agr", 0)}')
         modo = {"": 0, "paralelos": 1, "ocultar": 2, "sin_include": 3}[d.get("enlaces", "")]
         salida.append(f'Fin dg, {vs(d["id"])}, {modo}')
     return salida

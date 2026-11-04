@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
+
 import environ
 from corsheaders.defaults import default_headers
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -28,6 +30,19 @@ GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 # por ejemplo Qwen). Con ollama, OLLAMA_BASE_URL debe ser alcanzable desde el
 # contenedor de Django (en Docker Desktop: http://host.docker.internal:11434).
 AI_PROVIDER = env("AI_PROVIDER", default="gemini")
+
+# Redis (canales de la sala y turno de la IA) y los adaptadores de los puertos de `collab.ports`: ver `collab.stores`.
+REDIS_HOST = env("REDIS_HOST", default="redis_server")
+REDIS_PORT = env.int("REDIS_PORT", default=6379)
+# El turno de la IA vive en Redis; en las pruebas (`manage.py test`) y sin Redis se usa la memoria del proceso.
+TURN_STORE = env("TURN_STORE", default="memory" if "test" in sys.argv else "redis")
+# Los topes de uso del asistente de ayuda se cuentan en Redis; en las pruebas y sin Redis, en la memoria del proceso.
+RATE_LIMITER = env("RATE_LIMITER", default="memory" if "test" in sys.argv else "redis")
+# Dónde se guardan la actividad y la conversación con la IA: "postgres" (por defecto) o "mongo".
+ACTIVITY_STORE = env("ACTIVITY_STORE", default="postgres")
+CONVERSATION_STORE = env("CONVERSATION_STORE", default="postgres")
+MONGO_URL = env("MONGO_URL", default="mongodb://localhost:27017")
+MONGO_DB = env("MONGO_DB", default="diagramador")
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
 OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
 # Modelo reentrenado (carpeta ml/) para los cambios al diagrama; vacío = usar OLLAMA_MODEL.
@@ -92,8 +107,8 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOW_ALL_ORIGINS = False
-# Cabecera con el token anónimo del participante (chat privado con la IA).
-CORS_ALLOW_HEADERS = (*default_headers, "x-participant-token")
+# Cabeceras con el token anónimo del participante (chat con la IA de la sala) y el de quien pregunta a la ayuda.
+CORS_ALLOW_HEADERS = (*default_headers, "x-participant-token", "x-help-token")
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=["http://localhost:4200", "http://localhost:4000"],

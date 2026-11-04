@@ -7,7 +7,10 @@ from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from collab.activity import ORMActivityStore
 from collab.models import ActivityEvent, ChatMessage, IaAttempt, Participant
+from collab.stores import get_turn_store
+from collab.turn import InMemoryTurnStore
 from uml_api.services.ai_provider import AIProviderError
 from uml_api.services.change_guard import count_destructive, validate_changes
 from uml_api.services.ia_context import summarize_uml
@@ -52,6 +55,7 @@ class ChatTestBase(APITestCase):
     room = "sala-demo"
 
     def setUp(self):
+        InMemoryTurnStore.reset()
         self.ana = Participant.objects.create(
             room=self.room, token=uuid.uuid4(), display_name="Ana"
         )
@@ -166,31 +170,42 @@ class IaChatApiTests(ChatTestBase):
         self.assertIn("id: int", prompt)
         self.assertIn("comprar", prompt)
 
-    def test_chat_is_private_to_its_owner(self):
-        self.ask(self.ana, "secreto-de-ana")
-
-        beto_history = self.own_history(self.beto)
-        self.assertEqual(beto_history.status_code, 200)
-        self.assertEqual(beto_history.data["messages"], [])
-
+    def test_the_conversation_belongs_to_the_whole_room(self):
+        self.ask(self.ana, "pregunta-de-ana")
         self.ask(self.beto, "¿Qué dijo Ana?")
-        beto_prompt = self.provider.prompts[-1]
-        self.assertNotIn("secreto-de-ana", beto_prompt)
-        self.assertNotIn("Respuesta de prueba", beto_prompt)
 
-        ana_history = self.own_history(self.ana)
-        self.assertEqual(
-            [message["content"] for message in ana_history.data["messages"]],
-            ["secreto-de-ana", "Respuesta de prueba"],
-        )
+        for persona in (self.ana, self.beto):
+            historial = self.own_history(persona)
+            self.assertEqual(historial.status_code, 200)
+            self.assertEqual(
+                [(m["author_name"], m["content"]) for m in historial.data["messages"]],
+                [
+                    ("Ana", "pregunta-de-ana"),
+                    ("IA", "Respuesta de prueba"),
+                    ("Beto", "¿Qué dijo Ana?"),
+                    ("IA", "Respuesta de prueba"),
+                ],
+            )
 
-    def test_the_prompt_carries_only_the_requesters_own_history(self):
+    def test_the_prompt_carries_the_conversation_of_the_room_with_who_said_what(self):
         self.ask(self.ana, "pregunta-previa-de-ana")
 
-        self.ask(self.ana, "segunda pregunta")
+        self.ask(self.beto, "segunda pregunta, de Beto")
 
         prompt = self.provider.prompts[-1]
-        self.assertIn("pregunta-previa-de-ana", prompt)
+        self.assertIn("Ana: pregunta-previa-de-ana", prompt)
+        self.assertIn("IA: Respuesta de prueba", prompt)
+        self.assertIn("segunda pregunta, de Beto", prompt)
+
+    def test_a_room_does_not_see_the_conversation_of_another_room(self):
+        otro = Participant.objects.create(room="otra-sala", token=uuid.uuid4(), display_name="Eva")
+        self.ask(self.ana, "solo-en-sala-demo")
+
+        respuesta = self.client.get(
+            self.history_url("otra-sala"), HTTP_X_PARTICIPANT_TOKEN=str(otro.token)
+        )
+
+        self.assertEqual(respuesta.data["messages"], [])
 
     def test_token_of_another_room_is_rejected(self):
         outsider = Participant.objects.create(
@@ -456,7 +471,7 @@ class ChatReliabilityTests(ChatTestBase):
         self.provider.reply = self.review_reply([{"texto": "Falta una clave", "pedido": "agrega id"}])
 
         with mock.patch.object(
-            ActivityEvent.objects, "create", side_effect=RuntimeError("base caída")
+            ORMActivityStore, "create", side_effect=RuntimeError("base caída")
         ):
             response = self.ask(self.ana, "revisa", mode="review")
 
@@ -984,3 +999,83 @@ class SummarizeUmlTests(SimpleTestCase):
         huge = {"classes": [{"id": str(n), "name": f"Clase{n}", "attributes": [], "methods": []} for n in range(5000)]}
 
         self.assertLessEqual(len(summarize_uml(huge)), 12_000 + 200)
+
+
+class ShareTurnTests(ChatTestBase):
+    """C1: la IA atiende un pedido a la vez por sala y dice a quién está atendiendo."""
+
+    def hold_turn(self, participant, room=None):
+        return get_turn_store().take(room or self.room, participant.id, participant.display_name, 130)
+
+    def test_a_request_while_the_ai_is_busy_is_refused_with_who_is_being_served(self):
+        self.hold_turn(self.beto)
+
+        response = self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Beto", response.data["error"])
+        self.assertEqual(self.provider.prompts, [])
+        self.assertEqual(ChatMessage.objects.count(), 0)
+
+    def test_a_refused_request_does_not_spend_the_budget(self):
+        self.hold_turn(self.beto)
+
+        self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(IaAttempt.objects.count(), 0)
+
+    def test_the_turn_is_given_back_after_a_normal_answer(self):
+        self.ask(self.ana, "hola")
+
+        self.assertIsNone(get_turn_store().current(self.room))
+        self.assertEqual(self.ask(self.beto, "y yo").status_code, 200)
+
+    def test_the_turn_is_given_back_when_the_provider_fails(self):
+        with mock.patch("uml_api.chat_views.get_ai_provider", return_value=FailingProvider()):
+            self.assertEqual(self.ask(self.ana, "hola").status_code, 502)
+
+        self.assertIsNone(get_turn_store().current(self.room))
+
+    def test_the_turn_is_given_back_when_the_request_is_throttled(self):
+        with mock.patch("uml_api.chat_views.MAX_REQUESTS_PER_MINUTE", 0):
+            self.assertEqual(self.ask(self.ana, "hola").status_code, 429)
+
+        self.assertIsNone(get_turn_store().current(self.room))
+
+    def test_the_turn_is_given_back_for_review_and_change_modes_too(self):
+        self.ask(self.ana, "revisa", mode="review")
+        self.ask(self.ana, "agrega Factura", mode="change", uml={"classes": []})
+
+        self.assertIsNone(get_turn_store().current(self.room))
+
+    def test_rooms_do_not_wait_for_each_other(self):
+        self.hold_turn(self.beto)
+        eva = Participant.objects.create(room="otra-sala", token=uuid.uuid4(), display_name="Eva")
+
+        response = self.client.post(
+            self.chat_url("otra-sala"),
+            {"mode": "ask", "message": "hola"},
+            format="json",
+            HTTP_X_PARTICIPANT_TOKEN=str(eva.token),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_invalid_input_does_not_take_the_turn(self):
+        self.ask(self.ana, "   ")
+
+        self.assertIsNone(get_turn_store().current(self.room))
+
+    def test_if_the_turn_store_fails_the_room_still_gets_its_answer(self):
+        """Redis caído no deja a la sala sin IA: se registra el fallo y los topes de uso siguen protegiendo el costo."""
+        class BrokenTurns:
+            def take(self, *args):
+                raise ConnectionError("redis caído")
+
+            def release(self, *args):
+                raise ConnectionError("redis caído")
+
+        with mock.patch("uml_api.chat_views.get_turn_store", return_value=BrokenTurns()):
+            response = self.ask(self.ana, "hola")
+
+        self.assertEqual(response.status_code, 200)

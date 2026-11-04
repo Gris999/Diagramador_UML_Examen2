@@ -10,6 +10,8 @@ import { UmlImageServiceTs } from '../../services/imports/uml-image.service';
 import { FrontendGeneratorService } from '../../services/exports/frontend-generator.service';
 import { Spinner } from "../components/diagram/spinner/spinner";
 import { ChatbotService } from '../../services/IA/chatbot.service';
+import { IaActionsService } from '../../services/IA/ia-actions.service';
+import { iaErrorMessage } from '../../services/IA/ia-chat.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
 
 
@@ -22,10 +24,10 @@ import { BackendGeneratorService } from '../../services/exports/backend-generato
 export class SidePanel {
   private frontendGeneratorService = inject(FrontendGeneratorService);
   private chatboxService = inject(ChatbotService);
+  private iaActions = inject(IaActionsService);
   private backendGeneratorService=inject(BackendGeneratorService);
   @Output() elementDragged = new EventEmitter<CdkDragEnd>();
   @Output() saveClicked = new EventEmitter<void>();
-  @Output() generateClicked = new EventEmitter<string>();
 
   public showActions: boolean = false;
   public showActionsImports: boolean = false;
@@ -68,11 +70,25 @@ export class SidePanel {
   onSaveClicked() {
     this.saveClicked.emit();
   }
+  /**
+   * «Generar modelo»: la instrucción (escrita o dictada) es un pedido de cambio a la IA de la sala, igual que en el chat en modo
+   * «Pedir cambio». Pasa por los topes de uso, el turno de la sala, la actividad y la conversación; la IA no actúa por su cuenta.
+   */
   onGenerate() {
-    if (this.prompt.trim()) {
-      this.generateClicked.emit(this.prompt.trim());
-      this.prompt = '';
-    }
+    const instruction = this.prompt.trim();
+    if (!instruction || !this.roomId || this.chatboxService.isLoading()) return;
+
+    this.chatboxService.isLoading.set(true);
+    this.iaActions.request(this.roomId, 'change', instruction).subscribe({
+      next: () => {
+        this.prompt = '';
+        this.chatboxService.isLoading.set(false);
+      },
+      error: (failure: unknown) => {
+        this.chatboxService.isLoading.set(false);
+        alert(iaErrorMessage(failure));
+      }
+    });
   }
   // para colapsar el panel
   toggleValidationPanel() {
@@ -257,67 +273,27 @@ export class SidePanel {
     }
   }
 
+  /** La voz solo se convierte en texto; la instrucción sigue después el mismo camino que si se hubiera escrito (`onGenerate`). */
   private processVoiceAudio(audio: Blob) {
     this.chatboxService.isLoading.set(true);
-    const currentUml = this.diagramService.exportToJson();
 
-    this.chatboxService
-      .generateDiagramFromAudio(audio, currentUml)
-      .subscribe({
-        next: (response: any) => {
-          const umlJson =
-            response?.uml_json || response;
-
-          if (
-            umlJson?.error ||
-            !umlJson ||
-            !Array.isArray(umlJson.classes)
-          ) {
-            console.error(
-              'Respuesta UML de voz inválida:',
-              response
-            );
-
-            alert(
-              response?.error ||
-              'La IA no pudo interpretar la voz.'
-            );
-
-            this.chatboxService.isLoading.set(
-              false
-            );
-            return;
-          }
-
-          if (response?.transcript) {
-            this.prompt = response.transcript;
-          }
-
-          this.diagramService.loadFromJson(
-            umlJson,
-            true
-          );
-
-          this.chatboxService.isLoading.set(
-            false
-          );
-        },
-
-        error: (error: any) => {
-          console.error(
-            'Error procesando voz:',
-            error
-          );
-
-          this.chatboxService.isLoading.set(
-            false
-          );
-
-          alert(
-            'No se pudo procesar la instrucción de voz.'
-          );
+    this.chatboxService.transcribeAudio(audio).subscribe({
+      next: (response) => {
+        this.chatboxService.isLoading.set(false);
+        const transcript = (response?.transcript ?? '').trim();
+        if (!transcript) {
+          alert('No se entendió la instrucción de voz. Inténtalo de nuevo.');
+          return;
         }
-      });
+        this.prompt = transcript;
+        this.onGenerate();
+      },
+      error: (error: any) => {
+        console.error('Error procesando voz:', error);
+        this.chatboxService.isLoading.set(false);
+        alert('No se pudo procesar la instrucción de voz.');
+      }
+    });
   }
 
   private stopMicrophoneStream() {

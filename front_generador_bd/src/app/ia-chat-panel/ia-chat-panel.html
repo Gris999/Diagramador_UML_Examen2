@@ -2,12 +2,12 @@
   @if (open()) {
     <section
       class="flex h-96 w-80 max-w-full flex-col rounded border border-gray-300 bg-white shadow-lg"
-      aria-label="Chat privado con la IA"
+      aria-label="Chat de la sala con la IA"
     >
       <header class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
         <div>
           <h3 class="text-sm font-semibold text-gray-800">Chat con la IA</h3>
-          <p class="text-[10px] text-gray-500">Privado: solo tú ves esta conversación</p>
+          <p class="text-[10px] text-gray-500">Lo ven todas las personas de la sala</p>
           @if (providerLabel()) {
             <p class="text-[10px] text-purple-700" data-testid="ia-provider">{{ providerLabel() }}</p>
           }
@@ -52,14 +52,18 @@
         }
         @for (message of messages(); track message.id) {
           <div
-            class="flex"
-            [class.justify-end]="message.role === 'user'"
+            class="flex flex-col"
+            [class.items-end]="message.role === 'user' && message.author_name === myName()"
+            [class.justify-end]="message.role === 'user' && message.author_name === myName()"
             data-testid="ia-chat-message"
           >
+            <span class="px-1 text-[10px] text-gray-500" data-testid="ia-chat-author">{{ message.author_name || (message.role === 'ia' ? 'IA' : 'Alguien') }}</span>
             <p
               class="max-w-[85%] whitespace-pre-wrap break-words rounded px-2 py-1 text-xs"
-              [class.bg-purple-600]="message.role === 'user'"
-              [class.text-white]="message.role === 'user'"
+              [class.bg-purple-600]="message.role === 'user' && message.author_name === myName()"
+              [class.text-white]="message.role === 'user' && message.author_name === myName()"
+              [class.bg-blue-100]="message.role === 'user' && message.author_name !== myName()"
+              [class.text-blue-900]="message.role === 'user' && message.author_name !== myName()"
               [class.bg-gray-100]="message.role === 'ia'"
               [class.text-gray-800]="message.role === 'ia'"
             >{{ message.content }}</p>

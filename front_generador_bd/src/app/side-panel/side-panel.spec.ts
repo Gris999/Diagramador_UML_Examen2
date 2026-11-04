@@ -1,7 +1,9 @@
 import { PLATFORM_ID, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { IaActionsService } from '../../services/IA/ia-actions.service';
 import { ChatbotService } from '../../services/IA/chatbot.service';
 import { UmlValidationService } from '../../services/colaboration/uml-validation.service';
 import { DiagramService } from '../../services/diagram/diagram.service';
@@ -16,6 +18,8 @@ describe('SidePanel image import choices', () => {
   let fixture: ComponentFixture<SidePanel>;
   let diagramService: any;
   let imageService: any;
+  let iaActions: any;
+  let chatbot: any;
   let diagramClasses: string[];
 
   const generatedUml = {
@@ -67,6 +71,8 @@ describe('SidePanel image import choices', () => {
       loading: signal(false),
       analyzeImage: jasmine.createSpy('analyzeImage')
     };
+    iaActions = { request: jasmine.createSpy('request').and.returnValue(of({ reply: 'Listo' })) };
+    chatbot = { isLoading: signal(false), transcribeAudio: jasmine.createSpy('transcribeAudio') };
 
     await TestBed.configureTestingModule({
       imports: [SidePanel],
@@ -82,7 +88,8 @@ describe('SidePanel image import choices', () => {
         },
         { provide: SqlExportService, useValue: { downloadSql: jasmine.createSpy('downloadSql') } },
         { provide: FrontendGeneratorService, useValue: { loading: signal(false), generateFrontend: jasmine.createSpy('generateFrontend') } },
-        { provide: ChatbotService, useValue: { isLoading: signal(false) } },
+        { provide: ChatbotService, useValue: chatbot },
+        { provide: IaActionsService, useValue: iaActions },
         { provide: BackendGeneratorService, useValue: { loading: signal(false) } },
         { provide: PLATFORM_ID, useValue: 'browser' }
       ]
@@ -215,5 +222,96 @@ describe('SidePanel image import choices', () => {
     expect(component.imageImportDialogOpen()).toBeFalse();
     expect(component.analyzingModel()).toBeFalse();
     expect(imageService.loading()).toBeFalse();
+  });
+
+  describe('Generar modelo (C1): la instrucción pasa por el control de la IA de la sala', () => {
+    it('sends the instruction to the AI as a change request for this room and clears the box when it works', () => {
+      component.prompt = '  agrega la clase Factura  ';
+
+      component.onGenerate();
+
+      expect(iaActions.request).toHaveBeenCalledOnceWith('room-1', 'change', 'agrega la clase Factura');
+      expect(component.prompt).toBe('');
+      expect(chatbot.isLoading()).toBeFalse();
+    });
+
+    it('does nothing with an empty instruction', () => {
+      component.prompt = '   ';
+
+      component.onGenerate();
+
+      expect(iaActions.request).not.toHaveBeenCalled();
+    });
+
+    it('shows that it is working and ignores a second click while the AI answers', () => {
+      const pending = new Subject<any>();
+      iaActions.request.and.returnValue(pending);
+      component.prompt = 'agrega Factura';
+
+      component.onGenerate();
+      component.onGenerate();
+
+      expect(chatbot.isLoading()).toBeTrue();
+      expect(iaActions.request).toHaveBeenCalledTimes(1);
+      pending.next({ reply: 'Listo' });
+      pending.complete();
+      expect(chatbot.isLoading()).toBeFalse();
+    });
+
+    it('keeps the text and tells the user when the AI fails', () => {
+      const alertSpy = spyOn(window, 'alert');
+      iaActions.request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 502 })));
+      component.prompt = 'agrega Factura';
+
+      component.onGenerate();
+
+      expect(alertSpy).toHaveBeenCalledOnceWith(jasmine.stringContaining('La IA no pudo responder ahora'));
+      expect(component.prompt).toBe('agrega Factura');
+      expect(chatbot.isLoading()).toBeFalse();
+    });
+
+    it('tells who is being served when the AI is busy with someone else', () => {
+      const alertSpy = spyOn(window, 'alert');
+      iaActions.request.and.returnValue(throwError(() => new HttpErrorResponse({
+        status: 409, error: { error: 'La IA está atendiendo a Beto. Espera a que termine.' }
+      })));
+      component.prompt = 'agrega Factura';
+
+      component.onGenerate();
+
+      expect(alertSpy).toHaveBeenCalledOnceWith('La IA está atendiendo a Beto. Espera a que termine.');
+    });
+
+    it('dictation only transcribes and then follows the same path as the typed instruction', () => {
+      chatbot.transcribeAudio.and.returnValue(of({ transcript: 'agrega una clase Cliente' }));
+
+      (component as any).processVoiceAudio(new Blob(['audio'], { type: 'audio/webm' }));
+
+      expect(chatbot.transcribeAudio).toHaveBeenCalledTimes(1);
+      expect(iaActions.request).toHaveBeenCalledOnceWith('room-1', 'change', 'agrega una clase Cliente');
+    });
+
+    it('does not ask the AI when nothing could be understood from the audio', () => {
+      const alertSpy = spyOn(window, 'alert');
+      chatbot.transcribeAudio.and.returnValue(of({ transcript: '  ' }));
+
+      (component as any).processVoiceAudio(new Blob(['audio'], { type: 'audio/webm' }));
+
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+      expect(iaActions.request).not.toHaveBeenCalled();
+      expect(chatbot.isLoading()).toBeFalse();
+    });
+
+    it('tells the user when the audio cannot be processed', () => {
+      const alertSpy = spyOn(window, 'alert');
+      spyOn(console, 'error');
+      chatbot.transcribeAudio.and.returnValue(throwError(() => new HttpErrorResponse({ status: 502 })));
+
+      (component as any).processVoiceAudio(new Blob(['audio'], { type: 'audio/webm' }));
+
+      expect(alertSpy).toHaveBeenCalledOnceWith('No se pudo procesar la instrucción de voz.');
+      expect(iaActions.request).not.toHaveBeenCalled();
+      expect(chatbot.isLoading()).toBeFalse();
+    });
   });
 });
