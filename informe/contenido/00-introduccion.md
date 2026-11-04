@@ -52,7 +52,7 @@ Guarda lo relacional: los participantes, los intentos de uso de la IA (para sus 
 
 ### MongoDB 7
 
-Guarda la actividad de la sala y la conversación con la IA cuando se activa. Son documentos que solo se agregan, con un campo `data` que cambia según el tipo de evento, y que se consultan siempre por sala y por orden: el encaje clásico de una base documental, sin las uniones ni la integridad relacional que PostgreSQL ofrece y aquí no hacen falta. La alternativa de Amazon, DynamoDB, ata el sistema a un proveedor y no se puede levantar en el computador del equipo; MongoDB corre igual en Docker en el equipo y en el servidor. Se configura con una caché acotada (0,25 GB) para que quepa junto a los demás servicios en la máquina de 2 GB.
+Guarda la actividad de la sala y la conversación con la IA cuando se activa. Son documentos que solo se agregan, con un campo `data` que cambia según el tipo de evento, y que se consultan siempre por sala y por orden: el encaje clásico de una base documental, sin las uniones ni la integridad relacional que PostgreSQL ofrece y aquí no hacen falta. La alternativa de Amazon, DynamoDB, ata el sistema a un proveedor y no se puede levantar en el computador del equipo; MongoDB corre igual en Docker en el equipo (MongoDB 7, con una caché acotada a 0,25 GB) y como servicio gestionado en la nube. En el servidor de AWS, que tiene 2 GB de memoria y ya usa memoria de intercambio, no se levanta como un contenedor más: el sitio usa MongoDB Atlas, en su plan gratuito (AWS, región N. Virginia, MongoDB 8.0), con acceso solo desde la IP del servidor, así que no consume la memoria de la máquina.
 
 ### Spring Boot 3.5 (Java 21) y Maven Wrapper
 
@@ -86,7 +86,7 @@ Despliegue repetible de todos los servicios, con HTTPS en un dominio propio (htt
 
 ### Jasmine y Karma, pruebas de Django y JUnit
 
-Pruebas automáticas del frontend, del backend y del generador Spring (que compila de verdad el proyecto generado). Los adaptadores de MongoDB se prueban además contra un servidor MongoDB real en Docker.
+Pruebas automáticas del frontend, del backend y del generador Spring (que compila de verdad el proyecto generado). Los adaptadores de MongoDB se prueban además contra un servidor MongoDB real: en Docker y contra MongoDB Atlas.
 
 ### Enterprise Architect (XMI y diagramas del informe)
 

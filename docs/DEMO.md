@@ -80,7 +80,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 
 ## 3b. Base de datos NoSQL (1 min)
 
-*"Pidió el docente una base NoSQL: la actividad y la conversación con la IA pueden guardarse en MongoDB en lugar de PostgreSQL, con una variable de entorno y sin tocar el resto, porque el servidor habla con una interfaz (puerto) y no con la base."* Mostrar `collab/ports.py` y `collab/mongo_stores.py`, y las pruebas de contrato que se ejecutan contra PostgreSQL y contra un MongoDB real. **Decir con honestidad:** el adaptador de MongoDB está listo y probado; en el servidor de AWS (2 GB) está sin activar: se midió la memoria libre el 2026-11-04 (unos 1.100 a 1.200 MB, con swap ya en uso) y por ahora la actividad y la conversación siguen en PostgreSQL (`DESPLIEGUE.md`, sección 8).
+*"Pidió el docente una base NoSQL: la actividad y la conversación con la IA pueden guardarse en MongoDB en lugar de PostgreSQL, con una variable de entorno y sin tocar el resto, porque el servidor habla con una interfaz (puerto) y no con la base."* Mostrar `collab/ports.py` y `collab/mongo_stores.py`, y las pruebas de contrato que se ejecutan contra PostgreSQL y contra un MongoDB real. **Decir con honestidad:** el adaptador de MongoDB está listo y probado; en el servidor de AWS (2 GB) no corre como contenedor: desde el 2026-11-04 el sitio usa MongoDB Atlas (nube, plan gratuito), así que la actividad y la conversación de las salas se guardan allí (`DESPLIEGUE.md`, sección 8). Se puede mostrar en el panel de Atlas, en «Browse Collections», las colecciones `activity_events` y `chat_messages`.
 
 ## 4. IA local, sin internet (2 min, *opcional pero recomendable*)
 
