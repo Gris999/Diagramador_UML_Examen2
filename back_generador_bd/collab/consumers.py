@@ -7,6 +7,7 @@ import uuid
 from collections import deque
 from urllib.parse import parse_qs
 
+from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from uml_api.services.services_gemini import call_gemini_analysis
 import re
@@ -62,7 +63,8 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             self.channel_layer,
             self.room_group_name,
         )
-        self.activity_store = (self.activity_store_class or get_activity_store)()
+        # Crear el adaptador puede abrir la conexión a MongoDB (y esperar si no responde): se hace en un hilo para no bloquear el bucle de eventos.
+        self.activity_store = await sync_to_async(self.activity_store_class or get_activity_store)()
         self.participant_id = None
         self.display_name = None
         self._edit_activity_times = {}
