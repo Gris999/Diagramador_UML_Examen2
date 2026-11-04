@@ -74,6 +74,8 @@ export class SqlExportService {
     }
 
     // ====== RELACIONES ======
+    const usedColumns = new Map<string, Set<string>>();
+    const usedConstraints = new Set<string>();
     for (const rel of umlJson.relationships) {
       const source = umlJson.classes.find((c: any) => c.id === rel.sourceId);
       const target = umlJson.classes.find((c: any) => c.id === rel.targetId);
@@ -83,15 +85,21 @@ export class SqlExportService {
       const multSource = rel.labels?.[0] || '1';
       const multTarget = rel.labels?.[1] || '1';
 
-      // N:M → tabla intermedia
+      // N:M → tabla intermedia. En una N:M recursiva (una tabla con ella misma) los dos extremos son la misma tabla:
+      // sus columnas se llaman origen_id y destino_id.
       if (multSource.includes('*') && multTarget.includes('*')) {
+        const recursive = source.id === target.id;
         const joinTable = `${source.name}_${target.name}`;
+        const firstColumn = recursive ? 'origen_id' : `${source.name.toLowerCase()}_id`;
+        const secondColumn = recursive ? 'destino_id' : `${target.name.toLowerCase()}_id`;
+        const firstRole = firstColumn.replace(/_id$/, '');
+        const secondRole = secondColumn.replace(/_id$/, '');
         sql += `CREATE TABLE ${joinTable} (\n`;
-        sql += `  ${source.name.toLowerCase()}_id UUID NOT NULL,\n`;
-        sql += `  ${target.name.toLowerCase()}_id UUID NOT NULL,\n`;
-        sql += `  PRIMARY KEY (${source.name.toLowerCase()}_id, ${target.name.toLowerCase()}_id),\n`;
-        sql += `  CONSTRAINT fk_${joinTable}_${source.name.toLowerCase()} FOREIGN KEY (${source.name.toLowerCase()}_id) REFERENCES ${source.name}(${this.getPrimaryKey(source)}) ON DELETE CASCADE ON UPDATE CASCADE,\n`;
-        sql += `  CONSTRAINT fk_${joinTable}_${target.name.toLowerCase()} FOREIGN KEY (${target.name.toLowerCase()}_id) REFERENCES ${target.name}(${this.getPrimaryKey(target)}) ON DELETE CASCADE ON UPDATE CASCADE\n`;
+        sql += `  ${firstColumn} ${this.getPrimaryKeyType(source)} NOT NULL,\n`;
+        sql += `  ${secondColumn} ${this.getPrimaryKeyType(target)} NOT NULL,\n`;
+        sql += `  PRIMARY KEY (${firstColumn}, ${secondColumn}),\n`;
+        sql += `  CONSTRAINT fk_${joinTable}_${firstRole} FOREIGN KEY (${firstColumn}) REFERENCES ${source.name}(${this.getPrimaryKey(source)}) ON DELETE CASCADE ON UPDATE CASCADE,\n`;
+        sql += `  CONSTRAINT fk_${joinTable}_${secondRole} FOREIGN KEY (${secondColumn}) REFERENCES ${target.name}(${this.getPrimaryKey(target)}) ON DELETE CASCADE ON UPDATE CASCADE\n`;
         sql += `);\n\n`;
         continue;
       }
@@ -144,14 +152,49 @@ export class SqlExportService {
             onDelete = 'SET NULL';
           }
         }
+        // Una asociación recursiva 1:N guarda en la tabla la referencia a su padre.
+        if (source.id === target.id && rel.type !== 'dependency' && multSource.includes('*') !== multTarget.includes('*')) {
+          column = 'padre_id';
+          fkName = `fk_${fkTable.name.toLowerCase()}_padre`;
+        }
+        // Dos relaciones entre las mismas tablas no pueden repetir columna ni restricción: se numera la segunda.
+        column = this.takeName(this.columnsOf(usedColumns, fkTable), column);
+        fkName = this.takeName(usedConstraints, fkName);
         sql += `ALTER TABLE ${fkTable.name}\n`;
-        sql += `  ADD COLUMN ${column} UUID${notNull},\n`;
+        sql += `  ADD COLUMN ${column} ${this.getPrimaryKeyType(refTable)}${notNull},\n`;
         sql += `  ADD CONSTRAINT ${fkName} FOREIGN KEY (${column}) REFERENCES ${refTable.name}(${this.getPrimaryKey(refTable)}) ON DELETE ${onDelete} ON UPDATE CASCADE;\n\n`;
         continue;
       }
     }
 
     return sql.trim();
+  }
+
+  /** Tipo SQL de la clave primaria de una tabla; las claves foráneas que la referencian usan el mismo tipo. */
+  private getPrimaryKeyType(cls: any): string {
+    if (!cls.attributes || cls.attributes.length === 0) return 'UUID';
+    const sqlType = this.typeMap[cls.attributes[0].type] || 'VARCHAR(255)';
+    return this.invalidPkTypes.has(sqlType) ? 'UUID' : sqlType;
+  }
+
+  /** Nombres de columna ya usados en una tabla: los de sus atributos más los que agregan las claves foráneas. */
+  private columnsOf(used: Map<string, Set<string>>, cls: any): Set<string> {
+    let columns = used.get(cls.name);
+    if (!columns) {
+      columns = new Set<string>(['id', ...(cls.attributes || []).map((attr: any) => String(attr.name).toLowerCase())]);
+      used.set(cls.name, columns);
+    }
+    return columns;
+  }
+
+  /** `base` si está libre; si no, `base` con un número (`aeropuerto_id` → `aeropuerto_2_id`). */
+  private takeName(used: Set<string>, base: string): string {
+    let name = base;
+    for (let n = 2; used.has(name.toLowerCase()); n++) {
+      name = base.endsWith('_id') ? `${base.slice(0, -3)}_${n}_id` : `${base}_${n}`;
+    }
+    used.add(name.toLowerCase());
+    return name;
   }
 
   private getPrimaryKey(cls: any): string {
