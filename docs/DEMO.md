@@ -97,7 +97,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 - **Arquitectura:** Angular + JointJS (editor), Django + Channels + Redis (colaboración y API), Spring Boot (generador), PostgreSQL. Detalle y diagramas: [`puds/03-diseno.md`](puds/03-diseno.md).
 - **Despliegue:** AWS EC2 con Docker Compose, nginx y HTTPS (Let's Encrypt) en un dominio propio; solo los puertos 22, 80 y 443 están abiertos. Un solo comando comprueba todo: `scripts/smoke-test.sh`. Runbook: [`DESPLIEGUE.md`](DESPLIEGUE.md).
 - **Proceso PUDS:** fases, iteraciones, artefactos por disciplina y trazabilidad en [`puds/`](puds/README.md); estado de cada requisito en [`GAP_MATRIX.md`](GAP_MATRIX.md).
-- **Pruebas:** 302 del frontend y 362 del backend (19 de ellas contra un MongoDB real), 12 de Spring con la compilación real de los proyectos generados, 66 casos de prueba (uno por cada camino de los 14 casos de uso) y 21 procedimientos ejecutados a mano con la IA real (sección 2.5 del informe); y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
+- **Pruebas:** 302 del frontend y 365 del backend (19 de ellas contra un MongoDB real), 12 de Spring con la compilación real de los proyectos generados, 66 casos de prueba (uno por cada camino de los 14 casos de uso) y 21 procedimientos ejecutados a mano con la IA real (sección 2.5 del informe); y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
 
 ## Preguntas probables y respuestas cortas
 
