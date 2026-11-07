@@ -31,6 +31,9 @@ GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 # contenedor de Django (en Docker Desktop: http://host.docker.internal:11434).
 AI_PROVIDER = env("AI_PROVIDER", default="gemini")
 
+# Generador de backend (Spring Boot): otro contenedor de la misma red de Docker.
+SPRING_GENERATOR_URL = env("SPRING_GENERATOR_URL", default="http://spring-backend:7001/generate")
+
 # Redis (canales de la sala y turno de la IA) y los adaptadores de los puertos de `collab.ports`: ver `collab.stores`.
 REDIS_HOST = env("REDIS_HOST", default="redis_server")
 REDIS_PORT = env.int("REDIS_PORT", default=6379)
