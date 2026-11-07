@@ -127,6 +127,7 @@ class FlutterCRUDGenerator:
               elif source_is_many and not target_is_many:
                   # source *..1 target => Source tiene ManyToOne hacia Target
                   parsed.append({"from": src, "to": tgt, "kind": "many_to_one",
+                                 "optional": target_card.startswith("0"),
                                  "field": unique_field(src, "padre" if recursive else self._to_snake_case(tgt))})
               elif not source_is_many and not target_is_many:
                   # 1..1 => OneToOne
@@ -146,6 +147,7 @@ class FlutterCRUDGenerator:
               elif target_is_many and not source_is_many:
                   # source 1..* target => Target tiene ManyToOne hacia Source (relación inversa)
                   parsed.append({"from": tgt, "to": src, "kind": "many_to_one",
+                                 "optional": source_card.startswith("0"),
                                  "field": unique_field(tgt, "padre" if recursive else self._to_snake_case(src))})
 
       return parsed
@@ -1873,6 +1875,15 @@ class _{name}ListViewState extends State<{name}ListView> {{
                             display_attr = attr['name']
                             break
                 
+                # Una relación con multiplicidad 0..1 no se exige: el padre de una recursiva (0..1) no existe
+                # para el primer registro, y sin esta excepción nunca se podría crear.
+                required_validator = "" if rel.get("optional") else """
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Este campo es requerido';
+                    }
+                    return null;
+                  },"""
                 form_fields.append(f"""FutureBuilder<List<{rel['to']}>>(
               future: {rel['to']}Service().getAll(),
               builder: (context, snapshot) {{
@@ -1898,13 +1909,7 @@ class _{name}ListViewState extends State<{name}ListView> {{
                     setState(() {{
                       _selected{self._rel_var(rel)}Id = v;
                     }});
-                  }},
-                  validator: (value) {{
-                    if (value == null || value.isEmpty) {{
-                      return 'Este campo es requerido';
-                    }}
-                    return null;
-                  }},
+                  }},{required_validator}
                 );
               }},
             )""")
@@ -2240,7 +2245,9 @@ class _{name}FormViewState extends State<{name}FormView> {{
                     if related_class:
                         related_relationships = [r for r in self.parsed_relationships if r["from"] == rel['to']]
                         many_to_one_rels = [r for r in related_relationships if r["kind"] == "many_to_one"]
-                        if len(many_to_one_rels) == 2:
+                        # Una lista de la misma clase (los hijos de una relación recursiva) nunca es una tabla puente,
+                        # aunque la clase tenga justo dos relaciones muchos-a-uno (p. ej. padre y departamento).
+                        if len(many_to_one_rels) == 2 and rel['to'] != name:
                             is_intermediate = True
                             intermediate_relations = many_to_one_rels
                     

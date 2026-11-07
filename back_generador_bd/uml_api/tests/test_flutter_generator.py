@@ -941,3 +941,52 @@ class FlutterRecursiveRelationshipTests(SimpleTestCase):
             if path.startswith("lib/models/"):
                 fields = _declared_fields(source)
                 self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {path}: {fields}")
+
+    def test_optional_relationship_is_not_required_in_the_form_but_a_mandatory_one_is(self):
+        """El padre de una recursiva (0..1) es opcional: si el formulario lo exigiera, el primer registro nunca se
+        podría crear porque todavía no existe ningún padre posible. El departamento (1) sí es obligatorio."""
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        dropdowns = files["lib/views/empleado_form_view.dart"].split("DropdownButtonFormField<String>(")[1:]
+        by_label = {re.search(r"labelText: '(\w+)'", block).group(1): block for block in dropdowns}
+        self.assertEqual({"Empleado", "Departamento"}, set(by_label))
+        self.assertNotIn("es requerido", by_label["Empleado"])
+        self.assertIn("es requerido", by_label["Departamento"])
+        # el Dart generado no puede llevar llaves dobles de una plantilla mal escapada
+        for source in files.values():
+            self.assertNotIn("{{", source)
+
+    def test_mandatory_recursive_parent_stays_required(self):
+        files = _generate({
+            "classes": _classes("Empleado"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        dropdowns = files["lib/views/empleado_form_view.dart"].split("DropdownButtonFormField<String>(")[1:]
+        self.assertEqual(1, len(dropdowns))
+        self.assertIn("es requerido", dropdowns[0])
+
+    def test_recursive_children_are_listed_as_the_same_entity_not_as_a_junction(self):
+        """Empleado tiene dos relaciones muchos-a-uno (padre y departamento): el detalle tomaba la lista de hijos por una
+        tabla puente y la rotulaba con la otra entidad ("Departamentos")."""
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        detail = files["lib/views/empleado_detail_view.dart"]
+        self.assertIn("Text('Empleados:'", detail)
+        self.assertNotIn("Departamentos:", detail)
+        self.assertIn("item.hijos.map", detail)
+        self.assertIn("e.nombre.toString()", detail)
