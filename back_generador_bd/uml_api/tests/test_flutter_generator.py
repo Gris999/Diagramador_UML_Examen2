@@ -1,4 +1,5 @@
 import re
+import struct
 import subprocess
 import tempfile
 import zipfile
@@ -822,6 +823,178 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertEqual(1, verify.returncode)
             self.assertIn("NSMicrophoneUsageDescription", verify.stderr)
 
+    def test_local_llm_extractor_ignores_wildcard_filters_but_only_in_filters(self):
+        """El modelo pequeno responde "lista todos los departamentos" con filters {titulo: "*"} ("cualquiera"); la app lo
+        aplicaba al pie de la letra y respondia "Sin resultados" (visto en un iPhone real con Qwen2.5-0.5B). Los comodines
+        se descartan solo en filtros, nunca en data (un departamento puede llamarse "*todos*")."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            extractor = (output / "lib/assistant/local_llm_command_extractor.dart").read_text()
+            tests = (output / "test/assistant/local_llm_command_extractor_test.dart").read_text()
+
+            self.assertEqual(3, extractor.count("keepKnownNonEmptyFields(filters, dropWildcards: true)"))
+            self.assertNotIn("keepKnownNonEmptyFields(data, writableOnly: true, dropWildcards", extractor)
+            self.assertIn("wildcardOnly", extractor)
+            self.assertIn("READ drops a wildcard filter", tests)
+            self.assertIn("DELETE with only a wildcard filter is rejected", tests)
+
+    def test_generated_widget_lifecycle_test_waits_for_real_disk_io_with_run_async(self):
+        """Dentro de testWidgets el tiempo es simulado: esperar con `await` la lectura/escritura real de disco (o dejar que
+        initialize() la haga) cuelga la prueba 10 minutos con el Flutter actual."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            lifecycle = (output / "test/assistant/local_model_manager_test.dart").read_text()
+
+            widget_test = lifecycle.split("AssistantView disposes its owned manager and engine")[1]
+            self.assertIn("tester.runAsync(seedPersistedModel)", widget_test)
+            self.assertIn("tester.runAsync(() => Future<void>.delayed", widget_test)
+            self.assertNotIn("await seedPersistedModel();", widget_test)
+
+    def test_assistant_answers_in_plain_spanish_and_handles_greetings_and_help(self):
+        """Pedro, probando en su iPhone: "hola" respondia "IA local: Sin resultados" y las respuestas eran tecnicas
+        ("1 resultado(s) - id: -1, titulo: ventas"). Los textos salen de AppSchema (sin nombres de proyecto)."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            texts = (output / "lib/assistant/assistant_texts.dart").read_text()
+            router = (output / "lib/assistant/command_router.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            texts_test = (output / "test/assistant/assistant_texts_test.dart").read_text()
+
+            for name in ("smallTalkReply", "withoutLeadingGreeting", "describeRows", "notUnderstood", "help"):
+                self.assertIn(f"static String? {name}(" if name == "smallTalkReply" else f"static String {name}(", texts)
+            self.assertIn("AssistantTexts.describeRows", router)
+            self.assertNotIn("resultado(s)", router)
+            self.assertNotIn("Sin resultados", router)
+            self.assertIn("AssistantTexts.smallTalkReply(text)", view)
+            self.assertIn("AssistantTexts.withoutLeadingGreeting(text)", view)
+            self.assertIn("AssistantTexts.notUnderstood()", view)
+            self.assertIn("a greeting alone", texts_test)
+            # el generador cambia "¿" y "¡" por "?" y "!" en los archivos que pasan por _sanitize: aqui deben sobrevivir
+            self.assertIn("¡Hola! Soy tu asistente", texts)
+            self.assertIn("¡Hola!", texts_test)
+            self.assertIn("[\\s¡!]*", texts)
+            # sin nombres de proyecto: el archivo es identico para esquemas distintos
+            other = Path(tempfile.mkdtemp())
+            FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(other)
+            self.assertEqual(texts, (other / "lib/assistant/assistant_texts.dart").read_text())
+
+    def test_voice_uses_the_phone_spanish_and_explains_offline_problems(self):
+        """Sin internet, iOS solo entiende la voz si el dictado en español de ESE idioma esta descargado: antes la app
+        pedia siempre es_ES y, si fallaba, no decia nada (el audio "ya no funcionaba" en modo avion)."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            voice = (output / "lib/assistant/voice_input_controller.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            voice_test = (output / "test/assistant/voice_input_controller_test.dart").read_text()
+
+            self.assertIn("_speech.systemLocale()", voice)
+            self.assertIn("_speech.locales()", voice)
+            self.assertIn("localeId: _localeId ?? 'es_ES'", voice)
+            self.assertNotIn("SpeechListenOptions(localeId: 'es_ES')", voice)
+            self.assertIn("static String friendlyProblem(", voice)
+            self.assertIn("Dictado", voice)
+            self.assertIn("onProblem?.call(", voice)
+            self.assertIn("_voice.onProblem = _showVoiceProblem;", view)
+            self.assertIn("error_network", voice_test)
+
+    def test_assistant_screen_uses_chat_bubbles_spanish_status_and_a_welcome_with_suggestions(self):
+        """Pedro, probando en su iPhone: la pantalla mostraba "Local AI: Ready — qwen2.5-0.5b-instruct-q4_k_m.g...",
+        "Select GGUF model" y las respuestas como lineas de texto sueltas con el prefijo "IA local:"."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            texts = (output / "lib/assistant/assistant_texts.dart").read_text()
+
+            for english in ("Local AI:", "Select GGUF model", "Change model"):
+                self.assertNotIn(english, view)
+            for spanish in ("IA local lista", "Preparando la IA local", "Elegir modelo", "Cambiar modelo"):
+                self.assertIn(spanish, view)
+            self.assertIn("_buildBubble(", view)
+            self.assertIn("_buildWelcome(", view)
+            self.assertIn("ActionChip(", view)
+            self.assertNotIn("'IA local: ${entry.text}'", view)
+            self.assertIn("final bool isUser;", view)
+            self.assertIn("static List<String> suggestions()", texts)
+            self.assertIn("\\u00bfEn qué te ayudo?", view)
+            self.assertNotIn("Text('?En", view)
+            self.assertNotIn("sin modelo (usa el", view)  # el texto se cortaba en el telefono ("...intérprete bá…")
+
+    def test_home_screen_is_generic_and_named_after_the_app(self):
+        """La pantalla de inicio decia "Gestion de Clases" (y el titulo del sistema "CRUD Generator") para cualquier
+        diagrama: escolar, contable, etc. Ahora el nombre sale del diagrama (`appName`) y el diseno es el mismo para todos."""
+        with tempfile.TemporaryDirectory() as plain_dir, tempfile.TemporaryDirectory() as named_dir:
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(Path(plain_dir))
+            named = dict(REPRESENTATIVE_UML, appName="Sistema Escolar 'UAGRM'")
+            FlutterCRUDGenerator(named).generate_project(Path(named_dir))
+
+            plain_main = (Path(plain_dir) / "lib/main.dart").read_text()
+            named_main = (Path(named_dir) / "lib/main.dart").read_text()
+            widget_test = (Path(named_dir) / "test/widget_test.dart").read_text()
+
+            for main in (plain_main, named_main):
+                self.assertNotIn("Gestión de Clases", main)
+                self.assertNotIn("CRUD Generator", main)
+                self.assertIn("SliverAppBar.large", main)
+                self.assertIn("SliverGridDelegateWithMaxCrossAxisExtent", main)
+                self.assertIn("darkTheme:", main)
+            self.assertIn("const String _appName = 'Mi aplicación';", plain_main)
+            self.assertIn("const String _appName = 'Sistema Escolar \\'UAGRM\\'';", named_main)
+            self.assertIn("title: _appName", named_main)
+            self.assertNotIn("Gestión de Clases", widget_test)
+            self.assertIn("Sistema Escolar", widget_test)
+
+    def test_home_seed_color_depends_on_the_app_name(self):
+        with tempfile.TemporaryDirectory() as a_dir, tempfile.TemporaryDirectory() as b_dir:
+            FlutterCRUDGenerator(dict(REPRESENTATIVE_UML, appName="Sistema Escolar")).generate_project(Path(a_dir))
+            FlutterCRUDGenerator(dict(REPRESENTATIVE_UML, appName="Sistema Contable")).generate_project(Path(b_dir))
+            seed_a = re.search(r"Color\(0xFF([0-9A-F]{6})\)", (Path(a_dir) / "lib/main.dart").read_text()).group(1)
+            seed_b = re.search(r"Color\(0xFF([0-9A-F]{6})\)", (Path(b_dir) / "lib/main.dart").read_text()).group(1)
+            self.assertNotEqual(seed_a, seed_b)
+
+    def test_generated_project_ships_its_own_icon_instead_of_the_flutter_logo(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(dict(REPRESENTATIVE_UML, appName="Sistema Escolar")).generate_project(output)
+
+            for name in ("app_icon.png", "app_icon_foreground.png"):
+                png = (output / "assets" / "icon" / name).read_bytes()
+                self.assertEqual(b"\x89PNG\r\n\x1a\n", png[:8], name)
+                self.assertEqual((1024, 1024), struct.unpack(">II", png[16:24]), name)
+            pubspec = (output / "pubspec.yaml").read_text()
+            seed = re.search(r"Color\(0xFF([0-9A-F]{6})\)", (output / "lib/main.dart").read_text()).group(1)
+            self.assertIn("flutter_launcher_icons: ^0.14.0", pubspec)
+            self.assertIn('image_path: "assets/icon/app_icon.png"', pubspec)
+            self.assertIn('adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"', pubspec)
+            self.assertIn(f'adaptive_icon_background: "#{seed}"', pubspec)
+
+    def test_setup_script_names_the_app_on_ios_and_android_and_is_safe_with_odd_names(self):
+        with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as project_dir:
+            weird = "Sistema <Escolar> & 'Cia' $(rm -rf x)"
+            FlutterCRUDGenerator(dict(REPRESENTATIVE_UML, appName=weird)).generate_project(Path(output_dir))
+            script = Path(output_dir) / "tool" / "configure_ios_local_ai.sh"
+            project, info = self._ios_project(project_dir, "13.0")
+            info.write_text(info.read_text().replace(
+                "<dict>\n", "<dict>\n\t<key>CFBundleDisplayName</key>\n\t<string>Generated Crud App</string>\n", 1))
+            manifest = project / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('<manifest><application android:label="generated_crud_app"/></manifest>\n')
+
+            for _ in range(2):  # idempotente
+                run = subprocess.run(["sh", str(script)], cwd=project, capture_output=True, text=True)
+                self.assertEqual(0, run.returncode, run.stderr)
+
+            text = info.read_text()
+            self.assertEqual(1, text.count("<key>CFBundleDisplayName</key>"))
+            self.assertIn("<string>Sistema Escolar Cia rm -rf x</string>", text)  # solo letras, numeros, espacios, punto y guion
+            self.assertNotIn("Generated Crud App", text)
+            self.assertIn('android:label="Sistema Escolar Cia rm -rf x"', manifest.read_text())
+            self.assertFalse((project / "pwned").exists())
+
     def test_gguf_picker_declares_ios_uniform_type_identifier(self):
         # iOS's file_selector_ios throws ArgumentError at runtime if an
         # XTypeGroup has extensions but no uniformTypeIdentifiers (physically
@@ -1018,6 +1191,27 @@ class FlutterRecursiveRelationshipTests(SimpleTestCase):
         # el Dart generado no puede llevar llaves dobles de una plantilla mal escapada
         for source in files.values():
             self.assertNotIn("{{", source)
+
+    def test_assistant_schema_does_not_require_an_optional_relationship_on_create(self):
+        """El formulario ya no exigia el padre 0..1, pero el asistente seguia pidiendo `padreId` al crear: el primer
+        empleado (sin padre) no se podia crear ni por voz ni por texto."""
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        schema = files["lib/assistant/app_schema.dart"]
+
+        def required_on_create(field_name):
+            match = re.search(rf"name: '{field_name}',.*?requiredOnCreate: (true|false)", schema, re.DOTALL)
+            self.assertIsNotNone(match, field_name)
+            return match.group(1)
+
+        self.assertEqual("false", required_on_create("padreId"))
+        self.assertEqual("true", required_on_create("departamentoId"))
 
     def test_mandatory_recursive_parent_stays_required(self):
         files = _generate({
