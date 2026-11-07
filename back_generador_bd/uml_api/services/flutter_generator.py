@@ -3685,6 +3685,9 @@ class CommandValidator {
         Todo se deriva de AppSchema en tiempo de ejecucion (mismo archivo para cualquier esquema)."""
         content = '''import 'app_schema.dart';
 
+/// Estado de la IA local tal como el asistente se lo cuenta a la persona (no depende del motor de inferencia).
+enum AssistantAiState { none, downloading, loading, ready }
+
 /// Textos del asistente en español natural. Todo se deriva de AppSchema en
 /// tiempo de ejecución: este archivo nunca nombra una entidad ni un campo de
 /// un proyecto concreto. Evita artículos y adjetivos con género
@@ -3869,11 +3872,47 @@ class AssistantTexts {
     'que haces', 'para que sirves', 'que puedo decirte', 'que puedo pedirte', 'ejemplos', 'comandos', 'instrucciones',
     'opciones', 'menu',
   };
-  static const Set<String> _identityPhrases = {'quien eres', 'como te llamas', 'que eres', 'eres una ia', 'eres un robot', 'eres humano'};
+  static const Set<String> _identityPhrases = {
+    'quien eres', 'quien eres tu', 'como te llamas', 'que eres', 'con quien hablo', 'con quien estoy hablando', 'quien me habla',
+  };
+  static const Set<String> _aiWords = {'ia', 'ai', 'robot', 'bot', 'chatbot', 'humano', 'maquina'};
+  static const Set<String> _aboutYouVerbs = {'eres', 'usas', 'tienes', 'funcionas', 'hablo', 'hablas', 'respondes'};
+
+  /// "¿eres una IA?", "¿usas inteligencia artificial?", "¿con quién hablo?". Una frase corta que menciona una entidad del
+  /// esquema ("¿tienes un robot llamado R2?") es una orden, no una pregunta sobre el asistente.
+  static bool _asksWhatItIs(String rest) {
+    if (_identityPhrases.contains(rest)) return true;
+    final words = rest.split(' ');
+    if (words.length > 8) return false;
+    final padded = ' $rest ';
+    for (final entity in AppSchema.entities) {
+      if (padded.contains(' ${_plain(singular(entity))} ') || padded.contains(' ${_plain(plural(entity))} ')) return false;
+    }
+    final aboutAi = words.any(_aiWords.contains) || rest.contains('inteligencia artificial');
+    return aboutAi && words.any(_aboutYouVerbs.contains);
+  }
+
+  /// Quién es el asistente, sin esquivar la pregunta: dice si usa IA según el estado real de la IA local.
+  static String aboutMe(AssistantAiState ai) {
+    switch (ai) {
+      case AssistantAiState.ready:
+        return 'Sí: uso una IA que corre dentro de tu teléfono, sin internet, para entender lo que escribes o dices. '
+            'Puedes pedirme consultar, crear, cambiar o eliminar ${_entityList()}.';
+      case AssistantAiState.loading:
+        return 'Soy el asistente de esta app. Estoy preparando la IA local; en unos segundos la usaré. '
+            'Mientras tanto entiendo órdenes sencillas, por ejemplo:\\n${examples()}';
+      case AssistantAiState.downloading:
+        return 'Soy el asistente de esta app. Estoy descargando la IA local; cuando termine la usaré para entender frases más libres. '
+            'Mientras tanto entiendo órdenes sencillas, por ejemplo:\\n${examples()}';
+      case AssistantAiState.none:
+        return 'Soy el asistente de esta app. Todavía no uso IA: entiendo órdenes sencillas, por ejemplo:\\n${examples()}\\n'
+            'Para entender frases más libres, toca «Descargar IA local» (unos 0,5 GB, una sola vez).';
+    }
+  }
 
   /// Respuesta a un saludo, gracias, despedida, ayuda o "quién eres". Devuelve null si el mensaje es una orden real:
   /// así "hola" ya no se interpreta como una consulta ("Sin resultados").
-  static String? smallTalkReply(String raw) {
+  static String? smallTalkReply(String raw, {AssistantAiState ai = AssistantAiState.none}) {
     if (_plain(raw).isEmpty) return null;
     final rest = _plain(withoutLeadingGreeting(raw));
     if (rest.isEmpty) return greeting();
@@ -3881,9 +3920,7 @@ class AssistantTexts {
     if (rest.contains('gracias') && rest.split(' ').length <= 4) return 'De nada. Aquí estoy si necesitas algo más.';
     if (_goodbyes.contains(rest)) return '¡Hasta luego! Cuando quieras, aquí estaré.';
     if (_helpPhrases.contains(rest)) return help();
-    if (_identityPhrases.contains(rest)) {
-      return 'Soy el asistente de esta app: entiendo lo que me escribes o me dices para consultar, crear, cambiar o eliminar ${_entityList()}.';
-    }
+    if (_asksWhatItIs(rest)) return aboutMe(ai);
     return null;
   }
 }
@@ -3955,6 +3992,50 @@ void main() {
       expect(text, contains('muéstrame los $plural'));
       expect(text, contains('crea'));
     }
+  });
+
+  test('asked if it is an AI, the assistant answers the question and tells the truth for each state of the local AI', () {
+    const questions = [
+      '¿eres una IA?',
+      'eres una ia',
+      'pero eres una IA si o no??',
+      '¿usas inteligencia artificial?',
+      '¿tienes IA?',
+      '¿eres un robot?',
+      '¿con quién hablo?',
+      '¿quién eres?',
+    ];
+    for (final question in questions) {
+      for (final state in AssistantAiState.values) {
+        expect(AssistantTexts.smallTalkReply(question, ai: state), isNotNull, reason: '$question / $state');
+      }
+      expect(AssistantTexts.smallTalkReply(question), contains('asistente'), reason: question);
+    }
+
+    final none = AssistantTexts.smallTalkReply('¿eres una IA?', ai: AssistantAiState.none)!;
+    expect(none, contains('Todavía no uso IA'));
+    expect(none, contains('Descargar IA local'));
+    expect(none, contains('muéstrame los $plural'));
+
+    final downloading = AssistantTexts.smallTalkReply('¿eres una IA?', ai: AssistantAiState.downloading)!;
+    expect(downloading, contains('descargando la IA local'));
+    expect(downloading, isNot(contains('Todavía no uso IA')));
+
+    final loading = AssistantTexts.smallTalkReply('¿eres una IA?', ai: AssistantAiState.loading)!;
+    expect(loading, contains('preparando la IA local'));
+
+    final ready = AssistantTexts.smallTalkReply('¿eres una IA?', ai: AssistantAiState.ready)!;
+    expect(ready, startsWith('Sí'));
+    expect(ready, contains('sin internet'));
+    expect(ready, isNot(contains('Todavía no uso IA')));
+  });
+
+  test('a question about the AI never hijacks a real command', () {
+    final noun = AssistantTexts.singular(entity);
+    expect(AssistantTexts.smallTalkReply('crea un $noun llamado IA'), isNull);
+    expect(AssistantTexts.smallTalkReply('¿tienes un $noun llamado Robot?'), isNull);
+    expect(AssistantTexts.smallTalkReply('lista todos los $plural que usas'), isNull);
+    expect(AssistantTexts.smallTalkReply('elimina $noun Ejemplo'), isNull);
   });
 }
 '''
@@ -4722,7 +4803,72 @@ class _FakeFetcher implements ModelFetcher {
   void cancel() {}
 }
 
+class _PendingFetcher implements ModelFetcher {
+  final Completer<void> finish = Completer<void>();
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    onProgress(1, 2);
+    await finish.future;
+    await destination.writeAsBytes([1, 2, 3]);
+  }
+
+  @override
+  void cancel() {}
+}
+
 void main() {
+  testWidgets('asked if it is an AI, the assistant tells the truth: no model, downloading, ready', (tester) async {
+    final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('assistant-ai-truth-')))!;
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final fetcher = _PendingFetcher();
+    final manager = LocalModelManager(
+      engineFactory: _FakeEngine.new,
+      modelDirectoryProvider: () async => directory,
+      downloaderFactory: () => fetcher,
+    );
+
+    await tester.pumpWidget(MaterialApp(home: AssistantView(modelManagerFactory: () => manager)));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+
+    Future<void> ask(String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // 1) sin modelo: dice que todavia no usa IA
+    await ask('¿eres una IA?');
+    expect(find.textContaining('Todavía no uso IA'), findsOneWidget);
+
+    // 2) descargando: dice que la esta descargando
+    await tester.tap(find.text('Descargar IA local'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Descargar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(manager.isDownloading, isTrue);
+    await ask('pero eres una IA si o no??');
+    expect(find.textContaining('Estoy descargando la IA local'), findsOneWidget);
+
+    // 3) lista: dice que si
+    fetcher.finish.complete();
+    for (var i = 0; i < 40 && manager.state != LocalModelState.ready; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    expect(manager.state, LocalModelState.ready);
+    await ask('¿usas inteligencia artificial?');
+    expect(find.textContaining('Sí: uso una IA'), findsOneWidget);
+  });
+
   testWidgets('offers to download the local AI, asks first, and downloads only when confirmed', (tester) async {
     final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('assistant-download-')))!;
     addTearDown(() => directory.deleteSync(recursive: true));
@@ -6451,6 +6597,20 @@ class _AssistantViewState extends State<AssistantView> {
     super.dispose();
   }
 
+  /// Lo que el asistente cuenta de su IA cuando le preguntan "¿eres una IA?": sale del estado real del modelo.
+  AssistantAiState get _aiState {
+    if (_modelManager.isDownloading) return AssistantAiState.downloading;
+    switch (_modelManager.state) {
+      case LocalModelState.ready:
+        return AssistantAiState.ready;
+      case LocalModelState.loading:
+        return AssistantAiState.loading;
+      case LocalModelState.notConfigured:
+      case LocalModelState.error:
+        return AssistantAiState.none;
+    }
+  }
+
   Future<void> _submit() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isBusy) return;
@@ -6462,7 +6622,7 @@ class _AssistantViewState extends State<AssistantView> {
     _controller.clear();
 
     // Saludos, gracias y ayuda se contestan sin consultar ni a la IA ni al interprete: "hola" ya no es una consulta.
-    final smallTalk = AssistantTexts.smallTalkReply(text);
+    final smallTalk = AssistantTexts.smallTalkReply(text, ai: _aiState);
     if (smallTalk != null) {
       _appendResult(smallTalk);
       return;

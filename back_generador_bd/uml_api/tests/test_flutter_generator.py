@@ -868,7 +868,7 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("AssistantTexts.describeRows", router)
             self.assertNotIn("resultado(s)", router)
             self.assertNotIn("Sin resultados", router)
-            self.assertIn("AssistantTexts.smallTalkReply(text)", view)
+            self.assertIn("AssistantTexts.smallTalkReply(text, ai: _aiState)", view)
             self.assertIn("AssistantTexts.withoutLeadingGreeting(text)", view)
             self.assertIn("AssistantTexts.notUnderstood()", view)
             self.assertIn("a greeting alone", texts_test)
@@ -876,6 +876,46 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("¡Hola! Soy tu asistente", texts)
             self.assertIn("¡Hola!", texts_test)
             self.assertIn("[\\s¡!]*", texts)
+            # sin nombres de proyecto: el archivo es identico para esquemas distintos
+            other = Path(tempfile.mkdtemp())
+            FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(other)
+            self.assertEqual(texts, (other / "lib/assistant/assistant_texts.dart").read_text())
+
+    def test_assistant_tells_the_truth_about_using_ai_according_to_the_real_state_of_the_local_ai(self):
+        """Pedro, con la IA local aun descargandose, pregunto "¿eres una IA?" y "pero eres una IA si o no??": el asistente
+        esquivo la primera ("Soy el asistente de esta app...") y no entendio la segunda. Ahora contesta con la verdad
+        segun el estado real (sin modelo, descargando, preparando, lista), sin quitarle las ordenes reales."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            texts = (output / "lib/assistant/assistant_texts.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            texts_test = (output / "test/assistant/assistant_texts_test.dart").read_text()
+            view_test = (output / "test/assistant/assistant_download_view_test.dart").read_text()
+
+            self.assertIn("enum AssistantAiState { none, downloading, loading, ready }", texts)
+            self.assertIn("static String aboutMe(AssistantAiState ai)", texts)
+            self.assertIn("smallTalkReply(String raw, {AssistantAiState ai = AssistantAiState.none})", texts)
+            for state in ("none", "downloading", "loading", "ready"):
+                self.assertIn(f"case AssistantAiState.{state}:", texts)
+            self.assertIn("Todavía no uso IA", texts)
+            self.assertIn("Estoy descargando la IA local", texts)
+            self.assertIn("Sí: uso una IA que corre dentro de tu teléfono, sin internet", texts)
+            # la respuesta anterior (esquivaba la pregunta) ya no existe
+            self.assertNotIn("Soy el asistente de esta app: entiendo", texts)
+            # una orden real nunca se toma por pregunta sobre el asistente (entidades del esquema)
+            self.assertIn("_asksWhatItIs(", texts)
+            self.assertIn("AppSchema.entities", texts)
+
+            self.assertIn("AssistantAiState get _aiState", view)
+            self.assertIn("_modelManager.isDownloading", view)
+            self.assertIn("AssistantTexts.smallTalkReply(text, ai: _aiState)", view)
+
+            self.assertIn("tells the truth for each state of the local AI", texts_test)
+            self.assertIn("never hijacks a real command", texts_test)
+            self.assertIn("tells the truth: no model, downloading, ready", view_test)
+            self.assertIn("class _PendingFetcher", view_test)
+
             # sin nombres de proyecto: el archivo es identico para esquemas distintos
             other = Path(tempfile.mkdtemp())
             FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(other)
