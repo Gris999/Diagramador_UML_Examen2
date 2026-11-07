@@ -2958,13 +2958,13 @@ __ENTITIES__
   /// debe tratarlo como "entidad desconocida" y no ejecutar nada.
   static AssistantEntitySchema? resolveEntity(String token) {
     final normalized = normalize(token);
-    final singularized = normalize(_singularize(token));
+    final singulars = _singularForms(token).map(normalize).toSet();
     AssistantEntitySchema? match;
     for (final entity in entities) {
       final candidates = <String>{entity.name, ...entity.aliases};
       for (final candidate in candidates) {
         final normalizedCandidate = normalize(candidate);
-        if (normalizedCandidate == normalized || normalizedCandidate == singularized) {
+        if (normalizedCandidate == normalized || singulars.contains(normalizedCandidate)) {
           if (match != null && match.name != entity.name) {
             return null;
           }
@@ -2985,15 +2985,15 @@ __ENTITIES__
         .toList();
   }
 
-  static String _singularize(String word) {
+  /// Posibles singulares de una palabra: "estudiantes" -> "estudiante" (quitando la s) y "proveedores" -> "proveedor"
+  /// (quitando es); "lápices" -> "lápiz". Se prueban todas: antes solo se quitaba "es" y "clientes" quedaba "client".
+  static Set<String> _singularForms(String word) {
     final lower = word.toLowerCase();
-    if (lower.endsWith('es') && lower.length > 3) {
-      return lower.substring(0, lower.length - 2);
-    }
-    if (lower.endsWith('s') && lower.length > 1) {
-      return lower.substring(0, lower.length - 1);
-    }
-    return lower;
+    final forms = <String>{lower};
+    if (lower.endsWith('s') && lower.length > 1) forms.add(lower.substring(0, lower.length - 1));
+    if (lower.endsWith('es') && lower.length > 3) forms.add(lower.substring(0, lower.length - 2));
+    if (lower.endsWith('ces') && lower.length > 3) forms.add('${lower.substring(0, lower.length - 3)}z');
+    return forms;
   }
 
   /// Minúsculas y sin tildes agudas, para comparaciones deterministas. A
@@ -3441,6 +3441,7 @@ class CommandParser {
         """Genera lib/assistant/command_validator.dart (genérico: valida
         contra AppSchema en tiempo de ejecución)."""
         content = '''import 'app_schema.dart';
+import 'assistant_texts.dart';
 import 'business_command.dart';
 
 /// Resultado de validar un BusinessCommand ya interpretado.
@@ -3482,23 +3483,23 @@ class ValidationResult {
 class CommandValidator {
   ValidationResult validate(BusinessCommand command) {
     if (command.action == CommandAction.unknown) {
-      return const ValidationResult.invalid('Comando no reconocido.');
+      return const ValidationResult.invalid(AssistantTexts.notUnderstoodCommand);
     }
 
     final matches = AppSchema.entities.where((e) => e.name == command.entity).toList();
     if (matches.isEmpty) {
-      return ValidationResult.invalid('No conozco la entidad "${command.entity}".');
+      return ValidationResult.invalid(AssistantTexts.unknownEntity(command.entity));
     }
     final entity = matches.first;
 
     for (final key in command.data.keys) {
       if (entity.fieldByName(key) == null) {
-        return ValidationResult.invalid('No reconozco el campo "$key" en ${entity.name}.');
+        return ValidationResult.invalid(AssistantTexts.unknownField(entity, key));
       }
     }
     for (final key in command.filters.keys) {
       if (entity.fieldByName(key) == null) {
-        return ValidationResult.invalid('No reconozco el campo "$key" en ${entity.name}.');
+        return ValidationResult.invalid(AssistantTexts.unknownField(entity, key));
       }
     }
 
@@ -3512,39 +3513,37 @@ class CommandValidator {
       case CommandAction.delete:
         return _validateMutation(entity, command, requireData: false);
       case CommandAction.unknown:
-        return const ValidationResult.invalid('Comando no reconocido.');
+        return const ValidationResult.invalid(AssistantTexts.notUnderstoodCommand);
     }
   }
 
   ValidationResult _validateCreate(AssistantEntitySchema entity, BusinessCommand command) {
     if (entity.pkField.dartType == 'double') {
-      return ValidationResult.invalid(
-          '${entity.name} usa una clave primaria double; el asistente no soporta crear, '
-          'actualizar ni eliminar registros de esa entidad en este P0.');
+      return ValidationResult.invalid(AssistantTexts.unsupportedKey(entity));
     }
 
     if (entity.pkField.isAutoIncrement && command.data.containsKey(entity.pkField.name)) {
-      return ValidationResult.invalid(
-          '"${entity.pkField.name}" se genera automáticamente; no lo indiques al crear un ${entity.name}.');
+      return ValidationResult.invalid(AssistantTexts.autoKey(entity, entity.pkField));
     }
 
+    final missing = <AssistantFieldSchema>[];
     for (final field in entity.allWritableFields) {
       if (field.isPrimaryKey && field.isAutoIncrement) continue;
       final provided = command.data.containsKey(field.name);
       if (!field.writable) {
         if (provided) {
-          return ValidationResult.invalid(
-              'El campo "${field.name}" no es compatible con el asistente todavía.');
+          return ValidationResult.invalid(AssistantTexts.unsupportedField(field));
         }
         if (field.requiredOnCreate) {
-          return ValidationResult.invalid(
-              '${entity.name} requiere "${field.name}", que aún no es compatible con el asistente.');
+          return ValidationResult.invalid(AssistantTexts.unsupportedRequired(entity, field));
         }
         continue;
       }
-      if (field.requiredOnCreate && !provided) {
-        return ValidationResult.invalid('Falta el campo "${field.name}".');
-      }
+      if (field.requiredOnCreate && !provided) missing.add(field);
+    }
+    // Todos los datos que faltan a la vez, en palabras de la persona (no se crea nada si falta alguno).
+    if (missing.isNotEmpty) {
+      return ValidationResult.invalid(AssistantTexts.missingFields(entity, missing));
     }
 
     final coercedData = <String, dynamic>{};
@@ -3552,7 +3551,7 @@ class CommandValidator {
       final field = entity.fieldByName(entry.key)!;
       final coerced = _coerce(field, entry.value.toString());
       if (coerced == null) {
-        return ValidationResult.invalid('El valor de "${field.name}" no es válido para su tipo.');
+        return ValidationResult.invalid(AssistantTexts.invalidValue(field));
       }
       coercedData[entry.key] = coerced;
     }
@@ -3572,26 +3571,23 @@ class CommandValidator {
     required bool requireData,
   }) {
     if (entity.pkField.dartType == 'double') {
-      return ValidationResult.invalid(
-          '${entity.name} usa una clave primaria double; el asistente no soporta crear, '
-          'actualizar ni eliminar registros de esa entidad en este P0.');
+      return ValidationResult.invalid(AssistantTexts.unsupportedKey(entity));
     }
     if (command.filters.isEmpty) {
-      return ValidationResult.invalid('Indica cuál ${entity.name} quieres afectar.');
+      return ValidationResult.invalid(AssistantTexts.whichOne(entity, requireData ? 'cambiar' : 'eliminar'));
     }
     if (requireData && command.data.isEmpty) {
-      return ValidationResult.invalid('Indica qué campo actualizar.');
+      return ValidationResult.invalid(AssistantTexts.whatToChange);
     }
     final coercedData = <String, dynamic>{};
     for (final entry in command.data.entries) {
       final field = entity.fieldByName(entry.key)!;
       if (!field.writable) {
-        return ValidationResult.invalid(
-            'El campo "${field.name}" no es compatible con el asistente todavía.');
+        return ValidationResult.invalid(AssistantTexts.unsupportedField(field));
       }
       final coerced = _coerce(field, entry.value.toString());
       if (coerced == null) {
-        return ValidationResult.invalid('El valor de "${field.name}" no es válido para su tipo.');
+        return ValidationResult.invalid(AssistantTexts.invalidValue(field));
       }
       coercedData[entry.key] = coerced;
     }
@@ -3732,8 +3728,12 @@ class AssistantTexts {
 
   static String singular(AssistantEntitySchema schema) => humanize(schema.name);
 
-  static String plural(AssistantEntitySchema schema) {
-    final word = singular(schema);
+  /// Cada palabra se pluraliza, salvo las partículas: "cuenta contable" -> "cuentas contables"; "detalle de venta" ->
+  /// "detalles de ventas".
+  static String plural(AssistantEntitySchema schema) => singular(schema).split(' ').map(_pluralWord).join(' ');
+
+  static String _pluralWord(String word) {
+    if (word.isEmpty || _unpluralized.contains(word)) return word;
     if (word.endsWith('z')) return '${word.substring(0, word.length - 1)}ces';
     if (RegExp(r'[aeiouáéíóú]$').hasMatch(word)) return '${word}s';
     return '${word}es';
@@ -3981,6 +3981,14 @@ class AssistantTexts {
     );
     text = text.replaceAllMapped(RegExp(r'\\b(un|una)\\s+(?:nuevo|nueva)\\b', caseSensitive: false), (m) => m[1]!);
     text = text.replaceFirstMapped(RegExp(r'^(\\S+)\\s+al\\s+', caseSensitive: false), (m) => '${m[1]} el ');
+    // Un nombre compuesto ("cuenta contable", "cuentas contables") se vuelve el nombre de la entidad ("CuentaContable"):
+    // el intérprete de reglas lee una sola palabra para la entidad.
+    for (final entity in AppSchema.entities) {
+      if (!singular(entity).contains(' ')) continue;
+      for (final form in [plural(entity), singular(entity)]) {
+        text = text.replaceAll(RegExp(RegExp.escape(form), caseSensitive: false), entity.name);
+      }
+    }
     return text.replaceAll(RegExp(r'\\s+'), ' ').trim();
   }
 
@@ -4007,6 +4015,82 @@ class AssistantTexts {
     final noun = rows.length == 1 ? 'registro' : 'registros';
     return '- $label: ${rows.length} $noun$list.';
   }
+
+  // ------------------------------------------------------------------ mensajes de validación en español claro
+
+  static const Set<String> _unpluralized = {'de', 'del', 'la', 'el', 'los', 'las', 'y', 'con', 'para', 'por', 'en', 'a', 'al'};
+
+  /// "un empleado" / "una cuenta contable": artículo + nombre, para frases como "Para crear un empleado me falta...".
+  static String withArticle(AssistantEntitySchema schema) {
+    final noun = singular(schema);
+    return '${_indefinite(noun)} $noun';
+  }
+
+  /// Cómo se llama un dato en palabras de la persona; la clave de una relación ("departamento id") se dice "departamento".
+  static String fieldLabel(AssistantFieldSchema field) {
+    final label = humanize(field.name);
+    return label.length > 3 && label.endsWith(' id') ? label.substring(0, label.length - 3) : label;
+  }
+
+  static String _joinWithAnd(List<String> items) {
+    if (items.length <= 1) return items.join();
+    return '${items.sublist(0, items.length - 1).join(', ')} y ${items.last}';
+  }
+
+  /// Lo que falta al crear, todos los datos a la vez y con un ejemplo: "Para crear un curso me falta el dato «aula».
+  /// Dímelo con tus palabras, por ejemplo: «Crea un curso con aula Ejemplo»." No crea nada: solo explica.
+  static String missingFields(AssistantEntitySchema schema, List<AssistantFieldSchema> missing) {
+    final labels = missing.map((field) => '«${fieldLabel(field)}»').toList();
+    final what = missing.length == 1 ? 'el dato ${labels.first}' : 'estos datos: ${_joinWithAnd(labels)}';
+    final first = missing.first;
+    final example = schema.nameField == first.name ? 'llamado Ejemplo' : 'con ${fieldLabel(first)} Ejemplo';
+    final verb = missing.length == 1 ? 'falta' : 'faltan';
+    return 'Para crear ${withArticle(schema)} me $verb $what. '
+        'Dímelo con tus palabras, por ejemplo: «Crea ${withArticle(schema)} $example».';
+  }
+
+  static String unknownEntity(String name) =>
+      'No conozco «${humanize(name)}» en esta app. Puedo ayudarte con ${_entityList()}.';
+
+  static String unknownField(AssistantEntitySchema schema, String key) {
+    final known = schema.fields.where((field) => !field.isPrimaryKey).map(fieldLabel).toList();
+    final list = known.isEmpty ? '' : ' Los datos de ${singular(schema)} son: ${_joinWithAnd(known)}.';
+    return 'En ${singular(schema)} no existe el dato «${humanize(key)}».$list';
+  }
+
+  static String autoKey(AssistantEntitySchema schema, AssistantFieldSchema key) =>
+      'El dato «${fieldLabel(key)}» se pone solo; no hace falta indicarlo al crear ${withArticle(schema)}.';
+
+  static String unsupportedField(AssistantFieldSchema field) =>
+      'Por ahora no puedo manejar el dato «${fieldLabel(field)}» desde el asistente; usa las pantallas de la app para ese dato.';
+
+  static String unsupportedRequired(AssistantEntitySchema schema, AssistantFieldSchema field) =>
+      'Para crear ${withArticle(schema)} hace falta el dato «${fieldLabel(field)}», que por ahora no puedo manejar '
+      'desde el asistente; créalo desde las pantallas de la app.';
+
+  static String unsupportedKey(AssistantEntitySchema schema) =>
+      'Por ahora no puedo crear, cambiar ni eliminar ${plural(schema)} desde el asistente; usa las pantallas de la app.';
+
+  static String _typeHint(AssistantFieldSchema field) => switch (field.dartType) {
+        'int' => 'un número entero',
+        'double' => 'un número (puede llevar decimales)',
+        'bool' => '«sí» o «no»',
+        _ => 'texto',
+      };
+
+  static String invalidValue(AssistantFieldSchema field) => 'El dato «${fieldLabel(field)}» debe ser ${_typeHint(field)}.';
+
+  /// [verb] en infinitivo: "cambiar" o "eliminar".
+  static String whichOne(AssistantEntitySchema schema, String verb) =>
+      'Dime cuál ${singular(schema)} quieres $verb; por ejemplo, su nombre o su número.';
+
+  static const String whatToChange = 'Dime qué dato quieres cambiar y cuál es su valor nuevo.';
+
+  static const String notUnderstoodCommand = 'No entendí qué quieres hacer.';
+
+  static String unsupportedEntity(String name) => 'No puedo trabajar con «${humanize(name)}» desde el asistente.';
+
+  static const String unexpectedProblem = 'No pude completar eso por un error inesperado. Inténtalo de nuevo en un momento.';
 }
 '''
         # Sin _sanitize: ese metodo cambia "¿"/"¡" por "?"/"!" (pensado para YAML) y aqui se necesitan tal cual.
@@ -4021,6 +4105,7 @@ import 'package:generated_crud_app/assistant/app_schema.dart';
 import 'package:generated_crud_app/assistant/assistant_texts.dart';
 import 'package:generated_crud_app/assistant/business_command.dart';
 import 'package:generated_crud_app/assistant/command_parser.dart';
+import 'package:generated_crud_app/assistant/command_validator.dart';
 
 void main() {
   final entity = AppSchema.entities.first;
@@ -4195,6 +4280,82 @@ void main() {
     expect(AssistantTexts.isHelpRequest('hola'), isFalse);
     expect(AssistantTexts.isHelpRequest('lista todos los $plural'), isFalse);
   });
+
+  test('what is missing is said in plain Spanish, all at once, with an example and without creating anything', () {
+    final missing = entity.allWritableFields
+        .where((f) => f.writable && f.requiredOnCreate && !(f.isPrimaryKey && f.isAutoIncrement))
+        .toList();
+    if (missing.isEmpty || entity.pkField.dartType == 'double') return;
+    if (entity.allWritableFields.any((f) => !f.writable && f.requiredOnCreate)) return;
+    final result = CommandValidator().validate(
+      BusinessCommand(action: CommandAction.create, entity: entity.name, data: const {}, filters: const {}, rawText: 'crea'),
+    );
+    expect(result.isValid, isFalse);
+    final message = result.error!;
+    expect(message, startsWith('Para crear'));
+    expect(message, contains(missing.length == 1 ? 'me falta' : 'me faltan'));
+    expect(message, contains('por ejemplo'));
+    expect(message, isNot(contains('Falta el campo')));
+    for (final field in missing) {
+      expect(message, contains('«${AssistantTexts.fieldLabel(field)}»'));
+    }
+  });
+
+  test('the other validation messages are plain Spanish too and carry no internal names', () {
+    final validator = CommandValidator();
+    final noun = AssistantTexts.singular(entity);
+    BusinessCommand command(CommandAction action, {String? entityName, Map<String, dynamic> data = const {}, Map<String, dynamic> filters = const {}}) =>
+        BusinessCommand(action: action, entity: entityName ?? entity.name, data: data, filters: filters, rawText: 'x');
+
+    final unknownEntity = validator.validate(command(CommandAction.read, entityName: 'EntidadQueNoExiste')).error!;
+    expect(unknownEntity, contains('No conozco'));
+    expect(unknownEntity, contains(plural));
+
+    final unknownField = validator.validate(command(CommandAction.read, filters: {'campoQueNoExiste': 'x'})).error!;
+    expect(unknownField, contains('no existe el dato'));
+    expect(unknownField, contains(noun));
+
+    final messages = [unknownEntity, unknownField];
+    if (entity.pkField.dartType != 'double') {
+      final which = validator.validate(command(CommandAction.delete)).error!;
+      expect(which, contains('Dime cuál $noun quieres eliminar'));
+      final key = entity.pkField.name;
+      final what = validator.validate(command(CommandAction.update, filters: {key: 1})).error!;
+      expect(what, contains('Dime qué dato quieres cambiar'));
+      messages.addAll([which, what]);
+    }
+    for (final message in messages) {
+      expect(message, isNot(contains('P0')));
+      expect(message, isNot(contains('clave primaria')));
+      expect(message, isNot(contains('Comando')));
+    }
+    expect(AssistantTexts.unexpectedProblem, contains('error inesperado'));
+    expect(AssistantTexts.notUnderstoodCommand, 'No entendí qué quieres hacer.');
+  });
+
+  test('compound entity names read naturally: plural of every word, particles untouched', () {
+    const compound = AssistantEntitySchema(name: 'CuentaContable', aliases: [], fields: [], relations: [], nameField: null);
+    expect(AssistantTexts.singular(compound), 'cuenta contable');
+    expect(AssistantTexts.plural(compound), 'cuentas contables');
+    const withParticle = AssistantEntitySchema(name: 'DetalleDeVenta', aliases: [], fields: [], relations: [], nameField: null);
+    expect(AssistantTexts.plural(withParticle), 'detalles de ventas');
+  });
+
+  test('an order that names a compound entity in words is turned into the entity name the rules read', () {
+    for (final e in AppSchema.entities) {
+      if (!AssistantTexts.singular(e).contains(' ')) continue;
+      expect(AssistantTexts.orderText('lista todos los ${AssistantTexts.plural(e)}'), 'lista los ${e.name}');
+      expect(AssistantTexts.orderText('borra el ${AssistantTexts.singular(e)} 3'), 'borra el ${e.name} 3');
+    }
+  });
+
+  test('the rules find an entity by its plural, also when it ends in -es (estudiantes, clientes, proveedores)', () {
+    for (final e in AppSchema.entities) {
+      if (AssistantTexts.singular(e).contains(' ')) continue;
+      expect(AppSchema.resolveEntity(AssistantTexts.plural(e))?.name, e.name, reason: AssistantTexts.plural(e));
+      expect(AppSchema.resolveEntity(AssistantTexts.singular(e))?.name, e.name);
+    }
+  });
 }
 '''
         (base_path / 'test' / 'assistant' / 'assistant_texts_test.dart').write_text(
@@ -4253,7 +4414,7 @@ class CommandRouter {
   Future<RouterOutcome> execute(BusinessCommand command) async {
     final adapter = _registry[command.entity];
     if (adapter == null) {
-      return RouterOutcome(success: false, message: 'Entidad no soportada: ${command.entity}.');
+      return RouterOutcome(success: false, message: AssistantTexts.unsupportedEntity(command.entity));
     }
     final schema = adapter.schema;
 
@@ -4267,7 +4428,7 @@ class CommandRouter {
       case CommandAction.delete:
         return _resolveDelete(adapter, schema, command);
       case CommandAction.unknown:
-        return const RouterOutcome(success: false, message: 'Comando no reconocido.');
+        return const RouterOutcome(success: false, message: AssistantTexts.notUnderstoodCommand);
     }
   }
 
@@ -4278,7 +4439,7 @@ class CommandRouter {
   Future<RouterOutcome> confirmDelete(PendingDelete pending) async {
     final adapter = _registry[pending.entity];
     if (adapter == null) {
-      return RouterOutcome(success: false, message: 'Entidad no soportada: ${pending.entity}.');
+      return RouterOutcome(success: false, message: AssistantTexts.unsupportedEntity(pending.entity));
     }
     await adapter.deleteById(pending.pk);
     return const RouterOutcome(success: true, message: AssistantTexts.deleted);
@@ -7572,7 +7733,7 @@ class _AssistantViewState extends State<AssistantView> {
       // Nunca se muestra el detalle/stack trace real: solo un mensaje
       // genérico. El comando pudo fallar por cualquier excepción no
       // anticipada del adaptador/servicio (red, parsing, etc.).
-      _appendResult('Ocurrió un error al ejecutar el comando.', isError: true);
+      _appendResult(AssistantTexts.unexpectedProblem, isError: true);
     } finally {
       // Red de seguridad: _appendResult ya limpia _isBusy en cada camino de
       // retorno normal, pero esto garantiza que nunca quede atascado en
