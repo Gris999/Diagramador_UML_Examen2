@@ -121,3 +121,100 @@ describe('association-class.util', () => {
     });
   });
 });
+
+// Notación UML (StarUML, Enterprise Architect): la M:N queda directa y desde el medio de su línea sale UN conector
+// punteado hacia la clase asociativa; el otro extremo del conector es la propia relación, no una clase.
+describe('association-class.util: conector punteado al medio de la línea M:N', () => {
+  const mn = { id: 'rel-mn', type: 'association', sourceId: 'estudiante-1', targetId: 'curso-1', labels: ['*', '*'] };
+  const punteado = { id: 'assoc-class-link:rel-mn', type: 'association-class', sourceId: 'curso-estudiante', targetId: 'rel-mn', labels: [] };
+
+  it('detecta la clase asociativa cuyo conector punteado apunta a la propia relación M:N', () => {
+    const attachments = findAssociationClassAttachments([mn, punteado]);
+
+    expect(attachments.size).toBe(1);
+    expect(attachments.get('rel-mn')).toEqual({ classId: 'curso-estudiante', linkIds: ['assoc-class-link:rel-mn'] });
+  });
+
+  it('también lo detecta si el conector está dibujado en sentido contrario (de la relación a la clase)', () => {
+    const alReves = { ...punteado, sourceId: 'rel-mn', targetId: 'curso-estudiante' };
+
+    expect(findAssociationClassAttachments([mn, alReves]).get('rel-mn')?.classId).toBe('curso-estudiante');
+  });
+
+  it('un conector punteado hacia una asociación que no es M:N no cuenta como clase asociativa de M:N', () => {
+    const unoAMuchos = { id: 'rel-1n', type: 'association', sourceId: 'a', targetId: 'b', labels: ['1', '0..*'] };
+    const alUnoAMuchos = { id: 'p', type: 'association-class', sourceId: 'c', targetId: 'rel-1n', labels: [] };
+
+    expect(findAssociationClassAttachments([unoAMuchos, alUnoAMuchos]).size).toBe(0);
+  });
+
+  it('para los generadores la M:N con su clase asociativa pasa a dos relaciones 1:N y desaparecen los conectores punteados', () => {
+    const dto = {
+      classes: [
+        { id: 'estudiante-1', name: 'Estudiante' },
+        { id: 'curso-1', name: 'Curso' },
+        { id: 'curso-estudiante', name: 'Curso_Estudiante', attributes: [{ name: 'nota', type: 'double' }], generated: true }
+      ],
+      relationships: [mn, punteado]
+    };
+
+    const result = resolveAssociationClassesForGenerators(dto);
+
+    expect(result.relationships.find(r => r.id === 'rel-mn')).toBeUndefined();
+    expect(result.relationships.find(r => r.type === 'association-class')).toBeUndefined();
+    expect(result.relationships.map(r => [r.sourceId, r.targetId, ...(r.labels || [])]).sort()).toEqual([
+      ['curso-1', 'curso-estudiante', '1', '0..*'],
+      ['estudiante-1', 'curso-estudiante', '1', '0..*']
+    ]);
+    expect((result.classes[2] as any).attributes).toEqual([{ name: 'nota', type: 'double' }]);
+  });
+
+  it('una M:N reflexiva produce dos relaciones distintas (ids únicos) hacia la clase asociativa', () => {
+    const reflexiva = { id: 'rel-amigos', type: 'association', sourceId: 'persona-1', targetId: 'persona-1', labels: ['*', '*'] };
+    const conector = { id: 'assoc-class-link:rel-amigos', type: 'association-class', sourceId: 'persona-persona', targetId: 'rel-amigos', labels: [] };
+    const dto = {
+      classes: [{ id: 'persona-1', name: 'Persona' }, { id: 'persona-persona', name: 'Persona_Persona', generated: true }],
+      relationships: [reflexiva, conector]
+    };
+
+    const result = resolveAssociationClassesForGenerators(dto);
+
+    expect(result.relationships.length).toBe(2);
+    expect(new Set(result.relationships.map(r => r.id)).size).toBe(2);
+    result.relationships.forEach(r => {
+      expect(r.sourceId).toBe('persona-1');
+      expect(r.targetId).toBe('persona-persona');
+    });
+  });
+
+  it('los generadores no reciben conectores punteados aunque no haya M:N que resolver (uno de sus extremos puede ser una relación)', () => {
+    const unoAMuchos = { id: 'rel-1n', type: 'association', sourceId: 'a', targetId: 'b', labels: ['1', '0..*'] };
+    const colgado = { id: 'p', type: 'association-class', sourceId: 'c', targetId: 'rel-1n', labels: [] };
+    const dto = { classes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], relationships: [unoAMuchos, colgado] };
+
+    const result = resolveAssociationClassesForGenerators(dto);
+
+    expect(result.relationships).toEqual([unoAMuchos]);
+  });
+
+  it('con onlyGenerated solo se resuelven las clases que la herramienta generó; la que dibujó la persona se deja como está', () => {
+    const otraMn = { id: 'rel-vp', type: 'association', sourceId: 'venta-1', targetId: 'producto-1', labels: ['*', '*'] };
+    const conectorDeLaPersona = { id: 'p-persona', type: 'association-class', sourceId: 'detalle-1', targetId: 'rel-vp', labels: [] };
+    const dto = {
+      classes: [
+        { id: 'estudiante-1' }, { id: 'curso-1' }, { id: 'curso-estudiante', generated: true },
+        { id: 'venta-1' }, { id: 'producto-1' }, { id: 'detalle-1' }
+      ],
+      relationships: [mn, punteado, otraMn, conectorDeLaPersona]
+    };
+
+    const result = resolveAssociationClassesForGenerators(dto, { onlyGenerated: true });
+
+    // la generada se expandió...
+    expect(result.relationships.find(r => r.id === 'rel-mn')).toBeUndefined();
+    expect(result.relationships.find(r => r.id === 'assoc-class-link:rel-mn')).toBeUndefined();
+    // ...y la de la persona sigue con su M:N y su conector
+    expect(result.relationships.find(r => r.id === 'rel-vp')).toEqual(otraMn);
+    expect(result.relationships.find(r => r.id === 'p-persona')).toEqual(conectorDeLaPersona);
+  });
+});

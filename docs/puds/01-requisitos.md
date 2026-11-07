@@ -105,8 +105,8 @@ Siguiendo el material de la cátedra (el arquitecto parte de un conjunto reducid
 ### CU-02 — Editar el diagrama manualmente *(✅)*
 
 - **Flujo básico:** el participante agrega clases, edita nombre/atributos/métodos, las mueve y las une con relaciones (asociación, agregación, composición, generalización, dependencia) y multiplicidades.
-- **Regla de entidad intermedia:** si una **asociación** queda con `*` en ambos extremos, el editor la reemplaza por una clase intermedia y dos relaciones 1:N. Agregación, composición, dependencia y generalización no se transforman. Si el usuario edita una de las patas generadas y deja de ser "muchos", se restaura la asociación original (no desaparece ninguna relación).
-- **Clase asociativa:** una clase puede unirse a una asociación M:N con un conector punteado; los generadores la resuelven a dos relaciones 1:N.
+- **Regla de clase asociativa:** si una **asociación** queda con `*` en ambos extremos, se conserva directa entre sus dos clases y el editor le agrega una clase asociativa unida al medio de su línea con un conector punteado sin multiplicidad (notación de StarUML y Enterprise Architect). Agregación, composición, dependencia y generalización no la reciben. Si el usuario edita una de las patas generadas y deja de ser "muchos", se restaura la asociación original (no desaparece ninguna relación).
+- **Clase asociativa propia:** la persona puede unir su propia clase a la línea de una asociación con la herramienta «Clase Asociativa»; los generadores la resuelven a dos relaciones 1:N.
 
 ### CU-10 — Exportar e importar XMI *(✅)*
 
@@ -159,8 +159,8 @@ El detalle de los demás casos de uso nuevos (CU-14, CU-15, CU-17, CU-18 y CU-19
 | **Presencia** | Lista en vivo de quién está en la sala y con qué rol. |
 | **Operación** | Mensaje pequeño que describe un cambio del diagrama (`add_class`, `edit_text`, `move`, …). |
 | **Respaldo** | Copia JSON del diagrama guardada en el servidor para recuperar el estado. |
-| **Entidad intermedia** | Clase que el editor crea para representar una relación muchos-a-muchos. |
-| **Clase asociativa** | Clase UML unida a una asociación para describirla; los generadores la convierten en dos relaciones 1:N. |
+| **Entidad intermedia** | Entidad o tabla que los generadores crean para guardar una relación muchos-a-muchos: es la clase asociativa con dos relaciones 1:N. |
+| **Clase asociativa** | Clase UML unida con un conector punteado al medio de una asociación para describirla; el editor la crea sola para cada muchos-a-muchos y los generadores la convierten en dos relaciones 1:N. |
 | **Multiplicidad** | Cantidad de instancias que participan en un extremo de una relación (`1`, `0..1`, `*`, …). |
 | **XMI** | Formato XML para intercambiar modelos UML entre herramientas. |
 | **Enterprise Architect (EA)** | Herramienta CASE con la que se prueba el intercambio XMI. |

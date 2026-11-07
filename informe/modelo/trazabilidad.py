@@ -142,6 +142,7 @@ EXCLUIDAS = [
     ("entity/UmlSchema.java", "UmlSchema", C_GENERADOR),
     ("service/JsonNormalizer.java", "JsonNormalizer", C_GENERADOR),
     ("service/NamingUtil.java", "NamingUtil", C_GENERADOR),
+    ("service/RelationNaming.java", "RelationNaming", C_GENERADOR),
     ("service/TypeMapper.java", "TypeMapper", C_GENERADOR),
 ]
 EXCLUIDAS = [e for e in EXCLUIDAS if e[2] is not None]

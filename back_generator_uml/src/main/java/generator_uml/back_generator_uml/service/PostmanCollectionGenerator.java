@@ -407,8 +407,13 @@ public class PostmanCollectionGenerator {
         }
 
         // Relaciones ManyToOne o OneToOne: incluir solo el ID de la relación
+        // Las claves usan los mismos nombres de campo que las entidades generadas (ver RelationNaming).
+        final java.util.Map<Integer, RelationNaming.Names> relationNames = RelationNaming.assign(schema);
+        int relIndex = -1;
         if (schema.getRelationships() != null) {
             for (var rel : schema.getRelationships()) {
+                relIndex++;
+                final RelationNaming.Names relNames = relationNames.get(relIndex);
                 String sourceName = schema.getClasses().stream()
                         .filter(cl -> cl.getId().equals(rel.getSourceId()))
                         .map(UmlClass::getName)
@@ -442,7 +447,7 @@ public class PostmanCollectionGenerator {
                     // entonces Source tiene ManyToOne → incluir solo el ID de la relación
                     if (sourceIsMany && !targetIsMany) {
                         String targetEntity = NamingUtil.toJavaClass(targetName);
-                        String fieldName = NamingUtil.toField(targetEntity) + "id";
+                        String fieldName = relNames.sourceSide + "id";
 
                         UmlClass targetClass = schema.getClasses().stream()
                                 .filter(tc -> tc.getName().equals(targetName))
@@ -456,7 +461,7 @@ public class PostmanCollectionGenerator {
                     // Si source tiene cardinalidad 1 y target tiene 1 (OneToOne o Composition)
                     else if (!sourceIsMany && !targetIsMany) {
                         String targetEntity = NamingUtil.toJavaClass(targetName);
-                        String fieldName = NamingUtil.toField(targetEntity) + "id";
+                        String fieldName = relNames.sourceSide + "id";
 
                         UmlClass targetClass = schema.getClasses().stream()
                                 .filter(tc -> tc.getName().equals(targetName))
@@ -483,7 +488,7 @@ public class PostmanCollectionGenerator {
                     if (targetIsMany && !sourceIsMany) {
                         // Target (este objeto) tiene ManyToOne hacia Source
                         String sourceEntity = NamingUtil.toJavaClass(sourceName);
-                        String fieldName = NamingUtil.toField(sourceEntity) + "id";
+                        String fieldName = relNames.targetSide + "id";
 
                         UmlClass sourceClass = schema.getClasses().stream()
                                 .filter(sc -> sc.getName().equals(sourceName))
@@ -567,8 +572,10 @@ public class PostmanCollectionGenerator {
 
         // Generar los campos de FK para las dos entidades
         if (entityNames[0] != null && entityNames[1] != null) {
-            String firstFieldName = NamingUtil.toField(entityNames[0]) + "id";
-            String secondFieldName = NamingUtil.toField(entityNames[1]) + "id";
+            // En una M:N recursiva los dos extremos son la misma clase: la entidad intermedia los llama origen y destino.
+            boolean recursive = entityNames[0].equals(entityNames[1]);
+            String firstFieldName = recursive ? "origenid" : NamingUtil.toField(entityNames[0]) + "id";
+            String secondFieldName = recursive ? "destinoid" : NamingUtil.toField(entityNames[1]) + "id";
             
             // Obtener el tipo de PK de cada entidad
             UmlClass firstClass = schema.getClasses().stream()

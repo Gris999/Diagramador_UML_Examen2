@@ -122,24 +122,23 @@ erDiagram
 
 Cada **clase** es un elemento de JointJS con nombre, atributos (`name`, `type`), métodos, posición y tamaño. Cada **relación** es un enlace con `relationType` (`association`, `aggregation`, `composition`, `generalization`, `dependency`, o `association-class` para el conector de clase asociativa) y dos etiquetas de multiplicidad. Marcas internas: `generatedJunction` y `generatedJunctionLeg` (entidad intermedia y sus patas), `junctionOrigin` (datos de la asociación original) y `junctionOptOut`.
 
-### 2.3 Entidad intermedia (diseño)
+### 2.3 Clase asociativa de una asociación muchos-a-muchos (diseño)
 
 ```mermaid
-flowchart LR
-  subgraph Antes
-    A1[A] -- "* — *" --- B1[B]
-  end
-  subgraph Después
-    A2[A] -- "1 — 0..*" --- J["A_B<br/>(id)"]
-    B2[B] -- "1 — 0..*" --- J
-  end
-  Antes --> Después
+flowchart TB
+  A["A"] -- "* — *" --- B["B"]
+  A -.- M(("medio de la línea"))
+  B -.- M
+  M -. "punteado, sin multiplicidad" .-> J["A_B<br/>(id)"]
 ```
 
-- Solo las relaciones de tipo **asociación** con `*` en ambos extremos se transforman.
-- El identificador de la intermedia incluye las dos clases (ordenadas) **y el identificador de la relación original**; el de cada pata incluye el rol (`source`/`target`). Así dos M:N paralelas entre las mismas clases generan entidades distintas (`A_B`, `A_B_2`, ordenadas por id de relación) y una M:N reflexiva funciona. Todos los clientes calculan los mismos identificadores.
-- La intermedia nace con un atributo `id: int` como clave.
-- Si una pata deja de ser "muchos" porque el usuario la edita, se restaura la asociación original y se retiran las celdas derivadas.
+- Solo las asociaciones de tipo **asociación** con `*` en ambos extremos reciben clase asociativa; la asociación se **conserva directa** entre sus dos clases.
+- La clase cuelga del **medio de la línea** con un conector punteado recto (`association-class`, enlace a enlace de JointJS) que no lleva multiplicidad.
+- El identificador de la clase incluye las dos clases (ordenadas) **y el identificador de la asociación**; el del conector sale del de la asociación. Así dos M:N paralelas entre las mismas clases generan clases distintas (`A_B`, `A_B_2`) y una M:N reflexiva genera una sola, unida al medio de su lazo.
+- La clase nace con un atributo `id: int` como clave.
+- Si la asociación deja de ser M:N o se borra, la clase generada y su conector se retiran; la asociación nunca desaparece. Si la persona borra la clase generada, esa M:N se marca (`junctionOptOut`) y no se vuelve a generar.
+- Para los generadores (SQL, Spring, Flutter) y para el intercambio XMI, `resolveAssociationClassesForGenerators` expande la clase a dos relaciones 1:N (`1` — `0..*`) conservando sus atributos; el grafo visual no cambia.
+- Un respaldo guardado en la forma anterior (clase intermedia y dos relaciones 1:N, sin la M:N) se migra al cargarlo: vuelve la asociación original y la clase pasa a ser su clase asociativa.
 - En colaboración, las operaciones `add_class` y `add_link` llevan las marcas `generated`/`junctionOrigin`; aplicarlas dos veces es idempotente.
 
 ## 3. Realización de casos de uso (diseño)

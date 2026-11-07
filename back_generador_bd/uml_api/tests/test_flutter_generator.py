@@ -852,3 +852,141 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("_router.confirmDelete(outcome.pendingDelete!)", view)
             # El fallback nunca se etiqueta como IA.
             self.assertIn("usedLocalAi", view)
+
+
+def _generate(uml):
+    """Genera el proyecto y devuelve {ruta relativa: texto} de sus archivos .dart."""
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        FlutterCRUDGenerator(uml).generate_project(root)
+        return {str(path.relative_to(root)): path.read_text() for path in root.rglob("*.dart")}
+
+
+def _declared_fields(model_source):
+    """Los campos `final Tipo nombre;` de un modelo, en orden."""
+    return re.findall(r"^\s*final\s+[\w<>?]+\s+(\w+);", model_source, flags=re.MULTILINE)
+
+
+def _classes(*names):
+    return [
+        {"id": name.lower(), "name": name, "attributes": [{"name": "id", "type": "int"}, {"name": "nombre", "type": "String"}]}
+        for name in names
+    ]
+
+
+class FlutterRecursiveRelationshipTests(SimpleTestCase):
+    """Una asociación recursiva o dos relaciones entre las mismas clases ponían dos campos con el mismo nombre en un
+    modelo y el proyecto generado no pasaba el análisis de Dart."""
+
+    def test_recursive_one_to_many_gets_parent_and_children_without_repeated_fields(self):
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        fields = _declared_fields(files["lib/models/empleado.dart"])
+        self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en Empleado: {fields}")
+        self.assertTrue({"padre", "padreId", "hijos", "departamento", "departamentoId"} <= set(fields), fields)
+        source = files["lib/models/empleado.dart"]
+        # las claves del JSON son las de las entidades de Spring (minúsculas, sin separadores)
+        self.assertIn("json['hijos']", source)
+        self.assertIn("json['padreid']", source)
+
+    def test_two_relationships_between_the_same_classes_keep_distinct_fields(self):
+        files = _generate({
+            "classes": _classes("Aeropuerto", "Vuelo"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "aeropuerto", "targetId": "vuelo", "labels": ["1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "aeropuerto", "targetId": "vuelo", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        for model, expected in (
+            ("vuelo", {"aeropuerto", "aeropuertoId", "aeropuerto2", "aeropuerto2Id"}),
+            ("aeropuerto", {"vuelo", "vuelo2"}),
+        ):
+            fields = _declared_fields(files[f"lib/models/{model}.dart"])
+            self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {model}: {fields}")
+            self.assertTrue(expected <= set(fields), (model, fields))
+
+    def test_recursive_many_to_many_as_the_editor_sends_it_has_no_repeated_fields(self):
+        files = _generate({
+            "classes": _classes("Persona") + [
+                {"id": "junction", "name": "Persona_Persona", "attributes": [{"name": "id", "type": "int"}]},
+            ],
+            "relationships": [
+                {"id": "l1", "type": "association", "sourceId": "persona", "targetId": "junction", "labels": ["1", "0..*"]},
+                {"id": "l2", "type": "association", "sourceId": "persona", "targetId": "junction", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        models = {path: source for path, source in files.items() if path.startswith("lib/models/")}
+        self.assertEqual(len(models), 2, sorted(models))
+        for path, source in models.items():
+            fields = _declared_fields(source)
+            self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {path}: {fields}")
+
+    def test_raw_recursive_many_to_many_has_no_repeated_fields(self):
+        files = _generate({
+            "classes": _classes("Persona"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "persona", "targetId": "persona", "labels": ["*", "*"]},
+            ],
+        })
+
+        for path, source in files.items():
+            if path.startswith("lib/models/"):
+                fields = _declared_fields(source)
+                self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {path}: {fields}")
+
+    def test_optional_relationship_is_not_required_in_the_form_but_a_mandatory_one_is(self):
+        """El padre de una recursiva (0..1) es opcional: si el formulario lo exigiera, el primer registro nunca se
+        podría crear porque todavía no existe ningún padre posible. El departamento (1) sí es obligatorio."""
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        dropdowns = files["lib/views/empleado_form_view.dart"].split("DropdownButtonFormField<String>(")[1:]
+        by_label = {re.search(r"labelText: '(\w+)'", block).group(1): block for block in dropdowns}
+        self.assertEqual({"Empleado", "Departamento"}, set(by_label))
+        self.assertNotIn("es requerido", by_label["Empleado"])
+        self.assertIn("es requerido", by_label["Departamento"])
+        # el Dart generado no puede llevar llaves dobles de una plantilla mal escapada
+        for source in files.values():
+            self.assertNotIn("{{", source)
+
+    def test_mandatory_recursive_parent_stays_required(self):
+        files = _generate({
+            "classes": _classes("Empleado"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        dropdowns = files["lib/views/empleado_form_view.dart"].split("DropdownButtonFormField<String>(")[1:]
+        self.assertEqual(1, len(dropdowns))
+        self.assertIn("es requerido", dropdowns[0])
+
+    def test_recursive_children_are_listed_as_the_same_entity_not_as_a_junction(self):
+        """Empleado tiene dos relaciones muchos-a-uno (padre y departamento): el detalle tomaba la lista de hijos por una
+        tabla puente y la rotulaba con la otra entidad ("Departamentos")."""
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        detail = files["lib/views/empleado_detail_view.dart"]
+        self.assertIn("Text('Empleados:'", detail)
+        self.assertNotIn("Departamentos:", detail)
+        self.assertIn("item.hijos.map", detail)
+        self.assertIn("e.nombre.toString()", detail)

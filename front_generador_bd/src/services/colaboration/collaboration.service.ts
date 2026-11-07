@@ -238,6 +238,12 @@ export class CollaborationService {
           // agregar una única vez, marcado como remoto
           graph.addCell(link, { collab: true });
 
+          // La clase asociativa generada puede llegar antes que su conector punteado (que sale de ella): al llegar, deja de esperar.
+          if (op.payload?.generated && type === 'association-class') {
+            const pendingClass = graph.getCell(op.sourceId);
+            if (pendingClass?.get?.('pendingJunctionSync')) pendingClass.set('pendingJunctionSync', false, { silent: true });
+          }
+
           if (op.payload?.generated) {
             const junction = graph.getCell(op.targetId);
             const generatedLegs = graph.getLinks?.().filter((candidate: any) =>

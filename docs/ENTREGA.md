@@ -42,16 +42,16 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | IA local **dentro de la app móvil generada** | Parcial: el asistente de la app Flutter es un intérprete de comandos determinista, no un modelo |
 | Cobertura de pruebas / formalidad UML 2.5 | Parcial: ver §4 |
 
-## 3. Estado de las pruebas (2026-11-04)
+## 3. Estado de las pruebas (2026-11-07)
 
 | Suite | Resultado |
 |---|---|
-| Frontend (Karma) | 288 correctas, 0 fallos; `ng build` sin errores |
-| Django (`manage.py test` con `settings_test`, sin Docker) | 354 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
-| Spring (incluye compilar de verdad el proyecto generado) | 9 correctas |
+| Frontend (Karma) | 302 correctas, 0 fallos; `ng build` sin errores |
+| Django (`manage.py test` con `settings_test`, sin Docker) | 362 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
+| Spring (incluye compilar de verdad el proyecto generado) | 12 correctas, 0 fallos |
 | Sitio desplegado | `scripts/smoke-test.sh` el 2026-11-04: 12 comprobaciones, todo en orden (también después de activar MongoDB Atlas). La ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) da 404 |
 | MongoDB Atlas | Las 19 pruebas de los adaptadores contra Atlas (MongoDB 8.0), desde el servidor: pasan. Se copiaron 34 eventos y 10 mensajes con `migrar_a_mongo` (iguales a los de PostgreSQL salvo la hora a milisegundos y el nombre de autor de los mensajes viejos). Prueba de punta a punta: una edición por WebSocket y una pregunta a la IA se guardaron y se leyeron de Atlas, y PostgreSQL no creció |
-| Modelos del informe contra el repositorio | Pasan los seis validadores: 69 clases de diseño, 74 asociaciones, 226 mensajes de secuencia, 66 casos de prueba (uno por camino de los 14 casos de uso) y 229 pruebas citadas |
+| Modelos del informe contra el repositorio | Pasan los seis validadores: 69 clases de diseño, 74 asociaciones, 226 mensajes de secuencia, 66 casos de prueba (uno por camino de los 14 casos de uso) y 243 pruebas citadas |
 | Pruebas manuales | 21 procedimientos ejecutados en el navegador con Gemini real (2026-10-26 y 27) y, el 2026-10-22, tres identidades + vista móvil sobre el sitio desplegado |
 | Revisión de código | Dos rondas independientes antes del primer parcial, la revisión automática antes de cada commit y la revisión del pull request 2: 9 hallazgos, uno corregido (el 3, MongoDB) y ocho aplazados |
 | Escaneo de secretos | 2026-10-22, árbol y 131 commits, sin hallazgos; no se repitió desde entonces |

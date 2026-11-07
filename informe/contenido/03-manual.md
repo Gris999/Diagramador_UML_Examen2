@@ -24,7 +24,7 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 - **Agregar una clase.** En **Paleta de elementos** arrastra **Clase UML** al lienzo.
 - **Cambiar un nombre, un atributo o un método.** Haz doble clic sobre el texto, selecciona todo (Cmd+A o Ctrl+A), escribe el nuevo y pulsa Enter.
 - **Unir dos clases.** Haz clic en una clase (aparecen círculos en sus bordes) y arrastra desde un círculo hasta la otra clase. Si sueltas sobre el lienzo vacío no queda ninguna relación. La paleta tiene **Asociación**, **Herencia**, **Agregación**, **Composición**, **Dependencia** y **Clase Asociativa**.
-- **Multiplicidad.** Haz doble clic sobre ella y escribe el valor, por ejemplo `*` o `0..1`. Cuando una asociación queda con «muchos» en los dos extremos, el editor crea sola la clase intermedia con sus dos relaciones uno a muchos.
+- **Multiplicidad.** Haz doble clic sobre ella y escribe el valor, por ejemplo `*` o `0..1`. Cuando una asociación queda con «muchos» en los dos extremos, el editor la deja directa entre sus dos clases, con sus multiplicidades, y crea sola la clase asociativa (por ejemplo `Curso_Estudiante`) unida al medio de la línea con un conector punteado, sin multiplicidad. Si prefieres dibujarla tú, arrastra **Clase Asociativa** al lienzo, haz clic en tu clase y luego en la línea de la asociación. Si borras la clase asociativa que el editor generó, la asociación queda sin ella y no se vuelve a crear.
 - **Mover y ajustar.** Arrastra las clases; **Acercar**, **Alejar** y **Restablecer zoom** están arriba del lienzo.
 - **Validar el modelo.** **Sugerencias del modelo** abre un panel; con **Analizar modelo** la herramienta muestra las relaciones válidas y los errores con una sugerencia.
 

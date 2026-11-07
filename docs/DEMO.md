@@ -29,7 +29,8 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
    - **Renombrar:** doble clic sobre el **nombre** de la clase; aparece una cajita de texto con el nombre actual. **Seleccionar todo antes de escribir** (triple clic o Cmd+A); si no, el texto nuevo se agrega al final ("EntidadCliente"). Enter confirma. Lo mismo para atributos y métodos (doble clic en su zona).
    - **Unir con una Asociación:** hacer clic en una clase (aparecen cuatro circulitos en sus bordes) y **arrastrar desde un circulito hasta la otra clase**. La paleta no es una herramienta de clic, es para arrastrar clases. La relación nace con multiplicidades `0..1` y `1`.
    - **Multiplicidad:** doble clic sobre el `0..1` y sobre el `1`, reemplazar por `*` en ambos extremos.
-   - *"Cuando una relación es muchos-a-muchos, el editor crea sola la entidad intermedia con su clave."* (Se ve la clase `Cliente_Pedido`.)
+   - *"Cuando una relación es muchos-a-muchos, queda directa entre las dos clases y el editor le cuelga sola la clase asociativa, con un conector punteado desde el medio de la línea, como en StarUML y Enterprise Architect."* (Se ve la clase `Cliente_Pedido`; los generadores la convierten en la tabla intermedia.)
+   - *"Una clase también puede relacionarse con ella misma (un empleado supervisa a otros): el editor la dibuja como un lazo y los tres generadores producen código que compila."*
    - **Consejo:** hacer toda la edición manual **antes** de que entren los demás: el panel de Actividad crece con cada acción y empuja el lienzo hacia abajo (llega a un máximo y luego se desplaza solo).
 3. **UML desde texto.** En "Generar modelo": *"Agrega una clase Factura con total y fecha"*. Mostrar que no duplica ni mueve lo existente.
 4. **UML desde voz** *(opcional)*. Pulsar el micrófono y decir una instrucción corta.
@@ -96,7 +97,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 - **Arquitectura:** Angular + JointJS (editor), Django + Channels + Redis (colaboración y API), Spring Boot (generador), PostgreSQL. Detalle y diagramas: [`puds/03-diseno.md`](puds/03-diseno.md).
 - **Despliegue:** AWS EC2 con Docker Compose, nginx y HTTPS (Let's Encrypt) en un dominio propio; solo los puertos 22, 80 y 443 están abiertos. Un solo comando comprueba todo: `scripts/smoke-test.sh`. Runbook: [`DESPLIEGUE.md`](DESPLIEGUE.md).
 - **Proceso PUDS:** fases, iteraciones, artefactos por disciplina y trazabilidad en [`puds/`](puds/README.md); estado de cada requisito en [`GAP_MATRIX.md`](GAP_MATRIX.md).
-- **Pruebas:** 288 del frontend y 350 del backend (más 19 contra un MongoDB real), compilación real del proyecto Spring generado, 66 casos de prueba (uno por cada camino de los 14 casos de uso) y 21 procedimientos ejecutados a mano con la IA real (sección 2.5 del informe); y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
+- **Pruebas:** 302 del frontend y 362 del backend (19 de ellas contra un MongoDB real), 12 de Spring con la compilación real de los proyectos generados, 66 casos de prueba (uno por cada camino de los 14 casos de uso) y 21 procedimientos ejecutados a mano con la IA real (sección 2.5 del informe); y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
 
 ## Preguntas probables y respuestas cortas
 

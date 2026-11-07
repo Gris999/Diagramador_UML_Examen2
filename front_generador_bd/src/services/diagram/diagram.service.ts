@@ -7,7 +7,7 @@ import { RemoteApplicationService } from '../colaboration/remote-application.ser
 import { DiagramExportService, UmlExportDTO } from '../exports/diagram-export.service';
 import { UmlValidationService } from '../colaboration/uml-validation.service';
 import { BackupService } from '../exports/backup.service';
-import { isManyToManyLabels, isManyMultiplicity, junctionElementId, junctionLegId, junctionDisplayName } from './junction-naming.util';
+import { isManyToManyLabels, junctionElementId, junctionDisplayName, associationClassLinkId } from './junction-naming.util';
 import { findAssociationClassAttachments, resolveAssociationClassesForGenerators, RelationshipLike } from './association-class.util';
 
 @Injectable({ providedIn: 'root' })
@@ -196,6 +196,8 @@ export class DiagramService {
 
 
       this.graph.on('remove', (cell: any, _collection: any, opt: any = {}) => {
+        // Quitar la clase asociativa generada (o su conector) es pedir que esa M:N se quede sin ella: pasa también si lo hizo otra persona.
+        this.onGeneratedCellRemoved(cell);
         if (opt?.collab) return; // viene de remoto, no re-emitir
         // Una relación sin una clase en cada extremo nunca se compartió (add_link solo se emite con ambos): borrarla no es noticia para la sala.
         if (cell.isLink?.() && (!cell.get('source')?.id || !cell.get('target')?.id)) return;
@@ -567,8 +569,9 @@ export class DiagramService {
       relationType: type,             // 👈 guarda el tipo
       source: { id: sourceId },
       target: { id: targetId },
-      router: { name: 'manhattan' },
-      connector: { name: 'rounded' },
+      // El conector de clase asociativa es una recta punteada hacia el medio de la asociación (UML); el resto, ortogonal.
+      router: { name: type === 'association-class' ? 'normal' : 'manhattan' },
+      connector: { name: type === 'association-class' ? 'normal' : 'rounded' },
       attrs
     });
 
@@ -1035,7 +1038,14 @@ export class DiagramService {
     });
 
     // 2. Crear todas las relaciones
-    json.relationships.forEach((rel: any) => {
+    // Un conector de clase asociativa apunta a OTRA relación (el medio de la línea M:N): se crea después de ella,
+    // venga como venga el orden del respaldo (el sort es estable).
+    const relationshipIds = new Set<string>(json.relationships.map((r: any) => r.id));
+    const pointsToRelationship = (r: any) => relationshipIds.has(r.sourceId) || relationshipIds.has(r.targetId);
+    const orderedRelationships = [...json.relationships].sort(
+      (a: any, b: any) => Number(pointsToRelationship(a)) - Number(pointsToRelationship(b))
+    );
+    orderedRelationships.forEach((rel: any) => {
       const srcId = idMap[rel.sourceId] || rel.sourceId;
       const trgId = idMap[rel.targetId] || rel.targetId;
 
@@ -1870,18 +1880,17 @@ export class DiagramService {
   }
 
   /**************************************************************************************************
-   * ENTIDAD INTERMEDIA VISUAL PARA ASOCIACIONES MUCHOS-A-MUCHOS
+   * CLASE ASOCIATIVA DE UNA ASOCIACIÓN MUCHOS-A-MUCHOS (notación UML de StarUML y Enterprise Architect)
    *
-   * Cuando una asociación tiene multiplicidad "muchos" en ambos extremos, se
-   * reemplaza en el propio grafo por: una clase intermedia (con id/nombre
-   * deterministas, para que recargar o que dos colaboradores la generen a la vez
-   * no produzca duplicados) + dos relaciones 1:N normales (extremo original "1",
-   * extremo intermedio "0..*"). La relación M:N original se elimina.
+   * La asociación con multiplicidad "muchos" en ambos extremos se queda DIRECTA entre sus dos clases, con
+   * sus multiplicidades. Desde el MEDIO de esa línea sale un conector punteado, sin multiplicidad, hacia una
+   * clase asociativa (id y nombre deterministas, para que recargar o que dos colaboradores la generen a la
+   * vez no produzca duplicados). Para los generadores (SQL, Spring, Flutter) esa clase se expande a una
+   * entidad intermedia con dos relaciones 1:N (association-class.util.ts), sin tocar el grafo visual.
    *
-   * Al ya no quedar ninguna relación con "*" en ambos extremos, los generadores
-   * existentes (SQL export, Spring, Flutter) nunca activan su propia detección de
-   * M:N para este par: ven una clase más + dos relaciones 1:N corrientes, que su
-   * lógica ya probada convierte en las FKs correspondientes sin duplicar tablas.
+   * Quien dibuja la clase asociativa a mano (herramienta «Clase Asociativa») evita la automática: una M:N que
+   * ya tiene una clase asociativa enlazada no se completa sola. Quien borra la clase generada la quita de esa
+   * M:N para siempre (junctionOptOut).
    ***************************************************************************************************/
   private reconcileGeneratedJunctions(): void {
     if (!this.graph) return;
@@ -1889,10 +1898,10 @@ export class DiagramService {
       return; // grafo mínimo/mock (p.ej. en tests de otras áreas) sin API completa de JointJS
     }
 
-    // 1) Transformar cada relación M:N viva en clase intermedia + 2 relaciones 1:N,
-    // salvo las que ya tienen una clase asociativa real enlazada (ver
-    // association-class.util.ts): esas deben permanecer como asociación M:N
-    // directa, con la clase asociativa colgando aparte vía conectores punteados.
+    // 0) Los respaldos y salas anteriores guardaban la M:N como una clase intermedia + dos relaciones 1:N.
+    this.migrateLegacyJunctions();
+
+    // 1) Cada M:N sin clase asociativa recibe la suya.
     const links = this.graph.getLinks();
     const normalizedLinks: RelationshipLike[] = links.map((l: any) => ({
       id: l.id,
@@ -1904,10 +1913,10 @@ export class DiagramService {
     const associationClassAttachments = findAssociationClassAttachments(normalizedLinks);
 
     for (const link of links) {
-      if (link.get('generatedJunctionLeg')) continue; // ya es una pata generada
+      if (link.get('generatedJunctionLeg')) continue; // conector generado, no una asociación
       if ((link.get('relationType') || 'association') !== 'association') continue;
       if (link.get('junctionOptOut')) continue;
-      if (associationClassAttachments.has(link.id)) continue; // tiene clase asociativa real
+      if (associationClassAttachments.has(link.id)) continue; // ya tiene su clase asociativa
 
       const labels = (link.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text);
       if (!isManyToManyLabels(labels)) continue;
@@ -1917,13 +1926,12 @@ export class DiagramService {
       const sourceEl = sourceId ? this.graph.getCell(sourceId) : null;
       const targetEl = targetId ? this.graph.getCell(targetId) : null;
       if (!sourceEl || !targetEl) continue;
-      // Evita anidar: si alguno de los extremos ya es una entidad intermedia
-      // generada, no se vuelve a transformar.
+      // Evita anidar: si alguno de los extremos ya es una clase asociativa generada, no se agrega otra.
       if (sourceEl.get('generatedJunction') || targetEl.get('generatedJunction')) continue;
 
       const originId = String(link.id);
       const junctionId = junctionElementId(sourceEl.id, targetEl.id, originId);
-      let junctionEl = this.graph.getCell(junctionId);
+      let junctionEl = this.graph.getCell(junctionId) || this.findGeneratedClassOf(originId);
       const junctionName = junctionDisplayName(sourceEl.get('name'), targetEl.get('name'));
       const junctionOrigin = {
         id: originId,
@@ -1950,73 +1958,128 @@ export class DiagramService {
       }
       junctionEl.set('junctionOrigin', junctionOrigin);
 
-      this.ensureJunctionLeg(sourceEl, junctionEl, 'source');
-      this.ensureJunctionLeg(targetEl, junctionEl, 'target');
-
-      link.remove();
+      this.ensureAssociationClassLink(junctionEl, link);
     }
 
-    // 2) Eliminar entidades intermedias huérfanas: les falta alguna de sus 2
-    // patas (p.ej. el usuario borró una relación derivada), o alguna pata ya
-    // no representa el lado "muchos" hacia la entidad intermedia (p.ej. el
-    // usuario editó manualmente la cardinalidad de esa relación, con lo cual
-    // deja de significar la M:N original). Solo cuentan como válidas las
-    // patas cuyo extremo hacia la entidad intermedia sigue siendo "muchos".
-    const junctions = this.graph.getElements().filter((el: any) => el.get('generatedJunction'));
-    for (const junctionEl of junctions) {
-      if (junctionEl.get('pendingJunctionSync')) continue;
-      const allLegs = this.graph.getLinks().filter((l: any) =>
-        l.get('generatedJunctionLeg') && l.get('target')?.id === junctionEl.id
-      );
-      const validLegs = allLegs.filter((l: any) => {
-        const labels = (l.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text);
-        return labels.length >= 2 && isManyMultiplicity(labels[1]);
-      });
-      if (validLegs.length < 2) {
-        // Una pata todavía presente pero editada dejó de representar la M:N.
-        // Eso no es una eliminación explícita: se restaura la asociación
-        // original exacta antes de retirar las celdas derivadas.
-        if (allLegs.length >= 2) {
-          this.restoreJunctionOrigin(junctionEl);
-        }
-        allLegs.forEach((l: any) => l.remove());
-        junctionEl.remove();
-      }
+    // 2) Se retiran las clases generadas cuya asociación ya no es M:N, ya no existe o la persona excluyó.
+    const generatedClasses = this.graph.getElements().filter((el: any) => el.get('generatedJunction'));
+    for (const junctionEl of generatedClasses) {
+      const origin = junctionEl.get('junctionOrigin');
+      const association = origin?.id ? this.graph.getCell(origin.id) : null;
+      const associationLabels = association
+        ? (association.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text)
+        : [];
+      const keeps = !!association
+        && (association.get('relationType') || 'association') === 'association'
+        && !association.get('junctionOptOut')
+        && isManyToManyLabels(associationLabels);
+      if (keeps) continue;
+
+      this.graph.getLinks()
+        .filter((l: any) => l.get('relationType') === 'association-class'
+          && (l.get('source')?.id === junctionEl.id || l.get('target')?.id === junctionEl.id))
+        .forEach((l: any) => l.remove());
+      junctionEl.remove();
     }
+
+    // 3) Un conector de clase asociativa con un extremo que ya no existe no es una relación UML: se retira.
+    this.graph.getLinks()
+      .filter((l: any) => l.get('relationType') === 'association-class')
+      .filter((l: any) => {
+        const sourceId = l.get('source')?.id;
+        const targetId = l.get('target')?.id;
+        return !sourceId || !targetId || !this.graph.getCell(sourceId) || !this.graph.getCell(targetId);
+      })
+      .forEach((l: any) => l.remove());
 
     this.refreshJunctionDisplayNames();
   }
 
-  private ensureJunctionLeg(
-    originEl: any,
-    junctionEl: any,
-    role: 'source' | 'target'
-  ): void {
-    const legId = junctionLegId(originEl.id, junctionEl.id, role);
-    if (this.graph.getCell(legId)) return;
-
-    const leg = this.createTypedRelationship(originEl.id, junctionEl.id, 'association', true);
-    leg.set('id', legId);
-    leg.set('generatedJunctionLeg', true);
-    leg.set('labels', [
-      {
-        position: { distance: 20, offset: -10 },
-        attrs: { text: { text: '1', fill: '#333', fontSize: 12 } },
-        markup: [{ tagName: 'text', selector: 'text' }]
-      },
-      {
-        position: { distance: -20, offset: -10 },
-        attrs: { text: { text: '0..*', fill: '#333', fontSize: 12 } },
-        markup: [{ tagName: 'text', selector: 'text' }]
-      }
-    ]);
-    this.graph.addCell(leg);
+  /** Quitar la clase asociativa generada, o su conector, deja esa M:N sin clase asociativa y sin volver a generarla. */
+  private onGeneratedCellRemoved(cell: any): void {
+    if (this.reconcilingJunctions || this.loadBatchDepth > 0) return;
+    let associationId: string | undefined;
+    if (cell?.get?.('generatedJunction')) {
+      associationId = cell.get('junctionOrigin')?.id;
+    } else if (cell?.get?.('generatedJunctionLeg') && cell.get('relationType') === 'association-class') {
+      associationId = cell.get('target')?.id;
+    }
+    if (!associationId || !this.graph?.getCell) return;
+    this.markManyToManyAsWithoutAssociationClass(associationId);
   }
 
-  private restoreJunctionOrigin(junctionEl: any): void {
+  private markManyToManyAsWithoutAssociationClass(associationId: string): void {
+    const association = this.graph.getCell(associationId);
+    if (!association || association.get('junctionOptOut')) return;
+    const labels = (association.get('labels') || []).map((lbl: any) => lbl?.attrs?.text?.text);
+    if (!isManyToManyLabels(labels)) return;
+    association.set('junctionOptOut', true);
+  }
+
+  private findGeneratedClassOf(associationId: string): any {
+    return this.graph.getElements().find((el: any) =>
+      el.get('generatedJunction') && el.get('junctionOrigin')?.id === associationId
+    ) || null;
+  }
+
+  /** El conector punteado, sin multiplicidad, que une la clase asociativa con el medio de su asociación. */
+  private ensureAssociationClassLink(classEl: any, associationLink: any): void {
+    const connectorId = associationClassLinkId(String(associationLink.id));
+    if (this.graph.getCell(connectorId)) return;
+
+    const connector = this.createTypedRelationship(classEl.id, associationLink.id, 'association-class', true);
+    connector.set('id', connectorId);
+    connector.set('generatedJunctionLeg', true);
+    this.graph.addCell(connector);
+  }
+
+  /**
+   * Forma anterior de la clase asociativa automática: una clase intermedia generada con dos relaciones 1:N y
+   * SIN la M:N (se había reemplazado). Vuelve la M:N original y se retiran las dos relaciones: la clase queda
+   * como clase asociativa de esa M:N y el paso siguiente le agrega su conector punteado.
+   */
+  private migrateLegacyJunctions(): void {
+    const legacyLegs = this.graph.getLinks().filter((l: any) =>
+      l.get('generatedJunctionLeg') && (l.get('relationType') || 'association') === 'association'
+    );
+    if (legacyLegs.length === 0) return;
+
+    const legsByClass = new Map<string, any[]>();
+    for (const leg of legacyLegs) {
+      const classId = leg.get('target')?.id;
+      if (!classId) continue;
+      legsByClass.set(classId, [...(legsByClass.get(classId) || []), leg]);
+    }
+
+    legsByClass.forEach((legs, classId) => {
+      const junctionEl = this.graph.getCell(classId);
+      if (!junctionEl?.get?.('generatedJunction')) return;
+
+      if (!junctionEl.get('junctionOrigin')?.id) {
+        // Un respaldo antiguo sin el origen: los extremos de la M:N son los de las dos relaciones.
+        const ends = legs.map((l: any) => l.get('source')?.id).filter(Boolean);
+        if (ends.length < 2) return;
+        junctionEl.set('junctionOrigin', {
+          id: `mn:${classId}`,
+          type: 'association',
+          sourceId: ends[0],
+          targetId: ends[1],
+          labels: [],
+          vertices: []
+        });
+      }
+      // Solo se retiran las dos relaciones si la M:N original quedó en pie.
+      if (this.restoreJunctionOrigin(junctionEl)) {
+        legs.forEach((l: any) => l.remove());
+      }
+    });
+  }
+
+  private restoreJunctionOrigin(junctionEl: any): boolean {
     const origin = junctionEl.get('junctionOrigin');
-    if (!origin?.id || this.graph.getCell(origin.id)) return;
-    if (!this.graph.getCell(origin.sourceId) || !this.graph.getCell(origin.targetId)) return;
+    if (!origin?.id) return false;
+    if (this.graph.getCell(origin.id)) return true;
+    if (!this.graph.getCell(origin.sourceId) || !this.graph.getCell(origin.targetId)) return false;
 
     const restored = this.createTypedRelationship(
       origin.sourceId,
@@ -2025,10 +2088,23 @@ export class DiagramService {
       true
     );
     restored.set('id', origin.id);
-    restored.set('labels', this.cloneGraphValue(origin.labels || []));
+    restored.set('labels', this.toLabelObjects(origin.labels));
     restored.set('vertices', this.cloneGraphValue(origin.vertices || []));
-    restored.set('junctionOptOut', true);
     this.graph.addCell(restored);
+    return true;
+  }
+
+  /** Las multiplicidades pueden venir como texto ("0..*") o ya como etiquetas de JointJS; por defecto, M:N. */
+  private toLabelObjects(labels: any[] | undefined): any[] {
+    const source = Array.isArray(labels) && labels.length >= 2 ? labels : ['0..*', '0..*'];
+    return source.map((label: any, index: number) => {
+      if (typeof label !== 'string') return this.cloneGraphValue(label);
+      return {
+        position: { distance: index === 0 ? 20 : -20, offset: -10 },
+        attrs: { text: { text: label, fill: '#333', fontSize: 12 } },
+        markup: [{ tagName: 'text', selector: 'text' }]
+      };
+    });
   }
 
   private refreshJunctionDisplayNames(): void {
@@ -2068,6 +2144,11 @@ export class DiagramService {
   private computeJunctionPosition(sourceEl: any, targetEl: any): { x: number; y: number } {
     const a = sourceEl.position();
     const b = targetEl.position();
+    // Asociación reflexiva: su lazo sale por arriba y por la derecha de la clase; la clase asociativa va hacia abajo
+    // y a la derecha para que el punteado hasta el medio del lazo no cruce la propia clase.
+    if (sourceEl.id === targetEl.id) {
+      return { x: a.x + 260, y: a.y + 170 };
+    }
     return {
       x: Math.round((a.x + b.x) / 2),
       y: Math.max(a.y, b.y) + 170

@@ -13,15 +13,21 @@ export interface RelationshipLike {
 
 export interface AssociationClassAttachment {
   classId: string;
-  linkIds: [string, string];
+  /** Conectores punteados que unen la clase con la asociación: uno en la notación UML, dos en la forma anterior. */
+  linkIds: string[];
 }
 
 /**
  * Detecta, para cada relación M:N, si existe una "clase asociativa" real
- * enlazada a ella: una clase conectada por DOS relaciones de tipo
- * 'association-class', una hacia cada extremo de la M:N.
+ * enlazada a ella. Hay dos formas:
  *
- * Devuelve un mapa id-de-relación-M:N -> clase/enlaces asociativos.
+ *  - Notación UML (StarUML, Enterprise Architect): UN conector punteado
+ *    'association-class' que va de la clase al MEDIO de la línea M:N, es decir,
+ *    su otro extremo es la propia relación (su id), no una clase.
+ *  - Forma anterior de esta herramienta: una clase conectada por DOS conectores
+ *    punteados, uno hacia cada extremo de la M:N.
+ *
+ * Devuelve un mapa id-de-relación-M:N -> clase/conectores asociativos.
  */
 export function findAssociationClassAttachments(
   relationships: RelationshipLike[]
@@ -31,6 +37,17 @@ export function findAssociationClassAttachments(
   const assocLinks = relationships.filter(r => r.type === 'association-class');
 
   for (const mn of mnRels) {
+    // Notación UML: el conector punteado apunta a la propia asociación.
+    const toLine = assocLinks.find(l =>
+      (l.targetId === mn.id && l.sourceId !== mn.id) || (l.sourceId === mn.id && l.targetId !== mn.id)
+    );
+    if (toLine) {
+      const classId = toLine.targetId === mn.id ? toLine.sourceId : toLine.targetId;
+      result.set(mn.id, { classId, linkIds: [toLine.id] });
+      continue;
+    }
+
+    // Forma anterior: dos conectores, uno hacia cada extremo de la M:N.
     const linksToSource = assocLinks.filter(l => l.sourceId === mn.sourceId || l.targetId === mn.sourceId);
     const linksToTarget = assocLinks.filter(l => l.sourceId === mn.targetId || l.targetId === mn.targetId);
 
@@ -59,38 +76,46 @@ export function findAssociationClassAttachments(
 /**
  * Transforma, SOLO para el payload que reciben los generadores (SQL/Spring/
  * Flutter), cada relación M:N que tiene una clase asociativa real enlazada
- * en el par de relaciones 1:N que esos generadores ya saben interpretar
- * (misma forma que reconcileGeneratedJunctions() produce automáticamente),
+ * en el par de relaciones 1:N que esos generadores ya saben interpretar,
  * preservando los atributos propios de la clase (p.ej. precioUnitario).
+ * También retira del payload todos los conectores 'association-class': los
+ * generadores no los usan y uno de sus extremos puede ser una relación, no una clase.
  *
- * No modifica el grafo visual ni lo que se persiste/exporta a XMI: se aplica
- * únicamente sobre una copia del JSON, justo antes de enviarlo a un generador.
+ * No modifica el grafo visual ni lo que se persiste: se aplica únicamente sobre
+ * una copia del JSON, justo antes de enviarlo a un generador.
+ *
+ * Con `onlyGenerated` solo se resuelven las clases asociativas que la herramienta
+ * generó sola (marcadas `generated`); las que dibujó la persona se dejan como están.
  */
 export function resolveAssociationClassesForGenerators<
-  TClass extends { id: string },
+  TClass extends { id: string; generated?: boolean },
   TRel extends RelationshipLike
->(dto: { classes: TClass[]; relationships: TRel[] }): { classes: TClass[]; relationships: TRel[] } {
-  const attachments = findAssociationClassAttachments(dto.relationships);
-  if (attachments.size === 0) return dto;
+>(
+  dto: { classes: TClass[]; relationships: TRel[] },
+  options: { onlyGenerated?: boolean } = {}
+): { classes: TClass[]; relationships: TRel[] } {
+  const generatedClassIds = new Set(dto.classes.filter(c => c.generated).map(c => c.id));
+  const attachments = new Map(
+    [...findAssociationClassAttachments(dto.relationships)]
+      .filter(([, attachment]) => !options.onlyGenerated || generatedClassIds.has(attachment.classId))
+  );
+  const hasConnectors = dto.relationships.some(r => r.type === 'association-class');
+  if (attachments.size === 0 && !hasConnectors) return dto;
 
-  const linkIdsToRemove = new Set<string>();
-  const mnIdsToRemove = new Set<string>();
+  const mnIdsToRemove = new Set<string>(attachments.keys());
   const newRelationships: TRel[] = [];
 
   attachments.forEach((attachment, mnId) => {
-    mnIdsToRemove.add(mnId);
-    attachment.linkIds.forEach(id => linkIdsToRemove.add(id));
-
     const mn = dto.relationships.find(r => r.id === mnId)!;
     const leg1: RelationshipLike = {
-      id: junctionLegId(mn.sourceId, attachment.classId),
+      id: junctionLegId(mn.sourceId, attachment.classId, 'source'),
       type: 'association',
       sourceId: mn.sourceId,
       targetId: attachment.classId,
       labels: ['1', '0..*']
     };
     const leg2: RelationshipLike = {
-      id: junctionLegId(mn.targetId, attachment.classId),
+      id: junctionLegId(mn.targetId, attachment.classId, 'target'),
       type: 'association',
       sourceId: mn.targetId,
       targetId: attachment.classId,
@@ -99,12 +124,26 @@ export function resolveAssociationClassesForGenerators<
     newRelationships.push(leg1 as TRel, leg2 as TRel);
   });
 
-  const keptRelationships = dto.relationships.filter(
-    r => !mnIdsToRemove.has(r.id) && !linkIdsToRemove.has(r.id)
-  );
+  // Los conectores punteados se quitan siempre; con `onlyGenerated`, los de las clases que dibujó la
+  // persona se dejan donde están para que quien consume el JSON decida (el intercambio XMI los filtra).
+  const keptRelationships = dto.relationships.filter(r => {
+    if (mnIdsToRemove.has(r.id)) return false;
+    if (r.type !== 'association-class') return true;
+    return !!options.onlyGenerated && !isConnectorOfResolved(r, attachments);
+  });
 
   return {
     classes: dto.classes,
     relationships: [...keptRelationships, ...newRelationships]
   };
+}
+
+function isConnectorOfResolved(
+  connector: RelationshipLike,
+  attachments: Map<string, AssociationClassAttachment>
+): boolean {
+  for (const attachment of attachments.values()) {
+    if (attachment.linkIds.includes(connector.id)) return true;
+  }
+  return false;
 }

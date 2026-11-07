@@ -30,12 +30,12 @@ Críticos que **exigen** pruebas automáticas (`AGENTS.md`): importación/export
 | CP-03 | CU-04 | El host expulsa a un participante | Se cierra su conexión y la presencia se actualiza | `test_roles.py`; prueba física |
 | CP-04 | CU-03 | El host se desconecta | El participante más antiguo es host; al reconectar, el anterior entra como participante | `test_roles.py`; prueba física |
 | CP-05 | CU-03 | Un participante borra una clase y otro recarga | La clase borrada no reaparece; sus relaciones desaparecen y las demás se conservan | Validación física con dos pestañas |
-| CP-06 | CU-02 | Dibujar asociación con `*` en ambos extremos | Se crea la entidad intermedia `A_B` con `id: int` y dos relaciones 1:N | `diagram.service.junction.spec.ts` |
-| CP-07 | CU-02 | Dos M:N paralelas entre las mismas clases; una M:N reflexiva | Entidades distintas (`A_B`, `A_B_2`); la reflexiva genera dos patas | `diagram.service.junction.spec.ts` |
-| CP-08 | CU-02 | Agregación, composición o dependencia con `*` en ambos extremos | No se transforman | `diagram.service.junction.spec.ts` |
-| CP-09 | CU-02 | Editar la multiplicidad de una pata generada para que deje de ser "muchos" | Se restaura la asociación original; no desaparece ninguna relación | `diagram.service.junction.spec.ts` |
-| CP-10 | CU-02 / CU-03 | Crear M:N con dos clientes conectados | Ambos tienen las mismas entidades y marcas; aplicar dos veces no duplica | `collaboration.service.spec.ts` |
-| CP-11 | CU-10 | Exportar un diagrama con clase asociativa | La exportación no falla y omite los conectores auxiliares | `xmi.service.spec.ts` |
+| CP-06 | CU-02 | Dibujar asociación con `*` en ambos extremos | La asociación sigue directa y aparece la clase asociativa `A_B` (`id: int`) unida al medio de la línea con un punteado sin multiplicidad | `diagram.service.junction.spec.ts` |
+| CP-07 | CU-02 | Dos M:N paralelas entre las mismas clases; una M:N reflexiva | Clases distintas (`A_B`, `A_B_2`); la reflexiva recibe una sola, unida al medio de su lazo | `diagram.service.junction.spec.ts` |
+| CP-08 | CU-02 | Agregación, composición o dependencia con `*` en ambos extremos | No reciben clase asociativa | `diagram.service.junction.spec.ts` |
+| CP-09 | CU-02 | Editar la multiplicidad de la asociación para que deje de ser "muchos"; borrar la asociación; borrar la clase generada | La clase generada se retira con su conector; la asociación no desaparece; al borrar la clase no se regenera | `diagram.service.junction.spec.ts` |
+| CP-10 | CU-02 / CU-03 | Crear M:N con dos clientes conectados | Ambos tienen las mismas clases y marcas; aplicar dos veces no duplica | `collaboration.service.spec.ts` |
+| CP-11 | CU-10 | Exportar un diagrama con clase asociativa | La exportación no falla: la clase generada viaja como clase con dos relaciones 1:N y los conectores auxiliares se omiten | `xmi.service.spec.ts`, `association-class.util.spec.ts` |
 | CP-12 | CU-10 | Ida y vuelta con Enterprise Architect 17.2 | Clases, atributos, operaciones, asociaciones y multiplicidades se conservan | Validación física (GAP_MATRIX); `test_xmi_enterprise_architect.py` |
 | CP-13 | CU-10 | Importar XMI con `DOCTYPE`/entidad externa | Se rechaza sin leer archivos ni abrir conexiones | `test_xmi_service.py`, `test_xmi_api.py` |
 | CP-14 | CU-12 | Generar el backend de un diagrama | Se descarga un `.zip` que compila con Maven | `ProjectGeneratorCompileTest` |
