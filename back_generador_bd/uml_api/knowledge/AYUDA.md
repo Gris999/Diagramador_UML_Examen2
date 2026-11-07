@@ -66,6 +66,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
   - «Exportar como Imagen»: descarga el diagrama como imagen.
   - «Exportar Flutter»: genera un proyecto Flutter con base de datos local, que funciona sin conexión. Antes te pregunta el nombre de la aplicación (puedes dejarlo vacío).
   - «Descargar proyecto completo»: un solo .zip con el backend, la aplicación móvil, el script SQL y un archivo LEEME con los pasos para ponerlo a funcionar. También te pregunta el nombre de la aplicación.
+  - La aplicación móvil generada trae un asistente con IA local. Para usarlo sin internet, dentro de la app toca «Descargar IA local» (unos 1,1 GB, una sola vez, con confirmación). Con el modelo listo puedes conversar con él sobre sistemas de gestión y pedirle órdenes sobre tus datos («crea un departamento llamado Ventas», «borra el empleado número 3»). Cada respuesta dice si la escribió la «IA local» o es una «Respuesta de la app». Es un modelo pequeño: puede equivocarse al explicar conceptos.
 
 ## 9. Seguir la sala desde el celular
 

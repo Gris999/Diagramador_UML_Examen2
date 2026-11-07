@@ -234,12 +234,14 @@ class FlutterCRUDGenerator:
             self._generate_model_downloader(base_path)
             self._generate_local_model_manager(base_path)
             self._generate_local_llm_command_extractor(base_path)
+            self._generate_local_llm_chat(base_path)
             self._generate_assistant_view(base_path)
             self._generate_assistant_tests(base_path, original_classes)
             self._generate_assistant_texts_tests(base_path)
             self._generate_voice_tests(base_path)
             self._generate_model_download_tests(base_path)
             self._generate_local_llm_tests(base_path, original_classes)
+            self._generate_local_llm_chat_tests(base_path)
 
             self._generate_main(base_path, intermediate_entities)
             self._generate_widget_test(base_path)
@@ -2942,6 +2944,9 @@ class AssistantEntitySchema {
 }
 
 class AppSchema {
+  /// Nombre de la aplicación (el que se escribió al exportar): la IA lo usa para presentarse.
+  static const String appName = __APP_NAME__;
+
   static const List<AssistantEntitySchema> entities = [
 __ENTITIES__
   ];
@@ -3017,6 +3022,7 @@ __ENTITIES__
 }
 '''
         content = content.replace('__ENTITIES__', entities_str)
+        content = content.replace('__APP_NAME__', self._dart_string_literal(self._app_name()))
         (base_path / 'lib' / 'assistant' / 'app_schema.dart').write_text(
             self._sanitize(content), encoding="utf-8", newline="\n"
         )
@@ -3292,7 +3298,10 @@ class CommandParser {
     final leftover = tokens.sublist(cursor + 1).join(' ').trim();
 
     final filters = <String, dynamic>{};
-    if (leftover.isNotEmpty) {
+    final idFilter = _idFilter(leftover, entity);
+    if (idFilter != null) {
+      filters.addAll(idFilter);
+    } else if (leftover.isNotEmpty) {
       if (entity.nameField == null) {
         return ParsedCommandResult.failure('No sé cómo buscar "$leftover" en ${entity.name}.');
       }
@@ -3394,6 +3403,22 @@ class CommandParser {
       filters: {entity.nameField!: targetRaw},
       rawText: rawText,
     ));
+  }
+
+  static final RegExp _idPhrase = RegExp(
+    r'^(?:con\s+)?(?:id|n[uú]mero|nro\.?|n°|#)\s*[:=]?\s*(\d+)$',
+    caseSensitive: false,
+  );
+
+  /// "con id 3", "número 3" o "#3" identifican un registro por su clave primaria; null si no tiene esa forma.
+  Map<String, dynamic>? _idFilter(String leftover, AssistantEntitySchema entity) {
+    final match = _idPhrase.firstMatch(leftover.trim());
+    if (match == null) return null;
+    final keys = entity.fields.where((field) => field.isPrimaryKey);
+    if (keys.isEmpty) return null;
+    final key = keys.first;
+    final number = int.parse(match.group(1)!);
+    return {key.name: key.dartType == 'int' ? number : number.toString()};
   }
 
   List<String> _splitWords(String value) =>
@@ -3870,7 +3895,8 @@ class AssistantTexts {
   static const Set<String> _helpPhrases = {
     'ayuda', 'ayudame', 'help', 'que puedes hacer', 'que sabes hacer', 'como funciona', 'como te uso', 'como se usa',
     'que haces', 'para que sirves', 'que puedo decirte', 'que puedo pedirte', 'ejemplos', 'comandos', 'instrucciones',
-    'opciones', 'menu',
+    'opciones', 'menu', 'que mas puedes hacer', 'que mas sabes hacer', 'en que me puedes ayudar',
+    'con que me puedes ayudar', 'en que puedes ayudarme', 'que puedes hacer por mi',
   };
   static const Set<String> _identityPhrases = {
     'quien eres', 'quien eres tu', 'como te llamas', 'que eres', 'con quien hablo', 'con quien estoy hablando', 'quien me habla',
@@ -3906,7 +3932,7 @@ class AssistantTexts {
             'Mientras tanto entiendo órdenes sencillas, por ejemplo:\\n${examples()}';
       case AssistantAiState.none:
         return 'Soy el asistente de esta app. Todavía no uso IA: entiendo órdenes sencillas, por ejemplo:\\n${examples()}\\n'
-            'Para entender frases más libres, toca «Descargar IA local» (unos 0,5 GB, una sola vez).';
+            'Para entender frases más libres, toca «Descargar IA local» (unos 1,1 GB, una sola vez).';
     }
   }
 
@@ -3923,6 +3949,64 @@ class AssistantTexts {
     if (_asksWhatItIs(rest)) return aboutMe(ai);
     return null;
   }
+
+  // ------------------------------------------------------------------ órdenes, charla con la IA y datos reales
+
+  static const Set<String> _orderVerbs = {
+    'crea', 'crear', 'agrega', 'agregar', 'añade', 'añadir', 'anade', 'anadir', 'registra', 'registrar',
+    'elimina', 'eliminar', 'borra', 'borrar', 'quita', 'quitar', 'actualiza', 'actualizar', 'cambia', 'cambiar',
+    'modifica', 'modificar', 'edita', 'editar', 'muestra', 'muestrame', 'mostrar', 'mostrarme', 'lista', 'listar',
+    'ver', 'busca', 'buscar', 'encuentra', 'dame', 'enumera', 'consulta', 'consultar',
+  };
+
+  static final RegExp _orderFiller = RegExp(
+    r'^(?:por\\s+favor|porfa|puedes|podr[ií]as|quisiera|quiero|necesito|me\\s+gustar[ií]a)[\\s,]+',
+    caseSensitive: false,
+  );
+
+  /// La orden sin cortesías ni rodeos, para que el intérprete la entienda: "por favor, lista todos los empleados" ->
+  /// "lista los empleados"; "crea un empleado llamado Ana" -> "crea un empleado Ana"; "borra al empleado Ana" ->
+  /// "borra el empleado Ana". No toca "con nombre Ana y edad 3" (el intérprete usa "con" para separar campos).
+  static String orderText(String raw) {
+    var text = withoutLeadingGreeting(raw);
+    var previous = '';
+    while (previous != text) {
+      previous = text;
+      text = text.replaceFirst(_orderFiller, '').trim();
+    }
+    text = text.replaceAllMapped(RegExp(r'\\b(?:todos|todas)\\s+(los|las)\\b', caseSensitive: false), (m) => m[1]!);
+    text = text.replaceAll(
+      RegExp(r'\\s+(?:llamad[oa]s?|de\\s+nombre|que\\s+se\\s+llam[ae]|con\\s+el\\s+nombre\\s+de)\\s+', caseSensitive: false),
+      ' ',
+    );
+    text = text.replaceAllMapped(RegExp(r'\\b(un|una)\\s+(?:nuevo|nueva)\\b', caseSensitive: false), (m) => m[1]!);
+    text = text.replaceFirstMapped(RegExp(r'^(\\S+)\\s+al\\s+', caseSensitive: false), (m) => '${m[1]} el ');
+    return text.replaceAll(RegExp(r'\\s+'), ' ').trim();
+  }
+
+  /// true si el mensaje empieza por un verbo de orden sobre los datos (crear, consultar, cambiar, eliminar...).
+  /// Todo lo demás (saludos, preguntas, conceptos) es conversación.
+  static bool looksLikeOrder(String raw) {
+    final words = _plain(orderText(raw)).split(' ');
+    return words.isNotEmpty && _orderVerbs.contains(words.first);
+  }
+
+  /// true si la persona pide ayuda: su respuesta es un texto exacto (lo que sí entiende), no conversación libre.
+  static bool isHelpRequest(String raw) {
+    final text = _plain(withoutLeadingGreeting(raw)).replaceFirst(RegExp(r'^(?:muchas\\s+)?gracias\\s+'), '');
+    return _helpPhrases.contains(text);
+  }
+
+  /// Hechos reales de una entidad para el contexto de la IA: cuántos registros hay y cómo se llaman los primeros.
+  static String dataFacts(AssistantEntitySchema schema, List<Map<String, dynamic>> rows, {int maxNames = 12}) {
+    final label = plural(schema);
+    if (rows.isEmpty) return '- $label: 0 registros.';
+    final names = rows.take(maxNames).map((row) => rowTitle(schema, row)).where((title) => title.isNotEmpty).toList();
+    final more = rows.length > maxNames ? ' y ${rows.length - maxNames} más' : '';
+    final list = names.isEmpty ? '' : ': ${names.join(', ')}$more';
+    final noun = rows.length == 1 ? 'registro' : 'registros';
+    return '- $label: ${rows.length} $noun$list.';
+  }
 }
 '''
         # Sin _sanitize: ese metodo cambia "¿"/"¡" por "?"/"!" (pensado para YAML) y aqui se necesitan tal cual.
@@ -3935,6 +4019,8 @@ class AssistantTexts {
         content = '''import 'package:flutter_test/flutter_test.dart';
 import 'package:generated_crud_app/assistant/app_schema.dart';
 import 'package:generated_crud_app/assistant/assistant_texts.dart';
+import 'package:generated_crud_app/assistant/business_command.dart';
+import 'package:generated_crud_app/assistant/command_parser.dart';
 
 void main() {
   final entity = AppSchema.entities.first;
@@ -4036,6 +4122,78 @@ void main() {
     expect(AssistantTexts.smallTalkReply('¿tienes un $noun llamado Robot?'), isNull);
     expect(AssistantTexts.smallTalkReply('lista todos los $plural que usas'), isNull);
     expect(AssistantTexts.smallTalkReply('elimina $noun Ejemplo'), isNull);
+  });
+
+  test('orders are recognised by their verb and cleaned of politeness and filler words', () {
+    final noun = AssistantTexts.singular(entity);
+    expect(AssistantTexts.looksLikeOrder('lista todos los $plural'), isTrue);
+    expect(AssistantTexts.looksLikeOrder('por favor, crea un $noun llamado Ana'), isTrue);
+    expect(AssistantTexts.looksLikeOrder('puedes mostrarme los $plural'), isTrue);
+    expect(AssistantTexts.looksLikeOrder('por favor, dame el listado de $plural'), isTrue);
+    expect(AssistantTexts.looksLikeOrder('Hola, elimina $noun Ana'), isTrue);
+    expect(AssistantTexts.looksLikeOrder('¿qué es un $noun en un sistema de gestión?'), isFalse);
+    expect(AssistantTexts.looksLikeOrder('hola'), isFalse);
+    expect(AssistantTexts.looksLikeOrder('gracias'), isFalse);
+    expect(AssistantTexts.looksLikeOrder(''), isFalse);
+
+    expect(AssistantTexts.orderText('Hola, lista todos los $plural'), 'lista los $plural');
+    expect(AssistantTexts.orderText('quiero ver todas las $plural'), 'ver las $plural');
+    expect(AssistantTexts.orderText('crea un $noun llamado Ana'), 'crea un $noun Ana');
+    expect(AssistantTexts.orderText('agrega un nuevo $noun de nombre Carlos'), 'agrega un $noun Carlos');
+    expect(AssistantTexts.orderText('borra al $noun Ana'), 'borra el $noun Ana');
+    expect(AssistantTexts.orderText('crea un $noun con nombre Ana y edad 3'), 'crea un $noun con nombre Ana y edad 3');
+    expect(AssistantTexts.orderText('  muestra   los $plural  '), 'muestra los $plural');
+  });
+
+  test('the rules understand an order given by id and the natural phrasing cleaned by orderText', () {
+    final parser = CommandParser();
+    final noun = AssistantTexts.singular(entity);
+    final key = entity.fields.firstWhere((field) => field.isPrimaryKey);
+    final expectedId = key.dartType == 'int' ? 3 : '3';
+
+    final read = parser.parse(AssistantTexts.orderText('muestra el $noun con id 3'));
+    expect(read.isSuccess, isTrue, reason: read.error);
+    expect(read.command!.action, CommandAction.read);
+    expect(read.command!.filters, {key.name: expectedId});
+
+    final delete = parser.parse(AssistantTexts.orderText('borra al $noun número 3'));
+    expect(delete.isSuccess, isTrue, reason: delete.error);
+    expect(delete.command!.action, CommandAction.delete);
+    expect(delete.command!.filters, {key.name: expectedId});
+
+    final all = parser.parse(AssistantTexts.orderText('lista todos los $plural'));
+    expect(all.isSuccess, isTrue, reason: all.error);
+    expect(all.command!.action, CommandAction.read);
+    expect(all.command!.filters, isEmpty);
+
+    final nameField = entity.nameField;
+    if (nameField != null) {
+      final create = parser.parse(AssistantTexts.orderText('crea un $noun llamado Ana'));
+      expect(create.isSuccess, isTrue, reason: create.error);
+      expect(create.command!.data, {nameField: 'Ana'});
+      final byName = parser.parse(AssistantTexts.orderText('elimina el $noun Ana'));
+      expect(byName.command!.filters, {nameField: 'Ana'});
+    }
+  });
+
+  test('the facts for the AI say how many records exist and name the first ones', () {
+    final pk = entity.pkField.jsonKey;
+    expect(AssistantTexts.dataFacts(entity, const []), '- $plural: 0 registros.');
+    expect(AssistantTexts.dataFacts(entity, [{pk: 1}]), contains('1 registro'));
+    final many = AssistantTexts.dataFacts(entity, [for (var i = 1; i <= 15; i++) {pk: i}], maxNames: 3);
+    expect(many, contains('15 registros'));
+    expect(many, contains('#1'));
+    expect(many, contains('y 12 más'));
+  });
+
+  test('a help request is recognised so its exact text is kept even when the AI is ready', () {
+    expect(AssistantTexts.isHelpRequest('ayuda'), isTrue);
+    expect(AssistantTexts.isHelpRequest('Hola, ¿qué puedes hacer?'), isTrue);
+    expect(AssistantTexts.isHelpRequest('gracias, ¿qué más puedes hacer?'), isTrue);
+    expect(AssistantTexts.isHelpRequest('¿qué más puedes hacer?'), isTrue);
+    expect(AssistantTexts.isHelpRequest('¿en qué me puedes ayudar?'), isTrue);
+    expect(AssistantTexts.isHelpRequest('hola'), isFalse);
+    expect(AssistantTexts.isHelpRequest('lista todos los $plural'), isFalse);
   });
 }
 '''
@@ -4417,13 +4575,14 @@ abstract interface class ModelFetcher {
 /// y lo confirma: la app no descarga nada por su cuenta. Escribe en "<destino>.part" y lo renombra al terminar, asi
 /// nunca queda un modelo a medias con el nombre final.
 class ModelDownloader implements ModelFetcher {
-  /// Qwen2.5-0.5B-Instruct (licencia Apache-2.0), cuantizado Q4_K_M: unos 0,5 GB.
+  /// Qwen2.5-1.5B-Instruct (licencia Apache-2.0), cuantizado Q4_K_M: unos 1,1 GB (1.117.320.736 bytes). Es el menor
+  /// que conversa bien en español; el 0,5B de versiones anteriores solo servia para interpretar ordenes.
   static const String defaultUrl =
-      'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
-  static const String defaultFileName = 'qwen2.5-0.5b-instruct-q4_k_m.gguf';
+      'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf';
+  static const String defaultFileName = 'qwen2.5-1.5b-instruct-q4_k_m.gguf';
 
   /// Un modelo real pesa cientos de MB: algo mas pequeno es una pagina de error, no un modelo.
-  static const int defaultMinBytes = 100 * 1024 * 1024;
+  static const int defaultMinBytes = 500 * 1024 * 1024;
 
   ModelDownloader({HttpClient Function()? clientFactory}) : _clientFactory = clientFactory ?? HttpClient.new;
 
@@ -4723,6 +4882,22 @@ void main() {
       expect(File('${directory.path}/local_model.gguf').existsSync(), isFalse);
     });
 
+    test('a failed upgrade keeps the model that already works instead of leaving the assistant without AI', () async {
+      await File('${directory.path}/local_model.gguf').writeAsBytes([9, 9, 9]);
+      await File('${directory.path}/local_model.meta').writeAsString('qwen2.5-0.5b-instruct-q4_k_m.gguf');
+      final fetcher = _FakeFetcher(error: const SocketException('Failed host lookup'));
+      final manager = managerWith(fetcher, _FakeEngine());
+      await manager.initialize();
+      expect(manager.state, LocalModelState.ready);
+
+      await manager.downloadDefaultModel();
+
+      expect(manager.state, LocalModelState.ready);
+      expect(manager.downloadError, contains('Revisa tu conexión'));
+      expect(manager.modelFileNameLabel, 'qwen2.5-0.5b-instruct-q4_k_m.gguf');
+      expect(await File('${directory.path}/local_model.gguf').readAsBytes(), [9, 9, 9]);
+    });
+
     test('a cancelled download leaves everything as it was, without an error', () async {
       final gate = Completer<void>();
       final fetcher = _FakeFetcher(gate: gate);
@@ -4770,6 +4945,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:generated_crud_app/assistant/assistant_view.dart';
+import 'package:generated_crud_app/assistant/local_llm_chat.dart';
 import 'package:generated_crud_app/assistant/local_model_manager.dart';
 import 'package:generated_crud_app/assistant/model_downloader.dart';
 import 'package:llamadart/llamadart.dart';
@@ -4833,7 +5009,11 @@ void main() {
       downloaderFactory: () => fetcher,
     );
 
-    await tester.pumpWidget(MaterialApp(home: AssistantView(modelManagerFactory: () => manager)));
+    final chat = LocalLlmChat(
+      manager,
+      inferenceOverride: (system, turns) async => 'Sí, soy una IA que corre en tu teléfono.',
+    );
+    await tester.pumpWidget(MaterialApp(home: AssistantView(modelManagerFactory: () => manager, chat: chat)));
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pump();
 
@@ -4858,7 +5038,7 @@ void main() {
     await ask('pero eres una IA si o no??');
     expect(find.textContaining('Estoy descargando la IA local'), findsOneWidget);
 
-    // 3) lista: dice que si
+    // 3) lista: ahora conversa el modelo (aqui, una inferencia falsa) y la respuesta lleva la etiqueta de IA
     fetcher.finish.complete();
     for (var i = 0; i < 40 && manager.state != LocalModelState.ready; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
@@ -4866,7 +5046,8 @@ void main() {
     }
     expect(manager.state, LocalModelState.ready);
     await ask('¿usas inteligencia artificial?');
-    expect(find.textContaining('Sí: uso una IA'), findsOneWidget);
+    expect(find.text('Sí, soy una IA que corre en tu teléfono.'), findsOneWidget);
+    expect(find.text('IA local'), findsOneWidget);
   });
 
   testWidgets('offers to download the local AI, asks first, and downloads only when confirmed', (tester) async {
@@ -5107,7 +5288,7 @@ class LocalModelManager extends ChangeNotifier {
     }
   }
 
-  /// Descarga el modelo por defecto (Qwen2.5-0.5B, ~0,5 GB) a almacenamiento propio de la app y lo carga. Solo se
+  /// Descarga el modelo por defecto (Qwen2.5-1.5B, ~1,1 GB) a almacenamiento propio de la app y lo carga. Solo se
   /// llama por una accion explicita de la persona (la pantalla pide confirmacion antes). Si se cancela, todo queda como
   /// estaba y sin error; si falla, [state] pasa a error con [downloadError] en lenguaje claro.
   Future<void> downloadDefaultModel() async {
@@ -5136,7 +5317,8 @@ class LocalModelManager extends ChangeNotifier {
     } catch (error) {
       _downloadError = 'No se pudo descargar la IA local. Revisa tu conexión e inténtalo de nuevo.';
       _errorMessage = 'Descarga fallida: $error';
-      _state = LocalModelState.error;
+      // Quien ya tiene un modelo que funciona (actualizando al nuevo) no se queda sin IA por una descarga fallida.
+      if (_state != LocalModelState.ready) _state = LocalModelState.error;
     } finally {
       _isDownloading = false;
       _downloadProgress = null;
@@ -5273,6 +5455,453 @@ class LocalModelManager extends ChangeNotifier {
 '''
         (base_path / 'lib' / 'assistant' / 'local_model_manager.dart').write_text(
             self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_local_llm_chat(self, base_path):
+        """Genera lib/assistant/local_llm_chat.dart: conversación en lenguaje natural con el modelo local, especializada
+        en sistemas de gestión (prompt armado con AppSchema en tiempo de ejecución: el archivo es idéntico para cualquier
+        esquema)."""
+        content = '''import 'dart:async';
+
+import 'package:llamadart/llamadart.dart';
+
+import 'app_schema.dart';
+import 'assistant_texts.dart';
+import 'local_model_manager.dart';
+
+/// Un turno de la conversación: lo que dijo la persona o lo que respondió el asistente.
+class ChatTurn {
+  final String text;
+  final bool isUser;
+  const ChatTurn(this.text, {required this.isUser});
+}
+
+/// Inferencia de texto libre: recibe el prompt de sistema y los turnos y devuelve la respuesta. Inyectable en pruebas.
+typedef LocalLlmChatInference = Future<String> Function(String systemPrompt, List<ChatTurn> turns);
+
+/// Conversación en lenguaje natural con el modelo local, especializada en sistemas de gestión.
+///
+/// El modelo recibe un prompt de sistema armado en tiempo de ejecución con lo que la app realmente tiene (nombre,
+/// entidades y campos del esquema, lo que sí y lo que no puede hacer) y, cuando la pregunta nombra una entidad, los
+/// datos reales (cuántos registros hay y cómo se llaman). Así conversa sin inventar capacidades ni datos. Este archivo
+/// nunca nombra una entidad ni un campo de un proyecto concreto.
+///
+/// Las órdenes sobre los datos (crear, cambiar, eliminar, consultar) NO pasan por aquí: siguen por el camino seguro
+/// (extractor + validador + router). Esta clase solo conversa. [reply] devuelve null si no hay modelo listo, si falla,
+/// si tarda más del tiempo permitido o si no dice nada; el llamador entonces usa los textos fijos de siempre.
+class LocalLlmChat {
+  LocalLlmChat(
+    this.modelManager, {
+    LocalLlmChatInference? inferenceOverride,
+    this.timeout = const Duration(seconds: 40),
+    this.maxTurns = 8,
+  }) : _inferenceOverride = inferenceOverride;
+
+  final LocalModelManager modelManager;
+  final LocalLlmChatInference? _inferenceOverride;
+  final Duration timeout;
+
+  /// Cuántos turnos recientes se recuerdan (el prompt se mantiene pequeño: el modelo corre en el teléfono).
+  final int maxTurns;
+
+  final List<ChatTurn> _history = [];
+
+  List<ChatTurn> get history => List.unmodifiable(_history);
+
+  /// Anota un intercambio que no pasó por el modelo (por ejemplo, el resultado de una orden) para dar contexto.
+  void remember(String userText, String assistantText) => _add(userText, assistantText);
+
+  void clear() => _history.clear();
+
+  void _add(String userText, String assistantText) {
+    _history
+      ..add(ChatTurn(userText, isUser: true))
+      ..add(ChatTurn(assistantText, isUser: false));
+    while (_history.length > maxTurns) {
+      _history.removeAt(0);
+    }
+  }
+
+  /// Respuesta del modelo a [userText]. [dataContext] son hechos reales de los datos de la app (ver
+  /// [AssistantTexts.dataFacts]). Devuelve null si no se pudo conversar (sin modelo, error, tiempo agotado o vacío).
+  Future<String?> reply(String userText, {String dataContext = ''}) async {
+    final text = userText.trim();
+    if (text.isEmpty) return null;
+    final override = _inferenceOverride;
+    if (override == null && modelManager.state != LocalModelState.ready) return null;
+    final turns = [..._history, ChatTurn(text, isUser: true)];
+    try {
+      final run = override ?? _runRealInference;
+      final raw = await run(systemPrompt(dataContext: dataContext), turns).timeout(timeout);
+      final answer = clean(raw);
+      if (answer.isEmpty) return null;
+      _add(text, answer);
+      return answer;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Quita espacios, una etiqueta de hablante al inicio ("Asistente: ...") y saltos de línea de más.
+  static String clean(String raw) {
+    var text = raw.trim();
+    text = text.replaceFirst(RegExp(r'^(?:asistente|ia|respuesta)\\s*:\\s*', caseSensitive: false), '');
+    text = text.replaceAll(RegExp(r'\\n{3,}'), '\\n\\n');
+    return text.trim();
+  }
+
+  /// Quién es el asistente, qué sabe de esta app, qué puede y qué no puede hacer, y los datos reales de la consulta.
+  static String systemPrompt({String dataContext = ''}) {
+    final buffer = StringBuffer();
+    buffer.writeln(
+      'Eres el asistente de la aplicación «${AppSchema.appName}», un sistema de gestión. '
+      'Hablas en español, de forma clara, amable y breve (máximo 3 frases). '
+      'Conoces los sistemas de gestión en general (contabilidad, inventario, ventas, personal, escolares...) '
+      'y explicas sus conceptos con sencillez.',
+    );
+    buffer.writeln('Los datos de esta aplicación son: ${_entitiesDescription()}.');
+    buffer.writeln(
+      'Lo que SÍ puedes hacer: conversar, explicar conceptos de gestión, guiar a la persona en esta app y responder '
+      'usando los datos reales que aparecen abajo. Las órdenes sobre los datos las ejecuta la app cuando la persona '
+      'las escribe así: ${_exampleOrders()}.',
+    );
+    buffer.writeln(
+      'Cuando pregunten cómo hacer algo con los datos, responde con la orden exacta que deben escribir '
+      '(por ejemplo: ${_exampleOrders()}); no inventes menús, botones ni pantallas.',
+    );
+    buffer.writeln(
+      'Lo que NO puedes hacer: NO puedes buscar en internet, enviar mensajes o correos, programar eventos ni nada '
+      'fuera de esta app. Si te lo piden, dilo con claridad.',
+    );
+    buffer.writeln(
+      'No inventes datos ni registros: usa solo los datos reales de abajo; si no los tienes, dilo y sugiere una orden. '
+      'Eres una IA local: funcionas dentro del teléfono, sin internet.',
+    );
+    if (dataContext.trim().isNotEmpty) {
+      buffer.writeln('Datos reales ahora mismo:');
+      buffer.writeln(dataContext.trim());
+    }
+    return buffer.toString().trim();
+  }
+
+  static String _entitiesDescription() {
+    if (AppSchema.entities.isEmpty) return 'ninguno todavía';
+    return AppSchema.entities.map((entity) {
+      final fields = entity.fields.where((f) => !f.isPrimaryKey).map((f) => f.name).join(', ');
+      return fields.isEmpty ? entity.name : '${entity.name} (campos: $fields)';
+    }).join('; ');
+  }
+
+  static String _exampleOrders() {
+    if (AppSchema.entities.isEmpty) return 'consultar, crear, cambiar o eliminar registros';
+    return AssistantTexts.suggestions().take(2).map((s) => '«$s»').join(', ');
+  }
+
+  Future<String> _runRealInference(String system, List<ChatTurn> turns) async {
+    final engine = modelManager.engine;
+    if (engine == null) {
+      throw StateError('El modelo local no esta listo.');
+    }
+    final messages = <LlamaChatMessage>[
+      LlamaChatMessage.fromText(role: LlamaChatRole.system, text: system),
+      for (final turn in turns)
+        LlamaChatMessage.fromText(
+          role: turn.isUser ? LlamaChatRole.user : LlamaChatRole.assistant,
+          text: turn.text,
+        ),
+    ];
+    final buffer = StringBuffer();
+    await for (final chunk in engine.create(
+      messages,
+      params: const GenerationParams(temp: 0.4, maxTokens: 200, penalty: 1.1),
+    )) {
+      if (chunk.choices.isEmpty) continue;
+      final content = chunk.choices.first.delta.content;
+      if (content != null) buffer.write(content);
+    }
+    return buffer.toString();
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'local_llm_chat.dart').write_text(
+            unicodedata.normalize("NFC", content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_local_llm_chat_tests(self, base_path):
+        """Genera las pruebas del chat (unitarias) y de la pantalla (ruta orden/charla, etiqueta de origen, respaldo)."""
+        chat_test = '''import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/app_schema.dart';
+import 'package:generated_crud_app/assistant/assistant_texts.dart';
+import 'package:generated_crud_app/assistant/local_llm_chat.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+
+void main() {
+  final plural = AssistantTexts.plural(AppSchema.entities.first);
+
+  test('the system prompt makes it a management assistant that knows the app, its data and its limits', () {
+    final prompt = LocalLlmChat.systemPrompt(dataContext: '- $plural: 2 registros: Uno, Dos.');
+    expect(prompt, contains(AppSchema.appName));
+    expect(prompt, contains('sistema de gestión'));
+    expect(prompt, contains('NO puedes buscar en internet'));
+    expect(prompt, contains('Eres una IA local'));
+    expect(prompt, contains('No inventes'));
+    for (final entity in AppSchema.entities) {
+      expect(prompt, contains(entity.name));
+    }
+    expect(prompt, contains('Muéstrame los $plural'));
+    expect(prompt, contains('Datos reales ahora mismo:'));
+    expect(prompt, contains('- $plural: 2 registros: Uno, Dos.'));
+    expect(LocalLlmChat.systemPrompt(), isNot(contains('Datos reales ahora mismo:')));
+  });
+
+  test('replies with the model text, remembers the conversation and sends it back next time', () async {
+    final seen = <List<ChatTurn>>[];
+    final chat = LocalLlmChat(
+      LocalModelManager(),
+      inferenceOverride: (system, turns) async {
+        seen.add(List.of(turns));
+        return 'Respuesta ${seen.length}';
+      },
+    );
+    expect(await chat.reply('hola'), 'Respuesta 1');
+    expect(await chat.reply('¿y tú?'), 'Respuesta 2');
+    expect(seen.last.map((t) => t.text), ['hola', 'Respuesta 1', '¿y tú?']);
+    expect(seen.last.map((t) => t.isUser), [true, false, true]);
+  });
+
+  test('passes the real data and the system prompt to the model on every question', () async {
+    String? seenSystem;
+    final chat = LocalLlmChat(
+      LocalModelManager(),
+      inferenceOverride: (system, turns) async {
+        seenSystem = system;
+        return 'Hay dos.';
+      },
+    );
+    await chat.reply('¿cuántos hay?', dataContext: '- $plural: 2 registros: Uno, Dos.');
+    expect(seenSystem, contains('- $plural: 2 registros: Uno, Dos.'));
+    expect(seenSystem, contains('NO puedes buscar en internet'));
+  });
+
+  test('remembers an exchange that did not go through the model, to give the next question some context', () async {
+    final seen = <List<ChatTurn>>[];
+    final chat = LocalLlmChat(
+      LocalModelManager(),
+      inferenceOverride: (system, turns) async {
+        seen.add(List.of(turns));
+        return 'ok';
+      },
+    );
+    chat.remember('muéstrame los $plural', 'Encontré 2 $plural.');
+    await chat.reply('¿y cuál es el primero?');
+    expect(seen.single.map((t) => t.text), ['muéstrame los $plural', 'Encontré 2 $plural.', '¿y cuál es el primero?']);
+    chat.clear();
+    expect(chat.history, isEmpty);
+  });
+
+  test('keeps only the most recent turns so the prompt stays small', () async {
+    final seen = <List<ChatTurn>>[];
+    final chat = LocalLlmChat(
+      LocalModelManager(),
+      maxTurns: 4,
+      inferenceOverride: (system, turns) async {
+        seen.add(List.of(turns));
+        return 'ok';
+      },
+    );
+    for (var i = 1; i <= 5; i++) {
+      await chat.reply('pregunta $i');
+    }
+    expect(seen.last.length, 5);
+    expect(seen.last.first.text, 'pregunta 3');
+    expect(chat.history.length, 4);
+  });
+
+  test('returns null so the caller can use the fixed texts: no model, failure, empty answer or timeout', () async {
+    expect(await LocalLlmChat(LocalModelManager()).reply('hola'), isNull);
+    expect(await LocalLlmChat(LocalModelManager(), inferenceOverride: (s, t) async => '   ').reply('hola'), isNull);
+    final failing = LocalLlmChat(LocalModelManager(), inferenceOverride: (s, t) async => throw StateError('boom'));
+    expect(await failing.reply('hola'), isNull);
+    expect(failing.history, isEmpty);
+    final slow = LocalLlmChat(
+      LocalModelManager(),
+      timeout: const Duration(milliseconds: 20),
+      inferenceOverride: (s, t) async {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        return 'tarde';
+      },
+    );
+    expect(await slow.reply('hola'), isNull);
+    expect(await LocalLlmChat(LocalModelManager(), inferenceOverride: (s, t) async => 'x').reply('   '), isNull);
+  });
+
+  test('cleans the answer: trims, drops a speaker label and collapses blank lines', () async {
+    expect(LocalLlmChat.clean('  Asistente:   Hola  '), 'Hola');
+    expect(LocalLlmChat.clean('Uno\\n\\n\\n\\nDos'), 'Uno\\n\\nDos');
+    final chat = LocalLlmChat(LocalModelManager(), inferenceOverride: (s, t) async => 'IA: Con gusto.');
+    expect(await chat.reply('hola'), 'Con gusto.');
+  });
+}
+'''
+        view_test = '''import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/app_schema.dart';
+import 'package:generated_crud_app/assistant/assistant_texts.dart';
+import 'package:generated_crud_app/assistant/assistant_view.dart';
+import 'package:generated_crud_app/assistant/command_router.dart';
+import 'package:generated_crud_app/assistant/local_llm_chat.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+import 'package:generated_crud_app/assistant/model_downloader.dart';
+import 'package:llamadart/llamadart.dart';
+
+class _FakeEngine implements LocalModelEngineHandle {
+  @override
+  LlamaEngine? get engine => null;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+Future<LocalModelManager> _manager(WidgetTester tester, {required bool withModel, String? label}) async {
+  final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('assistant-chat-')))!;
+  addTearDown(() => directory.deleteSync(recursive: true));
+  if (withModel) File('${directory.path}/local_model.gguf').writeAsBytesSync([1, 2, 3]);
+  if (withModel && label != null) File('${directory.path}/local_model.meta').writeAsStringSync(label);
+  return LocalModelManager(engineFactory: _FakeEngine.new, modelDirectoryProvider: () async => directory);
+}
+
+Future<void> _open(WidgetTester tester, LocalModelManager manager, LocalLlmChat chat, {required bool withModel}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: AssistantView(
+        router: CommandRouter(registry: const {}),
+        modelManagerFactory: () => manager,
+        chat: chat,
+      ),
+    ),
+  );
+  // la carga del modelo usa archivos reales: se alterna espera real y pump hasta que termine
+  for (var i = 0; i < 40; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+    if (!withModel || manager.state == LocalModelState.ready) return;
+  }
+}
+
+Future<void> _ask(WidgetTester tester, String text) async {
+  await tester.enterText(find.byType(TextField), text);
+  await tester.tap(find.byIcon(Icons.send));
+  await tester.pump();
+  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.pump();
+}
+
+void main() {
+  final noun = AssistantTexts.singular(AppSchema.entities.first);
+
+  testWidgets('conversation goes to the AI and the answer is marked as AI', (tester) async {
+    final manager = await _manager(tester, withModel: true);
+    final systems = <String>[];
+    final chat = LocalLlmChat(
+      manager,
+      inferenceOverride: (system, turns) async {
+        systems.add(system);
+        return 'Con gusto: te explico qué es eso.';
+      },
+    );
+    await _open(tester, manager, chat, withModel: true);
+    expect(manager.state, LocalModelState.ready);
+
+    await _ask(tester, 'hola');
+    expect(find.text('Con gusto: te explico qué es eso.'), findsOneWidget);
+    expect(find.textContaining('Soy tu asistente'), findsNothing);
+    expect(find.text('IA local'), findsOneWidget);
+
+    await _ask(tester, '¿qué es un $noun en un sistema de gestión?');
+    expect(find.text('Con gusto: te explico qué es eso.'), findsNWidgets(2));
+    expect(find.text('IA local'), findsNWidgets(2));
+    expect(systems.length, 2);
+    expect(systems.last, contains('NO puedes buscar en internet'));
+  });
+
+  testWidgets('a help request keeps its exact text even when the AI is ready', (tester) async {
+    final manager = await _manager(tester, withModel: true);
+    var calls = 0;
+    final chat = LocalLlmChat(
+      manager,
+      inferenceOverride: (system, turns) async {
+        calls++;
+        return 'no debería usarse';
+      },
+    );
+    await _open(tester, manager, chat, withModel: true);
+    expect(manager.state, LocalModelState.ready);
+
+    await _ask(tester, 'ayuda');
+    expect(calls, 0);
+    expect(find.textContaining('muéstrame los'), findsWidgets);
+    expect(find.text('Respuesta de la app'), findsOneWidget);
+  });
+
+  testWidgets('without a model the fixed texts are used and marked as app replies', (tester) async {
+    final manager = await _manager(tester, withModel: false);
+    var calls = 0;
+    final chat = LocalLlmChat(
+      manager,
+      inferenceOverride: (system, turns) async {
+        calls++;
+        return 'no debería usarse';
+      },
+    );
+    await _open(tester, manager, chat, withModel: false);
+    expect(manager.state, LocalModelState.notConfigured);
+
+    await _ask(tester, 'hola');
+    expect(calls, 0);
+    expect(find.textContaining('Soy tu asistente'), findsOneWidget);
+    expect(find.text('Respuesta de la app'), findsOneWidget);
+    expect(find.text('IA local'), findsNothing);
+  });
+
+  testWidgets('a person with the smaller model of earlier versions is offered the improved AI', (tester) async {
+    final manager = await _manager(tester, withModel: true, label: 'qwen2.5-0.5b-instruct-q4_k_m.gguf');
+    final chat = LocalLlmChat(manager, inferenceOverride: (system, turns) async => 'ok');
+    await _open(tester, manager, chat, withModel: true);
+    expect(manager.state, LocalModelState.ready);
+    expect(find.text('Descargar IA mejorada'), findsOneWidget);
+  });
+
+  testWidgets('a person who already has the current model is not offered anything to download', (tester) async {
+    final manager = await _manager(tester, withModel: true, label: ModelDownloader.defaultFileName);
+    final chat = LocalLlmChat(manager, inferenceOverride: (system, turns) async => 'ok');
+    await _open(tester, manager, chat, withModel: true);
+    expect(manager.state, LocalModelState.ready);
+    expect(find.text('Descargar IA mejorada'), findsNothing);
+    expect(find.text('IA local lista'), findsOneWidget);
+  });
+
+  testWidgets('when the AI fails, the assistant falls back to the fixed help instead of leaving the person without an answer', (tester) async {
+    final manager = await _manager(tester, withModel: true);
+    final chat = LocalLlmChat(manager, inferenceOverride: (system, turns) async => throw StateError('boom'));
+    await _open(tester, manager, chat, withModel: true);
+    expect(manager.state, LocalModelState.ready);
+
+    await _ask(tester, '¿qué es un $noun en un sistema de gestión?');
+    expect(find.textContaining('No logré entender'), findsOneWidget);
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'local_llm_chat_test.dart').write_text(
+            unicodedata.normalize("NFC", chat_test), encoding="utf-8", newline="\n"
+        )
+        (base_path / 'test' / 'assistant' / 'assistant_chat_view_test.dart').write_text(
+            unicodedata.normalize("NFC", view_test), encoding="utf-8", newline="\n"
         )
 
     def _generate_local_llm_command_extractor(self, base_path):
@@ -5470,6 +6099,37 @@ class LocalLlmCommandExtractor {
     buffer.writeln(
         'En esas formas reemplaza <valor solicitado> por el valor real de '
         'la instruccion; no lo copies en "entity".');
+    // Formas de CREATE / UPDATE / DELETE con los nombres de campo reales: sin ellas el modelo adivina nombres de campo
+    // ("nombre" en vez del campo real) y la orden se rechaza. Solo una entidad de ejemplo: el prompt debe seguir corto.
+    final example = AppSchema.entities.where((entity) => entity.nameField != null).firstOrNull;
+    if (example != null) {
+      final nameField = example.nameField!;
+      final pk = example.pkField.name;
+      buffer.writeln(
+          'Formas de las demas acciones (con los nombres de campo reales; para cada entidad usa SUS campos):');
+      buffer.writeln('- ${jsonEncode({
+        'action': 'create',
+        'entity': example.name,
+        'data': {nameField: '<valor>'},
+        'filters': <String, dynamic>{},
+      })}');
+      buffer.writeln('- ${jsonEncode({
+        'action': 'update',
+        'entity': example.name,
+        'data': {nameField: '<nuevo valor>'},
+        'filters': {pk: '<id>'},
+      })}');
+      buffer.writeln('- ${jsonEncode({
+        'action': 'delete',
+        'entity': example.name,
+        'data': <String, dynamic>{},
+        'filters': {pk: '<id>'},
+      })}');
+      buffer.writeln(
+          'Si la persona da un numero para identificar un registro, ese numero es el id y va en "filters" bajo la '
+          'clave primaria. Reemplaza lo que esta entre < > por el valor real de la instruccion; nunca inventes valores '
+          'que la persona no dijo.');
+    }
     buffer.writeln();
     buffer.writeln('Instruccion del usuario: "$rawText"');
     buffer.writeln(
@@ -5587,6 +6247,27 @@ class LocalLlmCommandExtractor {
     // al pie de la letra y respondia "Sin resultados"). Se descartan SOLO en filtros, nunca en data: un registro
     // puede llamarse "*todos*". Un DELETE/UPDATE que quede sin filtros se rechaza mas abajo: nunca borra "todo".
     final wildcardOnly = RegExp(r'^[*%?_.\\s]+$');
+    // Un valor como "<valor solicitado>" es texto de la plantilla del prompt copiado tal cual por el modelo
+    // (visto con el modelo real): no es un dato de la persona, en ningun campo ni accion.
+    final placeholder = RegExp(r'^\\s*<[^>]*>\\s*$');
+
+    // El modelo pequeno manda numeros como texto ("id": "3"): se aceptan como numero en los campos numericos.
+    // Un valor que la persona nunca dijo no es suyo: el modelo pequeno copia valores de los ejemplos del prompt
+    // (visto con el modelo real: "muestra los X" llegaba con filters {id: 3}) o los inventa. Cada valor debe aparecer
+    // en lo que dijo o escribio (sin mayusculas ni acentos); si no, se descarta y la orden se rechaza o queda mas amplia.
+    String flat(String text) => AppSchema.normalize(text).replaceAll(',', '.');
+    final spoken = flat(rawText);
+    bool grounded(Object? value) {
+      if (value is bool) return true;
+      final text = flat('$value').trim();
+      return text.isNotEmpty && spoken.contains(text);
+    }
+
+    Object? coerce(AssistantFieldSchema field, Object? value) {
+      if (value is String && field.dartType == 'int') return int.tryParse(value.trim()) ?? value;
+      if (value is String && field.dartType == 'double') return double.tryParse(value.trim().replaceAll(',', '.')) ?? value;
+      return value;
+    }
 
     Map<String, dynamic> keepKnownNonEmptyFields(
       Map<String, dynamic> source, {
@@ -5597,10 +6278,12 @@ class LocalLlmCommandExtractor {
       for (final entry in source.entries) {
         if (entry.value == null) continue;
         if (entry.value is String && (entry.value as String).trim().isEmpty) continue;
+        if (entry.value is String && placeholder.hasMatch(entry.value as String)) continue;
+        if (!grounded(entry.value)) continue;
         if (dropWildcards && entry.value is String && wildcardOnly.hasMatch(entry.value as String)) continue;
         final field = entity.fieldByName(entry.key);
         if (field != null && (!writableOnly || field.writable)) {
-          result[entry.key] = entry.value;
+          result[entry.key] = coerce(field, entry.value);
         }
       }
       return result;
@@ -5616,18 +6299,40 @@ class LocalLlmCommandExtractor {
         return _NormalizedCommandFields(const {}, cleanFilters);
 
       case CommandAction.update:
+        var dataSource = data;
+        var filterSource = filters;
+        if (data.isEmpty) {
+          // Visto con el modelo real: "data" vacio y el valor nuevo junto al id en "filters". Si hay una clave primaria,
+          // ella ubica el registro y lo demas es el valor nuevo.
+          final keys = <String, dynamic>{};
+          final values = <String, dynamic>{};
+          for (final entry in filters.entries) {
+            final field = entity.fieldByName(entry.key);
+            if (field != null && field.isPrimaryKey) {
+              keys[entry.key] = entry.value;
+            } else {
+              values[entry.key] = entry.value;
+            }
+          }
+          if (keys.isNotEmpty && values.isNotEmpty) {
+            dataSource = values;
+            filterSource = keys;
+          }
+        }
         final cleanData = <String, dynamic>{};
-        for (final entry in keepKnownNonEmptyFields(data, writableOnly: true).entries) {
+        for (final entry in keepKnownNonEmptyFields(dataSource, writableOnly: true).entries) {
           if (entity.fieldByName(entry.key)!.isPrimaryKey) continue;
           cleanData[entry.key] = entry.value;
         }
-        final cleanFilters = keepKnownNonEmptyFields(filters, dropWildcards: true);
+        final cleanFilters = keepKnownNonEmptyFields(filterSource, dropWildcards: true);
         if (cleanData.isEmpty || cleanFilters.isEmpty) return null;
         return _NormalizedCommandFields(cleanData, cleanFilters);
 
       case CommandAction.create:
         final cleanData = <String, dynamic>{};
-        for (final entry in keepKnownNonEmptyFields(data, writableOnly: true).entries) {
+        // El modelo pequeno a veces pone los campos del registro nuevo en "filters" y deja "data" vacio (visto con el
+        // modelo real: "crea un X Valor" -> filters {campo: Valor}). Los valores salen de la frase; "data" manda.
+        for (final entry in keepKnownNonEmptyFields({...filters, ...data}, writableOnly: true).entries) {
           final field = entity.fieldByName(entry.key)!;
           if (field.isPrimaryKey && field.isAutoIncrement) continue;
           cleanData[entry.key] = entry.value;
@@ -6074,7 +6779,7 @@ void main() {
       rawInferenceOverride: (prompt) async =>
           '{"action":"read","entity":__ENTITY_JSON__,"data":{},"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno"}}',
     );
-    final result = await extractor.extract('muestrame ese');
+    final result = await extractor.extract('muestrame ese Ejemplo Uno');
     expect(result.isSuccess, isTrue, reason: result.error);
     expect(result.command!.action, CommandAction.read);
     expect(result.command!.filters[__NAME_FIELD__], 'Ejemplo Uno');
@@ -6155,7 +6860,7 @@ void main() {
       rawInferenceOverride: (prompt) async =>
           '{"action":"update","entity":__ENTITY_JSON__,"data":{__UPDATE_FIELD_JSON__:"nuevo"},"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno"}}',
     );
-    final result = await extractor.extract('actualiza ese');
+    final result = await extractor.extract('actualiza ese Ejemplo Uno a nuevo');
     expect(result.isSuccess, isTrue, reason: result.error);
     expect(result.command!.action, CommandAction.update);
     expect(result.command!.data[__UPDATE_FIELD__], 'nuevo');
@@ -6168,7 +6873,7 @@ void main() {
       rawInferenceOverride: (prompt) async =>
           '{"action":"delete","entity":__ENTITY_JSON__,"data":{},"filters":{__NAME_FIELD_JSON__:"Ejemplo Uno"}}',
     );
-    final result = await extractor.extract('elimina ese');
+    final result = await extractor.extract('elimina ese Ejemplo Uno');
     expect(result.isSuccess, isTrue, reason: result.error);
     expect(result.command!.action, CommandAction.delete);
 
@@ -6391,6 +7096,159 @@ void main() {
     expect(result.command!.filters, isEmpty);
   });
 
+  test('READ drops a template placeholder such as "<valor solicitado>" copied from the prompt', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"read","entity":__ENTITY_JSON__,'
+          '"data":{},"filters":{__NAME_FIELD_JSON__:"<valor solicitado>"}}',
+    );
+    final result = await extractor.extract('necesito ver ${schema.name.toLowerCase()}');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.filters, isEmpty);
+  });
+
+  test('DELETE with only a template placeholder is rejected, never a mass delete', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"delete","entity":__ENTITY_JSON__,'
+          '"data":{},"filters":{__NAME_FIELD_JSON__:"<id>"}}',
+    );
+    final result = await extractor.extract('elimina ${schema.name.toLowerCase()} Ejemplo');
+    expect(result.isSuccess, isFalse);
+  });
+
+  test('the prompt teaches the model the real field names for every action, not only READ', () async {
+    String? seen;
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async {
+        seen = prompt;
+        return '{"action":"unknown","entity":__ENTITY_JSON__,"data":{},"filters":{}}';
+      },
+    );
+    await extractor.extract('hola');
+    expect(seen, contains('"action":"create"'));
+    expect(seen, contains('"action":"update"'));
+    expect(seen, contains('"action":"delete"'));
+    expect(seen, contains('Formas de las demas acciones'));
+    expect(seen, contains(__NAME_FIELD_JSON__));
+    expect(seen, contains(schema.pkField.name));
+  });
+
+  test('CREATE accepts the fields the small model put under "filters" instead of "data" (seen with the real model)', () async {
+    final createData = _completeCreateData(schema);
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'create',
+        'entity': __ENTITY__,
+        'data': <String, dynamic>{},
+        'filters': createData,
+      }),
+    );
+    final result = await extractor.extract(_groundedCreateText(schema, createData));
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.data, createData);
+    expect(result.command!.filters, isEmpty);
+  });
+
+  test('UPDATE with the new value next to the id under "filters" is split: the key locates, the rest is the new data', () async {
+    final key = schema.pkField;
+    final nameField = schema.fieldByName(__NAME_FIELD__)!;
+    if (key.name == nameField.name) return;
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'update',
+        'entity': __ENTITY__,
+        'data': <String, dynamic>{},
+        'filters': {key.name: '1', nameField.name: 'Nuevo'},
+      }),
+    );
+    final result = await extractor.extract('actualiza ${schema.name.toLowerCase()} 1 a Nuevo');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.action, CommandAction.update);
+    expect(result.command!.filters, {key.name: key.dartType == 'int' ? 1 : '1'});
+    expect(result.command!.data, {nameField.name: 'Nuevo'});
+  });
+
+  test('a numeric id sent as text is accepted as a number', () async {
+    if (schema.pkField.dartType != 'int') return;
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'read',
+        'entity': __ENTITY__,
+        'data': <String, dynamic>{},
+        'filters': {schema.pkField.name: '3'},
+      }),
+    );
+    final result = await extractor.extract('muestra ${schema.name.toLowerCase()} 3');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.filters, {schema.pkField.name: 3});
+  });
+
+  test('READ drops a filter value the person never said (the small model copies example values from the prompt)', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'read',
+        'entity': __ENTITY__,
+        'data': <String, dynamic>{},
+        'filters': {__NAME_FIELD__: 'Inventado XYZ'},
+      }),
+    );
+    final result = await extractor.extract('muestra ${schema.name.toLowerCase()}');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.filters, isEmpty);
+  });
+
+  test('DELETE with a value the person never said is rejected, never a delete of something else', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'delete',
+        'entity': __ENTITY__,
+        'data': <String, dynamic>{},
+        'filters': {schema.pkField.name: 3},
+      }),
+    );
+    final result = await extractor.extract('elimina ${schema.name.toLowerCase()} Ejemplo');
+    expect(result.isSuccess, isFalse);
+  });
+
+  test('a value is accepted when the person said it, ignoring case and accents', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async => jsonEncode({
+        'action': 'read',
+        'entity': __ENTITY__,
+        'data': <String, dynamic>{},
+        'filters': {__NAME_FIELD__: 'Pérez'},
+      }),
+    );
+    final result = await extractor.extract('MUESTRA ${schema.name.toLowerCase()} perez');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.filters, {__NAME_FIELD__: 'Pérez'});
+  });
+
+  test('the prompt carries no example numbers or values the model could copy as if the person had said them', () async {
+    String? seen;
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async {
+        seen = prompt;
+        return '{"action":"unknown","entity":__ENTITY_JSON__,"data":{},"filters":{}}';
+      },
+    );
+    await extractor.extract('hola');
+    final promptWithoutTheSentence = seen!.split('Instruccion del usuario:').first;
+    expect(RegExp(r'\\b(?:id|numero|registro)\\s+\\d').hasMatch(promptWithoutTheSentence), isFalse);
+    expect(promptWithoutTheSentence, contains('nunca inventes valores'));
+  });
+
   test('DELETE with only a wildcard filter is rejected, never a mass delete', () async {
     final extractor = LocalLlmCommandExtractor(
       LocalModelManager(),
@@ -6469,13 +7327,16 @@ void main() {
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'app_schema.dart';
 import 'assistant_texts.dart';
 import 'business_command.dart';
 import 'command_parser.dart';
 import 'command_router.dart';
 import 'command_validator.dart';
+import 'local_llm_chat.dart';
 import 'local_llm_command_extractor.dart';
 import 'local_model_manager.dart';
+import 'model_downloader.dart';
 import 'voice_input_controller.dart';
 
 class AssistantHistoryEntry {
@@ -6491,11 +7352,15 @@ class AssistantHistoryEntry {
   /// true para lo que escribio o dijo la persona; false para las respuestas del asistente.
   final bool isUser;
 
+  /// true para el aviso "Pensando…" mientras el asistente trabaja (no es una respuesta: sin etiqueta de origen).
+  final bool isPending;
+
   const AssistantHistoryEntry(
     this.text, {
     this.isError = false,
     this.usedLocalAi = false,
     this.isUser = false,
+    this.isPending = false,
   });
 }
 
@@ -6530,11 +7395,15 @@ class AssistantView extends StatefulWidget {
   /// observed without exposing production internals.
   final LocalModelManager Function()? modelManagerFactory;
 
+  /// Only meant for tests: injects the conversation with the local AI (e.g. with a fake inference).
+  final LocalLlmChat? chat;
+
   const AssistantView({
     super.key,
     this.router,
     this.modelManager,
     this.modelManagerFactory,
+    this.chat,
   });
 
   @override
@@ -6554,6 +7423,8 @@ class _AssistantViewState extends State<AssistantView> {
       LocalModelManager();
   late final LocalLlmCommandExtractor _localLlmExtractor =
       LocalLlmCommandExtractor(_modelManager);
+  late final LocalLlmChat _chat = widget.chat ?? LocalLlmChat(_modelManager);
+  String? _lastUserText;
   final _voice = VoiceInputController();
   final List<AssistantHistoryEntry> _history = [];
   bool _voiceAvailable = false;
@@ -6621,14 +7492,26 @@ class _AssistantViewState extends State<AssistantView> {
     _scrollToEnd();
     _controller.clear();
 
-    // Saludos, gracias y ayuda se contestan sin consultar ni a la IA ni al interprete: "hola" ya no es una consulta.
-    final smallTalk = AssistantTexts.smallTalkReply(text, ai: _aiState);
-    if (smallTalk != null) {
-      _appendResult(smallTalk);
-      return;
+    _lastUserText = text;
+    final aiReady = _modelManager.state == LocalModelState.ready;
+    // Sin IA (o con la ayuda, que es un texto exacto), saludos, gracias y ayuda se contestan con textos fijos:
+    // "hola" nunca es una consulta.
+    if (!aiReady || AssistantTexts.isHelpRequest(text)) {
+      final smallTalk = AssistantTexts.smallTalkReply(text, ai: _aiState);
+      if (smallTalk != null) {
+        _appendResult(smallTalk);
+        return;
+      }
     }
-    // "hola, muestrame los empleados": se ignora el saludo inicial.
-    final commandText = AssistantTexts.withoutLeadingGreeting(text);
+    // "por favor, lista todos los empleados": sin cortesias ni rodeos para que lo entienda el interprete.
+    final commandText = AssistantTexts.orderText(text);
+
+    // Con la IA lista, lo que no es una orden sobre los datos es conversacion: la responde el modelo.
+    var aiTried = false;
+    if (aiReady && !AssistantTexts.looksLikeOrder(text)) {
+      aiTried = true;
+      if (await _talkWithAi(text)) return;
+    }
 
     try {
       BusinessCommand? command;
@@ -6649,6 +7532,8 @@ class _AssistantViewState extends State<AssistantView> {
       final parsed = command == null ? _parser.parse(commandText) : null;
       if (command == null) {
         if (!parsed!.isSuccess) {
+          // Ni el modelo ni las reglas entendieron una orden: con la IA lista se conversa en vez de rendirse.
+          if (aiReady && !aiTried && await _talkWithAi(text)) return;
           // El mensaje tecnico del interprete ("No conozco la entidad ...") se cambia por ayuda con ejemplos.
           _appendResult(AssistantTexts.notUnderstood());
           return;
@@ -6698,8 +7583,49 @@ class _AssistantViewState extends State<AssistantView> {
     }
   }
 
-  void _appendResult(String message, {bool isError = false, bool usedLocalAi = false}) {
+  /// Responde con el modelo local. Devuelve false si no pudo (sin modelo, error o tiempo agotado) para que el
+  /// llamador siga por el camino de siempre.
+  Future<bool> _talkWithAi(String text) async {
+    final context = await _dataContextFor(text);
+    final answer = await _chat.reply(text, dataContext: context);
+    if (answer == null || !mounted) return false;
+    _appendResult(answer, usedLocalAi: true, remember: false);
+    return true;
+  }
+
+  /// Datos reales que la IA necesita para contestar sobre ellos: de cada entidad que la persona nombra, cuantos
+  /// registros hay y como se llaman. Nunca falla: si no se pueden leer, la IA contesta sin ellos.
+  Future<String> _dataContextFor(String text) async {
+    final mentioned = <AssistantEntitySchema>{};
+    for (final word in text.split(RegExp(r'[^\\wáéíóúñüÁÉÍÓÚÑÜ]+'))) {
+      if (word.isEmpty) continue;
+      final entity = AppSchema.resolveEntity(word);
+      if (entity != null) mentioned.add(entity);
+    }
+    final lines = <String>[];
+    for (final entity in mentioned) {
+      try {
+        final outcome = await _router.execute(
+          BusinessCommand(
+            action: CommandAction.read,
+            entity: entity.name,
+            data: const {},
+            filters: const {},
+            rawText: text,
+          ),
+        );
+        if (outcome.success) lines.add(AssistantTexts.dataFacts(entity, outcome.rows));
+      } catch (_) {
+        // sin datos: la IA responde sin ellos
+      }
+    }
+    return lines.join('\\n');
+  }
+
+  void _appendResult(String message, {bool isError = false, bool usedLocalAi = false, bool remember = true}) {
     if (!mounted) return;
+    final userText = _lastUserText;
+    if (remember && !isError && userText != null) _chat.remember(userText, message);
     setState(() {
       _history.add(AssistantHistoryEntry(message, isError: isError, usedLocalAi: usedLocalAi));
       _isBusy = false;
@@ -6789,8 +7715,8 @@ class _AssistantViewState extends State<AssistantView> {
       builder: (context) => AlertDialog(
         title: const Text('Descargar la IA local'),
         content: const Text(
-          'Se descargará el modelo de IA (unos 0,5 GB) una sola vez. Conviene usar Wi-Fi. '
-          'Después el asistente funciona sin internet.',
+          'Se descargará el modelo de IA (unos 1,1 GB) una sola vez. Conviene usar Wi-Fi. '
+          'Después el asistente conversa sin internet.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
@@ -6832,11 +7758,19 @@ class _AssistantViewState extends State<AssistantView> {
           text: 'Preparando la IA local…',
         );
       case LocalModelState.ready:
+        // Quien ya tiene un modelo anterior (mas pequeno, solo servia para interpretar ordenes) puede bajar el actual,
+        // que conversa mejor. Si esa descarga falla, el modelo que ya funciona sigue y se avisa en esta misma fila.
+        final canUpgrade = _modelManager.modelFileNameLabel != ModelDownloader.defaultFileName;
+        final problem = _modelManager.downloadError;
         return _statusRow(
-          leading: Icon(Icons.check_circle, size: 14, color: scheme.primary),
-          text: 'IA local lista',
+          leading: Icon(problem == null ? Icons.check_circle : Icons.error_outline, size: 14, color: problem == null ? scheme.primary : scheme.error),
+          text: problem ?? 'IA local lista',
+          color: problem == null ? null : scheme.error,
           tooltip: _modelManager.modelFileNameLabel,
-          actions: [('Cambiar modelo', _modelManager.selectAndImportModel)],
+          actions: [
+            if (canUpgrade) ('Descargar IA mejorada', _confirmDownload),
+            ('Cambiar modelo', _modelManager.selectAndImportModel),
+          ],
         );
       case LocalModelState.error:
         return _statusRow(
@@ -6880,16 +7814,16 @@ class _AssistantViewState extends State<AssistantView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (entry.usedLocalAi)
+              if (!isUser && !entry.isError && !entry.isPending)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_awesome, size: 12, color: foreground),
+                      Icon(entry.usedLocalAi ? Icons.auto_awesome : Icons.rule, size: 12, color: foreground),
                       const SizedBox(width: 4),
                       Text(
-                        'IA local',
+                        entry.usedLocalAi ? 'IA local' : 'Respuesta de la app',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: foreground),
                       ),
                     ],
@@ -6954,7 +7888,7 @@ class _AssistantViewState extends State<AssistantView> {
                     itemCount: _history.length + (_isBusy ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == _history.length) {
-                        return _buildBubble(const AssistantHistoryEntry('Pensando…'));
+                        return _buildBubble(const AssistantHistoryEntry('Pensando…', isPending: true));
                       }
                       return _buildBubble(_history[index]);
                     },
