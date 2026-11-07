@@ -6,9 +6,42 @@ import unicodedata
 class FlutterCRUDGenerator:
     def __init__(self, uml_json):
         self.uml_json = uml_json
-        self.classes = uml_json.get('classes', [])
-        self.relationships = uml_json.get('relationships', [])
+        self.classes, self.relationships = self._expand_recursive_many_to_many(
+            uml_json.get('classes', []), uml_json.get('relationships', [])
+        )
         self.parsed_relationships = self._parse_relationships()
+
+    def _expand_recursive_many_to_many(self, classes, relationships):
+        """Una N:M de una clase con ella misma (amistades entre personas) se expande como la manda el editor: una clase
+        asociativa (Persona_Persona) con dos relaciones 1:N. La entidad intermedia automática de este generador une dos
+        clases distintas y con la misma clase en los dos extremos repetiría sus campos."""
+        by_id = {c['id']: c for c in classes}
+        taken_names = {c['name'] for c in classes}
+        expanded_classes = list(classes)
+        expanded = []
+        for rel in relationships:
+            labels = rel.get('labels') or []
+            raw_source = labels[0].strip() if len(labels) > 0 and labels[0] else ''
+            raw_target = labels[1].strip() if len(labels) > 1 and labels[1] else ''
+            class_id = rel.get('sourceId')
+            if (rel.get('type', '').lower() == 'association' and class_id == rel.get('targetId') and class_id in by_id
+                    and '*' in raw_source and '*' in raw_target):
+                name = by_id[class_id]['name']
+                junction_name = f"{name}_{name}"
+                n = 2
+                while junction_name in taken_names:
+                    junction_name = f"{name}_{name}_{n}"
+                    n += 1
+                taken_names.add(junction_name)
+                junction_id = f"junction:{class_id}:{class_id}:{rel.get('id')}"
+                expanded_classes.append({'id': junction_id, 'name': junction_name,
+                                         'attributes': [{'name': 'id', 'type': 'int'}], 'methods': []})
+                for role in ('source', 'target'):
+                    expanded.append({'id': f"junction-link:{junction_id}:{role}", 'type': 'association',
+                                     'sourceId': class_id, 'targetId': junction_id, 'labels': ['1', '0..*']})
+                continue
+            expanded.append(rel)
+        return expanded_classes, expanded
 
     def _parse_relationships(self):
       """Convierte relaciones UML en vínculos lógicos entre clases - MISMA LÓGICA QUE ProjectGenerator.java"""
@@ -17,6 +50,20 @@ class FlutterCRUDGenerator:
       
       # Detectar relaciones ManyToMany para crear entidades intermedias
       many_to_many_relations = []
+
+      # Nombre de cada campo de relación, con las mismas reglas que RelationNaming.java: el de la clase del otro extremo, salvo
+      # que ya lo use otro campo de esa clase (una recursiva usa padre/hijos; una repetida, un número: aeropuerto2).
+      used_fields = {}
+
+      def unique_field(class_name, base):
+          taken = used_fields.setdefault(class_name, set())
+          field = base
+          n = 2
+          while field in taken:
+              field = f"{base}{n}"
+              n += 1
+          taken.add(field)
+          return field
 
       for rel in self.relationships:
           src = relations_map.get(rel.get('sourceId'))
@@ -55,6 +102,7 @@ class FlutterCRUDGenerator:
                   source_is_many = True
                   target_is_many = False
               
+              recursive = src == tgt
               # 4) Aplicar lógica según multiplicidades (igual que ProjectGenerator.java)
               if source_is_many and target_is_many:
                   # *..* => ManyToMany - se generará entidad intermedia
@@ -71,26 +119,34 @@ class FlutterCRUDGenerator:
                   })
                   
                   # Agregar relaciones OneToMany desde ambas entidades originales hacia la intermedia
-                  parsed.append({"from": src, "to": intermediate_name, "kind": "one_to_many"})
-                  parsed.append({"from": tgt, "to": intermediate_name, "kind": "one_to_many"})
+                  base = self._to_snake_case(intermediate_name)
+                  parsed.append({"from": src, "to": intermediate_name, "kind": "one_to_many",
+                                 "field": unique_field(src, f"{base}_origen" if recursive else base)})
+                  parsed.append({"from": tgt, "to": intermediate_name, "kind": "one_to_many",
+                                 "field": unique_field(tgt, f"{base}_destino" if recursive else base)})
               elif source_is_many and not target_is_many:
                   # source *..1 target => Source tiene ManyToOne hacia Target
-                  parsed.append({"from": src, "to": tgt, "kind": "many_to_one"})
+                  parsed.append({"from": src, "to": tgt, "kind": "many_to_one",
+                                 "field": unique_field(src, "padre" if recursive else self._to_snake_case(tgt))})
               elif not source_is_many and not target_is_many:
                   # 1..1 => OneToOne
                   is_composition = rtype == "composition"
-                  parsed.append({"from": src, "to": tgt, "kind": "one_to_one", "composition": is_composition})
+                  parsed.append({"from": src, "to": tgt, "kind": "one_to_one", "composition": is_composition,
+                                 "field": unique_field(src, self._to_snake_case(tgt))})
               elif not source_is_many and target_is_many:
                   # source 1..* target => Source tiene OneToMany hacia Target
-                  parsed.append({"from": src, "to": tgt, "kind": "one_to_many"})
+                  parsed.append({"from": src, "to": tgt, "kind": "one_to_many",
+                                 "field": unique_field(src, "hijos" if recursive else self._to_snake_case(tgt))})
               
               # === Lado INVERSO (Target) ===
               if not target_is_many and source_is_many:
                   # source *..1 target => Target tiene OneToMany hacia Source (relación inversa)
-                  parsed.append({"from": tgt, "to": src, "kind": "one_to_many"})
+                  parsed.append({"from": tgt, "to": src, "kind": "one_to_many",
+                                 "field": unique_field(tgt, "hijos" if recursive else self._to_snake_case(src))})
               elif target_is_many and not source_is_many:
                   # source 1..* target => Target tiene ManyToOne hacia Source (relación inversa)
-                  parsed.append({"from": tgt, "to": src, "kind": "many_to_one"})
+                  parsed.append({"from": tgt, "to": src, "kind": "many_to_one",
+                                 "field": unique_field(tgt, "padre" if recursive else self._to_snake_case(src))})
 
       return parsed
         
@@ -132,6 +188,7 @@ class FlutterCRUDGenerator:
                     "from": intermediate_name,
                     "to": entity_name,
                     "kind": "many_to_one",
+                    "field": self._to_snake_case(entity_name),
                 })
 
         self.classes = [*original_classes, *temporary_classes]
@@ -421,7 +478,7 @@ fi
 
                 for rel in relationships:
                     if rel["kind"] == "many_to_one":
-                        rel_snake = self._to_snake_case(rel['to'])
+                        rel_snake = self._rel_field(rel)
                         fk_col = f"{rel_snake}id"
                         columns.append(f"{fk_col} INTEGER")
             else:
@@ -474,11 +531,11 @@ fi
                 all_rels = get_all_relations(clase['name'])
                 added_rels = set()
                 for rel in all_rels:
-                    if rel['to'] not in added_rels:
-                        fk_field = f"{self._to_snake_case(rel['to'])}Id"
+                    if self._rel_field(rel) not in added_rels:
+                        fk_field = f"{self._rel_field(rel)}Id"
                         fk_col = self._to_backend_json_key(fk_field)
                         columns.append(f"{fk_col} TEXT")
-                        added_rels.add(rel['to'])
+                        added_rels.add(self._rel_field(rel))
 
             cols_str = ",\n        ".join(columns)
             create_tables.append(f"    await db.execute('''\n      CREATE TABLE {table_name} (\n        {cols_str}\n      )\n    ''');")
@@ -780,7 +837,7 @@ void main() {
       
       # Importar modelos para todas las relaciones (necesarios para parsear objetos anidados)
       for rel in relationships:
-          if rel["from"] == name and rel["kind"] in ["many_to_one", "one_to_one", "one_to_many"]:
+          if rel["from"] == name and rel["kind"] in ["many_to_one", "one_to_one", "one_to_many"] and rel["to"] != name:
               related_models.add(rel["to"])
 
       imports = "\n".join([
@@ -834,30 +891,30 @@ void main() {
           if rel["from"] == name:
               if rel["kind"] == "many_to_one":
                   # ManyToOne: ID (para enviar) + objeto completo opcional (para leer del GET)
-                  field_name = f"{self._to_snake_case(rel['to'])}Id"
+                  field_name = f"{self._rel_field(rel)}Id"
                   normalized_field = field_name.lower().replace('_', '')
                   if normalized_field not in existing_attr_names:
                       rel_fields.append(f"  final String {field_name};")
                   # Agregar también el objeto completo (nullable, solo para lectura)
-                  obj_field_name = self._to_snake_case(rel['to'])
+                  obj_field_name = self._rel_field(rel)
                   normalized_obj = obj_field_name.lower().replace('_', '')
                   if normalized_obj not in existing_attr_names:
                       rel_fields.append(f"  final {rel['to']}? {obj_field_name};")
               elif rel["kind"] == "one_to_one":
                   # OneToOne: ID (para enviar) + objeto completo opcional (para leer del GET)
-                  field_name = f"{self._to_snake_case(rel['to'])}Id"
+                  field_name = f"{self._rel_field(rel)}Id"
                   normalized_field = field_name.lower().replace('_', '')
                   if normalized_field not in existing_attr_names:
                       rel_fields.append(f"  final String {field_name};")
                   # Agregar también el objeto completo (nullable, solo para lectura)
-                  obj_field_name = self._to_snake_case(rel['to'])
+                  obj_field_name = self._rel_field(rel)
                   normalized_obj = obj_field_name.lower().replace('_', '')
                   if normalized_obj not in existing_attr_names:
                       rel_fields.append(f"  final {rel['to']}? {obj_field_name};")
               elif rel["kind"] == "one_to_many":
                   # OneToMany: Lista de objetos completos (solo para lectura desde GET)
                   # El backend devuelve la lista anidada en GET, pero NO se envía en POST/PUT
-                  field_name = self._to_snake_case(rel['to'])
+                  field_name = self._rel_field(rel)
                   normalized_field = field_name.lower().replace('_', '')
                   if normalized_field not in existing_attr_names:
                       rel_fields.append(f"  final List<{rel['to']}> {field_name};")
@@ -914,14 +971,14 @@ void main() {
           for rel in parent_relationships:
               if rel["kind"] == "many_to_one":
                   # ManyToOne: agregar el ID
-                  field_name = f"{self._to_snake_case(rel['to'])}Id"
+                  field_name = f"{self._rel_field(rel)}Id"
                   normalized = field_name.lower().replace('_', '')
                   if normalized not in parent_existing_attrs:
                       super_params_list.append(f"{field_name}: {field_name}")
                       constructor_params_list.append(f"required String {field_name}")
               elif rel["kind"] == "one_to_one":
                   # OneToOne: agregar el ID
-                  field_name = f"{self._to_snake_case(rel['to'])}Id"
+                  field_name = f"{self._rel_field(rel)}Id"
                   normalized = field_name.lower().replace('_', '')
                   if normalized not in parent_existing_attrs:
                       super_params_list.append(f"{field_name}: {field_name}")
@@ -946,29 +1003,29 @@ void main() {
           if rel["from"] == name:
               if rel["kind"] == "many_to_one":
                   # Agregar FK (ID) para relaciones ManyToOne (required)
-                  field_name = f"{self._to_snake_case(rel['to'])}Id"
+                  field_name = f"{self._rel_field(rel)}Id"
                   normalized_field = field_name.lower().replace('_', '')
                   if normalized_field not in existing_attr_names_normalized:
                       constructor_params_list.append(f"required this.{field_name}")
                   # Agregar objeto completo (opcional, default null)
-                  obj_field_name = self._to_snake_case(rel['to'])
+                  obj_field_name = self._rel_field(rel)
                   normalized_obj = obj_field_name.lower().replace('_', '')
                   if normalized_obj not in existing_attr_names_normalized:
                       constructor_params_list.append(f"this.{obj_field_name}")
               elif rel["kind"] == "one_to_one":
                   # Agregar FK (ID) para relaciones OneToOne (required)
-                  field_name = f"{self._to_snake_case(rel['to'])}Id"
+                  field_name = f"{self._rel_field(rel)}Id"
                   normalized_field = field_name.lower().replace('_', '')
                   if normalized_field not in existing_attr_names_normalized:
                       constructor_params_list.append(f"required this.{field_name}")
                   # Agregar objeto completo (opcional, default null)
-                  obj_field_name = self._to_snake_case(rel['to'])
+                  obj_field_name = self._rel_field(rel)
                   normalized_obj = obj_field_name.lower().replace('_', '')
                   if normalized_obj not in existing_attr_names_normalized:
                       constructor_params_list.append(f"this.{obj_field_name}")
               elif rel["kind"] == "one_to_many":
                   # OneToMany: Lista opcional (vacía por defecto para POST/PUT, poblada en GET)
-                  field_name = self._to_snake_case(rel['to'])
+                  field_name = self._rel_field(rel)
                   normalized_field = field_name.lower().replace('_', '')
                   if normalized_field not in existing_attr_names_normalized:
                       constructor_params_list.append(f"this.{field_name} = const []")
@@ -1030,7 +1087,7 @@ void main() {
           # Agregar relaciones heredadas del padre (SOLO IDs)
           parent_existing_attrs = {attr['name'].lower().replace('_', '') for attr in parent_attrs}
           for rel in parent_rels:
-              rel_name = self._to_snake_case(rel['to'])
+              rel_name = self._rel_field(rel)
               normalized = rel_name.lower().replace('_', '')
               if normalized not in parent_existing_attrs:
                   if rel["kind"] == "many_to_one":
@@ -1067,7 +1124,7 @@ void main() {
       # Agregar relaciones - parsear IDs, objetos anidados y listas
       for rel in relationships:
           if rel["from"] == name:
-              rel_name = self._to_snake_case(rel['to'])
+              rel_name = self._rel_field(rel)
               if rel["kind"] == "many_to_one":
                   # Parsear el ID de la relación ManyToOne
                   # Puede venir como campo separado 'personaid' o dentro del objeto 'persona.id'
@@ -1148,7 +1205,7 @@ void main() {
           # Agregar relaciones heredadas del padre (SOLO IDs)
           parent_existing_attrs = {attr['name'].lower().replace('_', '') for attr in parent_attrs}
           for rel in parent_rels:
-              rel_name = self._to_snake_case(rel['to'])
+              rel_name = self._rel_field(rel)
               normalized = rel_name.lower().replace('_', '')
               if normalized not in parent_existing_attrs:
                   if rel["kind"] == "many_to_one":
@@ -1175,7 +1232,7 @@ void main() {
       # Agregar relaciones - ENVIAR SOLO IDs, NO objetos completos
       for rel in relationships:
           if rel["from"] == name:
-              rel_name = self._to_snake_case(rel['to'])
+              rel_name = self._rel_field(rel)
               if rel["kind"] == "many_to_one":
                   # Para ManyToOne: enviar solo el ID (formato: personaId)
                   field_name = f"{rel_name}Id"
@@ -1716,9 +1773,9 @@ class _{name}ListViewState extends State<{name}ListView> {{
         
         all_relations = get_all_relations_for_state(name)
         for rel in all_relations:
-            rel_key = f"{rel['to']}"
+            rel_key = f"{self._rel_var(rel)}"
             if rel_key not in added_relations:
-                controllers_list.append(f"String? _selected{rel['to']}Id;")
+                controllers_list.append(f"String? _selected{self._rel_var(rel)}Id;")
                 added_relations.add(rel_key)
         
         # Relaciones one_to_many NO necesitan variables de estado en el formulario
@@ -1739,12 +1796,12 @@ class _{name}ListViewState extends State<{name}ListView> {{
         # Usar las mismas relaciones que ya obtuvimos antes
         initialized_relations = set()
         for rel in all_relations:
-            rel_key = f"{rel['to']}"
+            rel_key = f"{self._rel_var(rel)}"
             if rel_key not in initialized_relations:
-                field_name = f"{self._to_snake_case(rel['to'])}Id"
+                field_name = f"{self._rel_field(rel)}Id"
                 # Convertir a String y manejar valores vacíos para evitar que sea ""
                 # El dropdown espera null o un valor válido que exista en la lista
-                init_controllers_list.append(f"if (widget.item!.{field_name}.isNotEmpty) {{ _selected{rel['to']}Id = widget.item!.{field_name}; }}")
+                init_controllers_list.append(f"if (widget.item!.{field_name}.isNotEmpty) {{ _selected{self._rel_var(rel)}Id = widget.item!.{field_name}; }}")
                 initialized_relations.add(rel_key)
         
         # Relaciones one_to_many NO se inicializan en el formulario
@@ -1826,9 +1883,9 @@ class _{name}ListViewState extends State<{name}ListView> {{
                   for (var item in items) item.{related_pk}.toString(): item
                 }}.values.toList();
                 // Verificar que el valor seleccionado exista en la lista
-                final validValue = _selected{rel['to']}Id != null && 
-                    uniqueItems.any((e) => e.{related_pk}.toString() == _selected{rel['to']}Id)
-                    ? _selected{rel['to']}Id
+                final validValue = _selected{self._rel_var(rel)}Id != null && 
+                    uniqueItems.any((e) => e.{related_pk}.toString() == _selected{self._rel_var(rel)}Id)
+                    ? _selected{self._rel_var(rel)}Id
                     : null;
                 return DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: '{rel['to']}'),
@@ -1839,7 +1896,7 @@ class _{name}ListViewState extends State<{name}ListView> {{
                   )).toList(),
                   onChanged: (v) {{
                     setState(() {{
-                      _selected{rel['to']}Id = v;
+                      _selected{self._rel_var(rel)}Id = v;
                     }});
                   }},
                   validator: (value) {{
@@ -1855,7 +1912,7 @@ class _{name}ListViewState extends State<{name}ListView> {{
         # Relaciones OneToOne → Dropdown
         for rel in relationships:
             if rel["kind"] == "one_to_one":
-                field_name = self._to_snake_case(rel['to'])
+                field_name = self._rel_field(rel)
                 normalized_field = field_name.lower().replace('_', '')
                 if normalized_field not in existing_attr_names_normalized:
                     # Obtener la PK y display attr de la clase relacionada
@@ -1890,14 +1947,14 @@ class _{name}ListViewState extends State<{name}ListView> {{
                 if (!snapshot.hasData) return const CircularProgressIndicator();
                 return DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: '{rel['to']}'),
-                  initialValue: _selected{rel['to']}Id,
+                  initialValue: _selected{self._rel_var(rel)}Id,
                   items: snapshot.data!.map((e) => DropdownMenuItem(
                     value: e.{related_pk}.toString(),
                     child: Text(e.{display_attr}.toString()),
                   )).toList(),
                   onChanged: (v) {{
                     setState(() {{
-                      _selected{rel['to']}Id = v;
+                      _selected{self._rel_var(rel)}Id = v;
                     }});
                   }},
                   validator: (value) {{
@@ -1950,14 +2007,14 @@ class _{name}ListViewState extends State<{name}ListView> {{
                 # Solo agregar relaciones ManyToOne y OneToOne (que son IDs)
                 # OneToMany NO se pasa en el constructor (no existe en el modelo)
                 if rel["kind"] == "many_to_one":
-                    field_name = f"{self._to_snake_case(rel['to'])}Id"
+                    field_name = f"{self._rel_field(rel)}Id"
                     if field_name not in used_field_names:
-                        create_object_fields_list.append(f"{field_name}: _selected{rel['to']}Id ?? ''")
+                        create_object_fields_list.append(f"{field_name}: _selected{self._rel_var(rel)}Id ?? ''")
                         used_field_names.add(field_name)
                 elif rel["kind"] == "one_to_one":
-                    field_name = f"{self._to_snake_case(rel['to'])}Id"
+                    field_name = f"{self._rel_field(rel)}Id"
                     if field_name not in used_field_names:
-                        create_object_fields_list.append(f"{field_name}: _selected{rel['to']}Id ?? ''")
+                        create_object_fields_list.append(f"{field_name}: _selected{self._rel_var(rel)}Id ?? ''")
                         used_field_names.add(field_name)
                 # OneToMany: NO se agrega (no existe en el modelo)
         
@@ -1967,10 +2024,10 @@ class _{name}ListViewState extends State<{name}ListView> {{
         many_to_one_fields = []
         for rel in relationships:
             if rel["kind"] == "many_to_one":
-                field_name = f"{self._to_snake_case(rel['to'])}Id"
+                field_name = f"{self._rel_field(rel)}Id"
                 normalized_field = field_name.lower().replace('_', '')
                 if normalized_field not in existing_attr_names_normalized:
-                    many_to_one_fields.append(f"{field_name}: _selected{rel['to']}Id ?? ''")
+                    many_to_one_fields.append(f"{field_name}: _selected{self._rel_var(rel)}Id ?? ''")
         
         if many_to_one_fields:
             if create_object_fields:
@@ -1982,10 +2039,10 @@ class _{name}ListViewState extends State<{name}ListView> {{
         one_to_one_fields = []
         for rel in relationships:
             if rel["kind"] == "one_to_one":
-                field_name = f"{self._to_snake_case(rel['to'])}Id"
+                field_name = f"{self._rel_field(rel)}Id"
                 normalized_field = field_name.lower().replace('_', '')
                 if normalized_field not in existing_attr_names_normalized:
-                    one_to_one_fields.append(f"{field_name}: _selected{rel['to']}Id ?? ''")
+                    one_to_one_fields.append(f"{field_name}: _selected{self._rel_var(rel)}Id ?? ''")
         
         if one_to_one_fields:
             if create_object_fields:
@@ -1998,7 +2055,7 @@ class _{name}ListViewState extends State<{name}ListView> {{
         
         for rel in relationships:
             # Importar servicios para cargar opciones de dropdown (ManyToOne y OneToOne)
-            if rel["kind"] in ["one_to_one", "many_to_one"]:
+            if rel["kind"] in ["one_to_one", "many_to_one"] and rel["to"] != name:
                 related_imports.append(f"import '../models/{self._to_snake_case(rel['to'])}.dart';")
                 related_imports.append(f"import '../services/{self._to_snake_case(rel['to'])}_service.dart';")
             # one_to_many NO necesita imports en formulario (solo en vista de detalle)
@@ -2171,7 +2228,7 @@ class _{name}FormViewState extends State<{name}FormView> {{
         for rel in relationships:
             if rel["kind"] == "one_to_many":
                 # OneToMany: Mostrar lista de objetos relacionados (viene del backend en GET)
-                field_name = self._to_snake_case(rel['to'])
+                field_name = self._rel_field(rel)
                 normalized_field = field_name.lower().replace('_', '')
                 if normalized_field not in existing_attr_names_normalized:
                     # Obtener información de la clase relacionada
@@ -2215,11 +2272,11 @@ class _{name}FormViewState extends State<{name}FormView> {{
                         
                         if first_rel['to'] != name:
                             other_rel = first_rel
-                            other_field = self._to_snake_case(first_rel['to'])
+                            other_field = self._rel_field(first_rel)
                             other_entity_name = first_rel['to']
                         elif second_rel['to'] != name:
                             other_rel = second_rel
-                            other_field = self._to_snake_case(second_rel['to'])
+                            other_field = self._rel_field(second_rel)
                             other_entity_name = second_rel['to']
                         
                         if other_rel and other_field:
@@ -2277,7 +2334,7 @@ class _{name}FormViewState extends State<{name}FormView> {{
                   child: Text('• ${{e.{display_attr}.toString()}}', style: const TextStyle(fontSize: 14)),
                 )),""")
             elif rel["kind"] == "one_to_one" or rel["kind"] == "many_to_one":
-                field_name = self._to_snake_case(rel['to'])
+                field_name = self._rel_field(rel)
                 normalized_field = field_name.lower().replace('_', '')
                 if normalized_field not in existing_attr_names_normalized:
                     # Obtener atributos de la clase relacionada
@@ -2454,7 +2511,7 @@ class {name}DetailView extends StatelessWidget {{
         relations = []
         for rel in collect_rels(name):
             target = rel['to']
-            rel_snake = self._to_snake_case(target)
+            rel_snake = self._rel_field(rel)
             if rel['kind'] in ('many_to_one', 'one_to_one'):
                 field_name = f"{rel_snake}Id"
                 normalized = field_name.lower().replace('_', '')
@@ -7212,6 +7269,20 @@ class {name}DetailView extends StatelessWidget {{
         file_path.write_text(content, encoding="utf-8", newline="\n")
     
     # Utilidades
+    def _rel_field(self, rel):
+        """Nombre del campo que la relación agrega a su clase (el de Spring, sin separadores, al pasar por _to_backend_json_key).
+
+        Por defecto es el nombre de la clase destino; una relación recursiva o repetida lleva uno propio (padre, hijos,
+        aeropuerto2) porque dos campos con el mismo nombre no compilan. Lo calcula _parse_relationships."""
+        return rel.get("field") or self._to_snake_case(rel["to"])
+
+    def _rel_var(self, rel):
+        """Sufijo de las variables de estado del formulario de una relación: la clase destino, salvo nombre propio."""
+        field = self._rel_field(rel)
+        if field == self._to_snake_case(rel["to"]):
+            return rel["to"]
+        return "".join(part[:1].upper() + part[1:] for part in field.split("_"))
+
     def _to_snake_case(self, name):
         """Convierte PascalCase a snake_case"""
         import re

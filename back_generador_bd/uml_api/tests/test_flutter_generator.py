@@ -852,3 +852,92 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("_router.confirmDelete(outcome.pendingDelete!)", view)
             # El fallback nunca se etiqueta como IA.
             self.assertIn("usedLocalAi", view)
+
+
+def _generate(uml):
+    """Genera el proyecto y devuelve {ruta relativa: texto} de sus archivos .dart."""
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        FlutterCRUDGenerator(uml).generate_project(root)
+        return {str(path.relative_to(root)): path.read_text() for path in root.rglob("*.dart")}
+
+
+def _declared_fields(model_source):
+    """Los campos `final Tipo nombre;` de un modelo, en orden."""
+    return re.findall(r"^\s*final\s+[\w<>?]+\s+(\w+);", model_source, flags=re.MULTILINE)
+
+
+def _classes(*names):
+    return [
+        {"id": name.lower(), "name": name, "attributes": [{"name": "id", "type": "int"}, {"name": "nombre", "type": "String"}]}
+        for name in names
+    ]
+
+
+class FlutterRecursiveRelationshipTests(SimpleTestCase):
+    """Una asociación recursiva o dos relaciones entre las mismas clases ponían dos campos con el mismo nombre en un
+    modelo y el proyecto generado no pasaba el análisis de Dart."""
+
+    def test_recursive_one_to_many_gets_parent_and_children_without_repeated_fields(self):
+        files = _generate({
+            "classes": _classes("Empleado", "Departamento"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "empleado", "targetId": "empleado", "labels": ["0..1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "departamento", "targetId": "empleado", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        fields = _declared_fields(files["lib/models/empleado.dart"])
+        self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en Empleado: {fields}")
+        self.assertTrue({"padre", "padreId", "hijos", "departamento", "departamentoId"} <= set(fields), fields)
+        source = files["lib/models/empleado.dart"]
+        # las claves del JSON son las de las entidades de Spring (minúsculas, sin separadores)
+        self.assertIn("json['hijos']", source)
+        self.assertIn("json['padreid']", source)
+
+    def test_two_relationships_between_the_same_classes_keep_distinct_fields(self):
+        files = _generate({
+            "classes": _classes("Aeropuerto", "Vuelo"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "aeropuerto", "targetId": "vuelo", "labels": ["1", "0..*"]},
+                {"id": "r2", "type": "association", "sourceId": "aeropuerto", "targetId": "vuelo", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        for model, expected in (
+            ("vuelo", {"aeropuerto", "aeropuertoId", "aeropuerto2", "aeropuerto2Id"}),
+            ("aeropuerto", {"vuelo", "vuelo2"}),
+        ):
+            fields = _declared_fields(files[f"lib/models/{model}.dart"])
+            self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {model}: {fields}")
+            self.assertTrue(expected <= set(fields), (model, fields))
+
+    def test_recursive_many_to_many_as_the_editor_sends_it_has_no_repeated_fields(self):
+        files = _generate({
+            "classes": _classes("Persona") + [
+                {"id": "junction", "name": "Persona_Persona", "attributes": [{"name": "id", "type": "int"}]},
+            ],
+            "relationships": [
+                {"id": "l1", "type": "association", "sourceId": "persona", "targetId": "junction", "labels": ["1", "0..*"]},
+                {"id": "l2", "type": "association", "sourceId": "persona", "targetId": "junction", "labels": ["1", "0..*"]},
+            ],
+        })
+
+        models = {path: source for path, source in files.items() if path.startswith("lib/models/")}
+        self.assertEqual(len(models), 2, sorted(models))
+        for path, source in models.items():
+            fields = _declared_fields(source)
+            self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {path}: {fields}")
+
+    def test_raw_recursive_many_to_many_has_no_repeated_fields(self):
+        files = _generate({
+            "classes": _classes("Persona"),
+            "relationships": [
+                {"id": "r1", "type": "association", "sourceId": "persona", "targetId": "persona", "labels": ["*", "*"]},
+            ],
+        })
+
+        for path, source in files.items():
+            if path.startswith("lib/models/"):
+                fields = _declared_fields(source)
+                self.assertEqual(len(fields), len(set(fields)), f"campos repetidos en {path}: {fields}")
