@@ -39,25 +39,87 @@ anything itself; it only ever proposes a command.
 **No model is bundled with the app, and none is downloaded on its own.**
 The person gets one in the assistant view, in either of two ways, both an
 explicit action: **"Descargar IA local"** (asks for confirmation first —
-about 0.5 GB, better on Wi-Fi — and downloads Qwen2.5-0.5B-Instruct Q4_K_M,
-Apache-2.0, from Hugging Face with a progress indicator and a "Cancelar"
-button; `lib/assistant/model_downloader.dart` writes `<file>.part` and renames
-it at the end, so a cut connection never leaves a half model, and it refuses
-anything too small to be a model), or **"Elegir modelo"** (imports a
-compatible `.gguf` through `file_selector`). Either way the file is kept in
-the app's own `path_provider` support directory so it persists across
-restarts, and after that the assistant works without internet. The
-acceptance model used during development was **Qwen2.5-0.5B-Instruct**
-(GGUF, Q4-class quantization), but the extractor itself is not tied to any
-specific model — any compatible GGUF chat model can be used.
+about 1.1 GB, better on Wi-Fi — and downloads Qwen2.5-1.5B-Instruct Q4_K_M,
+Apache-2.0, 1,117,320,736 bytes, from Hugging Face with a progress indicator
+and a "Cancelar" button; `lib/assistant/model_downloader.dart` writes
+`<file>.part` and renames it at the end, so a cut connection never leaves a
+half model, and it refuses anything too small to be a model), or **"Elegir
+modelo"** (imports a compatible `.gguf` through `file_selector`). Either way
+the file is kept in the app's own `path_provider` support directory so it
+persists across restarts (an install over the top keeps it; uninstalling the
+app deletes it), and after that the assistant works without internet.
+Versions up to 2026-11-07 (afternoon) used Qwen2.5-0.5B (0.5 GB), which was
+enough to interpret orders but not to hold a conversation; whoever still has
+that file sees **"Descargar IA mejorada"** next to the status, and a failed
+download keeps the model that already works. The extractor and the chat are
+not tied to any specific model — any compatible GGUF chat model can be used.
 
-The deterministic `CommandParser` remains the **mandatory fallback** for
-every failure mode: no model configured, load failure, inference timeout,
-malformed/non-JSON output, or an invalid/unrecognized shape. A generated app
-with no model imported behaves exactly as before this feature existed. The
-UI only labels a result as coming from local AI ("IA local: ...") when the
-local model genuinely produced the command that was used — a fallback
-result is never labeled as AI, regardless of why the fallback happened.
+### Two ways of answering (since 2026-11-07, night)
+
+With the model ready, every message takes one of two paths. The model is the
+same one in both; what changes is how much it is trusted.
+
+1. **Orders on the data** (the message starts with a data verb: crea, agrega,
+   elimina, borra, cambia, actualiza, muestra, lista, dame, ver...). Politeness
+   and fillers are removed first (`AssistantTexts.orderText`: "por favor, lista
+   todos los X" → "lista los X", "crea un X llamado Ana" → "crea un X Ana").
+   The model proposes a structured command (grammar-constrained JSON) and the
+   extractor distrusts it: it only keeps fields of the real schema, drops a
+   value the person never said (copied from the prompt or invented), drops
+   template placeholders, accepts numbers sent as text, repairs fields the
+   model put in the wrong object, and a mutation must start with a verb the
+   rules recognise. Then the unchanged validator → router → two-phase DELETE.
+   If the model fails, the deterministic rules take over
+   (`CommandParser`, which also understands "con id 3" / "número 3").
+2. **Conversation** (anything else: greetings, questions, concepts of
+   management systems). `lib/assistant/local_llm_chat.dart` asks the model for
+   free text with a system prompt built at run time from `AppSchema`: app name,
+   entities and fields, what it can do and what it cannot (no internet search,
+   no e-mail), a rule to answer "how do I…?" with the exact order to type
+   instead of inventing menus, and — when the question names an entity — the
+   real data (how many records, how they are called). Short memory, 40 s
+   timeout; any failure falls back to the fixed texts. "Ayuda" keeps its exact
+   text. If neither path understands a message, the model answers instead of
+   "No logré entender eso".
+
+Without a model nothing changes: fixed texts for greetings/help and the rules
+for orders. Every assistant bubble carries a tag so it can be checked at a
+glance: **«IA local»** (written by the model, or a command the model
+interpreted) or **«Respuesta de la app»** (fixed text or the rules). A fallback
+is never labelled as AI, regardless of why the fallback happened.
+
+### How to check that it is a real AI (measured on 2026-11-07)
+
+Measured on a Mac (CPU, the real `llamadart` engine) with Qwen2.5-1.5B-Instruct
+Q4_K_M and a generated app with `Empleado(nombre)` and `Departamento(titulo)`;
+each AI answer took 0.7 to 2.4 s. The same phrases were also run through the
+deterministic rules, so the difference is visible:
+
+| Phrase | Rules only | With the model |
+|---|---|---|
+| "cambia el nombre del empleado 2 a Marta" | update with a wrong filter (`nombre: "del empleado 2"`) | update of id 2 → `nombre: Marta` |
+| "actualiza el departamento 1 a titulo Finanzas" | wrong filter (`titulo: 1`) | update of id 1 → `titulo: Finanzas` |
+| "crea un departamento llamado Ventas" | `titulo: Ventas` | `titulo: Ventas` |
+| "borra al empleado número 3" | delete of id 3 | delete of id 3 |
+| "¿cuántos empleados hay?" (3 loaded) | not an order | "Hay 3 empleados: Ana, Luis y Marta." (from the real data) |
+| "¿qué más puedes hacer?" | exact help text | answers within its real limits |
+| "¿puedes enviarle un correo a Ana?" | not an order | says it cannot act outside the app |
+
+Ways to see it with your own eyes: (1) the tag «IA local» over the bubble;
+(2) turn on airplane mode and keep talking — nothing leaves the phone; (3) ask
+something the fixed texts cannot know, such as a count taken from the data or
+a concept of management systems; (4) ask the same thing twice: the wording
+changes, fixed texts never do.
+
+Honest limits, found while measuring: it is a small model (1.5 billion
+parameters). Its explanations of concepts can be imprecise (it defined "asiento
+contable" loosely), it can word things differently from one run to the next, and
+creating a record whose entity has a *required* relation (for example an
+employee that must belong to a department) is not completed by the model — the
+rules take it and the validator asks for the missing data. Orders are protected
+from these errors by the guards above; conversation is not, which is why the
+prompt tells it to use only the real data and to admit what it cannot do. Speed
+on a physical iPhone was not measured yet.
 
 ### iOS 16.4+ setup
 
