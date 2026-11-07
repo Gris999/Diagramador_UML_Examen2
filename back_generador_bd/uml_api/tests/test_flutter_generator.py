@@ -833,7 +833,9 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             extractor = (output / "lib/assistant/local_llm_command_extractor.dart").read_text()
             tests = (output / "test/assistant/local_llm_command_extractor_test.dart").read_text()
 
-            self.assertEqual(3, extractor.count("keepKnownNonEmptyFields(filters, dropWildcards: true)"))
+            # READ y DELETE usan los filtros tal cual; UPDATE usa los filtros ya separados de los datos
+            self.assertEqual(2, extractor.count("keepKnownNonEmptyFields(filters, dropWildcards: true)"))
+            self.assertEqual(1, extractor.count("keepKnownNonEmptyFields(filterSource, dropWildcards: true)"))
             self.assertNotIn("keepKnownNonEmptyFields(data, writableOnly: true, dropWildcards", extractor)
             self.assertIn("wildcardOnly", extractor)
             self.assertIn("READ drops a wildcard filter", tests)
@@ -969,6 +971,31 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(other)
             self.assertEqual(chat, (other / "lib/assistant/local_llm_chat.dart").read_text())
 
+    def test_orders_are_understood_with_natural_phrasing_by_the_model_and_by_the_rules(self):
+        """Comparacion con el modelo real: "agrega un nuevo X de nombre Y" y "crea un X llamado Y" no se entendian (al
+        modelo solo se le ensenaban formas de consulta y adivinaba los nombres de campo; las reglas guardaban "llamado
+        Y" como nombre), "borra al X numero 3" no existia y el modelo copiaba "<valor solicitado>" como filtro."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            extractor = (output / "lib/assistant/local_llm_command_extractor.dart").read_text()
+            parser = (output / "lib/assistant/command_parser.dart").read_text()
+            extractor_test = (output / "test/assistant/local_llm_command_extractor_test.dart").read_text()
+            texts_test = (output / "test/assistant/assistant_texts_test.dart").read_text()
+
+            # el modelo ve formas de crear, cambiar y borrar con los nombres de campo reales
+            self.assertIn("Formas de las demas acciones", extractor)
+            for action in ("create", "update", "delete"):
+                self.assertIn(f"'action': '{action}'", extractor)
+            # un valor de plantilla copiado del prompt se descarta
+            self.assertIn("placeholder", extractor)
+            self.assertIn("template placeholder", extractor_test)
+            self.assertIn("teaches the model the real field names", extractor_test)
+            # las reglas entienden "con id 3" / "numero 3"
+            self.assertIn("_idFilter(", parser)
+            self.assertIn("_idPhrase", parser)
+            self.assertIn("the rules understand an order given by id", texts_test)
+
     def test_voice_uses_the_phone_spanish_and_explains_offline_problems(self):
         """Sin internet, iOS solo entiende la voz si el dictado en español de ESE idioma esta descargado: antes la app
         pedia siempre es_ES y, si fallaba, no decia nada (el audio "ya no funcionaba" en modo avion)."""
@@ -1093,7 +1120,7 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             manager = (output / "lib/assistant/local_model_manager.dart").read_text()
             view = (output / "lib/assistant/assistant_view.dart").read_text()
 
-            self.assertIn("huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", downloader)
+            self.assertIn("huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf", downloader)
             self.assertIn("'${destination.path}.part'", downloader)
             self.assertIn("class ModelDownloadCancelled", downloader)
             self.assertIn("abstract interface class ModelFetcher", downloader)
