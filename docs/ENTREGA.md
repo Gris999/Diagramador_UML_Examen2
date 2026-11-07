@@ -5,9 +5,9 @@
 | **Proyecto** | Diagramador UML colaborativo con IA como integrante de la sala (Ingeniería de Software I, grupo 29) |
 | **Versión** | `v1.0` es el primer parcial (etiqueta en `develop`). El segundo parcial entró a `develop` con el pull request 2 (commit de fusión `ac1efb6`), todavía sin etiqueta |
 | **Repositorio** | https://github.com/Gris999/Diagramador_UML_Examen2 (la rama por defecto es `develop`: es la que abre el código QR de GitHub de la carátula) |
-| **Sitio desplegado** | https://diagramador.dev (AWS EC2, HTTPS). Desplegado el 2026-11-04 con el segundo parcial (chat compartido, avisos, asistente de ayuda). La actividad y la conversación con la IA se guardan en MongoDB Atlas (nube, plan gratuito) desde ese día |
+| **Sitio desplegado** | https://diagramador.dev (AWS EC2, HTTPS). Desplegado el 2026-11-04 con el segundo parcial (chat compartido, avisos, asistente de ayuda) y actualizado el 2026-11-07 con la clase asociativa UML y las relaciones recursivas (`develop` = `37c3dd0`). La actividad y la conversación con la IA se guardan en MongoDB Atlas (nube, plan gratuito) desde ese día |
 | **Fecha de entrega** | Martes **2026-11-10, a más tardar a las 8 a.m.**, en la plataforma (de *DOCUMENTACION DEL 2DO PARCIAL.docx*). La fecha de una presentación oral, si la hay, no está confirmada |
-| **Estado al 2026-11-04** | Pull request 2 fusionado en `develop` (`ac1efb6`); desplegado en AWS con la prueba de humo en orden; informe de 319 páginas generado; pruebas físicas pendientes (sección 5) |
+| **Estado al 2026-11-07** | Pull requests 2 a 6 fusionados en `develop` (`37c3dd0`); desplegado en AWS con la prueba de humo en orden; informe de 326 páginas generado; pruebas físicas pendientes (sección 5) |
 
 ## 1. Qué se entrega
 
@@ -49,7 +49,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | Frontend (Karma) | 302 correctas, 0 fallos; `ng build` sin errores |
 | Django (`manage.py test` con `settings_test`, sin Docker) | 362 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
 | Spring (incluye compilar de verdad el proyecto generado) | 12 correctas, 0 fallos |
-| Sitio desplegado | `scripts/smoke-test.sh` el 2026-11-04: 12 comprobaciones, todo en orden (también después de activar MongoDB Atlas). La ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) da 404 |
+| Sitio desplegado | `scripts/smoke-test.sh` el 2026-11-07: 12 comprobaciones, todo en orden (el 2026-11-04 también, antes y después de activar MongoDB Atlas). La ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) da 404 |
 | MongoDB Atlas | Las 19 pruebas de los adaptadores contra Atlas (MongoDB 8.0), desde el servidor: pasan. Se copiaron 34 eventos y 10 mensajes con `migrar_a_mongo` (iguales a los de PostgreSQL salvo la hora a milisegundos y el nombre de autor de los mensajes viejos). Prueba de punta a punta: una edición por WebSocket y una pregunta a la IA se guardaron y se leyeron de Atlas, y PostgreSQL no creció |
 | Modelos del informe contra el repositorio | Pasan los seis validadores: 69 clases de diseño, 74 asociaciones, 226 mensajes de secuencia, 66 casos de prueba (uno por camino de los 14 casos de uso) y 243 pruebas citadas |
 | Pruebas manuales | 21 procedimientos ejecutados en el navegador con Gemini real (2026-10-26 y 27) y, el 2026-10-22, tres identidades + vista móvil sobre el sitio desplegado |
