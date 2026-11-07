@@ -869,7 +869,7 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertNotIn("resultado(s)", router)
             self.assertNotIn("Sin resultados", router)
             self.assertIn("AssistantTexts.smallTalkReply(text, ai: _aiState)", view)
-            self.assertIn("AssistantTexts.withoutLeadingGreeting(text)", view)
+            self.assertIn("AssistantTexts.orderText(text)", view)
             self.assertIn("AssistantTexts.notUnderstood()", view)
             self.assertIn("a greeting alone", texts_test)
             # el generador cambia "¿" y "¡" por "?" y "!" en los archivos que pasan por _sanitize: aqui deben sobrevivir
@@ -920,6 +920,54 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             other = Path(tempfile.mkdtemp())
             FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(other)
             self.assertEqual(texts, (other / "lib/assistant/assistant_texts.dart").read_text())
+
+    def test_assistant_talks_with_the_local_ai_about_management_systems_using_the_real_data(self):
+        """Pedro: "quiero que sea una IA de verdad, con la que se pueda hablar". Con el modelo listo, la charla la
+        responde el modelo (con el esquema real, los datos reales y sus limites en el prompt); las ordenes siguen por el
+        camino seguro; sin modelo todo queda como antes con textos fijos."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            chat = (output / "lib/assistant/local_llm_chat.dart").read_text()
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+            texts = (output / "lib/assistant/assistant_texts.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            chat_test = (output / "test/assistant/local_llm_chat_test.dart").read_text()
+            texts_test = (output / "test/assistant/assistant_texts_test.dart").read_text()
+            view_test = (output / "test/assistant/assistant_chat_view_test.dart").read_text()
+
+            self.assertIn("static const String appName = ", schema)
+            self.assertIn("class LocalLlmChat", chat)
+            self.assertIn("engine.create(", chat)
+            self.assertIn("static String systemPrompt(", chat)
+            self.assertIn("AppSchema.appName", chat)
+            self.assertIn("sistema de gestión", chat)
+            self.assertIn("NO puedes buscar en internet", chat)
+            self.assertIn("Eres una IA local", chat)
+            self.assertIn("No inventes", chat)
+            self.assertIn("timeout", chat)
+            for name in ("orderText", "looksLikeOrder", "isHelpRequest", "dataFacts"):
+                self.assertIn(f"static {'bool' if name in ('looksLikeOrder', 'isHelpRequest') else 'String'} {name}(", texts)
+
+            self.assertIn("LocalLlmChat", view)
+            self.assertIn("_chat.reply(", view)
+            self.assertIn("_dataContextFor(", view)
+            self.assertIn("AssistantTexts.looksLikeOrder(", view)
+            self.assertIn("AssistantTexts.orderText(text)", view)
+            self.assertIn("Pensando", view)
+            self.assertIn("Respuesta de la app", view)
+            self.assertIn("final LocalLlmChat? chat;", view)
+
+            self.assertIn("system prompt makes it a management assistant", chat_test)
+            self.assertIn("orders are recognised by their verb", texts_test)
+            self.assertIn("facts for the AI", texts_test)
+            self.assertIn("conversation goes to the AI and the answer is marked as AI", view_test)
+            self.assertIn("without a model the fixed texts are used", view_test)
+
+            # sin nombres de proyecto: el archivo del chat es identico para esquemas distintos
+            other = Path(tempfile.mkdtemp())
+            FlutterCRUDGenerator(self.ALTERNATE_UML).generate_project(other)
+            self.assertEqual(chat, (other / "lib/assistant/local_llm_chat.dart").read_text())
 
     def test_voice_uses_the_phone_spanish_and_explains_offline_problems(self):
         """Sin internet, iOS solo entiende la voz si el dictado en español de ESE idioma esta descargado: antes la app
