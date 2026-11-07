@@ -1,3 +1,4 @@
+import io
 import tempfile
 from django.http import FileResponse, HttpResponse
 from rest_framework.response import Response
@@ -18,6 +19,7 @@ from .services.services_gemini import (
 
 from pathlib import Path
 from .services.flutter_generator import FlutterCRUDGenerator
+from .services.full_project import SpringUnavailable, build_full_project_zip, fetch_spring_zip
 from .services.xmi_service import XMIError, export_uml_to_xmi, import_xmi_to_uml
 from .utils.zip_utils import compress_folder_to_zip
 from collab.stores import get_activity_store
@@ -307,6 +309,26 @@ def generar_flutter(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+def generar_todo(request):
+    """
+    Un solo ZIP con todo lo que sale del diagrama: backend Spring Boot, app Flutter, script SQL e instrucciones.
+    """
+    uml_json = request.data
+    if not uml_json.get("classes"):
+        return Response({"error": "El JSON UML debe contener 'classes'."}, status=400)
+    try:
+        data, filename = build_full_project_zip(uml_json, fetch_spring_zip)
+    except SpringUnavailable:
+        return Response(
+            {"error": "No se pudo generar el backend ahora mismo. Inténtalo de nuevo en unos momentos."},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+    except Exception as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return FileResponse(io.BytesIO(data), as_attachment=True, filename=filename, content_type="application/zip")
 
 
 @api_view(["POST"])

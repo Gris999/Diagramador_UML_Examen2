@@ -9,6 +9,7 @@ import { UmlValidationService } from '../../services/colaboration/uml-validation
 import { DiagramService } from '../../services/diagram/diagram.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
 import { FrontendGeneratorService } from '../../services/exports/frontend-generator.service';
+import { FullProjectGeneratorService } from '../../services/exports/full-project-generator.service';
 import { SqlExportService } from '../../services/exports/sql-export.service';
 import { UmlImageServiceTs } from '../../services/imports/uml-image.service';
 import { SidePanel } from './side-panel';
@@ -20,6 +21,8 @@ describe('SidePanel image import choices', () => {
   let imageService: any;
   let iaActions: any;
   let chatbot: any;
+  let frontendGenerator: any;
+  let fullProjectGenerator: any;
   let diagramClasses: string[];
 
   const generatedUml = {
@@ -65,8 +68,14 @@ describe('SidePanel image import choices', () => {
       }),
       clearStorage: jasmine.createSpy('clearStorage'),
       closeDiagram: jasmine.createSpy('closeDiagram'),
-      exportToImage: jasmine.createSpy('exportToImage')
+      exportToImage: jasmine.createSpy('exportToImage'),
+      exportForGenerators: jasmine.createSpy('exportForGenerators').and.returnValue({
+        classes: [{ id: 'a', name: 'Alumno' }],
+        relationships: []
+      })
     };
+    frontendGenerator = { loading: signal(false), generateFrontend: jasmine.createSpy('generateFrontend') };
+    fullProjectGenerator = { loading: signal(false), generateAll: jasmine.createSpy('generateAll') };
     imageService = {
       loading: signal(false),
       analyzeImage: jasmine.createSpy('analyzeImage')
@@ -86,8 +95,9 @@ describe('SidePanel image import choices', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: { get: () => 'room-1' } } }
         },
-        { provide: SqlExportService, useValue: { downloadSql: jasmine.createSpy('downloadSql') } },
-        { provide: FrontendGeneratorService, useValue: { loading: signal(false), generateFrontend: jasmine.createSpy('generateFrontend') } },
+        { provide: SqlExportService, useValue: { downloadSql: jasmine.createSpy('downloadSql'), exportToSql: jasmine.createSpy('exportToSql').and.returnValue('CREATE TABLE alumno();') } },
+        { provide: FrontendGeneratorService, useValue: frontendGenerator },
+        { provide: FullProjectGeneratorService, useValue: fullProjectGenerator },
         { provide: ChatbotService, useValue: chatbot },
         { provide: IaActionsService, useValue: iaActions },
         { provide: BackendGeneratorService, useValue: { loading: signal(false) } },
@@ -98,6 +108,105 @@ describe('SidePanel image import choices', () => {
     fixture = TestBed.createComponent(SidePanel);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  describe('exporting the mobile app and the full project', () => {
+    beforeEach(() => localStorage.removeItem('uml-app-name'));
+
+    function typeName(name: string) {
+      const input = fixture.nativeElement.querySelector('[data-testid="app-name-input"]') as HTMLInputElement;
+      input.value = name;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+    }
+
+    function confirm() {
+      (fixture.nativeElement.querySelector('[data-testid="confirm-app-name"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+    }
+
+    it('asks for the app name before exporting the Flutter project and sends it with the diagram', () => {
+      component.onGenerateFrontend();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('[data-testid="app-name-dialog"]')).not.toBeNull();
+      expect(frontendGenerator.generateFrontend).not.toHaveBeenCalled();
+
+      typeName('Sistema Escolar');
+      confirm();
+
+      expect(frontendGenerator.generateFrontend).toHaveBeenCalledOnceWith(
+        { classes: [{ id: 'a', name: 'Alumno' }], relationships: [], appName: 'Sistema Escolar' },
+        'sistema-escolar-app-movil.zip'
+      );
+      expect(fixture.nativeElement.querySelector('[data-testid="app-name-dialog"]')).toBeNull();
+    });
+
+    it('downloads backend, mobile app, SQL and instructions in a single ZIP', () => {
+      component.onGenerateAll();
+      fixture.detectChanges();
+      typeName('Gestión Contable');
+      confirm();
+
+      expect(fullProjectGenerator.generateAll).toHaveBeenCalledOnceWith(
+        {
+          classes: [{ id: 'a', name: 'Alumno' }],
+          relationships: [],
+          appName: 'Gestión Contable',
+          sqlScript: 'CREATE TABLE alumno();'
+        },
+        'gestion-contable.zip'
+      );
+      expect(frontendGenerator.generateFrontend).not.toHaveBeenCalled();
+    });
+
+    it('lets the name stay empty (the server then picks a neutral one) and remembers the last name', () => {
+      component.onGenerateAll();
+      fixture.detectChanges();
+      confirm();
+
+      expect(fullProjectGenerator.generateAll.calls.mostRecent().args[0].appName).toBe('');
+      expect(fullProjectGenerator.generateAll.calls.mostRecent().args[1]).toBe('mi-aplicacion.zip');
+
+      component.onGenerateFrontend();
+      fixture.detectChanges();
+      typeName('Mi Tienda');
+      confirm();
+      component.onGenerateAll();
+      expect(component.appNameDraft()).toBe('Mi Tienda');
+    });
+
+    it('does not export anything when the dialog is cancelled', () => {
+      component.onGenerateAll();
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-testid="cancel-app-name"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(fullProjectGenerator.generateAll).not.toHaveBeenCalled();
+      expect(frontendGenerator.generateFrontend).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.querySelector('[data-testid="app-name-dialog"]')).toBeNull();
+    });
+
+    it('closes the app name dialog with Escape without exporting, and Escape still cancels an image import', () => {
+      component.onGenerateAll();
+      fixture.detectChanges();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+
+      expect(component.appNameDialogOpen()).toBeFalse();
+      expect(fullProjectGenerator.generateAll).not.toHaveBeenCalled();
+
+      importGeneratedUml();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(component.imageImportDialogOpen()).toBeFalse();
+    });
+
+    it('shows the full project button in the export actions', () => {
+      component.showActions = true;
+      fixture.detectChanges();
+      const button = fixture.nativeElement.querySelector('[data-testid="export-all"]') as HTMLButtonElement;
+      expect(button?.textContent).toContain('Descargar proyecto completo');
+    });
   });
 
   it('imports immediately without a dialog when the diagram is empty', () => {

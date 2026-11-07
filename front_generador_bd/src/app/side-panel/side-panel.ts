@@ -8,6 +8,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { SqlExportService } from '../../services/exports/sql-export.service';
 import { UmlImageServiceTs } from '../../services/imports/uml-image.service';
 import { FrontendGeneratorService } from '../../services/exports/frontend-generator.service';
+import { FullProjectGeneratorService } from '../../services/exports/full-project-generator.service';
+import { exportFileBase } from '../../services/exports/export-name.util';
 import { Spinner } from "../components/diagram/spinner/spinner";
 import { ChatbotService } from '../../services/IA/chatbot.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
@@ -23,6 +25,7 @@ import { BackendGeneratorService } from '../../services/exports/backend-generato
 })
 export class SidePanel {
   private frontendGeneratorService = inject(FrontendGeneratorService);
+  private fullProjectGeneratorService = inject(FullProjectGeneratorService);
   private chatboxService = inject(ChatbotService);
   private iaActions = inject(IaActionsService);
   private backendGeneratorService=inject(BackendGeneratorService);
@@ -41,6 +44,9 @@ export class SidePanel {
   copied = signal<boolean>(false);
   recognizing = signal<boolean>(false);
   imageImportDialogOpen = signal<boolean>(false);
+  appNameDialogOpen = signal<boolean>(false);
+  appNameDraft = signal<string>('');
+  private pendingExport: 'flutter' | 'all' | null = null;
   private pendingImageImport: any | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
@@ -378,8 +384,13 @@ export class SidePanel {
     this.imageImportDialogOpen.set(false);
   }
 
+  /** Un solo manejador de Escape (Angular conserva uno por evento): cierra el diálogo que esté abierto. */
   @HostListener('document:keydown.escape')
   cancelImageImportOnEscape() {
+    if (this.appNameDialogOpen()) {
+      this.cancelAppName();
+      return;
+    }
     if (this.imageImportDialogOpen()) {
       this.cancelImageImport();
     }
@@ -392,9 +403,59 @@ export class SidePanel {
     return pendingImport;
   }
 
+  /** "Exportar Flutter": antes de generar se pregunta el nombre de la aplicación. */
   onGenerateFrontend() {
-    const umlJson = this.diagramService.exportForGenerators();
-    this.frontendGeneratorService.generateFrontend(umlJson);
+    this.openAppNameDialog('flutter');
+  }
+
+  /** "Descargar proyecto completo": backend + app móvil + SQL + instrucciones en un solo ZIP. */
+  onGenerateAll() {
+    this.openAppNameDialog('all');
+  }
+
+  private openAppNameDialog(kind: 'flutter' | 'all') {
+    this.pendingExport = kind;
+    this.appNameDraft.set(this.rememberedAppName());
+    this.appNameDialogOpen.set(true);
+  }
+
+  cancelAppName() {
+    this.pendingExport = null;
+    this.appNameDialogOpen.set(false);
+  }
+
+  confirmAppName() {
+    const kind = this.pendingExport;
+    const appName = this.appNameDraft().trim().replace(/\s+/g, ' ').slice(0, 40);
+    this.pendingExport = null;
+    this.appNameDialogOpen.set(false);
+    if (!kind) return;
+    this.rememberAppName(appName);
+
+    const diagram = this.diagramService.exportForGenerators();
+    const base = exportFileBase(appName);
+    if (kind === 'flutter') {
+      this.frontendGeneratorService.generateFrontend({ ...diagram, appName }, `${base}-app-movil.zip`);
+      return;
+    }
+    const sqlScript = this.sqlExportService.exportToSql(diagram);
+    this.fullProjectGeneratorService.generateAll({ ...diagram, appName, sqlScript }, `${base}.zip`);
+  }
+
+  private rememberedAppName(): string {
+    try {
+      return localStorage.getItem('uml-app-name') ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private rememberAppName(name: string) {
+    try {
+      localStorage.setItem('uml-app-name', name);
+    } catch {
+      // sin almacenamiento (ventana privada): solo se pierde el recuerdo del nombre
+    }
   }
 
   isLoadingImage(): boolean {
@@ -404,7 +465,7 @@ export class SidePanel {
     return this.chatboxService.isLoading();
   }
   isLoadingGeneratefrontend(): boolean {
-    return this.frontendGeneratorService.loading();
+    return this.frontendGeneratorService.loading() || this.fullProjectGeneratorService.loading();
   }
   isLoadingGenerateBackend():boolean{
     return this.backendGeneratorService.loading();

@@ -7,6 +7,7 @@ from .views import (
     analyze_uml_image,
     analyze_uml_audio,
     generar_flutter,
+    generar_todo,
     export_xmi,
     import_xmi,
     get_room_activity,
@@ -20,6 +21,7 @@ urlpatterns = [
     path("uml_from_audio/", analyze_uml_audio, name="uml-from-audio"),
 
     path("generar_flutter/", generar_flutter, name="generar-flutter"),
+    path("generar_todo/", generar_todo, name="generar-todo"),
 
     path("xmi/export/", export_xmi, name="xmi-export"),
     path("xmi/import/", import_xmi, name="xmi-import"),

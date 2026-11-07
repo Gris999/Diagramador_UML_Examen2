@@ -3,6 +3,9 @@ import os
 from pathlib import Path
 import unicodedata
 
+from . import app_icon
+
+
 class FlutterCRUDGenerator:
     def __init__(self, uml_json):
         self.uml_json = uml_json
@@ -161,6 +164,7 @@ class FlutterCRUDGenerator:
         
         # Generar archivos base
         self._generate_pubspec(base_path)
+        self._generate_app_icon(base_path)
         self._generate_config(base_path)
         self._generate_ios_local_ai_setup_script(base_path)
         
@@ -223,13 +227,18 @@ class FlutterCRUDGenerator:
             self._generate_entity_service_adapter(base_path)
             self._generate_command_parser(base_path)
             self._generate_command_validator(base_path)
+            self._generate_assistant_texts(base_path)
             self._generate_entity_service_registry(base_path, original_classes)
             self._generate_command_router(base_path)
             self._generate_voice_input_controller(base_path)
+            self._generate_model_downloader(base_path)
             self._generate_local_model_manager(base_path)
             self._generate_local_llm_command_extractor(base_path)
             self._generate_assistant_view(base_path)
             self._generate_assistant_tests(base_path, original_classes)
+            self._generate_assistant_texts_tests(base_path)
+            self._generate_voice_tests(base_path)
+            self._generate_model_download_tests(base_path)
             self._generate_local_llm_tests(base_path, original_classes)
 
             self._generate_main(base_path, intermediate_entities)
@@ -332,10 +341,22 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.14.0
+
+# Icono propio de la app (en vez del logo de Flutter). `tool/configure_ios_local_ai.sh` ejecuta
+# `dart run flutter_launcher_icons` despues de `flutter create`.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#__ICON_BACKGROUND__"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
 """
+        content = content.replace('__ICON_BACKGROUND__', self._seed_color_hex(self._app_name()))
         with open(base_path / 'pubspec.yaml', "w", encoding="utf-8") as f:
           f.write(self._sanitize(content))
 
@@ -384,8 +405,11 @@ TARGET="16.4"
 PODFILE="ios/Podfile"
 PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
 INFO_PLIST="ios/Runner/Info.plist"
+ANDROID_MANIFEST="android/app/src/main/AndroidManifest.xml"
 MIC_KEY="NSMicrophoneUsageDescription"
 SPEECH_KEY="NSSpeechRecognitionUsageDescription"
+# Nombre que se ve bajo el icono (solo letras, numeros, espacios, punto y guion: seguro en plist, XML y shell).
+APP_DISPLAY_NAME='__APP_DISPLAY_NAME__'
 VERIFY_ONLY=0
 
 if [ "${1:-}" = "--verify" ]; then
@@ -415,6 +439,18 @@ has_plist_key() {
 check_plist() {
   [ -f "$INFO_PLIST" ] || return 0
   has_plist_key "$MIC_KEY" && has_plist_key "$SPEECH_KEY"
+}
+
+# Cambia el <string> que sigue a <key>CLAVE</key>; si la clave no existe, la agrega.
+set_plist_string() {
+  if grep -q "<key>$1</key>" "$INFO_PLIST"; then
+    awk -v k="$1" -v v="$2" '
+      prev ~ ("<key>" k "</key>") { sub(/<string>[^<]*<\\/string>/, "<string>" v "</string>") }
+      { print; prev = $0 }
+    ' "$INFO_PLIST" > "$INFO_PLIST.new" && mv "$INFO_PLIST.new" "$INFO_PLIST"
+  else
+    add_plist_key "$1" "$2"
+  fi
 }
 
 # Agrega <key>/<string> justo despues del primer <dict> (el de nivel superior).
@@ -468,8 +504,36 @@ rm -f "$PBXPROJ.bak"
 if [ -f "$INFO_PLIST" ]; then
   add_plist_key "$MIC_KEY" "Esta app usa el microfono para el asistente por voz."
   add_plist_key "$SPEECH_KEY" "Esta app usa reconocimiento de voz para interpretar comandos del asistente."
+  set_plist_string CFBundleDisplayName "$APP_DISPLAY_NAME"
 else
   echo "info: $INFO_PLIST no existe; se omiten los textos de permiso de voz."
+fi
+
+# --- Android: nombre bajo el icono ---
+if [ -f "$ANDROID_MANIFEST" ]; then
+  sed -i.bak -E "s/android:label=\\"[^\\"]*\\"/android:label=\\"${APP_DISPLAY_NAME}\\"/" "$ANDROID_MANIFEST"
+  rm -f "$ANDROID_MANIFEST.bak"
+fi
+
+# --- Android: permisos de internet (descargar la IA local) y microfono (voz), una sola vez ---
+if [ -f "$ANDROID_MANIFEST" ]; then
+  for PERMISSION in INTERNET RECORD_AUDIO; do
+    if ! grep -q "android.permission.$PERMISSION" "$ANDROID_MANIFEST"; then
+      awk -v p="$PERMISSION" '
+        { print }
+        !done && /<manifest/ { print "    <uses-permission android:name=\\"android.permission." p "\\"/>"; done = 1 }
+      ' "$ANDROID_MANIFEST" > "$ANDROID_MANIFEST.new" && mv "$ANDROID_MANIFEST.new" "$ANDROID_MANIFEST"
+    fi
+  done
+fi
+
+# --- Icono propio de la app (en vez del logo de Flutter) ---
+if [ -f assets/icon/app_icon.png ] && command -v dart >/dev/null 2>&1; then
+  if dart run flutter_launcher_icons >/dev/null 2>&1; then
+    echo "OK: icono de la app generado"
+  else
+    echo "aviso: no se pudo generar el icono; ejecuta 'flutter pub get' y luego 'dart run flutter_launcher_icons'" >&2
+  fi
 fi
 
 if check_podfile && check_pbxproj && check_plist; then
@@ -479,6 +543,7 @@ else
   exit 1
 fi
 '''
+        content = content.replace('__APP_DISPLAY_NAME__', self._platform_app_name())
         script_path = base_path / 'tool' / 'configure_ios_local_ai.sh'
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(self._sanitize(content), encoding="utf-8", newline="\n")
@@ -690,8 +755,60 @@ class DatabaseHelper {{
         (base_path / 'lib' / 'database').mkdir(parents=True, exist_ok=True)
         (base_path / 'lib' / 'database' / 'database_helper.dart').write_text(self._sanitize(content), encoding="utf-8", newline="\n")
 
+    DEFAULT_APP_NAME = 'Mi aplicación'
+
+    def _platform_app_name(self):
+        """Nombre que ve la persona bajo el icono (iOS CFBundleDisplayName / Android label): solo letras, numeros,
+        espacios, punto y guion, para que sea seguro dentro de un plist, un XML y un script de shell."""
+        import re
+        cleaned = re.sub(r'[^\w .\-]', ' ', self._app_name())
+        return ' '.join(cleaned.split())[:30] or self.DEFAULT_APP_NAME
+
+    def _generate_app_icon(self, base_path):
+        """Escribe assets/icon/app_icon.png (iOS) y app_icon_foreground.png (Android adaptable), con el color de la app."""
+        seed = self._seed_color_hex(self._app_name())
+        icon_dir = base_path / 'assets' / 'icon'
+        icon_dir.mkdir(parents=True, exist_ok=True)
+        (icon_dir / 'app_icon.png').write_bytes(app_icon.render_png(seed))
+        (icon_dir / 'app_icon_foreground.png').write_bytes(app_icon.render_png(seed, foreground=True))
+
+    def _app_name(self):
+        """Nombre de la aplicacion: lo que el usuario escribio al exportar (`appName`, o `projectName`), o un nombre neutro."""
+        raw = self.uml_json.get('appName') or self.uml_json.get('projectName') or ''
+        name = ' '.join(str(raw).split())[:40].strip()
+        return name or self.DEFAULT_APP_NAME
+
+    @staticmethod
+    def _dart_string_literal(value):
+        """Literal de cadena Dart entre comillas simples (escapa barra, comilla, $ y saltos de linea)."""
+        escaped = (
+            value.replace('\\', '\\\\').replace("'", "\\'").replace('$', '\\$').replace('\n', ' ').replace('\r', ' ')
+        )
+        return f"'{escaped}'"
+
+    def _seed_color_hex(self, app_name):
+        """Color base de la app (6 hex): el tono sale del nombre, asi cada sistema tiene su propia identidad."""
+        import colorsys
+        import hashlib
+        hue = int(hashlib.sha256(app_name.encode('utf-8')).hexdigest()[:8], 16) % 360 / 360.0
+        red, green, blue = colorsys.hls_to_rgb(hue, 0.42, 0.62)
+        return '%02X%02X%02X' % (round(red * 255), round(green * 255), round(blue * 255))
+
+    @staticmethod
+    def _plural_label(name):
+        """"DetalleVenta" -> "Detalle ventas": plural en espanol, mismas reglas que AssistantTexts.plural."""
+        import re
+        words = re.sub(r'([a-záéíóúñ0-9])([A-ZÁÉÍÓÚÑ])', r'\1 \2', name).replace('_', ' ').lower()
+        if words.endswith('z'):
+            words = words[:-1] + 'ces'
+        elif re.search(r'[aeiouáéíóú]$', words):
+            words += 's'
+        else:
+            words += 'es'
+        return words[:1].upper() + words[1:]
+
     def _generate_main(self, base_path, intermediate_entities=[]):
-        """Genera el archivo main.dart"""
+        """Genera el archivo main.dart: inicio generico (sirve para cualquier diagrama)."""
         entity_names = [
             c['name'] for c in self.classes
             if not c.get('is_intermediate', False)
@@ -702,10 +819,19 @@ class DatabaseHelper {{
             for name in dict.fromkeys(entity_names)
         ]
         imports_str = '\n'.join(imports)
-        
+        app_name = self._app_name()
+        app_name_literal = self._dart_string_literal(app_name)
+        seed = self._seed_color_hex(app_name)
+
         content = f"""import 'package:flutter/material.dart';
 import 'assistant/assistant_view.dart';
 {imports_str}
+
+/// Nombre de la aplicacion (lo elige la persona al exportar desde el diagramador).
+const String _appName = {app_name_literal};
+
+/// Color base: sale del nombre, asi cada sistema tiene su propia identidad.
+const Color _seed = Color(0xFF{seed});
 
 void main() {{
   runApp(const MyApp());
@@ -717,9 +843,14 @@ class MyApp extends StatelessWidget {{
   @override
   Widget build(BuildContext context) {{
     return MaterialApp(
-      title: 'CRUD Generator',
+      title: _appName,
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: _seed),
+        useMaterial3: true,
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark),
         useMaterial3: true,
       ),
       home: const HomePage(),
@@ -727,20 +858,102 @@ class MyApp extends StatelessWidget {{
   }}
 }}
 
+class _Section {{
+  final String title;
+  final String subtitle;
+  final WidgetBuilder builder;
+  final bool isRelation;
+  const _Section(this.title, this.subtitle, this.builder, {{this.isRelation = false}});
+}}
+
+final List<_Section> _sections = [
+{self._generate_home_cards(intermediate_entities)}
+];
+
 class HomePage extends StatelessWidget {{
   const HomePage({{super.key}});
 
   @override
   Widget build(BuildContext context) {{
+    final scheme = Theme.of(context).colorScheme;
+    final tones = [
+      (scheme.primaryContainer, scheme.onPrimaryContainer),
+      (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+    ];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gestión de Clases'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-{self._generate_home_cards(intermediate_entities)}
+      body: CustomScrollView(
+        slivers: [
+          const SliverAppBar.large(title: Text(_appName)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Text(
+                'Elige qué quieres administrar. También puedes pedírselo al asistente.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+            sliver: SliverGrid.builder(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 240,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.05,
+              ),
+              itemCount: _sections.length,
+              itemBuilder: (context, index) {{
+                final section = _sections[index];
+                final (background, foreground) = tones[index % tones.length];
+                return Card(
+                  clipBehavior: Clip.antiAlias,
+                  elevation: 0,
+                  color: background,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                  child: InkWell(
+                    onTap: () {{
+                      Navigator.push(context, MaterialPageRoute(builder: section.builder));
+                    }},
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: foreground.withValues(alpha: 0.14),
+                            child: section.isRelation
+                                ? Icon(Icons.link, color: foreground)
+                                : Text(
+                                    section.title.isEmpty ? '?' : section.title[0].toUpperCase(),
+                                    style: TextStyle(color: foreground, fontSize: 20, fontWeight: FontWeight.w700),
+                                  ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            section.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: foreground,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            section.subtitle,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: foreground),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }},
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -750,7 +963,7 @@ class HomePage extends StatelessWidget {{
             MaterialPageRoute(builder: (context) => const AssistantView()),
           );
         }},
-        icon: const Icon(Icons.mic),
+        icon: const Icon(Icons.auto_awesome),
         label: const Text('Asistente'),
       ),
     );
@@ -768,10 +981,11 @@ void main() {
   testWidgets('shows the generated CRUD home page', (tester) async {
     await tester.pumpWidget(const MyApp());
 
-    expect(find.text('Gestión de Clases'), findsOneWidget);
+    // SliverAppBar.large muestra el titulo dos veces (expandido y contraido).
+    expect(find.text(__APP_NAME__), findsWidgets);
   });
 }
-"""
+""".replace('__APP_NAME__', self._dart_string_literal(self._app_name()))
         (base_path / 'test' / 'widget_test.dart').write_text(
             self._sanitize(content),
             encoding="utf-8",
@@ -779,62 +993,28 @@ void main() {
         )
     
     def _generate_home_cards(self, intermediate_entities=[]):
-        """Genera las tarjetas de navegación en el home"""
-        cards = []
-        
-        # Obtener nombres de entidades intermedias para excluirlas
+        """Genera la lista de secciones del inicio (una por entidad; las tablas de relacion se marcan aparte)."""
+        entries = []
         intermediate_names = {ie['name'] for ie in intermediate_entities}
-        
-        # Tarjetas para clases originales (excluyendo entidades intermedias)
+
         for clase in self.classes:
-            # Saltar si es una entidad intermedia
             if clase.get('is_intermediate', False) or clase['name'] in intermediate_names:
                 continue
             name = clase['name']
-            snake_name = self._to_snake_case(name)
-            cards.append(f"""          Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              leading: const Icon(Icons.table_chart, size: 40),
-              title: Text('{name}'),
-              subtitle: Text('Gestionar {name}'),
-              trailing: const Icon(Icons.arrow_forward_ios),
-              onTap: () {{
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => {name}ListView(),
-                  ),
-                );
-              }},
-            ),
-          )""")
-        
-        # Tarjetas para entidades intermedias (relaciones)
+            title = self._dart_string_literal(self._plural_label(name))
+            entries.append(
+                f"  _Section({title}, 'Ver y administrar', (context) => {name}ListView()),"
+            )
+
         for ie in intermediate_entities:
             name = ie['name']
-            snake_name = self._to_snake_case(name)
-            cards.append(f"""          Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            color: Colors.purple.shade50,
-            child: ListTile(
-              leading: const Icon(Icons.link, size: 40, color: Colors.purple),
-              title: Text('{name}'),
-              subtitle: Text('Gestionar relación {ie["first_entity"]} - {ie["second_entity"]}'),
-              trailing: const Icon(Icons.arrow_forward_ios),
-              onTap: () {{
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => {name}ListView(),
-                  ),
-                );
-              }},
-            ),
-          )""")
-        
-        return ',\n'.join(cards)
-    
+            title = self._dart_string_literal(f"{ie['first_entity']} y {ie['second_entity']}")
+            entries.append(
+                f"  _Section({title}, 'Relación entre registros', (context) => {name}ListView(), isRelation: true),"
+            )
+
+        return '\n'.join(entries)
+
     def _generate_config(self, base_path):
         """Genera el archivo de configuración para el API"""
         content = """class ApiConfig {
@@ -2570,7 +2750,9 @@ class {name}DetailView extends StatelessWidget {{
                     'target_entity': target,
                     'kind': rel['kind'],
                     'json_key': self._to_backend_json_key(field_name),
-                    'required_on_create': True,
+                    # Una relacion 0..1 (p. ej. el padre de una recursiva) no se exige: sin esto el primer
+                    # registro no se puede crear. Mismo criterio que el formulario (`optional` al leer las multiplicidades).
+                    'required_on_create': not rel.get('optional', False),
                     'writable': True,
                 })
             elif rel['kind'] == 'one_to_many':
@@ -3498,9 +3680,292 @@ class CommandValidator {
             self._sanitize(content), encoding="utf-8", newline="\n"
         )
 
+    def _generate_assistant_texts(self, base_path):
+        """Genera lib/assistant/assistant_texts.dart: respuestas del asistente en español natural, saludos y ayuda.
+        Todo se deriva de AppSchema en tiempo de ejecucion (mismo archivo para cualquier esquema)."""
+        content = '''import 'app_schema.dart';
+
+/// Textos del asistente en español natural. Todo se deriva de AppSchema en
+/// tiempo de ejecución: este archivo nunca nombra una entidad ni un campo de
+/// un proyecto concreto. Evita artículos y adjetivos con género
+/// ("registrados") porque el género de cada entidad no se conoce; solo los
+/// ejemplos infieren "un/una" con una regla sencilla.
+class AssistantTexts {
+  AssistantTexts._();
+
+  /// "DetalleVenta" / "detalle_venta" -> "detalle venta".
+  static String humanize(String name) {
+    final spaced = name.replaceAllMapped(
+      RegExp(r'([a-záéíóúñ0-9])([A-ZÁÉÍÓÚÑ])'),
+      (match) => '${match[1]} ${match[2]}',
+    );
+    return spaced.replaceAll('_', ' ').toLowerCase();
+  }
+
+  static String singular(AssistantEntitySchema schema) => humanize(schema.name);
+
+  static String plural(AssistantEntitySchema schema) {
+    final word = singular(schema);
+    if (word.endsWith('z')) return '${word.substring(0, word.length - 1)}ces';
+    if (RegExp(r'[aeiouáéíóú]$').hasMatch(word)) return '${word}s';
+    return '${word}es';
+  }
+
+  static String _indefinite(String singularWord) {
+    const masculineEndingInA = {'problema', 'sistema', 'tema', 'programa', 'diagrama', 'esquema', 'idioma', 'mapa', 'día', 'dia', 'planeta'};
+    final noun = singularWord.split(' ').first;
+    if (masculineEndingInA.contains(noun)) return 'un';
+    final feminine = noun.endsWith('a') ||
+        noun.endsWith('ión') ||
+        noun.endsWith('dad') ||
+        noun.endsWith('tad') ||
+        noun.endsWith('tud');
+    return feminine ? 'una' : 'un';
+  }
+
+  static String _valueText(Object? value) {
+    if (value is bool) return value ? 'sí' : 'no';
+    return '$value';
+  }
+
+  static AssistantFieldSchema? _nameFieldOf(AssistantEntitySchema schema) {
+    final candidate = schema.nameField;
+    if (candidate == null) return null;
+    for (final field in schema.fields) {
+      if (field.name == candidate) return field;
+    }
+    return null;
+  }
+
+  /// Texto corto de un registro: su nombre (o su clave si la entidad no tiene un campo de nombre).
+  static String rowTitle(AssistantEntitySchema schema, Map<String, dynamic> row) {
+    final nameField = _nameFieldOf(schema);
+    final value = nameField == null ? null : row[nameField.jsonKey];
+    if (value != null && '$value'.trim().isNotEmpty) return _valueText(value);
+    final pk = row[schema.pkField.jsonKey];
+    return pk == null ? '' : '#${_valueText(pk)}';
+  }
+
+  /// Los demás campos de un registro ("edad: 30, ciudad: Quito"), sin la clave ni el nombre.
+  static String rowDetails(AssistantEntitySchema schema, Map<String, dynamic> row) {
+    final nameField = _nameFieldOf(schema);
+    final parts = <String>[];
+    for (final field in schema.fields) {
+      if (field.isPrimaryKey) continue;
+      if (nameField != null && field.name == nameField.name) continue;
+      final value = row[field.jsonKey];
+      if (value == null || '$value'.trim().isEmpty) continue;
+      parts.add('${humanize(field.name)}: ${_valueText(value)}');
+    }
+    return parts.join(', ');
+  }
+
+  /// Resultado de una consulta en lenguaje natural (0, 1 o varios registros).
+  static String describeRows(
+    AssistantEntitySchema schema,
+    List<Map<String, dynamic>> rows, {
+    bool filtered = false,
+    int maxRows = 5,
+  }) {
+    if (rows.isEmpty) {
+      return filtered
+          ? 'No encontré registros de ${plural(schema)} con esos datos.'
+          : 'Todavía no hay registros de ${plural(schema)}.';
+    }
+    if (rows.length == 1) {
+      final details = rowDetails(schema, rows.first);
+      final suffix = details.isEmpty ? '' : ' ($details)';
+      return 'Encontré 1 ${singular(schema)}: ${rowTitle(schema, rows.first)}$suffix.';
+    }
+    final buffer = StringBuffer('Encontré ${rows.length} ${plural(schema)}:');
+    for (final row in rows.take(maxRows)) {
+      buffer.write('\\n• ${rowTitle(schema, row)}');
+    }
+    final remaining = rows.length - maxRows;
+    if (remaining > 0) buffer.write('\\ny $remaining más.');
+    return buffer.toString();
+  }
+
+  static String created(AssistantEntitySchema schema, Map<String, dynamic> row) {
+    final title = rowTitle(schema, row);
+    final detail = title.isEmpty ? '' : ': «$title»';
+    return 'Listo: guardé un nuevo registro de ${singular(schema)}$detail.';
+  }
+
+  static String updated(AssistantEntitySchema schema, Map<String, dynamic> row) {
+    final title = rowTitle(schema, row);
+    final detail = title.isEmpty ? '' : ': «$title»';
+    return 'Listo: actualicé el registro de ${singular(schema)}$detail.';
+  }
+
+  static const String deleted = 'Listo: eliminé el registro.';
+
+  static String confirmDelete(AssistantEntitySchema schema) =>
+      'Confirma que quieres eliminar este registro de ${singular(schema)}.';
+
+  static String notFound(AssistantEntitySchema schema) =>
+      'No encontré ningún registro de ${singular(schema)} que coincida.';
+
+  static String ambiguous(AssistantEntitySchema schema, int count) =>
+      'Encontré $count registros de ${plural(schema)} que coinciden. Sé más específico, por ejemplo con el nombre completo.';
+
+  // ------------------------------------------------------------------ saludos y ayuda
+
+  static String _entityList() {
+    final names = AppSchema.entities.map(plural).toList();
+    if (names.isEmpty) return 'tus datos';
+    if (names.length == 1) return names.first;
+    return '${names.sublist(0, names.length - 1).join(', ')} y ${names.last}';
+  }
+
+  /// Tres ejemplos que el asistente sí entiende, con la primera entidad del esquema.
+  static String examples() {
+    if (AppSchema.entities.isEmpty) return '';
+    final first = AppSchema.entities.first;
+    final noun = singular(first);
+    return '• «muéstrame los ${plural(first)}»\\n'
+        '• «crea ${_indefinite(noun)} $noun llamado Ejemplo»\\n'
+        '• «elimina $noun Ejemplo»';
+  }
+
+  /// Sugerencias para tocar en la pantalla de bienvenida (siempre cosas que el asistente entiende).
+  static List<String> suggestions() {
+    if (AppSchema.entities.isEmpty) return const ['Ayuda'];
+    final first = AppSchema.entities.first;
+    final noun = singular(first);
+    return [
+      'Muéstrame los ${plural(first)}',
+      'Crea ${_indefinite(noun)} $noun llamado Ejemplo',
+      'Ayuda',
+    ];
+  }
+
+  static String greeting() =>
+      '¡Hola! Soy tu asistente. Puedo ayudarte con ${_entityList()}.\\nPrueba, por ejemplo:\\n${examples()}';
+
+  static String help() =>
+      'Puedo ayudarte con ${_entityList()}: consultar, crear, cambiar y eliminar registros.\\nPrueba, por ejemplo:\\n${examples()}';
+
+  static String notUnderstood() =>
+      'No logré entender eso. Puedo ayudarte con ${_entityList()}.\\nPrueba, por ejemplo:\\n${examples()}';
+
+  static final RegExp _leadingGreeting = RegExp(
+    r'^[\\s¡!]*(hola|holi|hey|ey|saludos|buen[oa]s(?:\\s+(?:d[ií]as|tardes|noches))?|buen\\s+d[ií]a)(?![a-záéíóúñ])[\\s,.!¡?]*',
+    caseSensitive: false,
+  );
+
+  /// Quita un saludo al inicio: "hola, muéstrame los empleados" -> "muéstrame los empleados".
+  static String withoutLeadingGreeting(String raw) => raw.replaceFirst(_leadingGreeting, '').trim();
+
+  static String _plain(String raw) {
+    final text = AppSchema.normalize(raw).replaceAll(RegExp(r'[^a-zñü0-9 ]'), ' ');
+    return text.replaceAll(RegExp(' +'), ' ').trim();
+  }
+
+  static const Set<String> _howAreYou = {'que tal', 'como estas', 'como va', 'como te va', 'como andas', 'como estas hoy'};
+  static const Set<String> _goodbyes = {'adios', 'chao', 'chau', 'bye', 'hasta luego', 'hasta pronto', 'nos vemos'};
+  static const Set<String> _helpPhrases = {
+    'ayuda', 'ayudame', 'help', 'que puedes hacer', 'que sabes hacer', 'como funciona', 'como te uso', 'como se usa',
+    'que haces', 'para que sirves', 'que puedo decirte', 'que puedo pedirte', 'ejemplos', 'comandos', 'instrucciones',
+    'opciones', 'menu',
+  };
+  static const Set<String> _identityPhrases = {'quien eres', 'como te llamas', 'que eres', 'eres una ia', 'eres un robot', 'eres humano'};
+
+  /// Respuesta a un saludo, gracias, despedida, ayuda o "quién eres". Devuelve null si el mensaje es una orden real:
+  /// así "hola" ya no se interpreta como una consulta ("Sin resultados").
+  static String? smallTalkReply(String raw) {
+    if (_plain(raw).isEmpty) return null;
+    final rest = _plain(withoutLeadingGreeting(raw));
+    if (rest.isEmpty) return greeting();
+    if (_howAreYou.contains(rest)) return '¡Muy bien, gracias por preguntar! ¿Qué necesitas hacer con ${_entityList()}?';
+    if (rest.contains('gracias') && rest.split(' ').length <= 4) return 'De nada. Aquí estoy si necesitas algo más.';
+    if (_goodbyes.contains(rest)) return '¡Hasta luego! Cuando quieras, aquí estaré.';
+    if (_helpPhrases.contains(rest)) return help();
+    if (_identityPhrases.contains(rest)) {
+      return 'Soy el asistente de esta app: entiendo lo que me escribes o me dices para consultar, crear, cambiar o eliminar ${_entityList()}.';
+    }
+    return null;
+  }
+}
+'''
+        # Sin _sanitize: ese metodo cambia "¿"/"¡" por "?"/"!" (pensado para YAML) y aqui se necesitan tal cual.
+        (base_path / 'lib' / 'assistant' / 'assistant_texts.dart').write_text(
+            unicodedata.normalize("NFC", content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_assistant_texts_tests(self, base_path):
+        """Genera test/assistant/assistant_texts_test.dart (independiente del esquema: usa AppSchema.entities.first)."""
+        content = '''import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/app_schema.dart';
+import 'package:generated_crud_app/assistant/assistant_texts.dart';
+
+void main() {
+  final entity = AppSchema.entities.first;
+  final plural = AssistantTexts.plural(entity);
+
+  test('a greeting alone gets a friendly reply that names the entities', () {
+    for (final greeting in ['hola', '¡Hola!', 'Buenos días', 'buenas tardes', 'hey']) {
+      final reply = AssistantTexts.smallTalkReply(greeting);
+      expect(reply, isNotNull, reason: greeting);
+      expect(reply, contains(plural), reason: greeting);
+      expect(reply, isNot(contains('Sin resultados')));
+    }
+  });
+
+  test('thanks, goodbye, help and "who are you" are answered without running a command', () {
+    expect(AssistantTexts.smallTalkReply('muchas gracias'), contains('De nada'));
+    expect(AssistantTexts.smallTalkReply('adiós'), contains('Hasta luego'));
+    expect(AssistantTexts.smallTalkReply('ayuda'), contains(plural));
+    expect(AssistantTexts.smallTalkReply('¿qué puedes hacer?'), contains(plural));
+    expect(AssistantTexts.smallTalkReply('hola, ¿cómo estás?'), contains('Muy bien'));
+    expect(AssistantTexts.smallTalkReply('¿quién eres?'), contains('asistente'));
+  });
+
+  test('a real command is not small talk, with or without a leading greeting', () {
+    expect(AssistantTexts.smallTalkReply('lista todos los $plural'), isNull);
+    expect(AssistantTexts.smallTalkReply('hola, lista todos los $plural'), isNull);
+    expect(AssistantTexts.withoutLeadingGreeting('Hola, lista todos los $plural'), 'lista todos los $plural');
+    expect(AssistantTexts.withoutLeadingGreeting('lista todos los $plural'), 'lista todos los $plural');
+    expect(AssistantTexts.smallTalkReply('holanda'), isNull);
+  });
+
+  test('describeRows speaks plain Spanish for zero, one and many rows', () {
+    final empty = AssistantTexts.describeRows(entity, const []);
+    expect(empty, contains(plural));
+    expect(empty, isNot(contains('resultado')));
+    expect(AssistantTexts.describeRows(entity, const [], filtered: true), contains('con esos datos'));
+
+    final pk = entity.pkField.jsonKey;
+    final rows = [for (var i = 1; i <= 7; i++) <String, dynamic>{pk: i}];
+    final many = AssistantTexts.describeRows(entity, rows);
+    expect(many, startsWith('Encontré 7 $plural:'));
+    expect(many, contains('y 2 más.'));
+    expect(many, isNot(contains('resultado(s)')));
+  });
+
+  test('the welcome suggestions are things the assistant understands', () {
+    final suggestions = AssistantTexts.suggestions();
+    expect(suggestions.first, 'Muéstrame los $plural');
+    expect(suggestions, contains('Ayuda'));
+    expect(AssistantTexts.smallTalkReply('Ayuda'), isNotNull);
+  });
+
+  test('the help examples and the not-understood reply give concrete things to say', () {
+    for (final text in [AssistantTexts.help(), AssistantTexts.notUnderstood()]) {
+      expect(text, contains('muéstrame los $plural'));
+      expect(text, contains('crea'));
+    }
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'assistant_texts_test.dart').write_text(
+            unicodedata.normalize("NFC", content), encoding="utf-8", newline="\n"
+        )
+
     def _generate_command_router(self, base_path):
         """Genera lib/assistant/command_router.dart (genérico)."""
         content = '''import 'app_schema.dart';
+import 'assistant_texts.dart';
 import 'business_command.dart';
 import 'entity_service_adapter.dart';
 import 'entity_service_registry.dart';
@@ -3577,7 +4042,7 @@ class CommandRouter {
       return RouterOutcome(success: false, message: 'Entidad no soportada: ${pending.entity}.');
     }
     await adapter.deleteById(pending.pk);
-    return const RouterOutcome(success: true, message: 'Eliminado correctamente.');
+    return const RouterOutcome(success: true, message: AssistantTexts.deleted);
   }
 
   Future<RouterOutcome> _executeCreate(
@@ -3587,7 +4052,7 @@ class CommandRouter {
   ) async {
     final jsonData = schema.toJsonKeyed(command.data);
     final created = await adapter.create(jsonData);
-    return RouterOutcome(success: true, message: '${schema.name} creado correctamente.', rows: [created]);
+    return RouterOutcome(success: true, message: AssistantTexts.created(schema, created), rows: [created]);
   }
 
   Future<RouterOutcome> _executeRead(
@@ -3597,40 +4062,14 @@ class CommandRouter {
   ) async {
     final all = await adapter.list();
     if (command.filters.isEmpty) {
-      return RouterOutcome(success: true, message: _describeRows(schema, all), rows: all);
+      return RouterOutcome(success: true, message: AssistantTexts.describeRows(schema, all), rows: all);
     }
     final matches = _matchRows(all, schema, command.filters, exact: false);
     return RouterOutcome(
       success: true,
-      message: _describeRows(schema, matches),
+      message: AssistantTexts.describeRows(schema, matches, filtered: true),
       rows: matches,
     );
-  }
-
-  static const int _maxDescribedRows = 5;
-
-  /// Construye un mensaje de resultado legible y compacto a partir de las
-  /// filas devueltas (mapas indexados por la clave JSON del backend),
-  /// usando unicamente los campos que el esquema real (AssistantEntitySchema)
-  /// define para esta entidad -- nunca un nombre de campo/entidad fijo de
-  /// ningun proyecto. Maneja 0, 1 y varios resultados; para varios, limita
-  /// las filas mostradas para que la salida siga siendo legible en un
-  /// telefono.
-  String _describeRows(AssistantEntitySchema schema, List<Map<String, dynamic>> rows) {
-    if (rows.isEmpty) return 'Sin resultados.';
-
-    final buffer = StringBuffer('${rows.length} resultado(s).');
-    for (final row in rows.take(_maxDescribedRows)) {
-      final parts = <String>[];
-      for (final field in schema.fields) {
-        if (!row.containsKey(field.jsonKey)) continue;
-        parts.add('${field.name}: ${row[field.jsonKey]}');
-      }
-      if (parts.isNotEmpty) buffer.write('\\n- ${parts.join(', ')}');
-    }
-    final remaining = rows.length - _maxDescribedRows;
-    if (remaining > 0) buffer.write('\\n… y $remaining más.');
-    return buffer.toString();
   }
 
   Future<RouterOutcome> _executeUpdate(
@@ -3641,12 +4080,12 @@ class CommandRouter {
     final all = await adapter.list();
     final matches = _matchRows(all, schema, command.filters, exact: true);
     if (matches.isEmpty) {
-      return const RouterOutcome(success: false, message: 'No encontré ningún registro que coincida.');
+      return RouterOutcome(success: false, message: AssistantTexts.notFound(schema));
     }
     if (matches.length > 1) {
       return RouterOutcome(
         success: false,
-        message: 'La búsqueda es ambigua: coinciden ${matches.length} registros.',
+        message: AssistantTexts.ambiguous(schema, matches.length),
         rows: matches,
       );
     }
@@ -3654,7 +4093,7 @@ class CommandRouter {
     final pk = target[schema.pkField.jsonKey];
     final merged = Map<String, dynamic>.from(target)..addAll(schema.toJsonKeyed(command.data));
     final updated = await adapter.updateFromMap(pk.toString(), merged);
-    return RouterOutcome(success: true, message: '${schema.name} actualizado correctamente.', rows: [updated]);
+    return RouterOutcome(success: true, message: AssistantTexts.updated(schema, updated), rows: [updated]);
   }
 
   Future<RouterOutcome> _resolveDelete(
@@ -3665,12 +4104,12 @@ class CommandRouter {
     final all = await adapter.list();
     final matches = _matchRows(all, schema, command.filters, exact: true);
     if (matches.isEmpty) {
-      return const RouterOutcome(success: false, message: 'No encontré ningún registro que coincida.');
+      return RouterOutcome(success: false, message: AssistantTexts.notFound(schema));
     }
     if (matches.length > 1) {
       return RouterOutcome(
         success: false,
-        message: 'La búsqueda es ambigua: coinciden ${matches.length} registros.',
+        message: AssistantTexts.ambiguous(schema, matches.length),
         rows: matches,
       );
     }
@@ -3678,7 +4117,7 @@ class CommandRouter {
     final pk = target[schema.pkField.jsonKey].toString();
     return RouterOutcome(
       success: true,
-      message: 'Confirma la eliminación de este registro.',
+      message: AssistantTexts.confirmDelete(schema),
       pendingDelete: PendingDelete(entity: schema.name, pk: pk, preview: target),
     );
   }
@@ -3713,28 +4152,54 @@ class CommandRouter {
         )
 
     def _generate_voice_input_controller(self, base_path):
-        """Genera lib/assistant/voice_input_controller.dart (genérico)."""
+        """Genera lib/assistant/voice_input_controller.dart (generico)."""
         content = '''import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 /// Envoltorio delgado sobre package:speech_to_text. La voz es solo un
 /// mecanismo de entrada: lo que se reconoce se entrega al mismo pipeline de
 /// CommandParser que usa el texto escrito — nunca se salta la validación.
-/// Este controlador NO afirma reconocimiento offline/en el dispositivo: la
-/// disponibilidad, el idioma soportado y la dependencia de red varían según
-/// la plataforma, el sistema operativo y el servicio de reconocimiento de
-/// voz instalado, y no se han verificado aquí. Requiere los permisos de
-/// micrófono/reconocimiento de voz nativos correspondientes (ver la
-/// documentación del generador CASE para los pasos exactos).
+///
+/// Sin internet, iOS solo entiende la voz si el teléfono tiene descargado el
+/// dictado del MISMO idioma/región que se le pide; por eso se usa el español
+/// del propio teléfono (y no siempre es_ES) y, cuando algo falla, se avisa con
+/// una frase clara ([onProblem]) en vez de dejar el micrófono mudo. Este
+/// controlador no fuerza ni afirma reconocimiento en el dispositivo.
+/// Requiere los permisos de micrófono/reconocimiento de voz nativos (ver la
+/// documentación del generador CASE).
 ///
 /// Deliberadamente no se inicializa en Web.
 class VoiceInputController {
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _available = false;
   bool _initialized = false;
+  String? _localeId;
+
+  /// La pantalla lo usa para mostrar el problema en lenguaje claro. Nunca recibe el código técnico del error.
+  void Function(String message)? onProblem;
 
   bool get isAvailable => _available;
   bool get isListening => _speech.isListening;
+
+  /// Frase clara para un error del reconocimiento de voz.
+  @visibleForTesting
+  static String friendlyProblem(String errorMsg) {
+    switch (errorMsg) {
+      case 'error_network':
+      case 'error_server':
+      case 'error_language_not_supported':
+      case 'error_language_unavailable':
+        return 'No pude entender tu voz sin conexión. Para usar la voz sin internet, descarga el dictado en español '
+            'en tu teléfono (Ajustes > General > Teclado > Dictado). Mientras tanto puedes escribir tu mensaje.';
+      case 'error_no_match':
+      case 'error_speech_timeout':
+        return 'No te escuché bien. Inténtalo de nuevo, un poco más cerca del micrófono.';
+      case 'error_permission':
+        return 'Falta el permiso del micrófono o del reconocimiento de voz. Actívalo en los Ajustes del teléfono.';
+      default:
+        return 'No pude usar la voz ahora mismo. Puedes escribir tu mensaje.';
+    }
+  }
 
   Future<bool> initialize() async {
     if (kIsWeb) {
@@ -3746,14 +4211,39 @@ class VoiceInputController {
     try {
       _available = await _speech.initialize(
         onStatus: (status) => debugPrint('VoiceInputController status: $status'),
-        onError: (error) => debugPrint('VoiceInputController error: $error'),
+        onError: (error) {
+          debugPrint('VoiceInputController error: $error');
+          onProblem?.call(friendlyProblem(error.errorMsg));
+        },
       );
+      if (_available) _localeId = await _pickSpanishLocale();
     } catch (error) {
       debugPrint('VoiceInputController initialize failed: $error');
       _available = false;
     }
     _initialized = true;
     return _available;
+  }
+
+  /// El español del propio teléfono si lo tiene; si no, el primero disponible entre es_US, es_MX y es_ES.
+  Future<String> _pickSpanishLocale() async {
+    try {
+      final system = await _speech.systemLocale();
+      final systemId = system?.localeId ?? '';
+      if (systemId.toLowerCase().startsWith('es')) return systemId;
+      final locales = await _speech.locales();
+      for (final preferred in const ['es_US', 'es_MX', 'es_ES']) {
+        for (final locale in locales) {
+          if (locale.localeId.replaceAll('-', '_') == preferred) return locale.localeId;
+        }
+      }
+      for (final locale in locales) {
+        if (locale.localeId.toLowerCase().startsWith('es')) return locale.localeId;
+      }
+    } catch (error) {
+      debugPrint('VoiceInputController locale lookup failed: $error');
+    }
+    return 'es_ES';
   }
 
   Future<void> startListening({required void Function(String recognizedText) onResult}) async {
@@ -3765,10 +4255,11 @@ class VoiceInputController {
             onResult(result.recognizedWords);
           }
         },
-        listenOptions: stt.SpeechListenOptions(localeId: 'es_ES'),
+        listenOptions: stt.SpeechListenOptions(localeId: _localeId ?? 'es_ES'),
       );
     } catch (error) {
       debugPrint('VoiceInputController listen failed: $error');
+      onProblem?.call(friendlyProblem('error_unknown'));
     }
   }
 
@@ -3789,13 +4280,503 @@ class VoiceInputController {
             self._sanitize(content), encoding="utf-8", newline="\n"
         )
 
+    def _generate_voice_tests(self, base_path):
+        """Genera test/assistant/voice_input_controller_test.dart."""
+        content = '''import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/voice_input_controller.dart';
+
+void main() {
+  test('network and language errors explain how to use the voice without internet', () {
+    for (final code in ['error_network', 'error_server', 'error_language_not_supported']) {
+      final message = VoiceInputController.friendlyProblem(code);
+      expect(message, contains('sin internet'), reason: code);
+      expect(message, contains('Dictado'), reason: code);
+    }
+  });
+
+  test('other errors get a short plain explanation, never the technical code', () {
+    expect(VoiceInputController.friendlyProblem('error_no_match'), contains('Inténtalo de nuevo'));
+    expect(VoiceInputController.friendlyProblem('error_permission'), contains('permiso'));
+    final unknown = VoiceInputController.friendlyProblem('error_algo_raro');
+    expect(unknown, isNot(contains('error_')));
+    expect(unknown, contains('escribir'));
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'voice_input_controller_test.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_model_downloader(self, base_path):
+        """Genera lib/assistant/model_downloader.dart: descarga unica del modelo de IA local, solo por accion explicita."""
+        content = '''import 'dart:async';
+import 'dart:io';
+
+/// La persona cancelo la descarga: no es un error.
+class ModelDownloadCancelled implements Exception {
+  const ModelDownloadCancelled();
+
+  @override
+  String toString() => 'Descarga cancelada';
+}
+
+/// Lo que el gestor del modelo necesita de un descargador (en las pruebas se usa uno falso).
+abstract interface class ModelFetcher {
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  });
+
+  void cancel();
+}
+
+/// Descarga un archivo grande (el modelo .gguf) a un archivo propio de la app. Solo se usa cuando la persona lo pide
+/// y lo confirma: la app no descarga nada por su cuenta. Escribe en "<destino>.part" y lo renombra al terminar, asi
+/// nunca queda un modelo a medias con el nombre final.
+class ModelDownloader implements ModelFetcher {
+  /// Qwen2.5-0.5B-Instruct (licencia Apache-2.0), cuantizado Q4_K_M: unos 0,5 GB.
+  static const String defaultUrl =
+      'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
+  static const String defaultFileName = 'qwen2.5-0.5b-instruct-q4_k_m.gguf';
+
+  /// Un modelo real pesa cientos de MB: algo mas pequeno es una pagina de error, no un modelo.
+  static const int defaultMinBytes = 100 * 1024 * 1024;
+
+  ModelDownloader({HttpClient Function()? clientFactory}) : _clientFactory = clientFactory ?? HttpClient.new;
+
+  final HttpClient Function() _clientFactory;
+  HttpClient? _client;
+  bool _cancelled = false;
+
+  @override
+  void cancel() {
+    _cancelled = true;
+    _client?.close(force: true);
+  }
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    final part = File('${destination.path}.part');
+    final client = _clientFactory();
+    _client = client;
+    IOSink? sink;
+    try {
+      if (await part.exists()) await part.delete();
+      final request = await client.getUrl(url);
+      final response = await request.close();
+      if (response.statusCode != HttpStatus.ok) {
+        await response.drain<void>();
+        throw HttpException('El servidor respondio ${response.statusCode}', uri: url);
+      }
+      final total = response.contentLength; // -1 si el servidor no lo dice
+      sink = part.openWrite();
+      var received = 0;
+      await for (final chunk in response) {
+        if (_cancelled) throw const ModelDownloadCancelled();
+        sink.add(chunk);
+        received += chunk.length;
+        onProgress(received, total);
+      }
+      await sink.flush();
+      await sink.close();
+      sink = null;
+      if (total > 0 && received != total) {
+        throw HttpException('La descarga quedo incompleta ($received de $total bytes)', uri: url);
+      }
+      if (received < (minBytes ?? defaultMinBytes)) {
+        throw HttpException('El archivo descargado es demasiado pequeno para ser un modelo', uri: url);
+      }
+      if (await destination.exists()) await destination.delete();
+      await part.rename(destination.path);
+    } catch (error) {
+      try {
+        await sink?.close();
+      } catch (_) {}
+      if (await part.exists()) await part.delete();
+      if (_cancelled) throw const ModelDownloadCancelled();
+      rethrow;
+    } finally {
+      client.close(force: true);
+      _client = null;
+    }
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'model_downloader.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_model_download_tests(self, base_path):
+        """Genera test/assistant/model_download_test.dart (descargador con un servidor local + gestor con uno falso) y
+        test/assistant/assistant_download_view_test.dart (la pantalla). Van en archivos distintos: testWidgets instala
+        un HttpOverrides que rechaza toda conexion y arruinaria las pruebas del descargador."""
+        content = '''import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+import 'package:generated_crud_app/assistant/model_downloader.dart';
+import 'package:llamadart/llamadart.dart';
+
+class _FakeEngine implements LocalModelEngineHandle {
+  int loadCalls = 0;
+
+  @override
+  LlamaEngine? get engine => null;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) async => loadCalls++;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FakeFetcher implements ModelFetcher {
+  _FakeFetcher({this.error, this.gate});
+
+  final Object? error;
+  final Completer<void>? gate;
+  bool cancelled = false;
+  int downloadCalls = 0;
+  Uri? requestedUrl;
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    downloadCalls++;
+    requestedUrl = url;
+    onProgress(50, 100);
+    if (gate != null) await gate!.future;
+    if (cancelled) throw const ModelDownloadCancelled();
+    if (error != null) throw error!;
+    await destination.writeAsBytes([1, 2, 3]);
+    onProgress(100, 100);
+  }
+
+  @override
+  void cancel() => cancelled = true;
+}
+
+void main() {
+  late Directory directory;
+
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp('model-download-');
+  });
+
+  tearDown(() async {
+    if (await directory.exists()) await directory.delete(recursive: true);
+  });
+
+  Future<HttpServer> serve(Future<void> Function(HttpRequest request) handler) async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen(handler);
+    addTearDown(() => server.close(force: true));
+    return server;
+  }
+
+  Uri urlOf(HttpServer server) => Uri.parse('http://127.0.0.1:${server.port}/modelo.gguf');
+
+  group('ModelDownloader', () {
+    test('downloads to a .part file, reports progress and renames it when it ends', () async {
+      final bytes = List<int>.generate(300000, (i) => i % 251);
+      final server = await serve((request) async {
+        request.response.contentLength = bytes.length;
+        request.response.add(bytes);
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+      final received = <int>[];
+
+      await ModelDownloader().download(
+        url: urlOf(server),
+        destination: destination,
+        minBytes: 1000,
+        onProgress: (r, total) {
+          expect(total, bytes.length);
+          received.add(r);
+        },
+      );
+
+      expect(await destination.readAsBytes(), bytes);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+      expect(received.last, bytes.length);
+      expect(received, orderedEquals([...received]..sort()));
+    });
+
+    test('rejects an error answer and leaves no file behind', () async {
+      final server = await serve((request) async {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+
+      await expectLater(
+        ModelDownloader().download(url: urlOf(server), destination: destination, minBytes: 1, onProgress: (_, __) {}),
+        throwsA(isA<HttpException>()),
+      );
+      expect(destination.existsSync(), isFalse);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+    });
+
+    test('rejects a download that is cut short and leaves no half model', () async {
+      final server = await serve((request) async {
+        request.response.contentLength = 100000;
+        request.response.add(List<int>.filled(20000, 7));
+        try {
+          await request.response.close();
+        } catch (_) {}
+      });
+      final destination = File('${directory.path}/model.gguf');
+
+      await expectLater(
+        ModelDownloader().download(url: urlOf(server), destination: destination, minBytes: 1, onProgress: (_, __) {}),
+        throwsA(isA<Exception>()),
+      );
+      expect(destination.existsSync(), isFalse);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+    });
+
+    test('refuses a file too small to be a model (an error page saved as .gguf)', () async {
+      final server = await serve((request) async {
+        request.response.contentLength = 5000;
+        request.response.add(List<int>.filled(5000, 1));
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+
+      await expectLater(
+        ModelDownloader().download(url: urlOf(server), destination: destination, onProgress: (_, __) {}),
+        throwsA(predicate((e) => e is HttpException && e.message.contains('demasiado pequeno'))),
+      );
+      expect(destination.existsSync(), isFalse);
+    });
+
+    test('cancel stops the download, reports it as cancelled and leaves no file', () async {
+      final server = await serve((request) async {
+        request.response.contentLength = 60 * 10000;
+        for (var i = 0; i < 60; i++) {
+          try {
+            request.response.add(List<int>.filled(10000, 3));
+            await request.response.flush();
+          } catch (_) {
+            return;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+      final downloader = ModelDownloader();
+
+      await expectLater(
+        downloader.download(
+          url: urlOf(server),
+          destination: destination,
+          minBytes: 1,
+          onProgress: (received, _) {
+            if (received > 0) downloader.cancel();
+          },
+        ),
+        throwsA(isA<ModelDownloadCancelled>()),
+      );
+      expect(destination.existsSync(), isFalse);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+    });
+  });
+
+  group('LocalModelManager download', () {
+    LocalModelManager managerWith(_FakeFetcher fetcher, _FakeEngine engine) => LocalModelManager(
+          engineFactory: () => engine,
+          modelDirectoryProvider: () async => directory,
+          downloaderFactory: () => fetcher,
+        );
+
+    test('downloading saves the model, remembers its name and loads it', () async {
+      final fetcher = _FakeFetcher();
+      final engine = _FakeEngine();
+      final manager = managerWith(fetcher, engine);
+      final seenProgress = <double?>[];
+      var wasDownloading = false;
+      manager.addListener(() {
+        wasDownloading = wasDownloading || manager.isDownloading;
+        seenProgress.add(manager.downloadProgress);
+      });
+
+      await manager.downloadDefaultModel();
+
+      expect(fetcher.requestedUrl.toString(), ModelDownloader.defaultUrl);
+      expect(wasDownloading, isTrue);
+      expect(seenProgress, contains(0.5));
+      expect(manager.isDownloading, isFalse);
+      expect(manager.state, LocalModelState.ready);
+      expect(manager.modelFileNameLabel, ModelDownloader.defaultFileName);
+      expect(engine.loadCalls, 1);
+      expect(await File('${directory.path}/local_model.gguf').readAsBytes(), [1, 2, 3]);
+      expect(await File('${directory.path}/local_model.meta').readAsString(), ModelDownloader.defaultFileName);
+    });
+
+    test('a failed download ends in error with a plain message, never the technical one', () async {
+      final fetcher = _FakeFetcher(error: const SocketException('Failed host lookup'));
+      final engine = _FakeEngine();
+      final manager = managerWith(fetcher, engine);
+
+      await manager.downloadDefaultModel();
+
+      expect(manager.isDownloading, isFalse);
+      expect(manager.state, LocalModelState.error);
+      expect(manager.downloadError, contains('Revisa tu conexión'));
+      expect(manager.downloadError, isNot(contains('SocketException')));
+      expect(engine.loadCalls, 0);
+      expect(File('${directory.path}/local_model.gguf').existsSync(), isFalse);
+    });
+
+    test('a cancelled download leaves everything as it was, without an error', () async {
+      final gate = Completer<void>();
+      final fetcher = _FakeFetcher(gate: gate);
+      final manager = managerWith(fetcher, _FakeEngine());
+
+      final running = manager.downloadDefaultModel();
+      while (fetcher.downloadCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(manager.isDownloading, isTrue);
+      manager.cancelDownload();
+      gate.complete();
+      await running;
+
+      expect(manager.isDownloading, isFalse);
+      expect(manager.state, LocalModelState.notConfigured);
+      expect(manager.downloadError, isNull);
+    });
+
+    test('asking twice while one download runs starts only one', () async {
+      final gate = Completer<void>();
+      final fetcher = _FakeFetcher(gate: gate);
+      final manager = managerWith(fetcher, _FakeEngine());
+
+      final first = manager.downloadDefaultModel();
+      final second = manager.downloadDefaultModel();
+      while (fetcher.downloadCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      gate.complete();
+      await Future.wait([first, second]);
+
+      expect(fetcher.downloadCalls, 1);
+    });
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'model_download_test.dart').write_text(
+            unicodedata.normalize("NFC", content), encoding="utf-8", newline="\n"
+        )
+
+        view_content = '''import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/assistant_view.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+import 'package:generated_crud_app/assistant/model_downloader.dart';
+import 'package:llamadart/llamadart.dart';
+
+class _FakeEngine implements LocalModelEngineHandle {
+  @override
+  LlamaEngine? get engine => null;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FakeFetcher implements ModelFetcher {
+  int downloadCalls = 0;
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    downloadCalls++;
+    await destination.writeAsBytes([1, 2, 3]);
+  }
+
+  @override
+  void cancel() {}
+}
+
+void main() {
+  testWidgets('offers to download the local AI, asks first, and downloads only when confirmed', (tester) async {
+    final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('assistant-download-')))!;
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final fetcher = _FakeFetcher();
+    final manager = LocalModelManager(
+      engineFactory: _FakeEngine.new,
+      modelDirectoryProvider: () async => directory,
+      downloaderFactory: () => fetcher,
+    );
+
+    await tester.pumpWidget(MaterialApp(home: AssistantView(modelManagerFactory: () => manager)));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+
+    expect(find.text('Descargar IA local'), findsOneWidget);
+    expect(find.text('Elegir modelo'), findsOneWidget);
+
+    // 1) se cancela en la confirmacion: no se descarga nada
+    await tester.tap(find.text('Descargar IA local'));
+    await tester.pumpAndSettle();
+    expect(find.text('Descargar la IA local'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(fetcher.downloadCalls, 0);
+
+    // 2) se confirma: se descarga y el modelo queda listo
+    await tester.tap(find.text('Descargar IA local'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Descargar'));
+    await tester.pump();
+    for (var i = 0; i < 40 && manager.state != LocalModelState.ready; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+
+    expect(fetcher.downloadCalls, 1);
+    expect(manager.state, LocalModelState.ready);
+    expect(find.text('IA local lista'), findsOneWidget);
+    expect(find.text('Descargar IA local'), findsNothing);
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'assistant_download_view_test.dart').write_text(
+            unicodedata.normalize("NFC", view_content), encoding="utf-8", newline="\n"
+        )
+
     def _generate_local_model_manager(self, base_path):
         """Genera lib/assistant/local_model_manager.dart (generico): gestiona
         la seleccion, copia a almacenamiento propio de la app, persistencia y
         carga/descarga de un modelo GGUF local. No empaqueta ningun modelo
-        con la app ni lo descarga automaticamente: el usuario/desarrollador
-        debe importarlo explicitamente. Cero llamadas de red en este
-        archivo."""
+        con la app ni lo descarga automaticamente: la persona lo descarga
+        con una accion explicita (downloadDefaultModel, con confirmacion) o
+        importa un .gguf (selectAndImportModel). La red solo se usa en
+        ModelDownloader."""
         content = '''import 'dart:async';
 import 'dart:io';
 
@@ -3803,6 +4784,8 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:llamadart/llamadart.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'model_downloader.dart';
 
 /// Estado del ciclo de vida del modelo local.
 enum LocalModelState { notConfigured, loading, ready, error }
@@ -3841,7 +4824,7 @@ typedef LocalModelDirectoryProvider = Future<Directory> Function();
 /// almacenamiento propio de la app (path_provider, no un directorio
 /// temporal, para que persista entre reinicios), metadata minima (nombre de
 /// archivo original), y el ciclo de vida de carga/descarga del motor de
-/// inferencia (llamadart). NUNCA descarga un modelo por red ni incluye uno
+/// inferencia (llamadart). Solo descarga un modelo cuando la persona lo pide (downloadDefaultModel) y nunca incluye uno
 /// empaquetado: [selectAndImportModel] es la unica forma de configurar un
 /// modelo, y siempre requiere una accion explicita del usuario/desarrollador
 /// eligiendo un archivo .gguf local.
@@ -3852,12 +4835,29 @@ class LocalModelManager extends ChangeNotifier {
   LocalModelManager({
     LocalModelEngineFactory? engineFactory,
     LocalModelDirectoryProvider? modelDirectoryProvider,
+    ModelFetcher Function()? downloaderFactory,
   })  : _engineFactory = engineFactory ?? _LlamaModelEngineHandle.new,
         _modelDirectoryProvider =
-            modelDirectoryProvider ?? getApplicationSupportDirectory;
+            modelDirectoryProvider ?? getApplicationSupportDirectory,
+        _downloaderFactory = downloaderFactory ?? ModelDownloader.new;
 
   final LocalModelEngineFactory _engineFactory;
   final LocalModelDirectoryProvider _modelDirectoryProvider;
+  final ModelFetcher Function() _downloaderFactory;
+
+  ModelFetcher? _activeDownload;
+  bool _isDownloading = false;
+  double? _downloadProgress;
+  String? _downloadError;
+
+  /// true mientras se descarga el modelo (accion explicita de la persona).
+  bool get isDownloading => _isDownloading;
+
+  /// Avance de la descarga entre 0 y 1; null si el servidor no dijo el tamano.
+  double? get downloadProgress => _downloadProgress;
+
+  /// Frase clara si la ultima descarga fallo (nunca el error tecnico).
+  String? get downloadError => _downloadError;
 
   LocalModelState _state = LocalModelState.notConfigured;
   String? _modelFileNameLabel;
@@ -3960,6 +4960,53 @@ class LocalModelManager extends ChangeNotifier {
       _notifyListeners();
     }
   }
+
+  /// Descarga el modelo por defecto (Qwen2.5-0.5B, ~0,5 GB) a almacenamiento propio de la app y lo carga. Solo se
+  /// llama por una accion explicita de la persona (la pantalla pide confirmacion antes). Si se cancela, todo queda como
+  /// estaba y sin error; si falla, [state] pasa a error con [downloadError] en lenguaje claro.
+  Future<void> downloadDefaultModel() async {
+    if (_isDownloading || _disposed) return;
+    _isDownloading = true;
+    _downloadProgress = 0;
+    _downloadError = null;
+    _errorMessage = null;
+    _notifyListeners();
+    final fetcher = _downloaderFactory();
+    _activeDownload = fetcher;
+    var downloaded = false;
+    try {
+      final destination = await _modelFile();
+      await fetcher.download(
+        url: Uri.parse(ModelDownloader.defaultUrl),
+        destination: destination,
+        onProgress: (received, total) {
+          _downloadProgress = total > 0 ? received / total : null;
+          _notifyListeners();
+        },
+      );
+      downloaded = true;
+    } on ModelDownloadCancelled {
+      // la persona cancelo: queda como estaba, sin error
+    } catch (error) {
+      _downloadError = 'No se pudo descargar la IA local. Revisa tu conexión e inténtalo de nuevo.';
+      _errorMessage = 'Descarga fallida: $error';
+      _state = LocalModelState.error;
+    } finally {
+      _isDownloading = false;
+      _downloadProgress = null;
+      _activeDownload = null;
+      _notifyListeners();
+    }
+    if (!downloaded || _disposed) return;
+    _modelFileNameLabel = ModelDownloader.defaultFileName;
+    try {
+      await (await _metaFile()).writeAsString(ModelDownloader.defaultFileName, flush: true);
+    } catch (_) {}
+    await loadModel();
+  }
+
+  /// Cancela la descarga en curso, si la hay.
+  void cancelDownload() => _activeDownload?.cancel();
 
   /// Carga el modelo ya copiado en almacenamiento propio de la app. No hace
   /// ninguna llamada de red: solo lee el archivo local.
@@ -4072,6 +5119,7 @@ class LocalModelManager extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _activeDownload?.cancel();
     unawaited(unloadModel());
     super.dispose();
   }
@@ -4388,14 +5436,22 @@ class LocalLlmCommandExtractor {
       return null;
     }
 
+    // Valores que son solo simbolos comodin ("*", "%", "?"...): el modelo pequeno los usa para decir "cualquiera"
+    // (visto en un iPhone real: "lista todos los departamentos" llegaba con filters {titulo: "*"}, la app lo aplicaba
+    // al pie de la letra y respondia "Sin resultados"). Se descartan SOLO en filtros, nunca en data: un registro
+    // puede llamarse "*todos*". Un DELETE/UPDATE que quede sin filtros se rechaza mas abajo: nunca borra "todo".
+    final wildcardOnly = RegExp(r'^[*%?_.\\s]+$');
+
     Map<String, dynamic> keepKnownNonEmptyFields(
       Map<String, dynamic> source, {
       bool writableOnly = false,
+      bool dropWildcards = false,
     }) {
       final result = <String, dynamic>{};
       for (final entry in source.entries) {
         if (entry.value == null) continue;
         if (entry.value is String && (entry.value as String).trim().isEmpty) continue;
+        if (dropWildcards && entry.value is String && wildcardOnly.hasMatch(entry.value as String)) continue;
         final field = entity.fieldByName(entry.key);
         if (field != null && (!writableOnly || field.writable)) {
           result[entry.key] = entry.value;
@@ -4406,10 +5462,10 @@ class LocalLlmCommandExtractor {
 
     switch (action) {
       case CommandAction.read:
-        return _NormalizedCommandFields(const {}, keepKnownNonEmptyFields(filters));
+        return _NormalizedCommandFields(const {}, keepKnownNonEmptyFields(filters, dropWildcards: true));
 
       case CommandAction.delete:
-        final cleanFilters = keepKnownNonEmptyFields(filters);
+        final cleanFilters = keepKnownNonEmptyFields(filters, dropWildcards: true);
         if (cleanFilters.isEmpty) return null;
         return _NormalizedCommandFields(const {}, cleanFilters);
 
@@ -4419,7 +5475,7 @@ class LocalLlmCommandExtractor {
           if (entity.fieldByName(entry.key)!.isPrimaryKey) continue;
           cleanData[entry.key] = entry.value;
         }
-        final cleanFilters = keepKnownNonEmptyFields(filters);
+        final cleanFilters = keepKnownNonEmptyFields(filters, dropWildcards: true);
         if (cleanData.isEmpty || cleanFilters.isEmpty) return null;
         return _NormalizedCommandFields(cleanData, cleanFilters);
 
@@ -4656,15 +5712,19 @@ void main() {
   });
 
   testWidgets('AssistantView disposes its owned manager and engine', (tester) async {
-    await seedPersistedModel();
+    // El disco es real: dentro de testWidgets (tiempo simulado) hay que esperarlo con runAsync, si no la prueba se cuelga.
+    await tester.runAsync(seedPersistedModel);
     final primary = _FakeEngine();
     final manager = managerFor([primary]);
 
     await tester.pumpWidget(MaterialApp(
       home: AssistantView(modelManagerFactory: () => manager),
     ));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    // initialize() encadena varias lecturas de disco reales: cada una necesita tiempo real y luego un pump.
+    for (var i = 0; i < 40 && manager.state != LocalModelState.ready; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
     expect(manager.state, LocalModelState.ready);
 
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
@@ -5172,6 +6232,31 @@ void main() {
     expect(result.command!.filters, {__NAME_FIELD__: 'Ejemplo Uno'});
   });
 
+  test('READ drops a wildcard filter such as "*" (the small model uses it to mean "all")', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"read","entity":__ENTITY_JSON__,'
+          '"data":{},"filters":{__NAME_FIELD_JSON__:"*"}}',
+    );
+    final result = await extractor.extract(
+        'lista todos ${schema.name.toLowerCase()}');
+    expect(result.isSuccess, isTrue, reason: result.error);
+    expect(result.command!.filters, isEmpty);
+  });
+
+  test('DELETE with only a wildcard filter is rejected, never a mass delete', () async {
+    final extractor = LocalLlmCommandExtractor(
+      LocalModelManager(),
+      rawInferenceOverride: (prompt) async =>
+          '{"action":"delete","entity":__ENTITY_JSON__,'
+          '"data":{},"filters":{__NAME_FIELD_JSON__:"*"}}',
+    );
+    final result = await extractor.extract(
+        'elimina ${schema.name.toLowerCase()} *');
+    expect(result.isSuccess, isFalse);
+  });
+
   test('a supported Spanish READ falls back to CommandParser when the LLM proposes CREATE', () async {
     final createData = _completeCreateData(schema);
     final rawText = 'muestra ${schema.name.toLowerCase()} Ejemplo Uno';
@@ -5238,6 +6323,7 @@ void main() {
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'assistant_texts.dart';
 import 'business_command.dart';
 import 'command_parser.dart';
 import 'command_router.dart';
@@ -5256,10 +6342,14 @@ class AssistantHistoryEntry {
   /// true para un fallback, sin importar la razon del fallback.
   final bool usedLocalAi;
 
+  /// true para lo que escribio o dijo la persona; false para las respuestas del asistente.
+  final bool isUser;
+
   const AssistantHistoryEntry(
     this.text, {
     this.isError = false,
     this.usedLocalAi = false,
+    this.isUser = false,
   });
 }
 
@@ -5307,6 +6397,7 @@ class AssistantView extends StatefulWidget {
 
 class _AssistantViewState extends State<AssistantView> {
   final _controller = TextEditingController();
+  final _scroll = ScrollController();
   final _parser = CommandParser();
   final _validator = CommandValidator();
   late final CommandRouter _router = widget.router ?? CommandRouter();
@@ -5326,6 +6417,7 @@ class _AssistantViewState extends State<AssistantView> {
   @override
   void initState() {
     super.initState();
+    _voice.onProblem = _showVoiceProblem;
     _initVoice();
     _modelManager.addListener(_onModelManagerChanged);
     unawaited(_modelManager.initialize());
@@ -5333,6 +6425,14 @@ class _AssistantViewState extends State<AssistantView> {
 
   void _onModelManagerChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _showVoiceProblem(String message) {
+    if (!mounted) return;
+    setState(() => _isListening = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 7)),
+    );
   }
 
   Future<void> _initVoice() async {
@@ -5347,6 +6447,7 @@ class _AssistantViewState extends State<AssistantView> {
     if (_ownsModelManager) _modelManager.dispose();
     _voice.dispose();
     _controller.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -5355,16 +6456,26 @@ class _AssistantViewState extends State<AssistantView> {
     if (text.isEmpty || _isBusy) return;
     setState(() {
       _isBusy = true;
-      _history.add(AssistantHistoryEntry(text));
+      _history.add(AssistantHistoryEntry(text, isUser: true));
     });
+    _scrollToEnd();
     _controller.clear();
+
+    // Saludos, gracias y ayuda se contestan sin consultar ni a la IA ni al interprete: "hola" ya no es una consulta.
+    final smallTalk = AssistantTexts.smallTalkReply(text);
+    if (smallTalk != null) {
+      _appendResult(smallTalk);
+      return;
+    }
+    // "hola, muestrame los empleados": se ignora el saludo inicial.
+    final commandText = AssistantTexts.withoutLeadingGreeting(text);
 
     try {
       BusinessCommand? command;
       var usedLocalAi = false;
 
       if (_modelManager.state == LocalModelState.ready) {
-        final llmResult = await _localLlmExtractor.extract(text);
+        final llmResult = await _localLlmExtractor.extract(commandText);
         if (llmResult.isSuccess) {
           command = llmResult.command;
           usedLocalAi = true;
@@ -5375,10 +6486,11 @@ class _AssistantViewState extends State<AssistantView> {
         // resultado final.
       }
 
-      final parsed = command == null ? _parser.parse(text) : null;
+      final parsed = command == null ? _parser.parse(commandText) : null;
       if (command == null) {
         if (!parsed!.isSuccess) {
-          _appendResult(parsed.error!, isError: true);
+          // El mensaje tecnico del interprete ("No conozco la entidad ...") se cambia por ayuda con ejemplos.
+          _appendResult(AssistantTexts.notUnderstood());
           return;
         }
         command = parsed.command!;
@@ -5432,6 +6544,13 @@ class _AssistantViewState extends State<AssistantView> {
       _history.add(AssistantHistoryEntry(message, isError: isError, usedLocalAi: usedLocalAi));
       _isBusy = false;
     });
+    _scrollToEnd();
+  }
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    });
   }
 
   Future<bool?> _confirmDelete(PendingDelete pending) {
@@ -5473,93 +6592,189 @@ class _AssistantViewState extends State<AssistantView> {
     );
   }
 
+  Widget _statusRow({
+    Widget? leading,
+    required String text,
+    Color? color,
+    String? tooltip,
+    List<(String, VoidCallback)> actions = const [],
+  }) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(color: color);
+    Widget label = Text(text, style: style, overflow: TextOverflow.ellipsis);
+    if (tooltip != null) label = Tooltip(message: tooltip, child: label);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          if (leading != null) ...[leading, const SizedBox(width: 8)],
+          Expanded(child: label),
+          for (final (caption, onPressed) in actions)
+            TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: onPressed,
+              child: Text(caption, style: const TextStyle(fontSize: 12)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDownload() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Descargar la IA local'),
+        content: const Text(
+          'Se descargará el modelo de IA (unos 0,5 GB) una sola vez. Conviene usar Wi-Fi. '
+          'Después el asistente funciona sin internet.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Descargar')),
+        ],
+      ),
+    );
+    if (accepted == true) unawaited(_modelManager.downloadDefaultModel());
+  }
+
   Widget _buildLocalAiStatus() {
-    final theme = Theme.of(context);
-    final compactStyle = theme.textTheme.bodySmall;
+    final scheme = Theme.of(context).colorScheme;
+    if (_modelManager.isDownloading) {
+      final progress = _modelManager.downloadProgress;
+      final percent = progress == null ? '' : ' ${(progress * 100).round()} %';
+      return _statusRow(
+        leading: SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2, value: progress),
+        ),
+        text: 'Descargando la IA local…$percent',
+        actions: [('Cancelar', _modelManager.cancelDownload)],
+      );
+    }
     switch (_modelManager.state) {
       case LocalModelState.notConfigured:
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            children: [
-              Text('Local AI: Not configured', style: compactStyle),
-              const SizedBox(width: 8),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: _modelManager.selectAndImportModel,
-                child: const Text('Select GGUF model', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
+        return _statusRow(
+          leading: Icon(Icons.auto_awesome_outlined, size: 14, color: scheme.outline),
+          text: 'IA local: sin modelo',
+          actions: [
+            ('Descargar IA local', _confirmDownload),
+            ('Elegir modelo', _modelManager.selectAndImportModel),
+          ],
         );
       case LocalModelState.loading:
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            children: [
-              const SizedBox(
-                width: 10,
-                height: 10,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: 8),
-              Text('Local AI: Loading...', style: compactStyle),
-            ],
-          ),
+        return _statusRow(
+          leading: const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+          text: 'Preparando la IA local…',
         );
       case LocalModelState.ready:
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Local AI: Ready — ${_modelManager.modelFileNameLabel ?? ""}',
-                  style: compactStyle,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: _modelManager.selectAndImportModel,
-                child: const Text('Change model', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
+        return _statusRow(
+          leading: Icon(Icons.check_circle, size: 14, color: scheme.primary),
+          text: 'IA local lista',
+          tooltip: _modelManager.modelFileNameLabel,
+          actions: [('Cambiar modelo', _modelManager.selectAndImportModel)],
         );
       case LocalModelState.error:
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Local AI: Unavailable',
-                  style: compactStyle?.copyWith(color: Colors.red),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: _modelManager.selectAndImportModel,
-                child: const Text('Select GGUF model', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
+        return _statusRow(
+          leading: Icon(Icons.error_outline, size: 14, color: scheme.error),
+          text: _modelManager.downloadError ?? 'IA local no disponible',
+          color: scheme.error,
+          actions: [
+            ('Descargar IA local', _confirmDownload),
+            ('Elegir modelo', _modelManager.selectAndImportModel),
+          ],
         );
     }
+  }
+
+  Widget _buildBubble(AssistantHistoryEntry entry) {
+    final scheme = Theme.of(context).colorScheme;
+    final isUser = entry.isUser;
+    final background = isUser
+        ? scheme.primaryContainer
+        : (entry.isError ? scheme.errorContainer : scheme.surfaceContainerHighest);
+    final foreground = isUser
+        ? scheme.onPrimaryContainer
+        : (entry.isError ? scheme.onErrorContainer : scheme.onSurface);
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(isUser ? 18 : 4),
+              bottomRight: Radius.circular(isUser ? 4 : 18),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (entry.usedLocalAi)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome, size: 12, color: foreground),
+                      const SizedBox(width: 4),
+                      Text(
+                        'IA local',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: foreground),
+                      ),
+                    ],
+                  ),
+                ),
+              Text(entry.text, style: TextStyle(color: foreground)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcome() {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+      children: [
+        Icon(Icons.auto_awesome, size: 40, color: theme.colorScheme.primary),
+        const SizedBox(height: 12),
+        Text('\\u00bfEn qué te ayudo?', textAlign: TextAlign.center, style: theme.textTheme.headlineSmall),
+        const SizedBox(height: 8),
+        Text(
+          'Escribe o dime lo que necesitas, con tus palabras. Por ejemplo:',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final suggestion in AssistantTexts.suggestions())
+              ActionChip(
+                label: Text(suggestion),
+                onPressed: () {
+                  _controller.text = suggestion;
+                  _controller.selection = TextSelection.collapsed(offset: suggestion.length);
+                },
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
@@ -5571,21 +6786,19 @@ class _AssistantViewState extends State<AssistantView> {
           _buildLocalAiStatus(),
           const Divider(height: 1),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _history.length,
-              itemBuilder: (context, index) {
-                final entry = _history[index];
-                final text = entry.usedLocalAi ? 'IA local: ${entry.text}' : entry.text;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    text,
-                    style: TextStyle(color: entry.isError ? Colors.red : null),
+            child: _history.isEmpty
+                ? _buildWelcome()
+                : ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _history.length + (_isBusy ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == _history.length) {
+                        return _buildBubble(const AssistantHistoryEntry('Pensando…'));
+                      }
+                      return _buildBubble(_history[index]);
+                    },
                   ),
-                );
-              },
-            ),
           ),
           const Divider(height: 1),
           Padding(
@@ -5596,7 +6809,7 @@ class _AssistantViewState extends State<AssistantView> {
                   child: TextField(
                     controller: _controller,
                     decoration: const InputDecoration(
-                      hintText: 'Escribe un comando, por ejemplo: Muéstrame los productos',
+                      hintText: 'Escribe o dime lo que necesitas…',
                     ),
                     onSubmitted: (_) => _submit(),
                   ),
@@ -6140,13 +7353,18 @@ class _AssistantViewState extends State<AssistantView> {
     expect(outcome.pendingDelete!.pk, {pk_string_1});
   }});""")
 
+            # Datos de CREATE para el enrutador: los campos y relaciones OBLIGATORIOS de la entidad (si no, el test
+            # falla en cualquier esquema donde la entidad elegida tenga una relacion obligatoria), mas los extra.
+            router_create_data = list(self._assistant_required_create_data(subject))
+            router_keys = {key for key, _ in router_create_data}
+            router_create_data = [entry for entry in create_data if entry[0] not in router_keys] + router_create_data
             router_test_blocks.append(f"""  test('CREATE validates and sends values under normalized backend JSON keys, PK omitted', () async {{
     final adapter = _FakeAdapter(schema, []);
     final router = CommandRouter(registry: {{{entity_literal}: adapter}});
     final validated = CommandValidator().validate(BusinessCommand(
       action: CommandAction.create,
       entity: {entity_literal},
-      data: {self._assistant_render_dart_map(create_data)},
+      data: {self._assistant_render_dart_map(router_create_data)},
       filters: const {{}},
       rawText: 'test',
     ));
@@ -6176,7 +7394,7 @@ class _AssistantViewState extends State<AssistantView> {
         _ => 'Valor$sampleNumber',
       }};
       row[field.jsonKey] = value;
-      expectedSnippets.add('$value');
+      expectedSnippets.add(value is bool ? 'sí' : '$value');
       sampleNumber++;
     }}
 
@@ -6215,7 +7433,7 @@ class _AssistantViewState extends State<AssistantView> {
       rawText: 'test',
     ));
     expect(noMatch.success, isTrue);
-    expect(noMatch.message, 'Sin resultados.');
+    expect(noMatch.message, contains('No encontré'));
 
     final allRows = await router.execute(BusinessCommand(
       action: CommandAction.read,
@@ -6229,7 +7447,7 @@ class _AssistantViewState extends State<AssistantView> {
     expect(allRows.message, contains('Ejemplo Dos'));
     expect(allRows.message, contains('Ejemplo Cinco'));
     expect(allRows.message, isNot(contains('Ejemplo Seis')));
-    expect(allRows.message, contains('… y 1 más.'));
+    expect(allRows.message, contains('y 1 más.'));
   }});""")
 
             if extra_fields:
