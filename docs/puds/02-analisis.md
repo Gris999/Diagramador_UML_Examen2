@@ -158,4 +158,4 @@ flowchart LR
 | El texto de un chat solo lo ve su dueño; la actividad es visible para todos | RNF-04, RF-25 |
 | Mover o redimensionar nunca se registra | RNF-06 |
 | El rol de host no sobrevive a la desconexión ni a la reconexión | RF-16, RF-17 |
-| Una relación no desaparece en silencio: si una entidad intermedia deja de ser válida, se restaura la asociación original | Revisión de la entidad intermedia (I0) |
+| Una relación no desaparece en silencio: la asociación muchos-a-muchos se conserva siempre; solo se retira la clase asociativa generada | Revisión de la entidad intermedia (I0) |

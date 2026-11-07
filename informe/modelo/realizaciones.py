@@ -70,7 +70,7 @@ REALIZACIONES = [
     _r("COL-02",
        ["`Diagram.onDragEnded` crea la clase con `DiagramService.createUmlClass`, que le agrega sus interacciones y pide a `EditionService.scheduleAutoResize` que ajuste el "
         "tamaño. Para unir dos clases, `RelationshipService.startLinkCreation` espera dos clics y llama a `createTypedRelationship`; si la unión queda «muchos a muchos», "
-        "`DiagramService.reconcileGeneratedJunctions` crea la clase intermedia con dos relaciones 1:N. Todo cambio termina en `persist` y `scheduleBackendBackup`."],
+        "`DiagramService.reconcileGeneratedJunctions` deja la asociación directa y crea la clase asociativa unida a su medio con un conector punteado. Todo cambio termina en `persist` y `scheduleBackendBackup`."],
        [_e("a", "Agregar una clase y editarla", [
            ("U", "Diagram", "onDragEnded", "evento"),
            ("Diagram", "DiagramService", "createUmlClass", "classModel"),
