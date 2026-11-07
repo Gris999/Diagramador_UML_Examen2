@@ -995,6 +995,50 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn('android:label="Sistema Escolar Cia rm -rf x"', manifest.read_text())
             self.assertFalse((project / "pwned").exists())
 
+    def test_local_ai_can_be_downloaded_from_the_assistant_after_confirmation(self):
+        """Antes la IA local solo se podia importar a mano (un .gguf copiado al telefono). Ahora la app la descarga una sola
+        vez, por una accion explicita (con confirmacion) y con progreso; el archivo no queda a medias si se corta."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            downloader = (output / "lib/assistant/model_downloader.dart").read_text()
+            manager = (output / "lib/assistant/local_model_manager.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+
+            self.assertIn("huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", downloader)
+            self.assertIn("'${destination.path}.part'", downloader)
+            self.assertIn("class ModelDownloadCancelled", downloader)
+            self.assertIn("abstract interface class ModelFetcher", downloader)
+            for member in ("downloadDefaultModel()", "cancelDownload()", "bool get isDownloading", "double? get downloadProgress",
+                           "String? get downloadError"):
+                self.assertIn(member, manager)
+            self.assertNotIn("NUNCA descarga", manager)
+            for text in ("Descargar IA local", "Descargar la IA local", "Descargando la IA local", "_confirmDownload"):
+                self.assertIn(text, view)
+            for name in ("model_download_test.dart", "assistant_download_view_test.dart"):
+                self.assertTrue((output / "test/assistant" / name).exists(), name)
+
+    def test_setup_script_adds_the_android_internet_and_microphone_permissions_once(self):
+        with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as project_dir:
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(Path(output_dir))
+            script = Path(output_dir) / "tool" / "configure_ios_local_ai.sh"
+            project, _info = self._ios_project(project_dir, "13.0")
+            manifest = project / "android" / "app" / "src" / "main" / "AndroidManifest.xml"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(
+                '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                '    <application android:label="x"/>\n</manifest>\n'
+            )
+
+            for _ in range(2):
+                run = subprocess.run(["sh", str(script)], cwd=project, capture_output=True, text=True)
+                self.assertEqual(0, run.returncode, run.stderr)
+
+            text = manifest.read_text()
+            self.assertEqual(1, text.count("android.permission.INTERNET"))
+            self.assertEqual(1, text.count("android.permission.RECORD_AUDIO"))
+            self.assertTrue(text.index("uses-permission") < text.index("<application"))
+
     def test_gguf_picker_declares_ios_uniform_type_identifier(self):
         # iOS's file_selector_ios throws ArgumentError at runtime if an
         # XTypeGroup has extensions but no uniformTypeIdentifiers (physically

@@ -231,12 +231,14 @@ class FlutterCRUDGenerator:
             self._generate_entity_service_registry(base_path, original_classes)
             self._generate_command_router(base_path)
             self._generate_voice_input_controller(base_path)
+            self._generate_model_downloader(base_path)
             self._generate_local_model_manager(base_path)
             self._generate_local_llm_command_extractor(base_path)
             self._generate_assistant_view(base_path)
             self._generate_assistant_tests(base_path, original_classes)
             self._generate_assistant_texts_tests(base_path)
             self._generate_voice_tests(base_path)
+            self._generate_model_download_tests(base_path)
             self._generate_local_llm_tests(base_path, original_classes)
 
             self._generate_main(base_path, intermediate_entities)
@@ -511,6 +513,18 @@ fi
 if [ -f "$ANDROID_MANIFEST" ]; then
   sed -i.bak -E "s/android:label=\\"[^\\"]*\\"/android:label=\\"${APP_DISPLAY_NAME}\\"/" "$ANDROID_MANIFEST"
   rm -f "$ANDROID_MANIFEST.bak"
+fi
+
+# --- Android: permisos de internet (descargar la IA local) y microfono (voz), una sola vez ---
+if [ -f "$ANDROID_MANIFEST" ]; then
+  for PERMISSION in INTERNET RECORD_AUDIO; do
+    if ! grep -q "android.permission.$PERMISSION" "$ANDROID_MANIFEST"; then
+      awk -v p="$PERMISSION" '
+        { print }
+        !done && /<manifest/ { print "    <uses-permission android:name=\\"android.permission." p "\\"/>"; done = 1 }
+      ' "$ANDROID_MANIFEST" > "$ANDROID_MANIFEST.new" && mv "$ANDROID_MANIFEST.new" "$ANDROID_MANIFEST"
+    fi
+  done
 fi
 
 # --- Icono propio de la app (en vez del logo de Flutter) ---
@@ -4293,13 +4307,476 @@ void main() {
             self._sanitize(content), encoding="utf-8", newline="\n"
         )
 
+    def _generate_model_downloader(self, base_path):
+        """Genera lib/assistant/model_downloader.dart: descarga unica del modelo de IA local, solo por accion explicita."""
+        content = '''import 'dart:async';
+import 'dart:io';
+
+/// La persona cancelo la descarga: no es un error.
+class ModelDownloadCancelled implements Exception {
+  const ModelDownloadCancelled();
+
+  @override
+  String toString() => 'Descarga cancelada';
+}
+
+/// Lo que el gestor del modelo necesita de un descargador (en las pruebas se usa uno falso).
+abstract interface class ModelFetcher {
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  });
+
+  void cancel();
+}
+
+/// Descarga un archivo grande (el modelo .gguf) a un archivo propio de la app. Solo se usa cuando la persona lo pide
+/// y lo confirma: la app no descarga nada por su cuenta. Escribe en "<destino>.part" y lo renombra al terminar, asi
+/// nunca queda un modelo a medias con el nombre final.
+class ModelDownloader implements ModelFetcher {
+  /// Qwen2.5-0.5B-Instruct (licencia Apache-2.0), cuantizado Q4_K_M: unos 0,5 GB.
+  static const String defaultUrl =
+      'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
+  static const String defaultFileName = 'qwen2.5-0.5b-instruct-q4_k_m.gguf';
+
+  /// Un modelo real pesa cientos de MB: algo mas pequeno es una pagina de error, no un modelo.
+  static const int defaultMinBytes = 100 * 1024 * 1024;
+
+  ModelDownloader({HttpClient Function()? clientFactory}) : _clientFactory = clientFactory ?? HttpClient.new;
+
+  final HttpClient Function() _clientFactory;
+  HttpClient? _client;
+  bool _cancelled = false;
+
+  @override
+  void cancel() {
+    _cancelled = true;
+    _client?.close(force: true);
+  }
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    final part = File('${destination.path}.part');
+    final client = _clientFactory();
+    _client = client;
+    IOSink? sink;
+    try {
+      if (await part.exists()) await part.delete();
+      final request = await client.getUrl(url);
+      final response = await request.close();
+      if (response.statusCode != HttpStatus.ok) {
+        await response.drain<void>();
+        throw HttpException('El servidor respondio ${response.statusCode}', uri: url);
+      }
+      final total = response.contentLength; // -1 si el servidor no lo dice
+      sink = part.openWrite();
+      var received = 0;
+      await for (final chunk in response) {
+        if (_cancelled) throw const ModelDownloadCancelled();
+        sink.add(chunk);
+        received += chunk.length;
+        onProgress(received, total);
+      }
+      await sink.flush();
+      await sink.close();
+      sink = null;
+      if (total > 0 && received != total) {
+        throw HttpException('La descarga quedo incompleta ($received de $total bytes)', uri: url);
+      }
+      if (received < (minBytes ?? defaultMinBytes)) {
+        throw HttpException('El archivo descargado es demasiado pequeno para ser un modelo', uri: url);
+      }
+      if (await destination.exists()) await destination.delete();
+      await part.rename(destination.path);
+    } catch (error) {
+      try {
+        await sink?.close();
+      } catch (_) {}
+      if (await part.exists()) await part.delete();
+      if (_cancelled) throw const ModelDownloadCancelled();
+      rethrow;
+    } finally {
+      client.close(force: true);
+      _client = null;
+    }
+  }
+}
+'''
+        (base_path / 'lib' / 'assistant' / 'model_downloader.dart').write_text(
+            self._sanitize(content), encoding="utf-8", newline="\n"
+        )
+
+    def _generate_model_download_tests(self, base_path):
+        """Genera test/assistant/model_download_test.dart (descargador con un servidor local + gestor con uno falso) y
+        test/assistant/assistant_download_view_test.dart (la pantalla). Van en archivos distintos: testWidgets instala
+        un HttpOverrides que rechaza toda conexion y arruinaria las pruebas del descargador."""
+        content = '''import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+import 'package:generated_crud_app/assistant/model_downloader.dart';
+import 'package:llamadart/llamadart.dart';
+
+class _FakeEngine implements LocalModelEngineHandle {
+  int loadCalls = 0;
+
+  @override
+  LlamaEngine? get engine => null;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) async => loadCalls++;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FakeFetcher implements ModelFetcher {
+  _FakeFetcher({this.error, this.gate});
+
+  final Object? error;
+  final Completer<void>? gate;
+  bool cancelled = false;
+  int downloadCalls = 0;
+  Uri? requestedUrl;
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    downloadCalls++;
+    requestedUrl = url;
+    onProgress(50, 100);
+    if (gate != null) await gate!.future;
+    if (cancelled) throw const ModelDownloadCancelled();
+    if (error != null) throw error!;
+    await destination.writeAsBytes([1, 2, 3]);
+    onProgress(100, 100);
+  }
+
+  @override
+  void cancel() => cancelled = true;
+}
+
+void main() {
+  late Directory directory;
+
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp('model-download-');
+  });
+
+  tearDown(() async {
+    if (await directory.exists()) await directory.delete(recursive: true);
+  });
+
+  Future<HttpServer> serve(Future<void> Function(HttpRequest request) handler) async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen(handler);
+    addTearDown(() => server.close(force: true));
+    return server;
+  }
+
+  Uri urlOf(HttpServer server) => Uri.parse('http://127.0.0.1:${server.port}/modelo.gguf');
+
+  group('ModelDownloader', () {
+    test('downloads to a .part file, reports progress and renames it when it ends', () async {
+      final bytes = List<int>.generate(300000, (i) => i % 251);
+      final server = await serve((request) async {
+        request.response.contentLength = bytes.length;
+        request.response.add(bytes);
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+      final received = <int>[];
+
+      await ModelDownloader().download(
+        url: urlOf(server),
+        destination: destination,
+        minBytes: 1000,
+        onProgress: (r, total) {
+          expect(total, bytes.length);
+          received.add(r);
+        },
+      );
+
+      expect(await destination.readAsBytes(), bytes);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+      expect(received.last, bytes.length);
+      expect(received, orderedEquals([...received]..sort()));
+    });
+
+    test('rejects an error answer and leaves no file behind', () async {
+      final server = await serve((request) async {
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+
+      await expectLater(
+        ModelDownloader().download(url: urlOf(server), destination: destination, minBytes: 1, onProgress: (_, __) {}),
+        throwsA(isA<HttpException>()),
+      );
+      expect(destination.existsSync(), isFalse);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+    });
+
+    test('rejects a download that is cut short and leaves no half model', () async {
+      final server = await serve((request) async {
+        request.response.contentLength = 100000;
+        request.response.add(List<int>.filled(20000, 7));
+        try {
+          await request.response.close();
+        } catch (_) {}
+      });
+      final destination = File('${directory.path}/model.gguf');
+
+      await expectLater(
+        ModelDownloader().download(url: urlOf(server), destination: destination, minBytes: 1, onProgress: (_, __) {}),
+        throwsA(isA<Exception>()),
+      );
+      expect(destination.existsSync(), isFalse);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+    });
+
+    test('refuses a file too small to be a model (an error page saved as .gguf)', () async {
+      final server = await serve((request) async {
+        request.response.contentLength = 5000;
+        request.response.add(List<int>.filled(5000, 1));
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+
+      await expectLater(
+        ModelDownloader().download(url: urlOf(server), destination: destination, onProgress: (_, __) {}),
+        throwsA(predicate((e) => e is HttpException && e.message.contains('demasiado pequeno'))),
+      );
+      expect(destination.existsSync(), isFalse);
+    });
+
+    test('cancel stops the download, reports it as cancelled and leaves no file', () async {
+      final server = await serve((request) async {
+        request.response.contentLength = 60 * 10000;
+        for (var i = 0; i < 60; i++) {
+          try {
+            request.response.add(List<int>.filled(10000, 3));
+            await request.response.flush();
+          } catch (_) {
+            return;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        await request.response.close();
+      });
+      final destination = File('${directory.path}/model.gguf');
+      final downloader = ModelDownloader();
+
+      await expectLater(
+        downloader.download(
+          url: urlOf(server),
+          destination: destination,
+          minBytes: 1,
+          onProgress: (received, _) {
+            if (received > 0) downloader.cancel();
+          },
+        ),
+        throwsA(isA<ModelDownloadCancelled>()),
+      );
+      expect(destination.existsSync(), isFalse);
+      expect(File('${destination.path}.part').existsSync(), isFalse);
+    });
+  });
+
+  group('LocalModelManager download', () {
+    LocalModelManager managerWith(_FakeFetcher fetcher, _FakeEngine engine) => LocalModelManager(
+          engineFactory: () => engine,
+          modelDirectoryProvider: () async => directory,
+          downloaderFactory: () => fetcher,
+        );
+
+    test('downloading saves the model, remembers its name and loads it', () async {
+      final fetcher = _FakeFetcher();
+      final engine = _FakeEngine();
+      final manager = managerWith(fetcher, engine);
+      final seenProgress = <double?>[];
+      var wasDownloading = false;
+      manager.addListener(() {
+        wasDownloading = wasDownloading || manager.isDownloading;
+        seenProgress.add(manager.downloadProgress);
+      });
+
+      await manager.downloadDefaultModel();
+
+      expect(fetcher.requestedUrl.toString(), ModelDownloader.defaultUrl);
+      expect(wasDownloading, isTrue);
+      expect(seenProgress, contains(0.5));
+      expect(manager.isDownloading, isFalse);
+      expect(manager.state, LocalModelState.ready);
+      expect(manager.modelFileNameLabel, ModelDownloader.defaultFileName);
+      expect(engine.loadCalls, 1);
+      expect(await File('${directory.path}/local_model.gguf').readAsBytes(), [1, 2, 3]);
+      expect(await File('${directory.path}/local_model.meta').readAsString(), ModelDownloader.defaultFileName);
+    });
+
+    test('a failed download ends in error with a plain message, never the technical one', () async {
+      final fetcher = _FakeFetcher(error: const SocketException('Failed host lookup'));
+      final engine = _FakeEngine();
+      final manager = managerWith(fetcher, engine);
+
+      await manager.downloadDefaultModel();
+
+      expect(manager.isDownloading, isFalse);
+      expect(manager.state, LocalModelState.error);
+      expect(manager.downloadError, contains('Revisa tu conexión'));
+      expect(manager.downloadError, isNot(contains('SocketException')));
+      expect(engine.loadCalls, 0);
+      expect(File('${directory.path}/local_model.gguf').existsSync(), isFalse);
+    });
+
+    test('a cancelled download leaves everything as it was, without an error', () async {
+      final gate = Completer<void>();
+      final fetcher = _FakeFetcher(gate: gate);
+      final manager = managerWith(fetcher, _FakeEngine());
+
+      final running = manager.downloadDefaultModel();
+      while (fetcher.downloadCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(manager.isDownloading, isTrue);
+      manager.cancelDownload();
+      gate.complete();
+      await running;
+
+      expect(manager.isDownloading, isFalse);
+      expect(manager.state, LocalModelState.notConfigured);
+      expect(manager.downloadError, isNull);
+    });
+
+    test('asking twice while one download runs starts only one', () async {
+      final gate = Completer<void>();
+      final fetcher = _FakeFetcher(gate: gate);
+      final manager = managerWith(fetcher, _FakeEngine());
+
+      final first = manager.downloadDefaultModel();
+      final second = manager.downloadDefaultModel();
+      while (fetcher.downloadCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      gate.complete();
+      await Future.wait([first, second]);
+
+      expect(fetcher.downloadCalls, 1);
+    });
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'model_download_test.dart').write_text(
+            unicodedata.normalize("NFC", content), encoding="utf-8", newline="\n"
+        )
+
+        view_content = '''import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:generated_crud_app/assistant/assistant_view.dart';
+import 'package:generated_crud_app/assistant/local_model_manager.dart';
+import 'package:generated_crud_app/assistant/model_downloader.dart';
+import 'package:llamadart/llamadart.dart';
+
+class _FakeEngine implements LocalModelEngineHandle {
+  @override
+  LlamaEngine? get engine => null;
+
+  @override
+  Future<void> loadModel(String path, {ModelParams? modelParams}) async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FakeFetcher implements ModelFetcher {
+  int downloadCalls = 0;
+
+  @override
+  Future<void> download({
+    required Uri url,
+    required File destination,
+    required void Function(int received, int total) onProgress,
+    int? minBytes,
+  }) async {
+    downloadCalls++;
+    await destination.writeAsBytes([1, 2, 3]);
+  }
+
+  @override
+  void cancel() {}
+}
+
+void main() {
+  testWidgets('offers to download the local AI, asks first, and downloads only when confirmed', (tester) async {
+    final directory = (await tester.runAsync(() => Directory.systemTemp.createTemp('assistant-download-')))!;
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final fetcher = _FakeFetcher();
+    final manager = LocalModelManager(
+      engineFactory: _FakeEngine.new,
+      modelDirectoryProvider: () async => directory,
+      downloaderFactory: () => fetcher,
+    );
+
+    await tester.pumpWidget(MaterialApp(home: AssistantView(modelManagerFactory: () => manager)));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+
+    expect(find.text('Descargar IA local'), findsOneWidget);
+    expect(find.text('Elegir modelo'), findsOneWidget);
+
+    // 1) se cancela en la confirmacion: no se descarga nada
+    await tester.tap(find.text('Descargar IA local'));
+    await tester.pumpAndSettle();
+    expect(find.text('Descargar la IA local'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(fetcher.downloadCalls, 0);
+
+    // 2) se confirma: se descarga y el modelo queda listo
+    await tester.tap(find.text('Descargar IA local'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Descargar'));
+    await tester.pump();
+    for (var i = 0; i < 40 && manager.state != LocalModelState.ready; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+
+    expect(fetcher.downloadCalls, 1);
+    expect(manager.state, LocalModelState.ready);
+    expect(find.text('IA local lista'), findsOneWidget);
+    expect(find.text('Descargar IA local'), findsNothing);
+  });
+}
+'''
+        (base_path / 'test' / 'assistant' / 'assistant_download_view_test.dart').write_text(
+            unicodedata.normalize("NFC", view_content), encoding="utf-8", newline="\n"
+        )
+
     def _generate_local_model_manager(self, base_path):
         """Genera lib/assistant/local_model_manager.dart (generico): gestiona
         la seleccion, copia a almacenamiento propio de la app, persistencia y
         carga/descarga de un modelo GGUF local. No empaqueta ningun modelo
-        con la app ni lo descarga automaticamente: el usuario/desarrollador
-        debe importarlo explicitamente. Cero llamadas de red en este
-        archivo."""
+        con la app ni lo descarga automaticamente: la persona lo descarga
+        con una accion explicita (downloadDefaultModel, con confirmacion) o
+        importa un .gguf (selectAndImportModel). La red solo se usa en
+        ModelDownloader."""
         content = '''import 'dart:async';
 import 'dart:io';
 
@@ -4307,6 +4784,8 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:llamadart/llamadart.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'model_downloader.dart';
 
 /// Estado del ciclo de vida del modelo local.
 enum LocalModelState { notConfigured, loading, ready, error }
@@ -4345,7 +4824,7 @@ typedef LocalModelDirectoryProvider = Future<Directory> Function();
 /// almacenamiento propio de la app (path_provider, no un directorio
 /// temporal, para que persista entre reinicios), metadata minima (nombre de
 /// archivo original), y el ciclo de vida de carga/descarga del motor de
-/// inferencia (llamadart). NUNCA descarga un modelo por red ni incluye uno
+/// inferencia (llamadart). Solo descarga un modelo cuando la persona lo pide (downloadDefaultModel) y nunca incluye uno
 /// empaquetado: [selectAndImportModel] es la unica forma de configurar un
 /// modelo, y siempre requiere una accion explicita del usuario/desarrollador
 /// eligiendo un archivo .gguf local.
@@ -4356,12 +4835,29 @@ class LocalModelManager extends ChangeNotifier {
   LocalModelManager({
     LocalModelEngineFactory? engineFactory,
     LocalModelDirectoryProvider? modelDirectoryProvider,
+    ModelFetcher Function()? downloaderFactory,
   })  : _engineFactory = engineFactory ?? _LlamaModelEngineHandle.new,
         _modelDirectoryProvider =
-            modelDirectoryProvider ?? getApplicationSupportDirectory;
+            modelDirectoryProvider ?? getApplicationSupportDirectory,
+        _downloaderFactory = downloaderFactory ?? ModelDownloader.new;
 
   final LocalModelEngineFactory _engineFactory;
   final LocalModelDirectoryProvider _modelDirectoryProvider;
+  final ModelFetcher Function() _downloaderFactory;
+
+  ModelFetcher? _activeDownload;
+  bool _isDownloading = false;
+  double? _downloadProgress;
+  String? _downloadError;
+
+  /// true mientras se descarga el modelo (accion explicita de la persona).
+  bool get isDownloading => _isDownloading;
+
+  /// Avance de la descarga entre 0 y 1; null si el servidor no dijo el tamano.
+  double? get downloadProgress => _downloadProgress;
+
+  /// Frase clara si la ultima descarga fallo (nunca el error tecnico).
+  String? get downloadError => _downloadError;
 
   LocalModelState _state = LocalModelState.notConfigured;
   String? _modelFileNameLabel;
@@ -4464,6 +4960,53 @@ class LocalModelManager extends ChangeNotifier {
       _notifyListeners();
     }
   }
+
+  /// Descarga el modelo por defecto (Qwen2.5-0.5B, ~0,5 GB) a almacenamiento propio de la app y lo carga. Solo se
+  /// llama por una accion explicita de la persona (la pantalla pide confirmacion antes). Si se cancela, todo queda como
+  /// estaba y sin error; si falla, [state] pasa a error con [downloadError] en lenguaje claro.
+  Future<void> downloadDefaultModel() async {
+    if (_isDownloading || _disposed) return;
+    _isDownloading = true;
+    _downloadProgress = 0;
+    _downloadError = null;
+    _errorMessage = null;
+    _notifyListeners();
+    final fetcher = _downloaderFactory();
+    _activeDownload = fetcher;
+    var downloaded = false;
+    try {
+      final destination = await _modelFile();
+      await fetcher.download(
+        url: Uri.parse(ModelDownloader.defaultUrl),
+        destination: destination,
+        onProgress: (received, total) {
+          _downloadProgress = total > 0 ? received / total : null;
+          _notifyListeners();
+        },
+      );
+      downloaded = true;
+    } on ModelDownloadCancelled {
+      // la persona cancelo: queda como estaba, sin error
+    } catch (error) {
+      _downloadError = 'No se pudo descargar la IA local. Revisa tu conexión e inténtalo de nuevo.';
+      _errorMessage = 'Descarga fallida: $error';
+      _state = LocalModelState.error;
+    } finally {
+      _isDownloading = false;
+      _downloadProgress = null;
+      _activeDownload = null;
+      _notifyListeners();
+    }
+    if (!downloaded || _disposed) return;
+    _modelFileNameLabel = ModelDownloader.defaultFileName;
+    try {
+      await (await _metaFile()).writeAsString(ModelDownloader.defaultFileName, flush: true);
+    } catch (_) {}
+    await loadModel();
+  }
+
+  /// Cancela la descarga en curso, si la hay.
+  void cancelDownload() => _activeDownload?.cancel();
 
   /// Carga el modelo ya copiado en almacenamiento propio de la app. No hace
   /// ninguna llamada de red: solo lee el archivo local.
@@ -4576,6 +5119,7 @@ class LocalModelManager extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _activeDownload?.cancel();
     unawaited(unloadModel());
     super.dispose();
   }
@@ -6053,7 +6597,7 @@ class _AssistantViewState extends State<AssistantView> {
     required String text,
     Color? color,
     String? tooltip,
-    String? actionLabel,
+    List<(String, VoidCallback)> actions = const [],
   }) {
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(color: color);
     Widget label = Text(text, style: style, overflow: TextOverflow.ellipsis);
@@ -6064,29 +6608,63 @@ class _AssistantViewState extends State<AssistantView> {
         children: [
           if (leading != null) ...[leading, const SizedBox(width: 8)],
           Expanded(child: label),
-          if (actionLabel != null)
+          for (final (caption, onPressed) in actions)
             TextButton(
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              onPressed: _modelManager.selectAndImportModel,
-              child: Text(actionLabel, style: const TextStyle(fontSize: 12)),
+              onPressed: onPressed,
+              child: Text(caption, style: const TextStyle(fontSize: 12)),
             ),
         ],
       ),
     );
   }
 
+  Future<void> _confirmDownload() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Descargar la IA local'),
+        content: const Text(
+          'Se descargará el modelo de IA (unos 0,5 GB) una sola vez. Conviene usar Wi-Fi. '
+          'Después el asistente funciona sin internet.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Descargar')),
+        ],
+      ),
+    );
+    if (accepted == true) unawaited(_modelManager.downloadDefaultModel());
+  }
+
   Widget _buildLocalAiStatus() {
     final scheme = Theme.of(context).colorScheme;
+    if (_modelManager.isDownloading) {
+      final progress = _modelManager.downloadProgress;
+      final percent = progress == null ? '' : ' ${(progress * 100).round()} %';
+      return _statusRow(
+        leading: SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2, value: progress),
+        ),
+        text: 'Descargando la IA local…$percent',
+        actions: [('Cancelar', _modelManager.cancelDownload)],
+      );
+    }
     switch (_modelManager.state) {
       case LocalModelState.notConfigured:
         return _statusRow(
           leading: Icon(Icons.auto_awesome_outlined, size: 14, color: scheme.outline),
           text: 'IA local: sin modelo',
-          actionLabel: 'Elegir modelo',
+          actions: [
+            ('Descargar IA local', _confirmDownload),
+            ('Elegir modelo', _modelManager.selectAndImportModel),
+          ],
         );
       case LocalModelState.loading:
         return _statusRow(
@@ -6098,14 +6676,17 @@ class _AssistantViewState extends State<AssistantView> {
           leading: Icon(Icons.check_circle, size: 14, color: scheme.primary),
           text: 'IA local lista',
           tooltip: _modelManager.modelFileNameLabel,
-          actionLabel: 'Cambiar modelo',
+          actions: [('Cambiar modelo', _modelManager.selectAndImportModel)],
         );
       case LocalModelState.error:
         return _statusRow(
           leading: Icon(Icons.error_outline, size: 14, color: scheme.error),
-          text: 'IA local no disponible',
+          text: _modelManager.downloadError ?? 'IA local no disponible',
           color: scheme.error,
-          actionLabel: 'Elegir modelo',
+          actions: [
+            ('Descargar IA local', _confirmDownload),
+            ('Elegir modelo', _modelManager.selectAndImportModel),
+          ],
         );
     }
   }
