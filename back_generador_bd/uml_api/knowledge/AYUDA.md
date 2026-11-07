@@ -64,7 +64,8 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
   - «Exportar a Backend»: genera un proyecto Spring Boot con PostgreSQL y una colección de Postman, en un archivo .zip.
   - «Exportar como SQL»: descarga el script SQL de las tablas.
   - «Exportar como Imagen»: descarga el diagrama como imagen.
-  - «Exportar Flutter»: genera un proyecto Flutter con base de datos local, que funciona sin conexión.
+  - «Exportar Flutter»: genera un proyecto Flutter con base de datos local, que funciona sin conexión. Antes te pregunta el nombre de la aplicación (puedes dejarlo vacío).
+  - «Descargar proyecto completo»: un solo .zip con el backend, la aplicación móvil, el script SQL y un archivo LEEME con los pasos para ponerlo a funcionar. También te pregunta el nombre de la aplicación.
 
 ## 9. Seguir la sala desde el celular
 

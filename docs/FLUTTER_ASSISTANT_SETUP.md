@@ -36,11 +36,17 @@ model on-device to turn typed or transcribed text into a structured
 including the same two-phase DELETE confirmation. The model never executes
 anything itself; it only ever proposes a command.
 
-**No model is bundled with the app, and none is downloaded automatically.**
-The user/developer must import a compatible `.gguf` file themselves, at
-runtime, via the "Select GGUF model" control in the assistant view (uses
-`file_selector`; the chosen file is copied into the app's own
-`path_provider` support directory so it persists across restarts). The
+**No model is bundled with the app, and none is downloaded on its own.**
+The person gets one in the assistant view, in either of two ways, both an
+explicit action: **"Descargar IA local"** (asks for confirmation first —
+about 0.5 GB, better on Wi-Fi — and downloads Qwen2.5-0.5B-Instruct Q4_K_M,
+Apache-2.0, from Hugging Face with a progress indicator and a "Cancelar"
+button; `lib/assistant/model_downloader.dart` writes `<file>.part` and renames
+it at the end, so a cut connection never leaves a half model, and it refuses
+anything too small to be a model), or **"Elegir modelo"** (imports a
+compatible `.gguf` through `file_selector`). Either way the file is kept in
+the app's own `path_provider` support directory so it persists across
+restarts, and after that the assistant works without internet. The
 acceptance model used during development was **Qwen2.5-0.5B-Instruct**
 (GGUF, Q4-class quantization), but the extractor itself is not tied to any
 specific model — any compatible GGUF chat model can be used.

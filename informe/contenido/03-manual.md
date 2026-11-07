@@ -75,7 +75,7 @@ Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la 
 *Figura 3.9. Las exportaciones del diagrama.*
 
 - **XMI.** **Exportar XMI** e **Importar XMI** (arriba del lienzo) intercambian el diagrama con Enterprise Architect y otras herramientas.
-- **Exportaciones.** **Exportar a Backend** genera un proyecto Spring Boot con PostgreSQL y una colección de Postman en un .zip; **Exportar como SQL** da el script de las tablas; **Exportar como Imagen** descarga el diagrama como imagen; **Exportar Flutter** genera un proyecto móvil con base de datos local, que funciona sin conexión. Si el generador no responde, la herramienta lo avisa y no descarga nada.
+- **Exportaciones.** **Exportar a Backend** genera un proyecto Spring Boot con PostgreSQL y una colección de Postman en un .zip; **Exportar como SQL** da el script de las tablas; **Exportar como Imagen** descarga el diagrama como imagen; **Exportar Flutter** genera un proyecto móvil con base de datos local, que funciona sin conexión; **Descargar proyecto completo** entrega en un solo .zip el backend, la aplicación móvil, el script SQL y un archivo LEEME con los pasos. Los dos preguntan antes el nombre de la aplicación, que se ve bajo el icono y en la cabecera de la app (puede quedar vacío). La aplicación móvil tiene un asistente que entiende lo que se le escribe o dice; para usarlo sin internet, el botón **Descargar IA local** baja el modelo una sola vez (unos 0,5 GB, con confirmación y progreso). Si el generador no responde, la herramienta lo avisa y no descarga nada.
 
 ## 3.7 Seguir la sala desde el celular
 

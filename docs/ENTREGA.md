@@ -39,7 +39,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | Avisos en la vista del celular (RF-34), asistente de ayuda (RF-35) y MongoDB para la actividad y la conversación (RNF-08) | Hecho y desplegado, con MongoDB Atlas activo desde el 2026-11-04; el aviso en un celular real está sin probar |
 | IA local (Ollama + Qwen 3.5 9B) y modelo de 4 mil millones de parámetros reentrenado | Hecho: 10/10 pedidos correctos (RF-33); el reentrenado, en los anexos del informe |
 | Despliegue en AWS con dominio y HTTPS | Parcial: manual y repetible; sin infraestructura como código ni CI/CD |
-| IA local **dentro de la app móvil generada** | Parcial: la app carga un modelo `.gguf` que la persona importa (no lo descarga) y lo usa sin internet; con Qwen2.5-0.5B real se probó el 2026-11-07 en macOS y en el simulador de iPhone (responde con la etiqueta «IA local»). Falta probarlo en un iPhone físico. Sin modelo, o si la IA falla, usa el intérprete determinista |
+| IA local **dentro de la app móvil generada** | Parcial: la app descarga el modelo `.gguf` una sola vez por una acción explícita (botón «Descargar IA local», con confirmación y progreso) o lo importa con «Elegir modelo», y lo usa sin internet; con Qwen2.5-0.5B real se probó el 2026-11-07 en macOS y en el simulador de iPhone (responde con la etiqueta «IA local»). Falta probarlo en un iPhone físico. Sin modelo, o si la IA falla, usa el intérprete determinista |
 | Cobertura de pruebas / formalidad UML 2.5 | Parcial: ver §4 |
 
 ## 3. Estado de las pruebas (2026-11-07)
