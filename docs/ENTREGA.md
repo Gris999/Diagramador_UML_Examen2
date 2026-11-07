@@ -5,9 +5,9 @@
 | **Proyecto** | Diagramador UML colaborativo con IA como integrante de la sala (Ingeniería de Software I, grupo 29) |
 | **Versión** | `v1.0` es el primer parcial (etiqueta en `develop`). El segundo parcial entró a `develop` con el pull request 2 (commit de fusión `ac1efb6`), todavía sin etiqueta |
 | **Repositorio** | https://github.com/Gris999/Diagramador_UML_Examen2 (la rama por defecto es `develop`: es la que abre el código QR de GitHub de la carátula) |
-| **Sitio desplegado** | https://diagramador.dev (AWS EC2, HTTPS). Desplegado el 2026-11-04 con el segundo parcial (chat compartido, avisos, asistente de ayuda) y actualizado el 2026-11-07 con la clase asociativa UML y las relaciones recursivas, más tarde ese día con el arreglo del proyecto Flutter con IA local, y esa noche con la app móvil pulida (asistente en español natural, pantalla principal genérica con el nombre y el icono de la app, descarga de la IA local dentro de la app) y el botón «Descargar proyecto completo» (`develop` = `9d4115b`). La actividad y la conversación con la IA se guardan en MongoDB Atlas (nube, plan gratuito) desde ese día |
+| **Sitio desplegado** | https://diagramador.dev (AWS EC2, HTTPS). Desplegado el 2026-11-04 con el segundo parcial (chat compartido, avisos, asistente de ayuda) y actualizado el 2026-11-07 con la clase asociativa UML y las relaciones recursivas, más tarde ese día con el arreglo del proyecto Flutter con IA local, y esa noche con la app móvil pulida (asistente en español natural, pantalla principal genérica con el nombre y el icono de la app, descarga de la IA local dentro de la app) y el botón «Descargar proyecto completo» y, esa noche, con el asistente que responde con la verdad sobre su IA y con el asistente que conversa con una IA local de 1,5B usando los datos reales de la app (`develop` = `556204b`). La actividad y la conversación con la IA se guardan en MongoDB Atlas (nube, plan gratuito) desde ese día |
 | **Fecha de entrega** | Martes **2026-11-10, a más tardar a las 8 a.m.**, en la plataforma (de *DOCUMENTACION DEL 2DO PARCIAL.docx*). La fecha de una presentación oral, si la hay, no está confirmada |
-| **Estado al 2026-11-07** | Pull requests 2 a 10 fusionados en `develop` (`9d4115b`); desplegado en AWS con la prueba de humo en orden; informe de 326 páginas generado; pruebas físicas pendientes (sección 5) |
+| **Estado al 2026-11-07** | Pull requests 2 a 13 fusionados en `develop` (`556204b`); desplegado en AWS con la prueba de humo en orden; informe de 328 páginas generado; pruebas físicas pendientes (sección 5) |
 
 ## 1. Qué se entrega
 
@@ -46,10 +46,12 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 
 | Suite | Resultado |
 |---|---|
-| Frontend (Karma) | 302 correctas, 0 fallos; `ng build` sin errores |
-| Django (`manage.py test` con `settings_test`, sin Docker) | 365 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
+| Frontend (Karma) | 312 correctas, 0 fallos; `ng build` sin errores |
+| Django (`manage.py test` con `settings_test`, sin Docker) | 391 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
 | Spring (incluye compilar de verdad el proyecto generado) | 12 correctas, 0 fallos |
-| Sitio desplegado | `scripts/smoke-test.sh` el 2026-11-07: 12 comprobaciones, todo en orden (el 2026-11-04 también, antes y después de activar MongoDB Atlas). La ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) da 404 |
+| Proyecto Flutter generado (`flutter test` y `flutter analyze` en un proyecto de ejemplo) | 106 correctas, 0 fallos; el analizador no da errores ni advertencias (2026-11-07) |
+| Asistente móvil con el modelo real (Qwen2.5-1.5B, en un Mac) | 15 frases por las reglas y por el modelo: consultar, crear, cambiar por id y borrar por número dan el comando correcto; la charla usa los datos reales y reconoce sus límites. Tabla en `docs/FLUTTER_ASSISTANT_SETUP.md` (2026-11-07) |
+| Sitio desplegado | `scripts/smoke-test.sh` el 2026-11-07 (tras cada despliegue del día, el último con el servidor en `556204b`): 12 comprobaciones, todo en orden (el 2026-11-04 también, antes y después de activar MongoDB Atlas). La ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) da 404 |
 | MongoDB Atlas | Las 19 pruebas de los adaptadores contra Atlas (MongoDB 8.0), desde el servidor: pasan. Se copiaron 34 eventos y 10 mensajes con `migrar_a_mongo` (iguales a los de PostgreSQL salvo la hora a milisegundos y el nombre de autor de los mensajes viejos). Prueba de punta a punta: una edición por WebSocket y una pregunta a la IA se guardaron y se leyeron de Atlas, y PostgreSQL no creció |
 | Modelos del informe contra el repositorio | Pasan los seis validadores: 69 clases de diseño, 74 asociaciones, 226 mensajes de secuencia, 66 casos de prueba (uno por camino de los 14 casos de uso) y 243 pruebas citadas |
 | Pruebas manuales | 21 procedimientos ejecutados en el navegador con Gemini real (2026-10-26 y 27) y, el 2026-10-22, tres identidades + vista móvil sobre el sitio desplegado |
