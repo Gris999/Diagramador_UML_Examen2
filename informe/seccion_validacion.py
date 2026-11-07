@@ -179,7 +179,7 @@ def generar():
            "- Despliegue: `scripts/smoke-test.sh`.", "",
            "**Limitaciones conocidas que la auditoría deja a la vista.**\n",
            "- Los endpoints de imagen y de audio (`/api/uml_from_image/` y `/api/uml_from_audio/`) no tienen topes de uso propios como el chat y la ayuda: las tres peticiones comparten solo la cuota del proveedor de IA.",
-           "- La rama de trabajo del segundo parcial está en el repositorio local; subirla a GitHub y desplegarla en AWS se hace con la aprobación de quien dirige el proyecto.",
+           "- El asistente de la aplicación móvil usa un modelo de IA local pequeño (Qwen2.5-1.5B): puede explicar un concepto de forma imprecisa y su velocidad en un iPhone físico no se midió. Las órdenes sobre los datos tienen protecciones (solo aceptan valores que la persona dijo y campos del esquema); la conversación no, por eso se le indica usar solo los datos reales y reconocer lo que no puede hacer.",
            "- Lo que todavía no se probó, y por eso no se afirma, está en la sección 2.5.6.\n"]
     return "\n".join(md)
 
