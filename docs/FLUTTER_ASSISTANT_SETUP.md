@@ -65,9 +65,10 @@ tool/configure_ios_local_ai.sh            # applies the 16.4 deployment target
 tool/configure_ios_local_ai.sh --verify   # verifies it, without modifying anything
 ```
 
-The script only touches `ios/Runner.xcodeproj/project.pbxproj` (always) and
-`ios/Podfile` (only if present) inside the generated project — it never
-touches Flutter SDK files. Note: with Flutter's current default Swift
+The script only touches `ios/Runner.xcodeproj/project.pbxproj` (always),
+`ios/Podfile` (only if present) and `ios/Runner/Info.plist` (it adds the two
+voice-permission texts, once; see below) inside the generated project — it
+never touches Flutter SDK files. Note: with Flutter's current default Swift
 Package Manager integration, `flutter create` does not generate a
 `ios/Podfile` at all; the script detects this and only updates
 `project.pbxproj` in that case, which is what Xcode actually requires to
@@ -82,7 +83,11 @@ generator does not produce. Add them by hand after `flutter create .`:
 
 ### iOS — `ios/Runner/Info.plist`
 
-Add these two keys inside the top-level `<dict>`:
+**`tool/configure_ios_local_ai.sh` already adds these two keys** (and
+`--verify` fails if they are missing). Only add them by hand if you did not
+run the script. They are **mandatory**: without them iOS **closes the app**
+(`TCC … PRIVACY_VIOLATION`) as soon as the assistant asks for the microphone or
+speech recognition. Keys, inside the top-level `<dict>`:
 
 ```xml
 <key>NSMicrophoneUsageDescription</key>
@@ -110,10 +115,11 @@ speech-recognition service on the device):
 </intent>
 ```
 
-Without these, the OS will silently deny microphone/speech access and
-`VoiceInputController.initialize()` will report the assistant's voice input
-as unavailable — the mic button stays hidden and the typed assistant keeps
-working normally (this is the intended fail-safe, not a bug).
+On **Android**, without these the OS denies microphone/speech access and
+`VoiceInputController.initialize()` reports voice input as unavailable — the
+mic button stays hidden and the typed assistant keeps working normally. On
+**iOS** it is not silent: the app is closed by the system (see above), so
+the Info.plist texts are not optional.
 
 ## What is and isn't verified
 
@@ -135,6 +141,30 @@ working normally (this is the intended fail-safe, not a bug).
   any other) GGUF model has NOT been validated yet** — that is explicitly
   out of scope for this work unit and remains a next step before this
   capability can be considered proven end-to-end on a physical device.
+- **2026-11-07, real model, no phone involved.** With the real
+  `qwen2.5-0.5b-instruct-q4_k_m.gguf` (Q4_K_M, 491 MB) and the real
+  `llamadart` runtime: (a) on macOS (pure Dart, the app's own
+  `LocalLlmCommandExtractor`) the model loads in ~1.2 s and answers in
+  0.6–2.3 s; 3 of 6 Spanish phrases became a valid command (list, delete,
+  create a department), the others were rejected by the validator by design
+  (a required relation is missing, wrong JSON shape, small talk) and fall
+  back to the deterministic parser; output is not deterministic between
+  runs. (b) In the **iOS simulator** (iPhone 17 Pro), the real app shows
+  "Local AI: Ready — qwen2.5-0.5b…" and, **with the model on CPU**
+  (`ModelParams(gpuLayers: 0)`), "lista todos los empleados" produced
+  "IA local: 2 resultado(s)" from the local SQLite database in ~4.9 s, offline.
+  With the default (all layers on the GPU) the simulator's emulated Metal
+  returned `{}`, so the app silently used the deterministic parser: that is a
+  simulator artifact (the same model works on the Mac), **not yet checked on a
+  physical iPhone**. Physical-device inference is still the pending step.
+- The generated `pubspec.yaml` now pins `llamadart: 0.8.24` and
+  `llamadart_llama_cpp_flutter: 0.0.19` (they share native runtime v0.4.1).
+  With the previous caret ranges `pub` resolved `0.8.24 + 0.0.23` on
+  2026-11-07, a pair `llamadart` rejects on Apple ("does not uniquely pin the
+  required native runtime"), so freshly generated projects did not build for
+  iOS/macOS. The older pair `0.8.23 + 0.0.18` does not work either with the
+  current Flutter (its build hook fails on a missing `Artifacts/` directory).
+  Always upgrade the two packages together.
 - Do **not** read this document as claiming: physical Qwen inference has
   been run and verified, RF-22 is fully DONE, Whisper/whisper.cpp is
   integrated, speech recognition is provably fully local, a wake word

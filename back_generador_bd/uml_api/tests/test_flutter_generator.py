@@ -1,4 +1,5 @@
 import re
+import subprocess
 import tempfile
 import zipfile
 from io import BytesIO
@@ -752,6 +753,17 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("path_provider:", pubspec)
             self.assertIn("flutter: '>=3.38.0'", pubspec)
 
+    def test_local_llm_runtime_packages_are_pinned_to_a_compatible_pair(self):
+        """`llamadart` y su compañero `llamadart_llama_cpp_flutter` deben avanzar juntos: con rangos abiertos (^) pub
+        resolvía 0.8.24 + 0.0.23, un par que el propio paquete rechaza en Apple ("does not uniquely pin the required
+        native runtime"), y el proyecto generado dejaba de compilar en iOS y macOS."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            pubspec = (output / "pubspec.yaml").read_text()
+            self.assertRegex(pubspec, r"(?m)^  llamadart: 0\.8\.24$")
+            self.assertRegex(pubspec, r"(?m)^  llamadart_llama_cpp_flutter: 0\.0\.19$")
+
     def test_ios_setup_script_is_generated_and_executable(self):
         with tempfile.TemporaryDirectory() as output_dir:
             output = Path(output_dir)
@@ -764,6 +776,51 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("--verify", content)
             # No invoca Ruby/CocoaPods: solo sed/grep.
             self.assertNotIn("pod install", content)
+
+    PLIST = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n'
+        "\t<key>CFBundleName</key>\n\t<string>app</string>\n</dict>\n</plist>\n"
+    )
+
+    def _ios_project(self, project_dir, deployment_target):
+        project = Path(project_dir)
+        (project / "ios" / "Runner.xcodeproj").mkdir(parents=True)
+        (project / "ios" / "Runner").mkdir(parents=True)
+        (project / "ios" / "Runner.xcodeproj" / "project.pbxproj").write_text(
+            f"IPHONEOS_DEPLOYMENT_TARGET = {deployment_target};\n"
+        )
+        info = project / "ios" / "Runner" / "Info.plist"
+        info.write_text(self.PLIST)
+        return project, info
+
+    def test_ios_setup_script_adds_the_voice_permission_texts_once(self):
+        """Sin NSMicrophoneUsageDescription y NSSpeechRecognitionUsageDescription iOS cierra la app al abrir el asistente
+        (TCC: privacy violation); la guia lo pedia como paso manual y decia que se denegaba en silencio."""
+        with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as project_dir:
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(Path(output_dir))
+            script = Path(output_dir) / "tool" / "configure_ios_local_ai.sh"
+            project, info = self._ios_project(project_dir, "13.0")
+
+            for _ in range(2):  # dos veces: no duplica las claves
+                run = subprocess.run(["sh", str(script)], cwd=project, capture_output=True, text=True)
+                self.assertEqual(0, run.returncode, run.stderr)
+
+            text = info.read_text()
+            self.assertEqual(1, text.count("<key>NSMicrophoneUsageDescription</key>"))
+            self.assertEqual(1, text.count("<key>NSSpeechRecognitionUsageDescription</key>"))
+            self.assertIn("<key>CFBundleName</key>", text)
+            verify = subprocess.run(["sh", str(script), "--verify"], cwd=project, capture_output=True, text=True)
+            self.assertEqual(0, verify.returncode, verify.stderr)
+
+    def test_ios_setup_script_verify_fails_when_the_permission_texts_are_missing(self):
+        with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as project_dir:
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(Path(output_dir))
+            script = Path(output_dir) / "tool" / "configure_ios_local_ai.sh"
+            project, _info = self._ios_project(project_dir, "16.4")  # el target ya esta bien; faltan los textos
+
+            verify = subprocess.run(["sh", str(script), "--verify"], cwd=project, capture_output=True, text=True)
+            self.assertEqual(1, verify.returncode)
+            self.assertIn("NSMicrophoneUsageDescription", verify.stderr)
 
     def test_gguf_picker_declares_ios_uniform_type_identifier(self):
         # iOS's file_selector_ios throws ArgumentError at runtime if an

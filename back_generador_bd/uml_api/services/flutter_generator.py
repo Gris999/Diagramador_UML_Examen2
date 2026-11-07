@@ -322,8 +322,11 @@ dependencies:
   speech_to_text: ^7.5.0
   file_selector: ^1.1.0
   path_provider: ^2.1.6
-  llamadart: ^0.8.23
-  llamadart_llama_cpp_flutter: ^0.0.18
+  # Versiones EXACTAS y juntas (ambas usan el runtime nativo v0.4.1). Con ^, pub resolvia llamadart 0.8.24 +
+  # companion 0.0.23, un par que llamadart rechaza en Apple y el proyecto dejaba de compilar. El par
+  # 0.8.23 + 0.0.18 tampoco sirve: su hook falla con el Flutter actual (carpeta Artifacts/). Subirlas siempre como par.
+  llamadart: 0.8.24
+  llamadart_llama_cpp_flutter: 0.0.19
 
 dev_dependencies:
   flutter_test:
@@ -360,9 +363,14 @@ flutter:
 #   tool/configure_ios_local_ai.sh            # aplica el deployment target
 #   tool/configure_ios_local_ai.sh --verify   # solo verifica, no modifica
 #
-# No modifica nada fuera de ios/Runner.xcodeproj/project.pbxproj (siempre) e
-# ios/Podfile (solo si existe) de este proyecto. No requiere Ruby, CocoaPods
-# ni plutil: solo sed/grep.
+# No modifica nada fuera de ios/Runner.xcodeproj/project.pbxproj (siempre),
+# ios/Podfile (solo si existe) e ios/Runner/Info.plist (solo agrega los dos
+# textos de permiso de voz, una sola vez) de este proyecto. No requiere Ruby,
+# CocoaPods ni plutil: solo sed/grep/awk.
+#
+# Los textos de permiso son obligatorios: sin NSMicrophoneUsageDescription y
+# NSSpeechRecognitionUsageDescription, iOS CIERRA la app (privacy violation)
+# en cuanto el asistente pide el microfono o el reconocimiento de voz.
 #
 # Nota: con integracion via Swift Package Manager (el flujo por defecto en
 # Flutter 3.38+), `flutter create` NO genera ios/Podfile; en ese caso este
@@ -375,6 +383,9 @@ set -eu
 TARGET="16.4"
 PODFILE="ios/Podfile"
 PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"
+INFO_PLIST="ios/Runner/Info.plist"
+MIC_KEY="NSMicrophoneUsageDescription"
+SPEECH_KEY="NSSpeechRecognitionUsageDescription"
 VERIFY_ONLY=0
 
 if [ "${1:-}" = "--verify" ]; then
@@ -397,6 +408,24 @@ check_pbxproj() {
     | grep -vq "IPHONEOS_DEPLOYMENT_TARGET = ${TARGET};"
 }
 
+has_plist_key() {
+  grep -q "<key>$1</key>" "$INFO_PLIST"
+}
+
+check_plist() {
+  [ -f "$INFO_PLIST" ] || return 0
+  has_plist_key "$MIC_KEY" && has_plist_key "$SPEECH_KEY"
+}
+
+# Agrega <key>/<string> justo despues del primer <dict> (el de nivel superior).
+add_plist_key() {
+  has_plist_key "$1" && return 0
+  awk -v k="$1" -v t="$2" '
+    !done && /<dict>/ { print; print "    <key>" k "</key>"; print "    <string>" t "</string>"; done = 1; next }
+    { print }
+  ' "$INFO_PLIST" > "$INFO_PLIST.new" && mv "$INFO_PLIST.new" "$INFO_PLIST"
+}
+
 if [ "$VERIFY_ONLY" -eq 1 ]; then
   ok=1
   if ! check_podfile; then
@@ -407,8 +436,12 @@ if [ "$VERIFY_ONLY" -eq 1 ]; then
     echo "FAIL: $PBXPROJ tiene un IPHONEOS_DEPLOYMENT_TARGET distinto de ${TARGET}" >&2
     ok=0
   fi
+  if ! check_plist; then
+    echo "FAIL: $INFO_PLIST no tiene $MIC_KEY y $SPEECH_KEY (sin ellos iOS cierra la app al abrir el asistente)" >&2
+    ok=0
+  fi
   if [ "$ok" -eq 1 ]; then
-    echo "OK: iOS deployment target ya esta en ${TARGET}"
+    echo "OK: iOS deployment target en ${TARGET} y permisos de voz presentes"
     exit 0
   fi
   exit 1
@@ -431,10 +464,18 @@ fi
 sed -i.bak -E "s/IPHONEOS_DEPLOYMENT_TARGET = [^;]*;/IPHONEOS_DEPLOYMENT_TARGET = ${TARGET};/g" "$PBXPROJ"
 rm -f "$PBXPROJ.bak"
 
-if check_podfile && check_pbxproj; then
-  echo "OK: iOS deployment target configurado en ${TARGET}"
+# --- Info.plist: textos de permiso de voz (iOS cierra la app si faltan) ---
+if [ -f "$INFO_PLIST" ]; then
+  add_plist_key "$MIC_KEY" "Esta app usa el microfono para el asistente por voz."
+  add_plist_key "$SPEECH_KEY" "Esta app usa reconocimiento de voz para interpretar comandos del asistente."
 else
-  echo "error: la configuracion no se aplico correctamente; revisa $PBXPROJ (y $PODFILE si existe)" >&2
+  echo "info: $INFO_PLIST no existe; se omiten los textos de permiso de voz."
+fi
+
+if check_podfile && check_pbxproj && check_plist; then
+  echo "OK: iOS deployment target configurado en ${TARGET} y permisos de voz presentes"
+else
+  echo "error: la configuracion no se aplico correctamente; revisa $PBXPROJ, $INFO_PLIST (y $PODFILE si existe)" >&2
   exit 1
 fi
 '''
