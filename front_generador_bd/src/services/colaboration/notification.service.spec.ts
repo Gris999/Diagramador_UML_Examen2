@@ -140,20 +140,73 @@ describe('NotificationService', () => {
     expect(body.endsWith('…')).toBeTrue();
   });
 
-  it('uses the service worker when the browser refuses to build a notification directly (Android)', async () => {
+  const flush = () => new Promise<void>(resolve => setTimeout(resolve));
+
+  it('shows the notification through the service worker first, and never builds it directly (iPhone ignores that silently)', async () => {
     FakeNotification.permission = 'granted';
-    FakeNotification.failConstructor = true;
     const registration = { showNotification: jasmine.createSpy('showNotification').and.resolveTo() };
     register.and.resolveTo(registration);
     const service = create({ workers: { register, ready: Promise.resolve(registration) } });
 
     service.notifyChange('Beto', 'eliminó un elemento');
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flush();
 
     expect(register).toHaveBeenCalledOnceWith('/notification-sw.js');
     expect(registration.showNotification).toHaveBeenCalledOnceWith('Beto', jasmine.objectContaining({ body: 'eliminó un elemento' }));
+    expect(FakeNotification.created).toEqual([]);
+  });
+
+  it('registers the service worker only once for several notifications', async () => {
+    FakeNotification.permission = 'granted';
+    const registration = { showNotification: jasmine.createSpy('showNotification').and.resolveTo() };
+    register.and.resolveTo(registration);
+    const service = create({ workers: { register, ready: Promise.resolve(registration) } });
+
+    service.notifyChange('Ana', 'añadió una clase');
+    service.notifyChange('Beto', 'eliminó una clase');
+    await flush();
+
+    expect(register).toHaveBeenCalledTimes(1);
+    expect(registration.showNotification).toHaveBeenCalledTimes(2);
+  });
+
+  it('builds the notification directly when the service worker cannot be registered', async () => {
+    FakeNotification.permission = 'granted';
+    register.and.rejectWith(new Error('sin service worker'));
+    const service = create({ workers: { register, ready: new Promise(() => undefined) } });
+
+    service.notifyChange('Beto', 'eliminó un elemento');
+    await flush();
+
+    expect(FakeNotification.created.length).toBe(1);
+    expect(FakeNotification.created[0].title).toBe('Beto');
+  });
+
+  it('builds the notification directly when the service worker refuses to show it', async () => {
+    FakeNotification.permission = 'granted';
+    const registration = { showNotification: jasmine.createSpy('showNotification').and.rejectWith(new Error('denegado')) };
+    register.and.resolveTo(registration);
+    const service = create({ workers: { register, ready: Promise.resolve(registration) } });
+
+    service.notifyChange('Beto', 'eliminó un elemento');
+    await flush();
+
+    expect(FakeNotification.created.length).toBe(1);
+  });
+
+  it('tries to register the service worker again after a failure', async () => {
+    FakeNotification.permission = 'granted';
+    const registration = { showNotification: jasmine.createSpy('showNotification').and.resolveTo() };
+    register.and.returnValues(Promise.reject(new Error('primera vez')), Promise.resolve(registration));
+    const service = create({ workers: { register, ready: Promise.resolve(registration) } });
+
+    service.notifyChange('Ana', 'primera');
+    await flush();
+    service.notifyChange('Ana', 'segunda');
+    await flush();
+
+    expect(register).toHaveBeenCalledTimes(2);
+    expect(registration.showNotification).toHaveBeenCalledTimes(1);
   });
 
   it('does not fail when neither way of notifying works', async () => {

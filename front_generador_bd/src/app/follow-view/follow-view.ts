@@ -3,6 +3,7 @@ import {
   AfterViewInit,
   Component,
   ElementRef,
+  computed,
   effect,
   inject,
   OnDestroy,
@@ -20,6 +21,11 @@ import { DiagramService } from '../../services/diagram/diagram.service';
 import { ActivityPanel } from '../activity-panel/activity-panel';
 
 const FIT_DEBOUNCE_MS = 150;
+
+/** iPhone, iPod o iPad (el iPad moderno se presenta como un Mac, pero con pantalla táctil). */
+export function isIosDevice(userAgent: string, maxTouchPoints: number): boolean {
+  return /iPhone|iPad|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1);
+}
 
 /**
  * Vista de seguimiento pensada para el celular: muestra el diagrama de la sala
@@ -51,6 +57,14 @@ export class FollowView implements AfterViewInit, OnDestroy {
   readonly hasContent = signal(false);
   readonly failed = signal(false);
   readonly notificationPermission = this.notifications.permission;
+
+  /** En el iPhone los avisos no existen en una pestaña de Safari: solo en la app agregada a la pantalla de inicio. */
+  readonly iosNeedsHomeScreen = computed(
+    () =>
+      this.notificationPermission() === 'unsupported' &&
+      isPlatformBrowser(this.platformId) &&
+      isIosDevice(navigator.userAgent, navigator.maxTouchPoints)
+  );
 
   /** Último evento del que ya se decidió si avisar: lo que ya había al abrir la vista o al activar los avisos no se avisa. */
   private lastSeenEventId = 0;

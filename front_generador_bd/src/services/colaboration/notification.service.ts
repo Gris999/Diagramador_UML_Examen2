@@ -19,7 +19,7 @@ export const NOTIFICATION_API = new InjectionToken<NotificationApi | undefined>(
       : undefined
 });
 
-/** Android no deja crear un `Notification` directamente: los avisos pasan por un service worker. */
+/** Android no deja crear un `Notification` directamente y el iPhone lo acepta sin mostrar nada: los avisos pasan por un service worker. */
 export const SERVICE_WORKERS = new InjectionToken<ServiceWorkerContainer | undefined>('SERVICE_WORKERS', {
   providedIn: 'root',
   factory: () =>
@@ -37,6 +37,7 @@ const MAX_BODY_CHARS = 140;
 export class NotificationService {
   private readonly api = inject(NOTIFICATION_API);
   private readonly workers = inject(SERVICE_WORKERS);
+  private registration?: Promise<ServiceWorkerRegistration>;
 
   readonly permission = signal<NotificationPermissionState>(this.api ? this.api.permission : 'unsupported');
 
@@ -65,25 +66,48 @@ export class NotificationService {
     this.show('Nueva idea de la IA', text);
   }
 
+  /**
+   * El service worker va primero: es la única forma que muestra el aviso en el iPhone (la app agregada a Inicio) y en Android.
+   * En el iPhone `new Notification()` no da error pero tampoco muestra nada, así que no sirve como "plan A con respaldo".
+   */
   private show(title: string, text: string): void {
     if (!this.api || this.permission() !== 'granted') return;
     const options: NotificationOptions = { body: this.shorten(text), tag: 'uml-follow' };
+    if (!this.workers) {
+      this.showDirectly(title, options);
+      return;
+    }
+    void this.showFromWorker(title, options).then(shown => {
+      if (!shown) this.showDirectly(title, options);
+    });
+  }
+
+  private showDirectly(title: string, options: NotificationOptions): void {
+    if (!this.api) return;
     try {
       new this.api(title, options);
     } catch {
-      void this.showFromWorker(title, options);
+      // Sin ninguna forma de avisar en este navegador: la actividad sigue visible en la pantalla.
     }
   }
 
-  private async showFromWorker(title: string, options: NotificationOptions): Promise<void> {
-    if (!this.workers) return;
+  private async showFromWorker(title: string, options: NotificationOptions): Promise<boolean> {
     try {
-      await this.workers.register(WORKER_URL);
-      const registration = await this.workers.ready;
+      const registration = await this.workerRegistration();
       await registration.showNotification(title, options);
+      return true;
     } catch {
-      // Sin service worker no hay forma de avisar en este navegador: la actividad sigue visible en la pantalla.
+      this.registration = undefined;
+      return false;
     }
+  }
+
+  /** El service worker se registra una sola vez y se reutiliza en cada aviso. */
+  private workerRegistration(): Promise<ServiceWorkerRegistration> {
+    const workers = this.workers;
+    if (!workers) return Promise.reject(new Error('Sin service workers'));
+    this.registration ??= workers.register(WORKER_URL).then(() => workers.ready);
+    return this.registration;
   }
 
   private shorten(text: string): string {
