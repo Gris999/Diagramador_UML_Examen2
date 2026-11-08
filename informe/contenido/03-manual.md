@@ -11,6 +11,9 @@ Este manual enseña a usar la herramienta completa, la del primer parcial y lo n
 2. La primera vez, el navegador te pregunta «¿Cómo deseas que te vean en la sala?». Escribe tu nombre: los demás lo verán en la lista de participantes y en la actividad, y se guarda en tu navegador. No hay cuentas ni contraseñas.
 3. Para invitar a alguien, dentro de la sala pulsa **Compartir** (el botón azul de arriba a la derecha). Copia el **enlace de invitación** y envíaselo: esa persona lo abre, escribe su nombre y entra a editar. También puedes pulsar **Copiar código de sala**: la otra persona lo escribe en **Ingresa el código del lienzo** y pulsa **Unirse al Lienzo**.
 
+![Compartir la sala](capturas/12-compartir.png)
+*Figura 3.1b. La ventana «Compartir»: el enlace de invitación, el código de la sala y el enlace para seguirla desde el celular.*
+
 ![Código no válido](capturas/11-codigo-invalido.png)
 *Figura 3.2. Si lo que se escribe no es un código de sala, la herramienta no entra y explica por qué.*
 
@@ -43,6 +46,9 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 
 ![Dos personas en la sala](capturas/04-colaboracion.png)
 *Figura 3.5. Una sala con dos personas: cada acción aparece en la actividad con el nombre de quien la hizo.*
+
+![Lista de participantes](capturas/13-participantes.png)
+*Figura 3.5b. Los círculos de la barra superior abren la lista de participantes: quién es el Host, quién eres tú y si la IA está disponible.*
 
 - **Participantes.** Las personas conectadas se ven como círculos con su inicial en la barra superior; al tocarlos se abre la lista. Tú apareces con «(Tú)» y la IA como un integrante más, «Disponible» o «Pensando».
 - **Host.** La primera persona que entra a una sala es el **Host**; las demás son **Participante**. Todos editan por igual. Solo el Host ve el botón **Expulsar** junto a cada participante: la persona expulsada ve «El host te expulsó de la sala» y vuelve al inicio, y puede volver a entrar con el código. Si el Host sale, pasa a serlo quien lleva más tiempo en la sala.
