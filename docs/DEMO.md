@@ -55,10 +55,11 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 
 1. **La IA aparece en Participantes** (🤖 IA, "Disponible").
 2. **Chat compartido** (botón 🤖 *Chat con la IA*). Mostrar el aviso *"Lo ven todas las personas de la sala"*: es una sola IA y una sola conversación para el equipo, como pidió el docente. Cada mensaje muestra su autor.
-   - **Preguntar:** *"¿Qué hizo Bruno hasta ahora?"* → responde con el registro de actividad. *"Solo responde; en este modo no puede tocar el diagrama."*
-3. **Pedir cambio** (Ana): *"Agrega una clase Factura con total y fecha, relacionada con Pedido"*. Mientras trabaja, en la pantalla de los demás se lee **"Pensando (a pedido de Ana)…"**. Al terminar, la clase aparece en las tres pantallas y en Actividad: **"🤖 IA añadió la clase Factura (a pedido de Ana)"**.
-   - *Si el cambio elimina algo, la IA pide confirmación antes de aplicarlo.*
-4. **Revisar** (Carla): la IA publica sus observaciones para **todos**, con un botón **Aplicar** en cada idea. Bruno pulsa **Aplicar** en una: el cambio queda a nombre de Bruno ("IA … a pedido de Bruno") y la idea se marca **Aplicada** para todos (nadie más puede aplicarla dos veces).
+   - Es **un solo chat**: no hay pestañas ni modos, la herramienta entiende lo que se escribe. Arriba se elige el modelo de la sala (**Nube (Gemini)** o **Local**); el cambio vale para todos y queda en Actividad.
+   - **Pregunta:** *"¿Qué hizo Bruno hasta ahora?"* → responde con el registro de actividad de Bruno (sin gastar IA), incluido lo que hizo con la IA. *"Una pregunta nunca toca el diagrama."*
+3. **Pedir cambio con permiso** (Ana): *"Agrega una clase Factura con total y fecha, relacionada con Pedido"*. La IA **propone** lo que haría («Crear la clase Factura…») y espera: el diagrama **no cambia** hasta que Ana pulse **Aplicar** (o escriba «sí»); **Descartar** lo cancela. Mientras trabaja, en la pantalla de los demás se lee **"Pensando (a pedido de Ana)…"**. Al aplicar, la clase aparece en las tres pantallas y en Actividad: **"🤖 IA añadió la clase Factura (a pedido de Ana)"**. Si Ana escribe *«…directamente»*, lo aplica sin preguntar.
+   - *Si el cambio elimina algo, la propuesta lo advierte y, además, pide confirmación antes de aplicarlo.*
+4. **Revisar** (Carla): *"Revisa el diagrama"* → la IA deja sus observaciones en Actividad para **todos**, con un botón **Aplicar** en cada idea. Bruno pulsa **Aplicar** en una: el cambio queda a nombre de Bruno ("IA … a pedido de Bruno") y la idea se marca **Aplicada** para todos (nadie más puede aplicarla dos veces).
 5. **Conversación compartida:** Bruno abre su chat → **ve** las preguntas de Ana y de Carla, cada una con su autor, y las respuestas de la IA. *La IA atiende un pedido a la vez:* si Ana y Bruno preguntan al mismo tiempo, el segundo lee *«La IA está atendiendo a Ana. Espera a que termine.»*
 6. **Sesión continua:** cerrar todas las pestañas y volver a abrir la sala → siguen el diagrama, la actividad y la conversación con la IA.
 7. **Vista móvil de seguimiento** (celular): abrir el enlace → se ve el diagrama actualizándose en vivo y la actividad debajo; **no tiene ningún control de edición** y no cuenta como participante (no se vuelve host). Pulsar **Activar avisos** y permitirlos: cuando alguien cambia el diagrama o la IA publica una idea, el celular avisa (solo con la página abierta). *Si en el ensayo el navegador tiene los avisos bloqueados, la barra lo dice y se explica que se permiten en sus ajustes.*
@@ -105,7 +106,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 |---|---|
 | ¿Por qué no hay cuentas de usuario? | Es una decisión de diseño (RF-17): el rol de host vive solo en la sala viva; la identidad es un nombre más un identificador anónimo del navegador. El código de sala es la "llave". |
 | ¿Qué pasa si la IA falla? | Se muestra un mensaje claro, el diagrama no cambia y nada queda guardado a medias. |
-| ¿Puede la IA cambiar el diagrama sin que se lo pidan? | No. Solo el modo *Pedir cambio* lo modifica, y lo aplica el navegador de quien lo pidió; *Preguntar* y *Revisar* nunca devuelven cambios (hay una prueba automática con un proveedor falso que devuelve un diagrama). |
+| ¿Puede la IA cambiar el diagrama sin que se lo pidan? | No. Solo cambia si alguien se lo pide, y antes **propone y espera permiso** (salvo que la persona diga «directamente»); lo aplica el navegador de quien lo pidió. Una pregunta, una revisión o un historial nunca devuelven cambios (hay pruebas automáticas con un proveedor falso que devuelve un diagrama). |
 | ¿Por qué una sola conversación con la IA para toda la sala? | Porque el docente lo pidió: es un integrante más del equipo, una sola instancia que conoce lo que hizo cada persona. Atiende un pedido a la vez (un cerrojo por sala en Redis) y cada mensaje muestra su autor. |
 | ¿Cómo se evita que alguien gaste la cuota de la IA? | Topes por persona (12/min), por sala (30/min) y en total (60/min) en el chat, y 6/min por persona y 30/min en total en la ayuda. Las rutas de imagen y de audio todavía no tienen tope propio (limitación conocida). |
 | ¿Cómo sé que lo que dice el documento está en el software? | La sección 2.6 lo comprueba en las dos direcciones cada vez que se genera el informe: cada clase, operación y mensaje de secuencia del diseño existe en el código, y cada clase del código que el diseño no modela tiene escrita su razón. |
@@ -116,7 +117,7 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 
 | Si falla… | Hacer |
 |---|---|
-| Gemini (nube) | Cambiar a la IA local (`AI_PROVIDER=ollama`) o mostrar el modo que no la necesita; el chat muestra el error claro. |
+| Gemini (nube) | Cambiar a **Local** con el selector del chat (si el servidor tiene Ollama) o arrancar con `AI_PROVIDER=ollama`; el chat muestra el error claro. |
 | Internet | IA local + los generadores (no necesitan red). |
 | El micrófono | Usar texto; el micrófono funciona solo en Chrome con HTTPS. |
 | Una sala "rara" | Crear una sala nueva (10 segundos). Al reiniciar el servidor ya se limpian los participantes de las salas anteriores. |

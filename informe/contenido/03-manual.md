@@ -60,16 +60,17 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 ![Chat con la IA](capturas/05-chat-ia-abierto.png)
 *Figura 3.6. El chat de la sala con la IA: lo ven todas las personas y dice qué IA responde.*
 
-Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la sala**: la ven y la alimentan todas las personas, y cada mensaje muestra quién lo escribió. La IA atiende **un pedido a la vez**; si está ocupada con otra persona, te lo dice y esperas a que termine. Arriba se lee qué IA responde («IA en la nube (Gemini)» o una IA local). Hay tres modos:
+Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la sala**: la ven y la alimentan todas las personas, y cada mensaje muestra quién lo escribió. La IA atiende **un pedido a la vez**; si está ocupada con otra persona, te lo dice y esperas a que termine. Arriba se lee qué IA responde y se puede elegir entre **Nube (Gemini)** y **Local**: el modelo es **uno solo para toda la sala**, el cambio queda en la actividad y «Local» aparece apagado si el servidor no tiene el modelo local. Es **un solo chat**: no hay que elegir un modo, la herramienta entiende lo que escribes.
 
-| Modo | Para qué sirve | Qué puede hacer la IA |
-|---|---|---|
-| **Preguntar** | Consultar sobre el diagrama o sobre lo que hizo cada persona («¿qué hizo Bruno?») | Solo responde; no toca el diagrama |
-| **Pedir cambio** | Pedir una modificación («agrega una clase Factura con total y fecha») | Cambia el diagrama, todos lo ven y la actividad dice «IA añadió la clase Factura (a pedido de Ana)» |
-| **Revisar** | Pedir una revisión de clases, atributos, métodos y relaciones | Publica sus observaciones para **toda la sala** |
+| Lo que escribes | Qué hace la IA |
+|---|---|
+| Una pregunta («¿qué clases hay?», «explícame el diagrama») | Solo responde; no toca el diagrama |
+| Un pedido de cambio («agrega una clase Factura con total y fecha») | **Propone lo que haría y te pide permiso.** El diagrama no cambia hasta que pulses **Aplicar** (o escribas «sí»); **Descartar** (o «no») la cancela. Si escribes «directamente» lo aplica sin preguntar. Al aplicarse, la actividad dice «IA añadió la clase Factura (a pedido de Ana)» |
+| «Revisa el diagrama» | Revisa clases, atributos, métodos y relaciones y deja sus ideas en la **actividad** de toda la sala, cada una con un botón **Aplicar** |
+| «¿Qué hizo Bruno?» o «historial de Ana» | Responde con el registro de actividad de esa persona, incluido lo que hizo con la IA; sin nombre cuenta lo último que pasó en la sala |
 
 ![Respuesta de la IA](capturas/06-chat-ia-respuesta.png)
-*Figura 3.7. Respuesta en modo Preguntar: la IA usa el diagrama y la actividad de todos.*
+*Figura 3.7. Respuesta a una pregunta: la IA usa el diagrama y la actividad de todos.*
 
 ![Revisión con ideas aplicables](capturas/07-revision-ideas.png)
 *Figura 3.8. Revisión: las ideas aparecen en la actividad de todos, cada una con un botón **Aplicar**.*
@@ -102,7 +103,7 @@ La plataforma puede usar un modelo de IA que corre en el propio computador, sin 
 ![Asistente de ayuda](capturas/10-ayuda.png)
 *Figura 3.11. El asistente de ayuda responde con los pasos, usando el manual de la herramienta.*
 
-El botón **Ayuda** está en la página principal y dentro de la sala (en la barra de arriba del lienzo). Ábrelo y pregunta cómo hacer algo («¿Cómo exporto a Flutter?», «¿Qué hace el modo Revisar?»). El asistente responde paso a paso con lo que dice el manual de la herramienta; si lo que preguntas no trata de la herramienta, lo dice y no responde. Tu conversación con la ayuda es personal: no la ve nadie más y no necesita una sala. También tiene un tope de preguntas por minuto.
+El botón **Ayuda** está en la página principal y dentro de la sala (en la barra de arriba del lienzo). Ábrelo y pregunta cómo hacer algo («¿Cómo exporto a Flutter?», «¿Cómo pido una revisión?»). El asistente responde paso a paso con lo que dice el manual de la herramienta; si lo que preguntas no trata de la herramienta, lo dice y no responde. Tu conversación con la ayuda es personal: no la ve nadie más y no necesita una sala. También tiene un tope de preguntas por minuto.
 
 ## 3.10 Problemas frecuentes
 

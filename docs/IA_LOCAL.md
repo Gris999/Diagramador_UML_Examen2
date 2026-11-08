@@ -7,9 +7,9 @@ El chat de la sala habla con la IA a través de la interfaz `AIProvider` (`back_
 | Gemini (por defecto) | `gemini` | Nube de Google | Sí |
 | Ollama (modelo local, p. ej. Qwen) | `ollama` | Tu computador | No |
 
-El chat muestra arriba cuál responde ("IA en la nube (Gemini)" o "IA local (modelo)"). Los tres modos (Preguntar, Pedir cambio, Revisar) funcionan con cualquiera de los dos: el proveedor local recibe **las mismas instrucciones** que Gemini (el prompt de cambios se extrajo a `build_change_prompt`, verificado idéntico al original).
+El chat muestra arriba cuál responde ("IA en la nube (Gemini)" o "IA local (modelo)") y **permite elegirlo desde el propio chat**: dos botones, **Nube (Gemini)** y **Local (modelo)**, cambian el modelo de **toda la sala** (uno solo para todos) y el cambio queda en la actividad. «Local» solo se puede elegir si el servidor alcanza a Ollama (`OLLAMA_BASE_URL`); en el servidor de AWS no hay modelo local y el botón aparece apagado. Sin elegir nada, la sala usa el proveedor del servidor (`AI_PROVIDER`). El chat único (preguntar, pedir un cambio con permiso, revisar, historial) funciona con cualquiera de los dos: el proveedor local recibe **las mismas instrucciones** que Gemini (el prompt de cambios se extrajo a `build_change_prompt`, verificado idéntico al original).
 
-> **Estado:** implementado, probado con pruebas automáticas y **evaluado con un modelo real (Qwen 3.5 de 9 B) el 2026-10-22**: 10 de 10 pedidos correctos, ver "Evaluación". También se probó el chat completo (Preguntar, Pedir cambio y Revisar) contra el modelo local a través de la API.
+> **Estado:** implementado, probado con pruebas automáticas y **evaluado con un modelo real (Qwen 3.5 de 9 B) el 2026-10-22**: 10 de 10 pedidos correctos, ver "Evaluación". También se probó el chat completo contra el modelo local a través de la API y, el 2026-11-08, el chat único en el navegador con Qwen 3.5 de 9 B: «agrega una clase Cliente con nombre y correo» produjo la propuesta con permiso y, al pulsar Aplicar, la clase apareció en el diagrama.
 
 ## Instalar (macOS)
 
