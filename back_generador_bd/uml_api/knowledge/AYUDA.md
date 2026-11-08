@@ -12,7 +12,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 ## 2. Participantes y roles
 
-- El panel «Participantes» muestra quién está conectado. Tú apareces con «(Tú)». La IA aparece como «🤖 IA» y dice si está disponible o pensando.
+- El panel «Participantes» muestra quién está conectado. Tú apareces con «(Tú)». La IA aparece como «IA» (con un ícono de destellos) y dice si está disponible o pensando.
 - La primera persona que entra a la sala es el «Host»; las demás son «Participante». Todos pueden editar el diagrama por igual.
 - Solo el Host ve el botón «Expulsar» junto a los demás. La persona expulsada ve un aviso y vuelve al inicio.
 - Si el Host sale, el rol pasa a la persona que lleva más tiempo conectada. Al volver a entrar, entras como participante.
@@ -30,14 +30,14 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 ## 4. Crear o cambiar el diagrama con texto, voz o imagen
 
-- «🤖 Generar modelo»: escribe en «Describe tu modelo aquí...» lo que quieres (por ejemplo «Agrega una clase Factura con total y fecha») y pulsa «Generar». La IA agrega lo pedido sin duplicar ni mover lo que ya existe, y todos lo ven.
+- «Generar modelo»: escribe en «Describe tu modelo aquí...» lo que quieres (por ejemplo «Agrega una clase Factura con total y fecha») y pulsa «Generar». La IA agrega lo pedido sin duplicar ni mover lo que ya existe, y todos lo ven.
 - Voz: pulsa el micrófono, di la instrucción y vuelve a pulsarlo (⏹️) para terminar. La voz se convierte en texto y esa instrucción se aplica igual que si la hubieras escrito en «Generar modelo». El micrófono funciona solo en Chrome con conexión segura (HTTPS).
 - Imagen: en «Importaciones» → «Importar Imagen» elige la foto o captura de un diagrama de clases. Si el diagrama de la sala ya tiene elementos, la herramienta pregunta qué hacer con el resultado: «Reemplazar diagrama», «Combinar con actual» o «Cancelar».
 - Si un cambio de la IA va a eliminar elementos, la herramienta te pide confirmación antes de aplicarlo.
 
 ## 5. Chat con la IA (la conversación es de toda la sala)
 
-- Pulsa «🤖 Chat con la IA» (abajo a la derecha). La conversación la ven y la alimentan todas las personas de la sala; cada mensaje muestra quién lo escribió.
+- Pulsa «Chat con la IA» (abajo a la derecha). La conversación la ven y la alimentan todas las personas de la sala; cada mensaje muestra quién lo escribió.
 - La IA atiende un pedido a la vez. Si está ocupada con otra persona, te avisa y esperas a que termine.
 - Hay tres modos:
   - «Preguntar»: la IA solo responde, por ejemplo «¿Qué hizo Beto?» o «Explícame este diagrama». No toca el diagrama.
@@ -55,7 +55,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 ## 7. Validar el modelo
 
-- «🔍 Sugerencias del modelo» abre el panel de validación. Pulsa «Analizar modelo» y verás las relaciones válidas (✅) y los errores (❌) con sugerencias.
+- «Sugerencias del modelo» abre el panel de validación. Pulsa «Analizar modelo» y verás las relaciones válidas (con una marca verde) y los errores (con una marca roja) con sugerencias.
 
 ## 8. Importar y exportar
 
@@ -70,13 +70,13 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 ## 9. Seguir la sala desde el celular
 
-- Pulsa «📱 Copiar enlace para seguir desde el celular» y abre ese enlace en el celular (tiene la forma /sala/CÓDIGO/seguir).
+- Pulsa «Copiar enlace para seguir desde el celular» y abre ese enlace en el celular (tiene la forma /sala/CÓDIGO/seguir).
 - Es una vista de solo lectura: muestra el diagrama actualizándose en vivo y la actividad debajo. No tiene controles de edición y no cuenta como participante.
 - Pulsa «🔔 Activar avisos» para recibir una notificación del navegador cuando alguien cambie el diagrama o la IA publique una idea. Los avisos solo llegan mientras la página está abierta. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
 
 ## 10. Ayuda
 
-- El botón «❓ Ayuda» (en la página principal y dentro de la sala) abre este asistente. Pregúntale cómo hacer algo en la herramienta; solo responde sobre el uso de la herramienta.
+- El botón «Ayuda» (con un signo de interrogación, en la página principal y dentro de la sala) abre este asistente. Pregúntale cómo hacer algo en la herramienta; solo responde sobre el uso de la herramienta.
 - Tu conversación con la ayuda es personal: no la ve nadie más y se queda en tu navegador.
 
 ## 11. Problemas frecuentes

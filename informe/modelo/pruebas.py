@@ -768,19 +768,19 @@ DEFECTOS = [
 
 # ---- resultados de la ejecución completa -------------------------------------------------------------------------------
 RESULTADOS = [
-    ("Django (API y colaboración)", "back_generador_bd/.venv/bin/python manage.py test", "391 pruebas: todas pasaron (19 de ellas, contra un MongoDB real, se saltan sin MONGO_TEST_URL)", "pasó"),
+    ("Django (API y colaboración)", "back_generador_bd/.venv/bin/python manage.py test", "392 pruebas: todas pasaron (19 de ellas, contra un MongoDB real, se saltan sin MONGO_TEST_URL)", "pasó"),
     ("Django, adaptadores de MongoDB contra un servidor real", "MONGO_TEST_URL=mongodb://127.0.0.1:27018 manage.py test collab.tests.test_mongo_integration", "19 pruebas: todas pasaron", "pasó"),
     ("Django, adaptadores de MongoDB contra MongoDB Atlas (8.0), desde el servidor de AWS", "MONGO_TEST_URL=$MONGO_URL manage.py test collab.tests.test_mongo_integration --settings=diagramador_uml.settings_test", "19 pruebas: todas pasaron el 2026-11-04", "pasó"),
     ("Angular (servicios, componentes y vistas)", "ng test --watch=false --browsers=ChromeHeadless", "312 pruebas: todas pasaron", "pasó"),
     ("Angular, compilación de producción", "ng build", "compiló sin errores (con las advertencias habituales de JointJS y file-saver)", "pasó"),
-    ("Aplicación móvil generada (Flutter)", "flutter test y flutter analyze, en un proyecto generado de ejemplo", "106 pruebas: todas pasaron, incluido el asistente con IA local (conversación, órdenes con protecciones, descarga y actualización del modelo); el analizador no dio errores ni advertencias", "pasó"),
+    ("Aplicación móvil generada (Flutter)", "flutter test y flutter analyze, en un proyecto generado de ejemplo", "111 pruebas: todas pasaron, incluido el asistente con IA local (conversación, órdenes con protecciones, descarga y actualización del modelo); el analizador no dio errores ni advertencias", "pasó"),
     ("Asistente móvil con el modelo real (Qwen2.5-1.5B, en un Mac)", "15 frases por las reglas y por el modelo (docs/FLUTTER_ASSISTANT_SETUP.md)", "consultar, crear, cambiar por id y borrar por número dieron el comando correcto; la conversación usó los datos reales y reconoció lo que no puede hacer (buscar en internet, enviar correos)", "pasó"),
     ("Spring Boot (generador de backend)", "back_generator_uml/mvnw test", "12 pruebas: todas pasaron, incluida la compilación real de los proyectos generados (también con relaciones recursivas y repetidas) y la colección de Postman", "pasó"),
 ]
 PENDIENTES = [
     "Probar la exportación XMI con Enterprise Architect 17.2 después de los cambios del segundo parcial (la prueba del primer parcial no se repitió).",
     "Ejecutar sin red la aplicación Flutter generada en un dispositivo (prueba del primer parcial); en el simulador de iPhone se probó sin red el 2026-11-07 (crear registros, incluida una relación recursiva, y comprobarlos en la base local).",
-    "Ver una notificación real en un celular (el navegador de las pruebas tiene los avisos bloqueados).",
+    "Ver una notificación en un teléfono físico: el 2026-11-07 se vio una notificación real del sistema en un emulador de Android (Chrome) y en Chrome contra el sitio publicado; Safari en iPhone no ofrece avisos web y los avisos solo funcionan con la página abierta.",
     "Medir la velocidad y la calidad de la conversación de la IA local (Qwen2.5-1.5B) en un iPhone físico: se probó con el modelo real en un Mac y la descarga dentro de la app en un iPhone 17 Pro Max.",
     "Repetir la prueba de colaboración con tres personas en navegadores distintos sobre el servidor de AWS, que ya usa MongoDB Atlas (la prueba de punta a punta del 2026-11-04 la hizo una persona simulada dentro del servidor).",
 ]
