@@ -8,6 +8,7 @@ diagrama.
 
 import json
 import re
+import time
 
 import requests
 from django.conf import settings
@@ -166,22 +167,74 @@ class OllamaProvider(AIProvider):
         return _parse_changes(self._generate(prompt))
 
 
-def get_ai_provider() -> AIProvider:
-    name = str(getattr(settings, "AI_PROVIDER", "gemini")).strip().lower()
-    if name == "gemini":
+GEMINI = "gemini"
+OLLAMA = "ollama"
+# Cuánto tiempo se recuerda si el modelo local responde, para no preguntarle en cada pedido de la pantalla.
+OLLAMA_CHECK_SECONDS = 10
+OLLAMA_CHECK_TIMEOUT = 1.5
+_ollama_check = {"at": None, "up": False}
+
+
+def default_provider_name() -> str:
+    """El proveedor que el servidor usa mientras la sala no elija otro (variable `AI_PROVIDER`)."""
+    return str(getattr(settings, "AI_PROVIDER", GEMINI)).strip().lower()
+
+
+def forget_ollama_check() -> None:
+    _ollama_check["at"] = None
+
+
+def _gemini_configured() -> bool:
+    key = getattr(settings, "GEMINI_API_KEY", None)
+    return bool(key) and str(key).strip().lower() not in {"placeholder", "change-me"}
+
+
+def _ollama_reachable() -> bool:
+    """El modelo local contesta ahora (se recuerda unos segundos). En el servidor de AWS no hay modelo local y da `False`."""
+    now = time.monotonic()
+    if _ollama_check["at"] is not None and now - _ollama_check["at"] < OLLAMA_CHECK_SECONDS:
+        return _ollama_check["up"]
+    base_url = str(getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
+    try:
+        up = requests.get(f"{base_url}/api/tags", timeout=OLLAMA_CHECK_TIMEOUT).ok
+    except Exception:
+        up = False
+    _ollama_check.update(at=now, up=up)
+    return up
+
+
+def get_ai_provider(name=None) -> AIProvider:
+    name = str(name).strip().lower() if name else default_provider_name()
+    if name == GEMINI:
         return GeminiProvider()
-    if name == "ollama":
+    if name == OLLAMA:
         return OllamaProvider()
     raise AIProviderError(f"Proveedor de IA desconocido: {name}")
 
 
-def describe_ai_provider() -> dict:
+def _ollama_label() -> str:
+    model = getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
+    change_model = getattr(settings, "OLLAMA_CHANGE_MODEL", "")
+    if change_model:
+        return f"IA local ({model}; cambios: {change_model} reentrenado)"
+    return f"IA local ({model})"
+
+
+def describe_ai_provider(name=None) -> dict:
     """Qué proveedor responde, para mostrarlo en la interfaz (sin datos sensibles)."""
-    name = str(getattr(settings, "AI_PROVIDER", "gemini")).strip().lower()
-    if name == "ollama":
-        model = getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
-        change_model = getattr(settings, "OLLAMA_CHANGE_MODEL", "")
-        if change_model:
-            return {"provider": "ollama", "label": f"IA local ({model}; cambios: {change_model} reentrenado)"}
-        return {"provider": "ollama", "label": f"IA local ({model})"}
-    return {"provider": "gemini", "label": "IA en la nube (Gemini)"}
+    name = str(name).strip().lower() if name else default_provider_name()
+    if name == OLLAMA:
+        return {"provider": OLLAMA, "label": _ollama_label()}
+    return {"provider": GEMINI, "label": "IA en la nube (Gemini)"}
+
+
+def provider_options() -> list:
+    """Los modelos entre los que puede elegir una sala y si cada uno está disponible en este servidor."""
+    return [
+        {"id": GEMINI, "label": "Nube (Gemini)", "available": _gemini_configured()},
+        {
+            "id": OLLAMA,
+            "label": f"Local ({getattr(settings, 'OLLAMA_MODEL', 'qwen3.5:9b')})",
+            "available": _ollama_reachable(),
+        },
+    ]

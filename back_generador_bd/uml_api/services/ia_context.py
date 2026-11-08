@@ -87,7 +87,7 @@ def summarize_uml(uml) -> str:
 
 
 def build_chat_prompt(*, participant_name, uml, events, history, message) -> str:
-    """Prompt del modo Preguntar: la IA responde, no modifica el diagrama."""
+    """Prompt de una pregunta: la IA responde, no modifica el diagrama."""
     activity = "\n".join(
         f"- {_text(event['actor_name'], 40) or 'Alguien'}: {_text(event['summary'], 120)}"
         for event in events
@@ -127,7 +127,7 @@ MAX_SUGGESTIONS = 5
 
 
 def build_review_prompt(*, uml) -> str:
-    """Prompt del modo Revisar: la IA solo observa, no modifica el diagrama."""
+    """Prompt de la revisión del diagrama: la IA solo observa, no lo modifica."""
     return f"""Eres la IA de una sala colaborativa de modelado UML. Revisa el diagrama: clases, atributos, métodos y relaciones.
 Busca errores o mejoras de modelado: nombres inconsistentes, atributos faltantes (por ejemplo una clave), tipos incorrectos, relaciones o multiplicidades dudosas, clases sin relaciones.
 
