@@ -4,8 +4,7 @@
   width: 100vw;      /* asegura el ancho completo */
 }
 .app-layout > app-side-panel {
-  flex: 0 0 250px;   /* sidebar fijo de 250px */
-  border-right: 1px solid #ccc;
+  flex: 0 0 256px;   /* sidebar fijo (w-64) */
   background: #fff;
 }
 
@@ -15,12 +14,12 @@
   flex-direction: column;
   height: 100%;      /* fuerza a tener altura */
   overflow: auto;
-  background: #f8f9fa;
+  background: #f8fafc;
 }
 
 .diagram-container {
   flex: 1;
-  border: 1px solid #ccc;
+  border-top: 1px solid #e2e8f0;
   background: #fff;
   position: relative;
   z-index: 1;

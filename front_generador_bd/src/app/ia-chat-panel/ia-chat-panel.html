@@ -1,7 +1,7 @@
 <div class="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2" data-testid="ia-chat">
   @if (open()) {
     <section
-      class="flex h-96 w-80 max-w-full flex-col rounded border border-gray-300 bg-white shadow-lg"
+      class="card flex h-96 w-80 max-w-full flex-col shadow-xl"
       aria-label="Chat de la sala con la IA"
     >
       <header class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
@@ -14,7 +14,7 @@
         </div>
         <button
           type="button"
-          class="rounded px-2 text-gray-500 hover:bg-gray-100"
+          class="btn btn-ghost btn-sm px-2"
           aria-label="Cerrar el chat"
           data-testid="ia-chat-close"
           (click)="toggle()"
@@ -28,7 +28,7 @@
           <button
             type="button"
             role="radio"
-            class="rounded px-2 py-0.5 text-[11px] font-medium"
+            class="rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors"
             [class.bg-purple-600]="mode() === option.id"
             [class.text-white]="mode() === option.id"
             [class.bg-gray-100]="mode() !== option.id"
@@ -59,7 +59,7 @@
           >
             <span class="px-1 text-[10px] text-gray-500" data-testid="ia-chat-author">{{ message.author_name || (message.role === 'ia' ? 'IA' : 'Alguien') }}</span>
             <p
-              class="max-w-[85%] whitespace-pre-wrap break-words rounded px-2 py-1 text-xs"
+              class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-xs"
               [class.bg-purple-600]="message.role === 'user' && message.author_name === myName()"
               [class.text-white]="message.role === 'user' && message.author_name === myName()"
               [class.bg-blue-100]="message.role === 'user' && message.author_name !== myName()"
@@ -80,7 +80,7 @@
 
       <form class="flex gap-2 border-t border-gray-200 p-2" (submit)="$event.preventDefault(); send()">
         <textarea
-          class="h-14 min-w-0 flex-1 resize-none rounded border border-gray-300 px-2 py-1 text-xs"
+          class="field h-14 min-w-0 flex-1 resize-none px-2 py-1 text-xs"
           [placeholder]="mode() === 'change' ? 'Describe el cambio que quieres…' : mode() === 'review' ? 'Opcional: qué quieres que revise…' : 'Escribe tu pregunta…'"
           aria-label="Mensaje para la IA"
           [maxLength]="maxChars"
@@ -91,7 +91,7 @@
         ></textarea>
         <button
           type="submit"
-          class="self-end rounded bg-purple-600 px-3 py-1 text-xs text-white hover:bg-purple-700 disabled:opacity-50"
+          class="btn btn-primary btn-sm self-end"
           [disabled]="sending() || !historyReady() || (draft().trim().length === 0 && mode() !== 'review')"
           data-testid="ia-chat-send"
         >
@@ -103,11 +103,12 @@
 
   <button
     type="button"
-    class="rounded-full bg-purple-600 px-4 py-2 text-sm text-white shadow-lg hover:bg-purple-700"
+    class="btn btn-primary rounded-full px-4 py-2.5 shadow-lg shadow-purple-600/30"
     [attr.aria-expanded]="open()"
     data-testid="ia-chat-toggle"
     (click)="toggle()"
   >
-    🤖 Chat con la IA
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true"><path d="M12 2.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 18.9l-1.9-5.1a2 2 0 0 0-1.2-1.2L3.8 10.7l5.1-1.9a2 2 0 0 0 1.2-1.2L12 2.5zM19 15l.8 2.2a1 1 0 0 0 .6.6L22.6 19l-2.2.8a1 1 0 0 0-.6.6L19 22.6l-.8-2.2a1 1 0 0 0-.6-.6L15.4 19l2.2-.8a1 1 0 0 0 .6-.6L19 15z"/></svg>
+    Chat con la IA
   </button>
 </div>
