@@ -183,7 +183,9 @@ describe('ActivityPanel', () => {
       load([reviewEvent()]);
 
       const entry = fixture.nativeElement.querySelector('[data-testid="activity-entry"]');
-      expect(entry.textContent).toContain('🤖 IA');
+      expect(entry.textContent).toContain('IA');
+      // la IA se distingue con un ícono (no con un emoji), solo en los eventos de la IA
+      expect(entry.querySelector('strong svg')).not.toBeNull();
       expect(entry.textContent).toContain('a pedido de Ana');
     });
 

@@ -1,16 +1,17 @@
 <button
   type="button"
-  class="rounded bg-purple-600 px-3 py-1 text-sm text-white shadow hover:bg-purple-700"
+  class="btn btn-secondary btn-sm"
   [attr.aria-expanded]="open()"
   data-testid="help-toggle"
   (click)="toggle()"
 >
-  ❓ Ayuda
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-purple-600" aria-hidden="true"><circle cx="12" cy="12" r="9.5" /><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9" /><path d="M12 17.4h.01" /></svg>
+  Ayuda
 </button>
 
 @if (open()) {
   <section
-    class="fixed right-4 top-16 z-50 flex h-96 w-80 max-w-[calc(100vw-2rem)] flex-col rounded border border-gray-300 bg-white text-left shadow-lg"
+    class="fixed right-4 top-16 z-50 flex h-96 w-80 max-w-[calc(100vw-2rem)] flex-col card text-left shadow-xl"
     aria-label="Asistente de ayuda"
   >
     <header class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
@@ -20,7 +21,7 @@
       </div>
       <button
         type="button"
-        class="rounded px-2 text-gray-500 hover:bg-gray-100"
+        class="btn btn-ghost btn-sm px-2"
         aria-label="Cerrar la ayuda"
         data-testid="help-close"
         (click)="toggle()"
@@ -39,7 +40,7 @@
         <div class="flex flex-col" [class.items-end]="message.role === 'user'" data-testid="help-message">
           <span class="px-1 text-[10px] text-gray-500" data-testid="help-author">{{ message.role === 'user' ? 'Tú' : 'Ayuda' }}</span>
           <p
-            class="max-w-[85%] whitespace-pre-wrap break-words rounded px-2 py-1 text-xs"
+            class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-xs"
             [class.bg-purple-600]="message.role === 'user'"
             [class.text-white]="message.role === 'user'"
             [class.bg-gray-100]="message.role === 'ia'"
@@ -58,7 +59,7 @@
 
     <form class="flex gap-2 border-t border-gray-200 p-2" (submit)="$event.preventDefault(); send()">
       <textarea
-        class="h-14 min-w-0 flex-1 resize-none rounded border border-gray-300 px-2 py-1 text-xs"
+        class="field h-14 min-w-0 flex-1 resize-none px-2 py-1 text-xs"
         placeholder="Escribe tu pregunta…"
         aria-label="Pregunta para la ayuda"
         [value]="draft()"
@@ -68,7 +69,7 @@
       ></textarea>
       <button
         type="submit"
-        class="self-end rounded bg-purple-600 px-3 py-1 text-xs text-white hover:bg-purple-700 disabled:opacity-50"
+        class="btn btn-primary btn-sm self-end"
         [disabled]="sending() || draft().trim().length === 0"
         data-testid="help-send"
       >

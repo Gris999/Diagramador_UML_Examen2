@@ -2,45 +2,54 @@
   <app-side-panel #sidePanel></app-side-panel>
 
   <div class="canvas-wrapper" cdkDropListGroup>
-    <div class="flex flex-wrap items-center gap-2 p-2 bg-gray-100 border-b">
+    <div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 shadow-sm">
 
-      <button
-        (click)="zoomIn()"
-        class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
-        title="Acercar"
-      >
-        ➕
-      </button>
+      <!-- Zoom -->
+      <div class="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" role="group" aria-label="Zoom">
+        <button
+          (click)="zoomOut()"
+          class="icon-btn"
+          title="Alejar"
+          aria-label="Alejar"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-4 w-4" aria-hidden="true"><path d="M5 12h14" /></svg>
+        </button>
 
-      <button
-        (click)="zoomOut()"
-        class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
-        title="Alejar"
-      >
-        ➖
-      </button>
+        <button
+          (click)="resetZoom()"
+          class="icon-btn"
+          title="Restablecer zoom"
+          aria-label="Restablecer zoom"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" /><path d="M3 21v-5h5" /></svg>
+        </button>
 
-      <button
-        (click)="resetZoom()"
-        class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
-        title="Restablecer zoom"
-      >
-        🔄
-      </button>
+        <button
+          (click)="zoomIn()"
+          class="icon-btn"
+          title="Acercar"
+          aria-label="Acercar"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-4 w-4" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+      </div>
 
-      <div class="h-6 border-l border-gray-300 mx-1"></div>
+      <div class="h-6 w-px bg-slate-200" aria-hidden="true"></div>
 
+      <!-- XMI -->
       <button
         (click)="xmiInput.click()"
-        class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+        class="btn btn-secondary btn-sm"
       >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-purple-600" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
         Importar XMI
       </button>
 
       <button
         (click)="exportXmi()"
-        class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+        class="btn btn-secondary btn-sm"
       >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-purple-600" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
         Exportar XMI
       </button>
 
@@ -54,7 +63,7 @@
         (change)="importXmi($event)"
       />
 
-      <div class="ml-auto flex max-w-full flex-wrap items-start justify-end gap-2">
+      <div class="ml-auto flex max-w-full flex-wrap items-start justify-end gap-3">
         <app-activity-panel></app-activity-panel>
         <app-participants-panel></app-participants-panel>
       </div>

@@ -1,10 +1,10 @@
 <section
-  class="ml-auto flex h-28 w-64 max-w-full shrink-0 flex-col rounded border border-gray-300 bg-white px-2 py-1.5 shadow-sm"
+  class="card ml-auto flex h-28 w-64 max-w-full shrink-0 flex-col px-3 py-2"
   aria-label="Participantes conectados"
   data-testid="participants-panel"
 >
   <div class="mb-1 flex items-center">
-    <h3 class="text-xs font-semibold text-gray-800">
+    <h3 class="panel-title">
       Participantes ({{ participants().length }})
     </h3>
   </div>
@@ -28,7 +28,7 @@
             }
           </span>
           <span
-            class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700"
+            class="badge"
             data-testid="participant-role"
           >
             {{ participant.role === 'host' ? 'Host' : 'Participante' }}
@@ -36,7 +36,7 @@
           @if (isHost() && !isCurrent(participant.peer)) {
             <button
               type="button"
-              class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
+              class="btn btn-danger-soft !gap-1 !rounded-md !px-1.5 !py-0.5 !text-[10px]"
               data-testid="remove-participant"
               (click)="remove(participant.peer)"
             >
@@ -52,9 +52,9 @@
     class="mt-1 flex items-center gap-1.5 border-t border-gray-100 pt-1 text-xs"
     data-testid="ia-participant"
   >
-    <span class="min-w-0 flex-1 truncate text-purple-700">🤖 IA</span>
+    <span class="flex min-w-0 flex-1 items-center gap-1 truncate text-purple-700"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3 shrink-0" aria-hidden="true"><path d="M12 2.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 18.9l-1.9-5.1a2 2 0 0 0-1.2-1.2L3.8 10.7l5.1-1.9a2 2 0 0 0 1.2-1.2L12 2.5zM19 15l.8 2.2a1 1 0 0 0 .6.6L22.6 19l-2.2.8a1 1 0 0 0-.6.6L19 22.6l-.8-2.2a1 1 0 0 0-.6-.6L15.4 19l2.2-.8a1 1 0 0 0 .6-.6L19 15z"/></svg>IA</span>
     <span
-      class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800"
+      class="badge badge-brand"
       data-testid="ia-participant-status"
     >
       @if (iaStatus().state === 'thinking') {
