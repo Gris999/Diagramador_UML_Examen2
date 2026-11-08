@@ -79,9 +79,21 @@ await foto(ana, '03-editor.png');
 // 3. Una segunda persona entra con el código de la sala
 const bruno = await paginaCon('Bruno');
 await bruno.goto(`${SITIO}/diagram/${sala}`, { waitUntil: 'networkidle2' });
-await ana.waitForFunction(() => document.body.innerText.includes('Participantes (2)'), { timeout: 60000, polling: 1000 }).catch(() => {});
+await ana.waitForFunction(() => document.querySelector('[data-testid="participants-count"]')?.textContent.trim() === '2', { timeout: 60000, polling: 1000 }).catch(() => {});
 await esperar(2000);
+// Actividad y participantes son menús desplegables de la barra superior: se abre cada uno para la captura.
+await ana.click('[data-testid="activity-toggle"]');
+await esperar(800);
 await foto(ana, '04-colaboracion.png');
+await ana.click('[data-testid="participants-toggle"]');
+await esperar(800);
+await foto(ana, '13-participantes.png');
+// Compartir: enlace de invitación, código de la sala y enlace del celular.
+await ana.click('[data-testid="share-open"]');
+await esperar(800);
+await foto(ana, '12-compartir.png');
+await ana.keyboard.press('Escape');
+await esperar(500);
 
 // 4. Chat con la IA: preguntar (la pestaña de Ana vuelve al frente: en segundo plano no responde)
 await ana.bringToFront();
@@ -99,8 +111,11 @@ await ana.click('[data-testid="ia-mode-review"]');
 await esperar(800);
 await ana.waitForFunction(() => !document.querySelector('[data-testid="ia-chat-send"]').disabled, { timeout: 60000, polling: 500 });
 await ana.evaluate(() => document.querySelector('[data-testid="ia-chat-send"]').click());
-await ana.waitForFunction(() => document.body.innerText.includes('revisó el diagrama'), { timeout: 150000, polling: 1000 });
+// La actividad está en un menú cerrado (oculto): se busca en el texto del documento y después se abre para la captura.
+await ana.waitForFunction(() => document.body.textContent.includes('revisó el diagrama'), { timeout: 150000, polling: 1000 });
 await esperar(2500);
+await ana.click('[data-testid="activity-toggle"]');
+await esperar(800);
 await foto(ana, '07-revision-ideas.png');
 
 // 6. Menú de exportaciones y de importaciones
