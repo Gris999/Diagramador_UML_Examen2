@@ -102,6 +102,59 @@ describe('IaActionsService', () => {
     expect(loadFromJson).not.toHaveBeenCalled();
   });
 
+  describe('chat único (modo auto)', () => {
+    it('applies the change once the person said yes, marked as IA', () => {
+      const changes = { classes: [{ name: 'Factura' }] };
+      send.and.returnValue(of({ reply: 'Listo', intent: 'confirm', changes, destructive: 0 }));
+
+      service.request('sala', 'auto', 'sí').subscribe();
+
+      expect(send).toHaveBeenCalledOnceWith('sala', 'auto', 'sí', uml);
+      expect(loadFromJson).toHaveBeenCalledOnceWith(changes, true);
+      expect(appliedWhileMarked).toEqual([true]);
+    });
+
+    it('applies a change that the person asked to apply directly', () => {
+      const changes = { classes: [{ name: 'Venta' }] };
+      send.and.returnValue(of({ reply: 'Listo', intent: 'change', changes, destructive: 0 }));
+
+      service.request('sala', 'auto', 'agrega Venta directamente').subscribe();
+
+      expect(loadFromJson).toHaveBeenCalledOnceWith(changes, true);
+    });
+
+    it('does not apply a proposal: it only waits for the permission', () => {
+      send.and.returnValue(of({
+        reply: 'Esto es lo que haría', intent: 'change', proposal: { lines: ['Crear la clase Factura'], destructive: 0 }
+      }));
+
+      service.request('sala', 'auto', 'agrega Factura').subscribe();
+
+      expect(loadFromJson).not.toHaveBeenCalled();
+    });
+
+    it('never applies anything for a question, a review, a history or a refusal, even if the server sent changes', () => {
+      for (const intent of ['ask', 'review', 'history', 'discard', undefined] as const) {
+        send.and.returnValue(of({ reply: 'x', intent, changes: { classes: [{ name: 'Intrusa' }] } }));
+        service.request('sala', 'auto', 'hola').subscribe();
+      }
+
+      expect(loadFromJson).not.toHaveBeenCalled();
+    });
+
+    it('still asks before applying a confirmed change that deletes things', () => {
+      const confirm = spyOn(window, 'confirm').and.returnValue(false);
+      let response: { cancelled?: boolean } | undefined;
+      send.and.returnValue(of({ reply: 'Listo', intent: 'confirm', changes: { classes: [{ name: 'Pedido', eliminar: true }] }, destructive: 1 }));
+
+      service.request('sala', 'auto', 'sí').subscribe(value => (response = value));
+
+      expect(confirm).toHaveBeenCalledOnceWith(jasmine.stringContaining('eliminar 1 elemento del diagrama'));
+      expect(loadFromJson).not.toHaveBeenCalled();
+      expect(response?.cancelled).toBeTrue();
+    });
+  });
+
   it('asks for confirmation before applying a change that deletes things, and applies it if accepted', () => {
     const confirm = spyOn(window, 'confirm').and.returnValue(true);
     const changes = { classes: [{ name: 'Pedido', eliminar: true }] };

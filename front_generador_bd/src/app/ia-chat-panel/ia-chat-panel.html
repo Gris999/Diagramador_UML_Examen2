@@ -1,53 +1,60 @@
 <div class="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2" data-testid="ia-chat">
   @if (open()) {
     <section
-      class="card flex h-96 w-80 max-w-full flex-col shadow-xl"
+      class="card flex h-[30rem] max-h-[calc(100vh-6rem)] w-80 max-w-full flex-col shadow-xl"
       aria-label="Chat de la sala con la IA"
     >
-      <header class="flex items-center justify-between border-b border-line px-3 py-2">
-        <div>
-          <h3 class="text-sm font-semibold text-fg">Chat con la IA</h3>
-          <p class="text-[10px] text-fg-muted">Lo ven todas las personas de la sala</p>
-          @if (providerLabel()) {
-            <p class="text-[10px] text-accent-text" data-testid="ia-provider">{{ providerLabel() }}</p>
-          }
-        </div>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm px-2"
-          aria-label="Cerrar el chat"
-          data-testid="ia-chat-close"
-          (click)="toggle()"
-        >
-          ✕
-        </button>
-      </header>
-
-      <div class="flex gap-1 border-b border-line px-2 py-1.5" role="radiogroup" aria-label="Qué quieres que haga la IA">
-        @for (option of modes; track option.id) {
+      <header class="border-b border-line px-3 py-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-fg">Chat con la IA</h3>
+            <p class="text-[10px] text-fg-muted">Lo ven todas las personas de la sala</p>
+          </div>
           <button
             type="button"
-            role="radio"
-            class="rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors"
-            [class.bg-accent]="mode() === option.id"
-            [class.text-white]="mode() === option.id"
-            [class.bg-hover]="mode() !== option.id"
-            [class.text-fg-muted]="mode() !== option.id"
-            [attr.aria-checked]="mode() === option.id"
-            [attr.data-testid]="'ia-mode-' + option.id"
-            [title]="option.hint"
-            (click)="setMode(option.id)"
+            class="btn btn-ghost btn-sm px-2"
+            aria-label="Cerrar el chat"
+            data-testid="ia-chat-close"
+            (click)="toggle()"
           >
-            {{ option.label }}
+            ✕
           </button>
+        </div>
+        @if (providerInfo(); as info) {
+          <div class="mt-1.5" data-testid="ia-provider-box">
+            <p class="text-[10px] text-accent-text" data-testid="ia-provider">{{ info.label }}</p>
+            <div class="mt-1 flex gap-1" role="radiogroup" aria-label="Modelo de IA de la sala">
+              @for (option of info.options; track option.id) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  [class.bg-accent]="info.provider === option.id"
+                  [class.text-white]="info.provider === option.id"
+                  [class.bg-hover]="info.provider !== option.id"
+                  [class.text-fg-muted]="info.provider !== option.id"
+                  [attr.aria-checked]="info.provider === option.id"
+                  [disabled]="!option.available || switching()"
+                  [attr.data-testid]="'ia-model-' + option.id"
+                  [title]="option.available ? 'Usar ' + option.label + ' en toda la sala' : 'No está disponible en este servidor'"
+                  (click)="chooseProvider(option.id)"
+                >
+                  {{ option.label }}
+                </button>
+              }
+            </div>
+          </div>
         }
-      </div>
-      <p class="px-3 pt-1 text-[10px] text-fg-muted" data-testid="ia-mode-hint">{{ modeHint() }}</p>
+      </header>
+
+      <p class="border-b border-line px-3 py-1 text-[10px] text-fg-muted" data-testid="ia-permission-hint">
+        Pregunta, pide un cambio o di «revisa el diagrama». Antes de cambiar algo, la IA te pide permiso.
+      </p>
 
       <div #messageList class="flex-1 space-y-2 overflow-y-auto px-3 py-2" data-testid="ia-chat-messages">
         @if (messages().length === 0 && !sending()) {
-          <p class="text-xs text-fg-muted">
-            Pregúntale algo a la IA, por ejemplo: «¿Qué hizo Beto?» o «Explícame este diagrama».
+          <p class="text-xs text-fg-muted" data-testid="ia-chat-empty">
+            Prueba con: «¿Qué hizo Beto?», «Explícame este diagrama», «Agrega una clase Cliente con nombre y correo» o «Revisa el diagrama».
           </p>
         }
         @for (message of messages(); track message.id) {
@@ -74,6 +81,32 @@
         }
       </div>
 
+      @if (proposal(); as pending) {
+        <div class="flex items-center gap-2 border-t border-line bg-accent-soft px-3 py-2" data-testid="ia-proposal">
+          <p class="min-w-0 flex-1 text-[11px] text-fg">
+            {{ pending.destructive > 0 ? 'La IA quiere cambiar y eliminar cosas del diagrama.' : 'La IA espera tu permiso para cambiar el diagrama.' }}
+          </p>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            [disabled]="sending()"
+            data-testid="ia-proposal-apply"
+            (click)="answerProposal(true)"
+          >
+            Aplicar
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="sending()"
+            data-testid="ia-proposal-discard"
+            (click)="answerProposal(false)"
+          >
+            Descartar
+          </button>
+        </div>
+      }
+
       @if (error()) {
         <p class="px-3 pb-1 text-xs text-danger" role="alert" data-testid="ia-chat-error">{{ error() }}</p>
       }
@@ -81,7 +114,7 @@
       <form class="flex gap-2 border-t border-line p-2" (submit)="$event.preventDefault(); send()">
         <textarea
           class="field h-14 min-w-0 flex-1 resize-none px-2 py-1 text-xs"
-          [placeholder]="mode() === 'change' ? 'Describe el cambio que quieres…' : mode() === 'review' ? 'Opcional: qué quieres que revise…' : 'Escribe tu pregunta…'"
+          placeholder="Escribe tu pregunta o pedido…"
           aria-label="Mensaje para la IA"
           [maxLength]="maxChars"
           [value]="draft()"
@@ -92,10 +125,10 @@
         <button
           type="submit"
           class="btn btn-primary btn-sm self-end"
-          [disabled]="sending() || !historyReady() || (draft().trim().length === 0 && mode() !== 'review')"
+          [disabled]="sending() || !historyReady() || draft().trim().length === 0"
           data-testid="ia-chat-send"
         >
-          {{ mode() === 'review' ? 'Revisar' : mode() === 'change' ? 'Aplicar' : 'Enviar' }}
+          Enviar
         </button>
       </form>
     </section>

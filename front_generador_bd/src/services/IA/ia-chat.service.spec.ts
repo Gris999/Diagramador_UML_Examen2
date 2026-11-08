@@ -94,6 +94,33 @@ describe('IaChatService', () => {
     expect(info).toEqual({ provider: 'gemini', label: 'IA en la nube (Gemini)' });
   });
 
+  it('asks the model of the room with the participant token and tells which models are available', () => {
+    let info: unknown;
+    service.roomProvider('sala 1').subscribe(value => (info = value));
+
+    const request = http.expectOne(`${base}ia/provider/`);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('X-Participant-Token')).toBe(token);
+    const answer = {
+      provider: 'gemini',
+      label: 'IA en la nube (Gemini)',
+      options: [{ id: 'gemini', label: 'Nube (Gemini)', available: true }, { id: 'ollama', label: 'Local (m)', available: false }]
+    };
+    request.flush(answer);
+
+    expect(info).toEqual(answer);
+  });
+
+  it('changes the model of the whole room with PUT', () => {
+    service.setRoomProvider('sala 1', 'ollama').subscribe();
+
+    const request = http.expectOne(`${base}ia/provider/`);
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual({ provider: 'ollama' });
+    expect(request.request.headers.get('X-Participant-Token')).toBe(token);
+    request.flush({ provider: 'ollama', label: 'IA local (m)', options: [] });
+  });
+
   it('claims a suggestion with the participant token and releases it with DELETE', () => {
     service.claimSuggestion('sala 1', 7, 2).subscribe();
     const claim = http.expectOne(`${base}activity/7/apply/2/`);

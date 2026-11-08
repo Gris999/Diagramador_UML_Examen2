@@ -4,7 +4,14 @@ import { map, Observable, timeout } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { IdentityService } from '../colaboration/identity.service';
 
-export type IaChatMode = 'ask' | 'change' | 'review';
+/**
+ * `auto` es el chat único: el servidor deduce si es una pregunta, un cambio, una revisión o una consulta de historial.
+ * Los otros modos se conservan para las ideas de la IA, que se aplican con un clic.
+ */
+export type IaChatMode = 'auto' | 'ask' | 'change' | 'review';
+
+/** Qué entendió el servidor del mensaje (solo en `auto`). */
+export type IaIntent = 'ask' | 'change' | 'review' | 'history' | 'confirm' | 'discard';
 
 // Si el servidor no contesta en este tiempo se muestra un error en vez de
 // dejar a la sala viendo "pensando…" sin fin.
@@ -22,9 +29,21 @@ export type IaChatMessage = {
 
 export type IaSuggestion = { id: number; text: string; prompt: string };
 
+/** Lo que la IA haría, contado en líneas; espera el permiso de quien pidió el cambio. */
+export type IaProposal = { lines: string[]; destructive: number };
+
+export type IaProviderOption = { id: string; label: string; available: boolean };
+
+/** El modelo de IA de la sala y los que este servidor tiene disponibles. */
+export type IaProviderInfo = { provider: string; label: string; options: IaProviderOption[] };
+
 export type IaChatResponse = {
   reply: string;
-  /** Solo en modo `change`: cambios que el navegador de quien pidió debe aplicar. */
+  /** Qué entendió el servidor del mensaje. */
+  intent?: IaIntent;
+  /** El cambio se propone y no se aplica hasta que la persona diga que sí. */
+  proposal?: IaProposal;
+  /** Cambios que el navegador de quien pidió debe aplicar (cuando dijo que sí, o pidió aplicarlo directamente). */
   changes?: unknown;
   /** Solo en modo `review`: ideas que cualquiera de la sala puede aplicar. */
   suggestions?: IaSuggestion[];
@@ -70,10 +89,24 @@ export class IaChatService {
       .pipe(map(response => (Array.isArray(response?.messages) ? response.messages : [])));
   }
 
-  /** Qué IA responde (nube o modelo local), para mostrarlo en el chat. */
+  /** Qué IA responde (nube o modelo local) según el servidor. */
   provider(): Observable<{ provider: string; label: string }> {
     return this.http.get<{ provider: string; label: string }>(
       `${environment.endpoint_python}api/ia/provider/`
+    );
+  }
+
+  /** El modelo de IA de esta sala (uno solo para todas las personas) y cuáles hay disponibles. */
+  roomProvider(roomId: string): Observable<IaProviderInfo> {
+    return this.http.get<IaProviderInfo>(`${this.baseUrl(roomId)}ia/provider/`, { headers: this.headers() });
+  }
+
+  /** Cambia el modelo de IA de toda la sala; el servidor lo avisa como una actividad. */
+  setRoomProvider(roomId: string, provider: string): Observable<IaProviderInfo> {
+    return this.http.put<IaProviderInfo>(
+      `${this.baseUrl(roomId)}ia/provider/`,
+      { provider },
+      { headers: this.headers() }
     );
   }
 

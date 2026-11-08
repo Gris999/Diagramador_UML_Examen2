@@ -6,13 +6,14 @@ import { Observable, of, Subject, throwError } from 'rxjs';
 import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { IdentityService } from '../../services/colaboration/identity.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
-import { IaChatMessage, IaChatMode, IaChatResponse, IaChatService } from '../../services/IA/ia-chat.service';
+import { IaChatMessage, IaChatMode, IaChatResponse, IaChatService, IaProviderInfo } from '../../services/IA/ia-chat.service';
 import { IaChatPanel } from './ia-chat-panel';
 
 describe('IaChatPanel', () => {
   let fixture: ComponentFixture<IaChatPanel>;
   let history: jasmine.Spy<(room: string) => Observable<IaChatMessage[]>>;
-  let provider: jasmine.Spy<() => Observable<{ provider: string; label: string }>>;
+  let roomProvider: jasmine.Spy<(room: string) => Observable<IaProviderInfo>>;
+  let setRoomProvider: jasmine.Spy<(room: string, provider: string) => Observable<IaProviderInfo>>;
   let request: jasmine.Spy<(room: string, mode: IaChatMode, message: string) => Observable<IaChatResponse>>;
   let iaStatus: ReturnType<typeof signal<{ state: 'thinking' | 'idle'; by: string }>>;
 
@@ -49,9 +50,20 @@ describe('IaChatPanel', () => {
     fixture.detectChanges();
   }
 
+  const LOCAL: IaProviderInfo = {
+    provider: 'ollama',
+    label: 'IA local (qwen3.5:9b)',
+    options: [
+      { id: 'gemini', label: 'Nube (Gemini)', available: true },
+      { id: 'ollama', label: 'Local (qwen3.5:9b)', available: true }
+    ]
+  };
+  const CLOUD: IaProviderInfo = { ...LOCAL, provider: 'gemini', label: 'IA en la nube (Gemini)' };
+
   beforeEach(async () => {
     history = jasmine.createSpy('history').and.returnValue(of([]));
-    provider = jasmine.createSpy('provider').and.returnValue(of({ provider: 'ollama', label: 'IA local (qwen3.5:9b)' }));
+    roomProvider = jasmine.createSpy('roomProvider').and.returnValue(of(LOCAL));
+    setRoomProvider = jasmine.createSpy('setRoomProvider').and.returnValue(of(CLOUD));
     request = jasmine.createSpy('request').and.returnValue(of({ reply: 'Respuesta de la IA' }));
     iaStatus = signal<{ state: 'thinking' | 'idle'; by: string }>({ state: 'idle', by: '' });
 
@@ -61,7 +73,7 @@ describe('IaChatPanel', () => {
         provideZonelessChangeDetection(),
         { provide: PLATFORM_ID, useValue: 'browser' },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'sala-1' } } } },
-        { provide: IaChatService, useValue: { history, provider } },
+        { provide: IaChatService, useValue: { history, roomProvider, setRoomProvider } },
         { provide: IaActionsService, useValue: { request } },
         { provide: IdentityService, useValue: { getIdentity: () => ({ token: 't', name: 'Ana' }) } },
         { provide: CollaborationService, useValue: { iaStatus } }
@@ -101,7 +113,7 @@ describe('IaChatPanel', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(request).toHaveBeenCalledOnceWith('sala-1', 'ask', '¿Qué hizo Beto?');
+    expect(request).toHaveBeenCalledOnceWith('sala-1', 'auto', '¿Qué hizo Beto?');
     expect(authorsAndTexts()).toEqual([['Ana', '¿Qué hizo Beto?'], ['IA', 'Respuesta de la IA']]);
     expect((element('[data-testid="ia-chat-input"]') as HTMLTextAreaElement).value).toBe('');
   });
@@ -155,62 +167,265 @@ describe('IaChatPanel', () => {
     expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('Demasiadas preguntas');
   });
 
-  it('starts in ask mode and explains what each mode does', async () => {
+  it('has one single conversation: no tabs to pick ask, change or review', async () => {
     await openChat();
 
-    expect(element('[data-testid="ia-mode-hint"]')!.textContent).toContain('solo responde');
-    click('ia-mode-change');
-    expect(element('[data-testid="ia-mode-hint"]')!.textContent).toContain('modifica el diagrama');
-    click('ia-mode-review');
-    expect(element('[data-testid="ia-mode-hint"]')!.textContent).toContain('publica sus ideas');
+    expect(element('[data-testid="ia-mode-ask"]')).toBeNull();
+    expect(element('[data-testid="ia-mode-change"]')).toBeNull();
+    expect(element('[data-testid="ia-mode-review"]')).toBeNull();
+    expect(element('[data-testid="ia-permission-hint"]')!.textContent).toContain('te pide permiso');
   });
 
-  it('sends the selected mode with the message', async () => {
+  it('sends everything as one kind of message and lets the server decide what it is', async () => {
     await openChat();
-    click('ia-mode-change');
-    await type('agrega la clase Factura');
 
-    (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
-    fixture.detectChanges();
+    for (const text of ['agrega la clase Factura', 'revisa el diagrama', '¿Qué hizo Beto?']) {
+      await type(text);
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+    }
 
-    expect(request).toHaveBeenCalledOnceWith('sala-1', 'change', 'agrega la clase Factura');
+    expect(request.calls.allArgs()).toEqual([
+      ['sala-1', 'auto', 'agrega la clase Factura'],
+      ['sala-1', 'auto', 'revisa el diagrama'],
+      ['sala-1', 'auto', '¿Qué hizo Beto?']
+    ]);
   });
 
-  it('lets the user ask for a review without typing anything', async () => {
-    await openChat();
-    click('ia-mode-review');
-    fixture.detectChanges();
-    const send = element('[data-testid="ia-chat-send"]') as HTMLButtonElement;
-
-    expect(send.disabled).toBeFalse();
-    send.click();
-    fixture.detectChanges();
-
-    expect(request).toHaveBeenCalledOnceWith('sala-1', 'review', 'Revisa el diagrama');
-  });
-
-  it('keeps ask and change from being sent empty', async () => {
+  it('does not send an empty message', async () => {
     await openChat();
 
     expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeTrue();
-    click('ia-mode-change');
-    fixture.detectChanges();
+    await type('   ');
     expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeTrue();
   });
 
-  it('shows which AI answers (cloud or local model)', async () => {
+  it('suggests what can be asked, including a change and a review', async () => {
     await openChat();
 
-    expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA local (qwen3.5:9b)');
+    const text = element('[data-testid="ia-chat-empty"]')!.textContent!;
+    expect(text).toContain('¿Qué hizo Beto?');
+    expect(text).toContain('Agrega una clase');
+    expect(text).toContain('Revisa el diagrama');
   });
 
-  it('keeps working when the provider cannot be known', async () => {
-    provider.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+  describe('permission before changing the diagram', () => {
+    const proposal: IaChatResponse = {
+      reply: 'Esto es lo que haría:\n• Crear la clase Factura\n¿Lo aplico?',
+      intent: 'change',
+      proposal: { lines: ['Crear la clase Factura'], destructive: 0 }
+    };
 
-    await openChat();
+    async function propose(): Promise<void> {
+      request.and.returnValue(of(proposal));
+      await openChat();
+      await type('agrega la clase Factura');
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
 
-    expect(element('[data-testid="ia-provider"]')).toBeNull();
-    expect(element('[data-testid="ia-chat-input"]')).not.toBeNull();
+    it('shows what the AI would do and waits, with Apply and Discard buttons', async () => {
+      await propose();
+
+      expect(authorsAndTexts()[1][1]).toContain('Crear la clase Factura');
+      expect(element('[data-testid="ia-proposal"]')!.textContent).toContain('espera tu permiso');
+      expect(element('[data-testid="ia-proposal-apply"]')).not.toBeNull();
+      expect(element('[data-testid="ia-proposal-discard"]')).not.toBeNull();
+      expect(request).toHaveBeenCalledTimes(1);
+    });
+
+    it('warns when what is proposed also deletes things', async () => {
+      request.and.returnValue(of({ ...proposal, proposal: { lines: ['Eliminar la clase Pedido'], destructive: 1 } }));
+      await openChat();
+      await type('elimina Pedido');
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-proposal"]')!.textContent).toContain('eliminar cosas');
+    });
+
+    it('applies only after the person presses Apply, saying yes in the conversation', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Listo, apliqué el cambio en el diagrama.', intent: 'confirm', changes: {} }));
+
+      click('ia-proposal-apply');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(request.calls.mostRecent().args).toEqual(['sala-1', 'auto', 'Sí, aplícalo']);
+      expect(authorsAndTexts().slice(-2)).toEqual([['Ana', 'Sí, aplícalo'], ['IA', 'Listo, apliqué el cambio en el diagrama.']]);
+      expect(element('[data-testid="ia-proposal"]')).toBeNull();
+    });
+
+    it('drops the proposal when the person presses Discard', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Listo, descarté la propuesta. No cambié el diagrama.', intent: 'discard' }));
+
+      click('ia-proposal-discard');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(request.calls.mostRecent().args).toEqual(['sala-1', 'auto', 'No, descártalo']);
+      expect(element('[data-testid="ia-proposal"]')).toBeNull();
+    });
+
+    it('keeps the buttons when the person asks something else in the meantime', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Hay dos clases.', intent: 'ask' }));
+      await type('¿Cuántas clases hay?');
+
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-proposal"]')).not.toBeNull();
+    });
+
+    it('closes the proposal when typing yes instead of pressing the button', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Listo.', intent: 'confirm', changes: {} }));
+      await type('sí');
+
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-proposal"]')).toBeNull();
+    });
+
+    it('closes the proposal when the person asks to apply something directly', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Listo.', intent: 'change', changes: {} }));
+      await type('agrega Venta directamente');
+
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-proposal"]')).toBeNull();
+    });
+
+    it('does not show buttons for an ordinary answer', async () => {
+      request.and.returnValue(of({ reply: 'Hay dos clases.', intent: 'ask' }));
+      await openChat();
+      await type('¿Cuántas clases hay?');
+
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-proposal"]')).toBeNull();
+    });
+  });
+
+  describe('model of the room', () => {
+    it('shows which AI answers and the models the server has', async () => {
+      await openChat();
+
+      expect(roomProvider).toHaveBeenCalledWith('sala-1');
+      expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA local (qwen3.5:9b)');
+      expect(element('[data-testid="ia-model-gemini"]')!.textContent).toContain('Nube (Gemini)');
+      expect(element('[data-testid="ia-model-ollama"]')!.textContent).toContain('Local (qwen3.5:9b)');
+      expect(element('[data-testid="ia-model-ollama"]')!.getAttribute('aria-checked')).toBe('true');
+      expect(element('[data-testid="ia-model-gemini"]')!.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('switches the model of the whole room when one is chosen', async () => {
+      await openChat();
+
+      click('ia-model-gemini');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(setRoomProvider).toHaveBeenCalledOnceWith('sala-1', 'gemini');
+      expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA en la nube (Gemini)');
+      expect(element('[data-testid="ia-model-gemini"]')!.getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('does nothing when the chosen model is the one already in use', async () => {
+      await openChat();
+
+      click('ia-model-ollama');
+
+      expect(setRoomProvider).not.toHaveBeenCalled();
+    });
+
+    it('does not let anyone choose a model that this server does not have', async () => {
+      roomProvider.and.returnValue(of({
+        ...CLOUD,
+        options: [
+          { id: 'gemini', label: 'Nube (Gemini)', available: true },
+          { id: 'ollama', label: 'Local (qwen3.5:9b)', available: false }
+        ]
+      }));
+
+      await openChat();
+
+      const local = element('[data-testid="ia-model-ollama"]') as HTMLButtonElement;
+      expect(local.disabled).toBeTrue();
+      expect(local.title).toContain('No está disponible');
+      local.click();
+      expect(setRoomProvider).not.toHaveBeenCalled();
+    });
+
+    it('explains why the model could not be changed and keeps the one in use', async () => {
+      setRoomProvider.and.returnValue(throwError(() => new HttpErrorResponse({
+        status: 409, error: { error: 'Ese modelo no está disponible en este servidor.' }
+      })));
+      await openChat();
+
+      click('ia-model-gemini');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('no está disponible');
+      expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA local');
+    });
+
+    it('shows what the server says when the model was changed too many times in a row', async () => {
+      setRoomProvider.and.returnValue(throwError(() => new HttpErrorResponse({
+        status: 429, error: { error: 'Cambiaste el modelo muchas veces seguidas. Espera un momento.' }
+      })));
+      await openChat();
+
+      click('ia-model-gemini');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('muchas veces seguidas');
+    });
+
+    it('reads the model again when the AI finishes, in case someone else changed it', async () => {
+      await openChat();
+      roomProvider.and.returnValue(of(CLOUD));
+
+      iaStatus.set({ state: 'thinking', by: 'Beto' });
+      fixture.detectChanges();
+      iaStatus.set({ state: 'idle', by: '' });
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-provider"]')!.textContent).toContain('IA en la nube (Gemini)');
+    });
+
+    it('keeps working when the model cannot be known', async () => {
+      roomProvider.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      await openChat();
+
+      expect(element('[data-testid="ia-provider"]')).toBeNull();
+      expect(element('[data-testid="ia-chat-input"]')).not.toBeNull();
+    });
   });
 
   it('does not let the user send until the history has loaded, so nothing is duplicated', async () => {

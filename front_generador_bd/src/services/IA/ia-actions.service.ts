@@ -23,7 +23,10 @@ export class IaActionsService {
 
     return this.chat.send(roomId, mode, message, this.diagram.exportToJson()).pipe(
       map(response => {
-        if (mode !== 'change' || !response.changes) return response;
+        // Preguntar y revisar nunca tocan el diagrama, aunque el servidor mande cambios. En el chat único (`auto`) solo se aplica lo que la
+        // persona autorizó («sí») o pidió aplicar directamente: una propuesta, una respuesta o un historial no traen nada que aplicar.
+        if ((mode !== 'change' && mode !== 'auto') || !response.changes) return response;
+        if (mode === 'auto' && response.intent !== 'confirm' && response.intent !== 'change') return response;
         // El modelo lee el diagrama, que puede traer texto malicioso: antes de
         // aplicar un cambio que elimina cosas se le pide confirmación a la persona.
         const deletions = response.destructive ?? 0;
