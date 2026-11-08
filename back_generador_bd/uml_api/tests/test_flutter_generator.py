@@ -996,6 +996,39 @@ class LocalLlmGeneratorTests(SimpleTestCase):
             self.assertIn("_idPhrase", parser)
             self.assertIn("the rules understand an order given by id", texts_test)
 
+    def test_messages_to_the_person_are_plain_spanish_for_any_schema(self):
+        """Pedro, viendo en su iPhone: "Falta el campo \"nombre\"." -> debe decirse de forma humana (sin pedir que se
+        cree nada si falta un dato). Lo mismo para todos los mensajes de validacion y del enrutador, y para cualquier
+        esquema; ademas "estudiantes"/"clientes" no se entendian (se quitaba "es") y "cuenta contable" no tenia plural."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            output = Path(output_dir)
+            FlutterCRUDGenerator(REPRESENTATIVE_UML).generate_project(output)
+            validator = (output / "lib/assistant/command_validator.dart").read_text()
+            router = (output / "lib/assistant/command_router.dart").read_text()
+            view = (output / "lib/assistant/assistant_view.dart").read_text()
+            texts = (output / "lib/assistant/assistant_texts.dart").read_text()
+            schema = (output / "lib/assistant/app_schema.dart").read_text()
+            texts_test = (output / "test/assistant/assistant_texts_test.dart").read_text()
+
+            for technical in ("Falta el campo", "actualizar ni eliminar registros de esa entidad", "usa una clave primaria double",
+                              "Comando no reconocido", "No conozco la entidad", "No reconozco el campo"):
+                self.assertNotIn(technical, validator)
+            self.assertNotIn("Entidad no soportada", router)
+            self.assertNotIn("Comando no reconocido", router)
+            self.assertNotIn("Ocurrió un error al ejecutar el comando", view)
+            self.assertIn("AssistantTexts.missingFields(entity, missing)", validator)
+            self.assertIn("AssistantTexts.unexpectedProblem", view)
+            for name in ("missingFields", "unknownEntity", "unknownField", "whichOne", "invalidValue", "withArticle"):
+                self.assertIn(f"static String {name}(", texts)
+            self.assertIn("me $verb $what", texts)
+            # nombres compuestos y plurales en -es
+            self.assertIn("_pluralWord", texts)
+            self.assertIn("_singularForms(", schema)
+            self.assertNotIn("_singularize(", schema)
+            for test in ("what is missing is said in plain Spanish", "the other validation messages are plain Spanish",
+                         "compound entity names read naturally", "also when it ends in -es"):
+                self.assertIn(test, texts_test)
+
     def test_voice_uses_the_phone_spanish_and_explains_offline_problems(self):
         """Sin internet, iOS solo entiende la voz si el dictado en español de ESE idioma esta descargado: antes la app
         pedia siempre es_ES y, si fallaba, no decia nada (el audio "ya no funcionaba" en modo avion)."""
