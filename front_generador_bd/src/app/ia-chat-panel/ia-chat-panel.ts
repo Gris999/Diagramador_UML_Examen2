@@ -1,10 +1,11 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { Component, computed, effect, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { IdentityService } from '../../services/colaboration/identity.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
-import { IaChatMessage, IaChatMode, IaChatService, iaErrorMessage } from '../../services/IA/ia-chat.service';
+import { IaChatMessage, IaChatService, IaProposal, IaProviderInfo, iaErrorMessage } from '../../services/IA/ia-chat.service';
 
 const MAX_MESSAGE_CHARS = 2000;
 
@@ -31,17 +32,13 @@ export class IaChatPanel implements OnInit {
   readonly historyReady = signal(false);
   readonly error = signal('');
   readonly maxChars = MAX_MESSAGE_CHARS;
-  readonly mode = signal<IaChatMode>('ask');
-  readonly modes: { id: IaChatMode; label: string; hint: string }[] = [
-    { id: 'ask', label: 'Preguntar', hint: 'La IA solo responde: no toca el diagrama' },
-    { id: 'change', label: 'Pedir cambio', hint: 'La IA modifica el diagrama y todos lo ven' },
-    { id: 'review', label: 'Revisar', hint: 'La IA revisa el diagrama y publica sus ideas para todos' }
-  ];
+  /** Un cambio que la IA propuso y espera el permiso de esta persona (aparecen los botones Aplicar y Descartar). */
+  readonly proposal = signal<IaProposal | null>(null);
 
-  /** "IA local (modelo)" o "IA en la nube (Gemini)"; vacío si no se pudo saber. */
-  readonly providerLabel = signal('');
-
-  readonly modeHint = computed(() => this.modes.find(option => option.id === this.mode())?.hint ?? '');
+  /** El modelo de IA de la sala y los que hay disponibles; `null` si no se pudo saber. */
+  readonly providerInfo = signal<IaProviderInfo | null>(null);
+  readonly providerLabel = computed(() => this.providerInfo()?.label ?? '');
+  readonly switching = signal(false);
 
   private roomId: string | null = null;
   private historyLoaded = false;
@@ -53,7 +50,10 @@ export class IaChatPanel implements OnInit {
       const thinking = this.collab.iaStatus().state === 'thinking';
       const finished = this.wasThinking && !thinking;
       this.wasThinking = thinking;
-      if (finished && this.open()) this.refreshHistory();
+      if (finished && this.open()) {
+        this.refreshHistory();
+        this.loadProvider();
+      }
     });
   }
 
@@ -85,15 +85,34 @@ export class IaChatPanel implements OnInit {
     }
   }
 
-  setMode(mode: IaChatMode): void {
-    this.mode.set(mode);
+  /** Responde a la propuesta de la IA con los botones: es lo mismo que escribir «sí» o «no» (así queda en la conversación de la sala). */
+  answerProposal(accept: boolean): void {
+    this.send(accept ? 'Sí, aplícalo' : 'No, descártalo');
   }
 
-  send(): void {
-    const mode = this.mode();
-    const typed = this.draft().trim();
-    // Revisar no necesita texto: el servidor usa un pedido por defecto.
-    const text = typed || (mode === 'review' ? 'Revisa el diagrama' : '');
+  /** Cambia el modelo de IA de toda la sala (nube o local), si el servidor lo tiene disponible. */
+  chooseProvider(id: string): void {
+    const info = this.providerInfo();
+    if (!this.roomId || !info || info.provider === id || this.switching()) return;
+    this.error.set('');
+    this.switching.set(true);
+    this.chat.setRoomProvider(this.roomId, id).subscribe({
+      next: updated => {
+        this.providerInfo.set(updated);
+        this.switching.set(false);
+      },
+      error: (failure: unknown) => {
+        // El servidor explica por qué no se pudo cambiar (modelo no disponible, demasiados cambios seguidos).
+        const reason = failure instanceof HttpErrorResponse ? failure.error?.error : undefined;
+        this.error.set(typeof reason === 'string' ? reason : this.messageFor(failure));
+        this.switching.set(false);
+      }
+    });
+  }
+
+  /** Manda lo escrito (o `override`, que usan los botones de la propuesta). La IA decide si es pregunta, cambio, revisión o historial. */
+  send(override?: string): void {
+    const text = (override ?? this.draft()).trim();
     if (!this.roomId || !text || this.sending() || !this.historyReady()) return;
     if (text.length > MAX_MESSAGE_CHARS) {
       this.error.set(`El mensaje no puede superar ${MAX_MESSAGE_CHARS} caracteres.`);
@@ -102,12 +121,15 @@ export class IaChatPanel implements OnInit {
 
     this.error.set('');
     this.sending.set(true);
-    this.append({ role: 'user', content: text, mode, author_name: this.myName() });
-    this.draft.set('');
+    this.append({ role: 'user', content: text, author_name: this.myName() });
+    if (override === undefined) this.draft.set('');
 
-    this.actions.request(this.roomId, mode, text).subscribe({
+    this.actions.request(this.roomId, 'auto', text).subscribe({
       next: response => {
-        this.append({ role: 'ia', content: response.reply, mode, author_name: 'IA' });
+        this.append({ role: 'ia', content: response.reply, author_name: 'IA' });
+        // Una propuesta nueva reemplaza a la anterior; «sí», «no» o un cambio directo la cierran. Una pregunta no la toca.
+        if (response.proposal) this.proposal.set(response.proposal);
+        else if (response.changes || response.intent === 'confirm' || response.intent === 'discard') this.proposal.set(null);
         this.sending.set(false);
       },
       error: (failure: unknown) => {
@@ -117,10 +139,11 @@ export class IaChatPanel implements OnInit {
     });
   }
 
+  /** Lee qué modelo usa la sala; se vuelve a leer al abrir el chat y cuando la IA termina un pedido, por si alguien lo cambió. */
   private loadProvider(): void {
-    if (this.providerLabel()) return;
-    this.chat.provider().subscribe({
-      next: info => this.providerLabel.set(typeof info?.label === 'string' ? info.label : ''),
+    if (!this.roomId) return;
+    this.chat.roomProvider(this.roomId).subscribe({
+      next: info => this.providerInfo.set(info && typeof info.label === 'string' && Array.isArray(info.options) ? info : null),
       error: () => undefined // es solo informativo
     });
   }
@@ -155,14 +178,13 @@ export class IaChatPanel implements OnInit {
     });
   }
 
-  private append(message: { role: 'user' | 'ia'; content: string; mode?: IaChatMode; author_name?: string }): void {
+  private append(message: { role: 'user' | 'ia'; content: string; author_name?: string }): void {
     this.messages.update(current => [
       ...current,
       {
         id: -(current.length + 1),
         role: message.role,
         author_name: message.author_name,
-        mode: message.mode,
         content: message.content,
         created_at: new Date().toISOString()
       }

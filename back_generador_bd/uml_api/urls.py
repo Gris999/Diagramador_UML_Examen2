@@ -1,5 +1,5 @@
 from django.urls import path
-from .chat_views import chat_history, claim_suggestion, ia_chat, ia_provider_info
+from .chat_views import chat_history, claim_suggestion, ia_chat, ia_provider_info, room_ia_provider
 from .help_views import ia_help
 from .views import (
     set_backupUML,
@@ -33,6 +33,7 @@ urlpatterns = [
         claim_suggestion,
         name="room-claim-suggestion",
     ),
+    path("rooms/<str:room>/ia/provider/", room_ia_provider, name="room-ia-provider"),
     path("ia/provider/", ia_provider_info, name="ia-provider"),
     path("ia/help/", ia_help, name="ia-help"),
 ]

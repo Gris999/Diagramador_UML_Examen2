@@ -310,12 +310,17 @@ caso("CU4", "N1",
       f("app/participants-panel/participants-panel.spec.ts", "does not render an enabled removal action for a participant")])
 
 caso("CU7", "B",
-     "Una persona escribe «Agrega una clase Factura con total y fecha» en «Generar modelo» (o en el chat en modo «Pedir cambio», o la dicta).",
-     "El servidor comprueba los topes y el turno de la sala, arma el contexto, pide los cambios a la IA y los valida; el navegador de quien pidió los aplica por la ruta de la edición manual marcados "
+     "Una persona escribe «Agrega una clase Factura con total y fecha» en «Generar modelo» (o en el chat, o la dicta).",
+     "El servidor comprueba los topes y el turno de la sala, arma el contexto, pide los cambios a la IA y los valida; en el chat la IA primero cuenta lo que haría y espera el permiso («Aplicar» o «sí»); "
+     "el navegador de quien pidió los aplica por la ruta de la edición manual marcados "
      "como de la IA; la actividad dice «IA, a pedido de X» y la pregunta y la respuesta quedan en la conversación de la sala.",
      "sistema",
      [b("uml_api/tests/test_ia_chat_api.py", "IaChatApiTests.test_change_mode_returns_the_changes_for_the_client_to_apply"),
       f("services/IA/ia-actions.service.spec.ts", "applies the changes of change mode marked as IA"),
+      b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatProposalTests.test_an_order_is_proposed_and_not_applied"),
+      b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatProposalTests.test_saying_yes_hands_over_the_change_to_apply"),
+      f("services/IA/ia-actions.service.spec.ts", "applies the change once the person said yes, marked as IA"),
+      f("app/ia-chat-panel/ia-chat-panel.spec.ts", "shows what the AI would do and waits, with Apply and Discard buttons"),
       f("services/IA/ia-actions.service.spec.ts", "sends the current diagram and announces that the IA is working for the requester"),
       b("collab/tests/test_identity_activity.py", "CanvasIdentityActivityTests.test_operations_applied_by_the_ia_are_logged_on_behalf_of_the_requester"),
       f("app/side-panel/side-panel.spec.ts", "sends the instruction to the AI as a change request for this room and clears the box when it works"),
@@ -347,6 +352,20 @@ caso("CU7", "A3",
       f("services/IA/ia-actions.service.spec.ts", "confirms the suggestion once the change reached the diagram, and not before"),
       b("uml_api/tests/test_ia_chat_api.py", "ClaimSuggestionApiTests.test_the_first_person_claims_it_and_the_room_is_told"),
       b("uml_api/tests/test_ia_chat_api.py", "ClaimSuggestionApiTests.test_confirming_marks_the_idea_as_applied_for_good")])
+caso("CU7", "A4",
+     "En el chat, la IA propone un cambio y la persona pulsa «Descartar» (o escribe «no»).",
+     "El diagrama no cambia, la propuesta se olvida y un «sí» posterior ya no aplica nada.",
+     "integración",
+     [b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatProposalTests.test_saying_no_drops_the_proposal_and_changes_nothing"),
+      b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatProposalTests.test_the_change_can_only_be_applied_once"),
+      f("app/ia-chat-panel/ia-chat-panel.spec.ts", "drops the proposal when the person presses Discard")])
+caso("CU7", "A5",
+     "La persona pide el cambio con la palabra «directamente» (por ejemplo «agrega la clase Venta directamente»).",
+     "La IA no pregunta: el servidor entrega los cambios y el navegador de quien pidió los aplica; si eliminan algo, igual se pide confirmación.",
+     "integración",
+     [b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatProposalTests.test_saying_it_directly_skips_the_permission"),
+      f("services/IA/ia-actions.service.spec.ts", "applies a change that the person asked to apply directly"),
+      f("services/IA/ia-actions.service.spec.ts", "still asks before applying a confirmed change that deletes things")])
 caso("CU7", "E1",
      "El servicio de IA falla (no responde, devuelve basura o se cae).",
      "Se muestra un mensaje claro («La IA no pudo responder ahora»); el diagrama no cambia, no se guarda nada a medias, se devuelve el turno y la sala vuelve a «Disponible».",
@@ -358,10 +377,13 @@ caso("CU7", "E1",
       f("app/ia-chat-panel/ia-chat-panel.spec.ts", "shows a clear message when the AI fails and keeps the chat usable")])
 caso("CU7", "N1",
      "Se pregunta o se pide revisar en el chat, aunque el proveedor devuelva un diagrama nuevo.",
-     "El diagrama no cambia: solo el modo «Pedir cambio» devuelve cambios, y los aplica el navegador de quien lo pidió.",
+     "El diagrama no cambia: una pregunta, una revisión o un historial nunca devuelven cambios, y los de un cambio los aplica el navegador de quien lo pidió, después de su permiso.",
      "integración",
      [b("uml_api/tests/test_ia_chat_api.py", "IaChatApiTests.test_ask_and_review_never_return_changes_to_apply"),
       f("services/IA/ia-actions.service.spec.ts", "never touches the diagram in ask or review mode, even if the server returned one"),
+      f("services/IA/ia-actions.service.spec.ts", "never applies anything for a question, a review, a history or a refusal, even if the server sent changes"),
+      b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatAskTests.test_a_question_is_answered_without_touching_the_diagram"),
+      b("uml_api/tests/test_chat_unico_api.py", "UnifiedChatProposalTests.test_someone_else_cannot_confirm_my_proposal"),
       b("collab/tests/test_identity_activity.py", "CanvasIdentityActivityTests.test_only_a_literal_true_marks_an_operation_as_ia")])
 caso("CU8", "B",
      "Se elige «Importar Imagen» y se sube la foto de un diagrama de clases.",
@@ -528,7 +550,7 @@ caso("CU9", "B",
       f("app/ia-chat-panel/ia-chat-panel.spec.ts", "shows who wrote each message and tells mine from the others")],
      manual=["Con dos ventanas, abrir «Chat con la IA» en cada una; preguntar «¿Qué hizo <nombre>?» en la primera.",
              "Comprobar que la pregunta y la respuesta aparecen en las dos ventanas, cada mensaje con su autor.",
-             "En modo «Revisar», comprobar que la revisión aparece en «Actividad» de las dos con botones «Aplicar»."])
+             "Pedir «Revisa el diagrama» y comprobar que la revisión aparece en «Actividad» de las dos con botones «Aplicar»."])
 caso("CU9", "A1",
      "Una persona pulsa «Aplicar» en una idea de la revisión.",
      "El sistema reserva la idea para esa persona, la ejecuta como un pedido de cambio a su nombre y la marca como aplicada para todos, también tras recargar.",
@@ -768,10 +790,10 @@ DEFECTOS = [
 
 # ---- resultados de la ejecución completa -------------------------------------------------------------------------------
 RESULTADOS = [
-    ("Django (API y colaboración)", "back_generador_bd/.venv/bin/python manage.py test", "392 pruebas: todas pasaron (19 de ellas, contra un MongoDB real, se saltan sin MONGO_TEST_URL)", "pasó"),
+    ("Django (API y colaboración)", "back_generador_bd/.venv/bin/python manage.py test", "471 pruebas: todas pasaron (19 de ellas, contra un MongoDB real, se saltan sin MONGO_TEST_URL)", "pasó"),
     ("Django, adaptadores de MongoDB contra un servidor real", "MONGO_TEST_URL=mongodb://127.0.0.1:27018 manage.py test collab.tests.test_mongo_integration", "19 pruebas: todas pasaron", "pasó"),
     ("Django, adaptadores de MongoDB contra MongoDB Atlas (8.0), desde el servidor de AWS", "MONGO_TEST_URL=$MONGO_URL manage.py test collab.tests.test_mongo_integration --settings=diagramador_uml.settings_test", "19 pruebas: todas pasaron el 2026-11-04", "pasó"),
-    ("Angular (servicios, componentes y vistas)", "ng test --watch=false --browsers=ChromeHeadless", "344 pruebas: todas pasaron", "pasó"),
+    ("Angular (servicios, componentes y vistas)", "ng test --watch=false --browsers=ChromeHeadless", "365 pruebas: todas pasaron", "pasó"),
     ("Angular, compilación de producción", "ng build", "compiló sin errores (con las advertencias habituales de JointJS y file-saver)", "pasó"),
     ("Aplicación móvil generada (Flutter)", "flutter test y flutter analyze, en un proyecto generado de ejemplo", "111 pruebas: todas pasaron, incluido el asistente con IA local (conversación, órdenes con protecciones, descarga y actualización del modelo); el analizador no dio errores ni advertencias", "pasó"),
     ("Asistente móvil con el modelo real (Qwen2.5-1.5B, en un Mac)", "15 frases por las reglas y por el modelo (docs/FLUTTER_ASSISTANT_SETUP.md)", "consultar, crear, cambiar por id y borrar por número dieron el comando correcto; la conversación usó los datos reales y reconoció lo que no puede hacer (buscar en internet, enviar correos)", "pasó"),

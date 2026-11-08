@@ -11,9 +11,11 @@ from rest_framework.response import Response
 
 from collab.groups import room_group_name, viewers_group_name
 from collab.models import IaAttempt, Participant
-from collab.stores import get_activity_store, get_conversation_store, get_turn_store
-from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider
+from collab.stores import get_activity_store, get_conversation_store, get_rate_limiter, get_room_state, get_turn_store
+from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider, provider_options
 from .services.change_guard import count_destructive, validate_changes
+from .services.change_summary import summarize_changes
+from .services.chat_intent import ASK, CHANGE, CONFIRM, DISCARD, HISTORY, REVIEW, classify
 from .services.ia_context import (
     MAX_EVENTS,
     MAX_HISTORY,
@@ -25,7 +27,15 @@ from .services.ia_context import (
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_MODES = {"ask", "change", "review"}
+# `auto` es el chat único: el servidor deduce si es una pregunta, un cambio, una revisión o una consulta de historial (`chat_intent`).
+# Los otros tres modos se conservan por compatibilidad y para las ideas de la IA, que se aplican con un clic.
+SUPPORTED_MODES = {"auto", "ask", "change", "review"}
+# Una propuesta de cambio espera permiso este tiempo; el modelo elegido para la sala se recuerda una semana.
+PROPOSAL_TTL_SECONDS = 600
+PROVIDER_TTL_SECONDS = 7 * 24 * 3600
+HISTORY_LINES = 12
+# Cambiar el modelo de la sala deja una actividad cada vez: el tope evita que alguien llene el registro alternando.
+PROVIDER_CHANGES_PER_MINUTE = 6
 DEFAULT_REVIEW_MESSAGE = "Revisa el diagrama"
 MAX_REQUESTS_PER_MINUTE = 12
 # Topes de coste compartidos: un mismo participante, toda una sala y todo el
@@ -161,6 +171,8 @@ def _review(provider, room, participant, body, message):
 
     lines = [result["summary"]] if result["summary"] else []
     lines += [f"{number}. {finding['text']}" for number, finding in enumerate(findings, 1)]
+    if findings:
+        lines.append("Las ideas quedaron en Actividad: ahí se aplican con un clic.")
     reply = "\n".join(lines) or "No encontré observaciones importantes."
 
     if not findings:
@@ -195,7 +207,165 @@ def _review(provider, room, participant, body, message):
     return Response({"reply": reply, "suggestions": suggestions})
 
 
-MODE_HANDLERS = {"ask": _answer, "change": _change, "review": _review}
+def _state_get(key):
+    """Lee un dato pasajero de la sala; si el almacén falla se sigue como si no hubiera nada (la sala no se cae por esto)."""
+    try:
+        return get_room_state().get(key)
+    except Exception as exc:
+        logger.warning("No se pudo leer el estado de la sala (%s)", type(exc).__name__)
+        return None
+
+
+def _proposal_key(room, participant):
+    return f"ia-proposal:{room}:{participant.id}"
+
+
+def _provider_key(room):
+    return f"ia-provider:{room}"
+
+
+def _ago(iso):
+    """«hace 5 min» a partir de la hora de un evento (ISO 8601)."""
+    try:
+        seconds = (timezone.now() - datetime.fromisoformat(iso)).total_seconds()
+    except (TypeError, ValueError):
+        return ""
+    if seconds < 60:
+        return "ahora"
+    if seconds < 3600:
+        return f"hace {int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"hace {int(seconds // 3600)} h"
+    return f"hace {int(seconds // 86400)} d"
+
+
+def _done_by(event, person):
+    """El evento es de `person`: lo hizo ella, o la IA lo hizo a pedido suyo (cambios aplicados con la IA y revisiones)."""
+    wanted = person.strip().lower()
+    if (event.get("actor_name") or "").strip().lower() == wanted:
+        return True
+    data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    if str(data.get("requested_by") or "").strip().lower() == wanted:
+        return True
+    return (event.get("summary") or "").strip().lower().endswith(f"(a pedido de {wanted})")
+
+
+def _history_line(event, person):
+    actor = event.get("actor_name") or "Alguien"
+    # Lo que la IA hizo a pedido de la persona se dice como tal: «IA añadió la clase X (a pedido de Beto)».
+    who = "" if person and actor.strip().lower() == person.strip().lower() else f"{actor} "
+    when = _ago(event.get("created_at"))
+    return f"• {who}{event.get('summary', '')}" + (f" · {when}" if when else "")
+
+
+def _history_reply(room, participant, message, person, events):
+    """Lo que hizo `person` (o toda la sala) según el registro de actividad: no usa la IA, así que siempre es exacto."""
+    chosen = events if person is None else [event for event in events if _done_by(event, person)]
+    subject = "la sala" if person is None else person
+    if not chosen:
+        reply = f"No veo actividad de {subject} en esta sala todavía."
+    else:
+        shown = chosen[-HISTORY_LINES:]
+        lines = [_history_line(event, person) for event in shown]
+        header = "Lo último que pasó en la sala:" if person is None else f"Lo último que hizo {person}:"
+        if len(chosen) > len(shown):
+            lines.append(f"… y {len(chosen) - len(shown)} acciones anteriores.")
+        reply = "\n".join([header, *lines])
+    get_conversation_store().append_exchange(room, participant, "ask", message, reply)
+    return Response({"reply": reply, "intent": HISTORY})
+
+
+def _propose(provider, room, participant, body, message):
+    """Calcula el cambio pedido pero NO lo aplica: lo cuenta y espera el permiso de quien lo pidió."""
+    changes = provider.change(message, body.get("uml"))
+    validate_changes(changes)
+    lines = summarize_changes(changes, body.get("uml"))
+    destructive = count_destructive(changes, body.get("uml"))
+
+    reply = "Esto es lo que haría:\n" + "\n".join(f"• {line}" for line in lines) if lines else "Haría el cambio que pediste en el diagrama."
+    if destructive:
+        reply += f"\nOjo: elimina {destructive} elemento{'s' if destructive != 1 else ''}."
+    reply += "\n¿Lo aplico? Responde «sí» o «no», o usa los botones."
+
+    ids = get_conversation_store().append_exchange(room, participant, "change", message, reply)
+    try:
+        get_room_state().set(
+            _proposal_key(room, participant),
+            {"changes": changes, "message": message},
+            PROPOSAL_TTL_SECONDS,
+        )
+    except Exception:
+        get_conversation_store().discard_exchange(room, ids)
+        raise
+    return Response({
+        "reply": reply,
+        "intent": CHANGE,
+        "proposal": {"lines": lines, "destructive": destructive},
+    })
+
+
+def _confirm(room, participant, body, message, pending):
+    """La persona dijo que sí: se entrega el cambio guardado para que su navegador lo aplique."""
+    changes = pending["changes"]
+    validate_changes(changes)
+    reply = "Listo, apliqué el cambio en el diagrama."
+    get_conversation_store().append_exchange(room, participant, "change", message, reply)
+    get_room_state().delete(_proposal_key(room, participant))
+    return Response({
+        "reply": reply,
+        "intent": CONFIRM,
+        "changes": changes,
+        # El diagrama pudo cambiar desde la propuesta: la confirmación de eliminaciones se calcula con el diagrama de ahora.
+        "destructive": count_destructive(changes, body.get("uml")),
+    })
+
+
+def _discard(room, participant, message):
+    reply = "Listo, descarté la propuesta. No cambié el diagrama."
+    get_conversation_store().append_exchange(room, participant, "change", message, reply)
+    get_room_state().delete(_proposal_key(room, participant))
+    return Response({"reply": reply, "intent": DISCARD})
+
+
+def _known_names(room, events):
+    """Nombres que el chat reconoce en «¿qué hizo Beto?»: las personas de la sala, quienes aparecen en la actividad y la IA."""
+    names = set(Participant.objects.filter(room=room).values_list("display_name", flat=True))
+    names.update(event["actor_name"] for event in events if event.get("actor_name"))
+    names.add("IA")
+    return names
+
+
+def _auto(provider, room, participant, body, message):
+    """El chat único: deduce qué quiere la persona (`chat_intent`) y la IA solo cambia el diagrama con su permiso."""
+    events = get_activity_store().recent(room, 200)
+    pending = _state_get(_proposal_key(room, participant))
+    if not (isinstance(pending, dict) and isinstance(pending.get("changes"), dict)):
+        pending = None  # una propuesta guardada con otra forma no sirve: se trata como si no hubiera ninguna
+    decision = classify(message, _known_names(room, events), has_pending=pending is not None)
+    intent = decision["intent"]
+
+    if intent == CONFIRM:
+        return _confirm(room, participant, body, message, pending)
+    if intent == DISCARD:
+        return _discard(room, participant, message)
+    if intent == HISTORY:
+        return _history_reply(room, participant, message, decision["person"], events)
+    if intent == REVIEW:
+        return _tag(_review(provider, room, participant, body, message), REVIEW)
+    if intent == CHANGE:
+        if decision["direct"]:
+            return _tag(_change(provider, room, participant, body, message), CHANGE)
+        return _propose(provider, room, participant, body, message)
+    return _tag(_answer(provider, room, participant, body, message), ASK)
+
+
+def _tag(response, intent):
+    """Agrega a la respuesta qué entendió el servidor, para que la interfaz sepa qué mostrar."""
+    response.data["intent"] = intent
+    return response
+
+
+MODE_HANDLERS = {"auto": _auto, "ask": _answer, "change": _change, "review": _review}
 
 
 @api_view(["POST"])
@@ -205,7 +375,7 @@ def ia_chat(request, room):
         return _forbidden()
 
     body = request.data if hasattr(request.data, "get") else {}
-    mode = body.get("mode", "ask")
+    mode = body.get("mode", "ask")  # sin `mode` se conserva el comportamiento de siempre: preguntar
     if mode not in SUPPORTED_MODES:
         return _bad_request("Modo no soportado.")
 
@@ -231,7 +401,7 @@ def ia_chat(request, room):
             )
 
         try:
-            return MODE_HANDLERS[mode](get_ai_provider(), room, participant, body, message)
+            return MODE_HANDLERS[mode](get_ai_provider(_state_get(_provider_key(room))), room, participant, body, message)
         except AIProviderError as exc:
             logger.warning("La IA no pudo responder en la sala %s: %s", room, exc)
             return _ia_unavailable()
@@ -263,6 +433,60 @@ def chat_history(request, room):
 @api_view(["GET"])
 def ia_provider_info(request):
     return Response(describe_ai_provider())
+
+
+def _provider_change_allowed(room):
+    """False si la sala ya cambió de modelo demasiadas veces en el último minuto; si no se puede consultar el tope, se deja pasar."""
+    try:
+        return get_rate_limiter().allow(f"ia-provider:{room}", PROVIDER_CHANGES_PER_MINUTE, 60)
+    except Exception as exc:
+        logger.warning("No se pudo consultar el tope de cambios de modelo (%s)", type(exc).__name__)
+        return True
+
+
+@api_view(["GET", "PUT"])
+def room_ia_provider(request, room):
+    """El modelo de IA de la sala (uno solo para todas las personas). GET lo dice y PUT lo cambia.
+
+    La sala elige entre los modelos que este servidor tiene disponibles: en la nube (Gemini) o el local (Ollama). El cambio se avisa a la sala
+    como una actividad, para que nadie se sorprenda con otro modelo.
+    """
+    participant = _participant_for(request, room)
+    if participant is None:
+        return _forbidden()
+
+    options = provider_options()
+    current = _state_get(_provider_key(room)) or None
+
+    if request.method == "PUT":
+        body = request.data if hasattr(request.data, "get") else {}
+        option = next((item for item in options if item["id"] == body.get("provider")), None)
+        if option is None:
+            return _bad_request("Modelo de IA no soportado.")
+        if not option["available"]:
+            return Response(
+                {"error": "Ese modelo no está disponible en este servidor."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if option["id"] != current:
+            if not _provider_change_allowed(room):
+                return Response(
+                    {"error": "Cambiaste el modelo muchas veces seguidas. Espera un momento."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+            get_room_state().set(_provider_key(room), option["id"], PROVIDER_TTL_SECONDS)
+            event = get_activity_store().create(
+                room=room,
+                actor_id=participant.id,
+                actor_name=participant.display_name,
+                event_type="ia_provider",
+                summary=f"cambió la IA de la sala a {option['label']}"[:255],
+                data={"provider": option["id"]},
+            )
+            _publish_activity(room, event)
+        current = option["id"]
+
+    return Response({**describe_ai_provider(current), "options": options})
 
 
 def _has_idea(event, index):

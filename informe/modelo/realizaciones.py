@@ -219,7 +219,7 @@ REALIZACIONES = [
        ["La IA no actúa por su cuenta: toda llamada nace de `ia_chat`, con un participante identificado.",
         "Topes: 12 por minuto por persona, 30 por sala, 60 en todo el servicio; mensajes de hasta 2000 caracteres; contexto de hasta 12 000 caracteres."]),
     _r("COL-09",
-       ["En modo «Pedir cambio», `ia_chat` llama a `_change`: el proveedor devuelve los cambios (`AIProvider.change`), `validate_changes` los revisa (60 clases y 150 relaciones como "
+       ["En el chat único, `ia_chat` llama a `_auto`, que entiende el pedido con `classify` (una orden de cambio se **propone** con `_propose` y espera el permiso, que `_confirm` atiende al «sí»; con «directamente» se llama a `_change`): el proveedor devuelve los cambios (`AIProvider.change`), `validate_changes` los revisa (60 clases y 150 relaciones como "
         "máximo) y `count_destructive` cuenta cuántos elementos eliminarían; `ConversationStore.append_exchange` guarda el pedido y la respuesta. En el navegador de quien pidió, "
         "`IaActionsService.request` pide confirmación si eliminan algo y aplica los cambios con `CollaborationService.runAsIa` y `DiagramService.loadFromJson`: se propagan y se "
         "registran como «IA, a pedido de X»."],
@@ -265,7 +265,7 @@ REALIZACIONES = [
             ("DiagramService", "CollaborationService", "broadcast", "op")])],
        ["La imagen viaja al servicio de IA: no se guarda en el servidor.", "Solo PNG, JPG o WebP de hasta 10 MB."]),
     _r("COL-11",
-       ["`ia_chat` en modo `ask` o `review`: `_answer` arma el contexto y responde por `AIProvider.chat`; `_review` pide hasta cinco ideas, las interpreta con `parse_review` y publica "
+       ["`ia_chat` llama a `_auto`, que con una pregunta o una revisión llama a `_answer` o `_review` (y con «¿qué hizo X?» responde del registro de actividad sin usar la IA): `_answer` arma el contexto y responde por `AIProvider.chat`; `_review` pide hasta cinco ideas, las interpreta con `parse_review` y publica "
         "un evento `ia_review` con ellas (`ActivityStore.create`) que difunde `_publish_activity`. La pregunta y la respuesta se guardan juntas con "
         "`ConversationStore.append_exchange` y `IaChatPanel` las muestra a toda la sala."],
        [_e("a", "Preguntar a la IA", [

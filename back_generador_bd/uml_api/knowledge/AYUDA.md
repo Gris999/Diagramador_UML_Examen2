@@ -40,12 +40,14 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 - Pulsa «Chat con la IA» (abajo a la derecha). La conversación la ven y la alimentan todas las personas de la sala; cada mensaje muestra quién lo escribió.
 - La IA atiende un pedido a la vez. Si está ocupada con otra persona, te avisa y esperas a que termine.
-- Hay tres modos:
-  - «Preguntar»: la IA solo responde, por ejemplo «¿Qué hizo Beto?» o «Explícame este diagrama». No toca el diagrama.
-  - «Pedir cambio»: la IA modifica el diagrama y todos lo ven. En la actividad figura como «IA, a pedido de» quien lo pidió.
-  - «Revisar»: la IA revisa el diagrama y publica sus ideas para todos en «Actividad».
+- Es un solo chat: escribes lo que quieras y la IA entiende qué es. No hay que elegir un modo.
+  - Una pregunta, por ejemplo «¿Cuántas clases hay?» o «Explícame este diagrama»: la IA solo responde. No toca el diagrama.
+  - Un pedido de cambio, por ejemplo «Agrega una clase Cliente con nombre y correo»: la IA propone lo que haría y te pide permiso. El diagrama no cambia hasta que pulses «Aplicar» (o escribas «sí»). «Descartar» (o «no») cancela la propuesta. Si escribes «directamente» (por ejemplo «agrega la clase Venta directamente») lo aplica sin preguntar. En la actividad figura como «IA, a pedido de» quien lo pidió.
+  - «Revisa el diagrama»: la IA revisa y deja sus ideas en «Actividad», cada una con un botón «Aplicar».
+  - «¿Qué hizo Beto?» o «historial de Ana»: responde con el registro de actividad de esa persona, incluido lo que hizo con la IA. Sin nombre («muéstrame el historial») cuenta lo último que pasó en la sala.
 - Las ideas de una revisión tienen un botón «Aplicar». Quien lo pulsa aplica la idea a su nombre y queda marcada como aplicada para todos; nadie más puede aplicarla dos veces.
-- La IA nunca cambia el diagrama por su cuenta: solo cuando alguien se lo pide.
+- La IA nunca cambia el diagrama por su cuenta: solo cuando alguien se lo pide, y antes te pide permiso.
+- Arriba del chat se elige el modelo de la sala: «Nube (Gemini)» o «Local». Es uno solo para todos y el cambio queda en Actividad. «Local» solo se puede elegir si el servidor tiene el modelo local; si no, aparece apagado.
 - Hay un tope de preguntas por minuto. Si te pasas, espera un momento.
 - El chat indica si la IA es la de la nube (Gemini) o una local.
 

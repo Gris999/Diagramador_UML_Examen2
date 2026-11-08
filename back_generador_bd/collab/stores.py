@@ -7,6 +7,7 @@ from django.conf import settings
 from .activity import ORMActivityStore
 from .conversation import ORMConversationStore
 from .limits import InMemoryRateLimiter, RedisRateLimiter
+from .room_state import InMemoryRoomState, RedisRoomState
 from .turn import InMemoryTurnStore, RedisTurnStore
 
 
@@ -47,6 +48,13 @@ def get_turn_store():
     if settings.TURN_STORE == "memory":
         return InMemoryTurnStore()
     return RedisTurnStore(_redis_client())
+
+
+def get_room_state():
+    """El estado pasajero de la sala (propuesta pendiente, modelo de IA elegido): sigue al adaptador del turno (memoria o Redis)."""
+    if settings.TURN_STORE == "memory":
+        return InMemoryRoomState()
+    return RedisRoomState(_redis_client())
 
 
 def get_rate_limiter():

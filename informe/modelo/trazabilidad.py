@@ -109,11 +109,16 @@ C_APOYO = "Módulo de apoyo de un componente modelado (funciones sueltas, sin es
 C_GENERADOR = "Utilidad o configuración interna del generador Spring Boot"
 C_UI = "Componente de arranque o de presentación mínima, sin lógica de negocio"
 C_CLIENTE = "Cliente de un servidor modelado: abre la conexión y entrega el resultado"
+C_ESTADO = ("Puerto y adaptadores del estado pasajero de la sala (la propuesta de la IA que espera permiso y el modelo de IA elegido): siguen el "
+            "mismo patrón que el turno de la IA (TurnStore), ya modelado")
 
 # (sufijo de la ruta, clase o módulo, categoría). `validar()` exige que sean exactamente las clases del código que el diseño no modela.
 EXCLUIDAS = [
     ("collab/consumers.py", "ValidationBudget", C_TIPO),
     ("collab/conversation.py", "<conversation.py>", C_APOYO),
+    ("collab/ports.py", "RoomStateStore", C_ESTADO),
+    ("collab/room_state.py", "InMemoryRoomState", C_ESTADO),
+    ("collab/room_state.py", "RedisRoomState", C_ESTADO),
     ("collab/limits.py", "InMemoryRateLimiter", C_MEMORIA),
     ("collab/mongo.py", "<mongo.py>", C_APOYO),
     ("collab/mongo_stores.py", "<mongo_stores.py>", C_APOYO),
@@ -121,6 +126,8 @@ EXCLUIDAS = [
     ("uml_api/chat_views.py", "_Refused", C_TIPO),
     ("uml_api/services/ai_provider.py", "AIProviderError", C_TIPO),
     ("uml_api/services/app_icon.py", "<app_icon.py>", C_APOYO),
+    ("uml_api/services/change_summary.py", "<change_summary.py>", C_APOYO),
+    ("uml_api/services/chat_intent.py", "<chat_intent.py>", C_APOYO),
     ("uml_api/services/full_project.py", "<full_project.py>", C_APOYO),
     ("uml_api/services/full_project.py", "SpringUnavailable", C_TIPO),
     ("uml_api/services/modelo_reentrenado.py", "<modelo_reentrenado.py>", C_APOYO),

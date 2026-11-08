@@ -191,7 +191,7 @@ class HelpKnowledgeTests(SimpleTestCase):
         "Crear Nuevo Lienzo", "Unirse al Lienzo", "Compartir", "Copiar código de sala", "Copiar enlace para seguir desde el celular", "Salir",
         "Clase UML", "Asociación", "Herencia", "Agregación", "Composición", "Dependencia", "Clase Asociativa",
         "Importar Imagen", "Importar XMI", "Exportar XMI", "Exportar a Backend", "Exportar como Imagen", "Exportar como SQL", "Exportar Flutter",
-        "Generar modelo", "Sugerencias del modelo", "Chat con la IA", "Preguntar", "Pedir cambio", "Revisar", "Aplicar",
+        "Generar modelo", "Sugerencias del modelo", "Chat con la IA", "Aplicar", "Descartar", "Nube (Gemini)", "Local",
         "Participantes", "Actividad", "Expulsar", "Host", "Activar avisos", "Ayuda",
     ]
 

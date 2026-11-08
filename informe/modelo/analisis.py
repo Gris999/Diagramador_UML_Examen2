@@ -147,8 +147,8 @@ CLASES = {
                              "existe", "collab/consumers.py _connect_viewer y _allow_viewer_state_request"),
     # -- asistencia inteligente
     "PanelChatIA": _c("Panel de Chat con la IA", "interfaz", "ia",
-                      "El chat de la sala con la IA, donde se pregunta, se pide una revisión o se pide un cambio.",
-                      [("modo", "Preguntar, Pedir cambio o Revisar"), ("mensaje escrito", "Texto"), ("esperando respuesta", "Sí o no")],
+                      "El chat único de la sala con la IA, donde se pregunta, se pide una revisión, se pide un cambio (con permiso) o se consulta el historial, y donde se elige el modelo de la sala.",
+                      [("mensaje escrito", "Texto"), ("propuesta pendiente", "Sí o no"), ("modelo de la sala", "Nube o local"), ("esperando respuesta", "Sí o no")],
                       ["El mensaje no pasa de 2000 caracteres.", "Muestra «Pensando (a pedido de X)» a toda la sala."],
                       "cambia (C1)", "app/ia-chat-panel/ia-chat-panel.ts"),
     "PanelGenerarModelo": _c("Panel Generar Modelo", "interfaz", "ia",
@@ -551,14 +551,14 @@ COLABORACIONES = [
           ("PanelChatIA", "ControlIA", "Consultar a la IA (COL-08)"),
           ("ControlIA", "MensajeConversacion", "Guardar la pregunta y la respuesta en la conversación"),
           ("ControlIA", "PanelChatIA", "Mostrar la respuesta a toda la sala"),
-          ("ControlIA", "IdeaRevision", "Crear hasta cinco ideas, en modo «Revisar»"),
+          ("ControlIA", "IdeaRevision", "Crear hasta cinco ideas, cuando se pide una revisión"),
           ("ControlIA", "EventoActividad", "Publicar la revisión con sus ideas"),
           ("ControlIA", "ConversacionSala", "Liberar el turno de la sala")],
-         ["El Colaborador elige el modo y escribe su mensaje en el **Panel de Chat con la IA**, que se lo pasa al **Control de IA**, y este "
+         ["El Colaborador escribe su mensaje en el **Panel de Chat con la IA** (sin elegir modo: el control entiende si es una pregunta, un cambio, una revisión o un historial), que se lo pasa al **Control de IA**, y este "
           "consulta al servicio de IA como se muestra en COL-08.",
           "Con la respuesta, el control guarda la pregunta y la respuesta como **Mensaje de Conversación** y las muestra en el panel de "
           "toda la sala.",
-          "En modo «Revisar», el control crea hasta cinco **Idea de Revisión** y las publica en un **Evento de Actividad**; ninguna se "
+          "Si se pidió una revisión, el control crea hasta cinco **Idea de Revisión** y las publica en un **Evento de Actividad**; ninguna se "
           "aplica sola.",
           "Al final libera el turno de la **Conversación de la Sala**."],
          ["Hay una sola instancia de IA para toda la sala y su conversación es la de todos (RA-02).",

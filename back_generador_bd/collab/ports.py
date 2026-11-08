@@ -87,6 +87,25 @@ class TurnStore(ABC):
         """Nombre de quien tiene el turno, o `None`."""
 
 
+class RoomStateStore(ABC):
+    """Datos pequeños y pasajeros de una sala que todos los procesos del servidor deben ver igual (vencen solos).
+
+    Guarda la propuesta de la IA que espera permiso y el modelo de IA elegido para la sala. Los valores son JSON.
+    """
+
+    @abstractmethod
+    def get(self, key):
+        """El valor guardado en `key`, o `None` si no hay o ya venció."""
+
+    @abstractmethod
+    def set(self, key, value, ttl_seconds):
+        """Guarda `value` en `key` durante `ttl_seconds`."""
+
+    @abstractmethod
+    def delete(self, key):
+        """Borra `key` si existe."""
+
+
 class RateLimiter(ABC):
     """Tope de pedidos por clave: a lo más `limit` en cada ventana de `window_seconds` (protege el gasto de la IA)."""
 

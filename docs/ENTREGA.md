@@ -35,7 +35,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 | Colaboración de 2–3 personas, host/participantes, expulsar, reconexión y recuperación de estado | Hecho |
 | XMI con Enterprise Architect (en ambos sentidos, con pruebas de seguridad) | Hecho en el primer parcial; **por repetir** tras los cambios del segundo |
 | Generación Spring Boot + PostgreSQL, colección Postman, proyecto Flutter con SQLite sin conexión | Hecho; el Flutter sin red en un dispositivo está **por repetir** |
-| IA como integrante de la sala: identidad, actividad, chat (**una sola conversación para toda la sala** desde el segundo parcial), cambios a pedido, revisión con ideas aplicables, sesiones continuas, vista móvil | Hecho (RF-23 a RF-32) |
+| IA como integrante de la sala: identidad, actividad, chat (**una sola conversación para toda la sala** desde el segundo parcial), cambios a pedido **con permiso** (un solo chat: la IA propone y espera «Aplicar»; el historial de cada persona se responde del registro de actividad; el modelo de la sala, nube o local, se elige en el chat), revisión con ideas aplicables, sesiones continuas, vista móvil | Hecho (RF-23 a RF-32) |
 | Avisos en la vista del celular (RF-34), asistente de ayuda (RF-35) y MongoDB para la actividad y la conversación (RNF-08) | Hecho y desplegado, con MongoDB Atlas activo desde el 2026-11-04; el 2026-11-07 se vio una notificación real del sistema en un emulador de Android (Chrome, Android 16) y en Chrome contra el sitio publicado. En iPhone los avisos solo existen si la página se agrega a la pantalla de inicio (iOS 16.4 o más; en una pestaña de Safari no hay avisos y la vista lo explica): el 2026-11-08 se corrigió que la app no los mostraba (en iPhone `new Notification()` no falla pero no muestra nada; ahora el aviso sale siempre por el service worker) y en el simulador de iPhone 17 Pro, con la app agregada a Inicio desde el sitio publicado, llegó el aviso real «Ana · añadió la clase Entidad» con la app abierta, en segundo plano y con el teléfono bloqueado. Límites: no hay servidor de avisos push, así que funcionan mientras la página siga viva, y el simulador no imita la suspensión de iOS: en un iPhone físico bloqueado mucho rato puede no recibirlos; en un teléfono físico está sin probar |
 | IA local (Ollama + Qwen 3.5 9B) y modelo de 4 mil millones de parámetros reentrenado | Hecho: 10/10 pedidos correctos (RF-33); el reentrenado, en los anexos del informe |
 | Despliegue en AWS con dominio y HTTPS | Parcial: manual y repetible; sin infraestructura como código ni CI/CD |
@@ -46,8 +46,8 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 
 | Suite | Resultado |
 |---|---|
-| Frontend (Karma) | 344 correctas, 0 fallos; `ng build` sin errores |
-| Django (`manage.py test` con `settings_test`, sin Docker) | 392 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
+| Frontend (Karma) | 365 correctas, 0 fallos; `ng build` sin errores |
+| Django (`manage.py test` con `settings_test`, sin Docker) | 471 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
 | Spring (incluye compilar de verdad el proyecto generado) | 12 correctas, 0 fallos |
 | Proyecto Flutter generado (`flutter test` y `flutter analyze` en un proyecto de ejemplo) | 111 correctas, 0 fallos; el analizador no da errores ni advertencias (2026-11-07) |
 | Asistente móvil con el modelo real (Qwen2.5-1.5B, en un Mac) | 15 frases por las reglas y por el modelo: consultar, crear, cambiar por id y borrar por número dan el comando correcto; la charla usa los datos reales y reconoce sus límites. Tabla en `docs/FLUTTER_ASSISTANT_SETUP.md` (2026-11-07) |
