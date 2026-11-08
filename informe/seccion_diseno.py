@@ -126,7 +126,7 @@ def _cambios():
 
 HALLAZGOS = [
     ("«Generar modelo» y la voz llegaban a la IA por una ruta antigua", "`Diagram.generateFromPrompt` → `ChatbotService.generateDiagram` → `GenerateUMLView`: sin topes, sin contexto "
-     "de la sala, sin registro de actividad y sin conversación; CU7 dice que todo pedido pasa por el control de la IA", "C1: pasa por `IaActionsService.request` (modo «Pedir cambio»); la voz solo transcribe"),
+     "de la sala, sin registro de actividad y sin conversación; CU7 dice que todo pedido pasa por el control de la IA", "C1: pasa por `IaActionsService.request`; la voz solo transcribe"),
     ("El chat con la IA era privado", "`chat_history` y `_answer` filtran por participante; el docente pidió una sola instancia y una conversación de la sala", "C1"),
     ("Dos pedidos a la IA podían correr a la vez en una sala", "`CollaborationService.activeIaRequests` solo muestra el estado; el servidor no serializa", "C1: `TurnStore`"),
     ("La conversación y la actividad viven en tablas relacionales", "`ChatMessage` y `ActivityEvent` son documentos que solo se agregan, con `data` variable", "C3: puertos y adaptadores con MongoDB"),

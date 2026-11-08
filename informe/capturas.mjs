@@ -106,9 +106,9 @@ await ana.waitForSelector('[data-testid="ia-chat-message"] ~ [data-testid="ia-ch
 await esperar(4000);
 await foto(ana, '06-chat-ia-respuesta.png');
 
-// 5. Revisión con ideas aplicables
-await ana.click('[data-testid="ia-mode-review"]');
-await esperar(800);
+// 5. Revisión con ideas aplicables (un solo chat: la revisión se pide escribiendo)
+await ana.waitForFunction(() => !document.querySelector('[data-testid="ia-chat-send"]').disabled || document.querySelector('[data-testid="ia-chat-input"]'), { timeout: 60000, polling: 500 });
+await ana.type('[data-testid="ia-chat-input"]', 'Revisa el diagrama');
 await ana.waitForFunction(() => !document.querySelector('[data-testid="ia-chat-send"]').disabled, { timeout: 60000, polling: 500 });
 await ana.evaluate(() => document.querySelector('[data-testid="ia-chat-send"]').click());
 // La actividad está en un menú cerrado (oculto): se busca en el texto del documento y después se abre para la captura.
