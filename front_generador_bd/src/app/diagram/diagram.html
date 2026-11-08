@@ -1,11 +1,24 @@
 <div class="app-layout">
-  <app-side-panel #sidePanel></app-side-panel>
+  <app-side-panel #sidePanel [class.hidden]="!sidebarOpen()"></app-side-panel>
 
   <div class="canvas-wrapper" cdkDropListGroup>
-    <div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 shadow-sm">
+    <header class="relative z-30 flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2" data-testid="topbar">
+
+      <!-- Mostrar u ocultar el panel de herramientas -->
+      <button
+        type="button"
+        class="btn btn-ghost !px-2"
+        [attr.aria-label]="sidebarOpen() ? 'Ocultar el panel de herramientas' : 'Mostrar el panel de herramientas'"
+        [attr.aria-expanded]="sidebarOpen()"
+        [title]="sidebarOpen() ? 'Ocultar el panel de herramientas' : 'Mostrar el panel de herramientas'"
+        data-testid="toggle-sidebar"
+        (click)="toggleSidebar()"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M9 4v16" /></svg>
+      </button>
 
       <!-- Zoom -->
-      <div class="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" role="group" aria-label="Zoom">
+      <div class="inline-flex overflow-hidden rounded-lg border border-line bg-raised" role="group" aria-label="Zoom">
         <button
           (click)="zoomOut()"
           class="icon-btn"
@@ -34,26 +47,24 @@
         </button>
       </div>
 
-      <div class="h-6 w-px bg-slate-200" aria-hidden="true"></div>
+      <div class="h-6 w-px bg-line" aria-hidden="true"></div>
 
       <!-- XMI -->
       <button
         (click)="xmiInput.click()"
-        class="btn btn-secondary btn-sm"
+        class="btn btn-ghost btn-sm"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-purple-600" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
         Importar XMI
       </button>
 
       <button
         (click)="exportXmi()"
-        class="btn btn-secondary btn-sm"
+        class="btn btn-ghost btn-sm"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-purple-600" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
         Exportar XMI
       </button>
-
-      <app-help-panel></app-help-panel>
 
       <input
         #xmiInput
@@ -63,15 +74,101 @@
         (change)="importXmi($event)"
       />
 
-      <div class="ml-auto flex max-w-full flex-wrap items-start justify-end gap-3">
-        <app-activity-panel></app-activity-panel>
-        <app-participants-panel></app-participants-panel>
+      <div class="ml-auto flex flex-wrap items-center gap-1.5">
+        <!-- Actividad: se abre como un menú, no ocupa lugar fijo en pantalla -->
+        <div class="relative" data-menu-root>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            [class.!bg-hover]="menu() === 'activity'"
+            aria-haspopup="true"
+            [attr.aria-expanded]="menu() === 'activity'"
+            data-testid="activity-toggle"
+            (click)="toggleMenu('activity')"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0" /></svg>
+            Actividad
+            @if (unreadActivity() > 0) {
+              <span class="min-w-[18px] rounded-full bg-accent px-1.5 text-center text-[10px] font-semibold leading-[18px] text-white" data-testid="activity-unread">
+                {{ unreadActivity() > 9 ? '9+' : unreadActivity() }}
+              </span>
+            }
+          </button>
+          <div
+            class="popover right-0 top-full mt-2 w-[26rem] max-w-[calc(100vw-1.5rem)]"
+            [class.hidden]="menu() !== 'activity'"
+            data-testid="activity-menu"
+          >
+            <app-activity-panel [embedded]="true"></app-activity-panel>
+          </div>
+        </div>
+
+        <!-- Participantes: las personas se ven como círculos; la lista se abre al tocarlos -->
+        <div class="relative" data-menu-root>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm !px-2"
+            [class.!bg-hover]="menu() === 'participants'"
+            aria-haspopup="true"
+            [attr.aria-expanded]="menu() === 'participants'"
+            [attr.aria-label]="'Participantes: ' + participantList().length"
+            data-testid="participants-toggle"
+            (click)="toggleMenu('participants')"
+          >
+            <span class="flex items-center -space-x-2" aria-hidden="true">
+              @for (person of visiblePeople(); track person.peer; let index = $index) {
+                <span class="avatar !h-6 !w-6 !text-[10px]" [style.background-color]="avatarColor(personName(person, index))">{{ avatarInitial(personName(person, index)) }}</span>
+              }
+              @if (hiddenPeople() > 0) {
+                <span class="avatar !h-6 !w-6 !bg-hover !text-[10px] !text-fg-muted">+{{ hiddenPeople() }}</span>
+              }
+            </span>
+            <span class="text-xs text-fg-muted" data-testid="participants-count">{{ participantList().length }}</span>
+          </button>
+          <div
+            class="popover right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-1.5rem)]"
+            [class.hidden]="menu() !== 'participants'"
+            data-testid="participants-menu"
+          >
+            <app-participants-panel></app-participants-panel>
+          </div>
+        </div>
+
+        <app-help-panel></app-help-panel>
+
+        <!-- Tema oscuro / claro -->
+        <button
+          type="button"
+          class="btn btn-ghost !px-2"
+          [attr.aria-label]="theme.theme() === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'"
+          [title]="theme.theme() === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'"
+          data-testid="theme-toggle"
+          (click)="theme.toggle()"
+        >
+          @if (theme.theme() === 'dark') {
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z" /></svg>
+          }
+        </button>
+
+        <!-- Compartir (como en draw.io) -->
+        <button
+          type="button"
+          class="btn btn-primary"
+          data-testid="share-open"
+          (click)="openShare()"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20v-1a6.5 6.5 0 0 1 13 0v1" /><path d="M19 8v6M16 11h6" /></svg>
+          Compartir
+        </button>
       </div>
-    </div>
+    </header>
 
     <div
       #paperContainer
       class="diagram-container"
+      [class.is-empty]="isEmpty()"
       cdkDropList
     >
       <!-- Canvas JointJS -->
@@ -80,3 +177,7 @@
 
   <app-ia-chat-panel></app-ia-chat-panel>
 </div>
+
+@if (shareOpen()) {
+  <app-share-dialog [roomId]="roomCode" (closed)="shareOpen.set(false)"></app-share-dialog>
+}

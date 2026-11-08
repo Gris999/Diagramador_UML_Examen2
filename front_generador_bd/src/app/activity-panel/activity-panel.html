@@ -1,43 +1,51 @@
 <section
-  class="card max-w-full shrink-0 px-3 py-2"
-  [class.w-72]="!fluid()"
-  [class.h-28]="!fluid()"
-  [class.flex]="!fluid()"
-  [class.flex-col]="!fluid()"
-  [class.w-full]="fluid()"
+  [class]="embedded() ? 'flex max-h-[min(70vh,30rem)] w-full flex-col' : 'card w-full px-3 py-2'"
   aria-label="Actividad de la sala"
   data-testid="activity-panel"
 >
-  <h3 class="panel-title mb-1">Actividad</h3>
+  <header [class]="embedded() ? 'flex items-center justify-between border-b border-line px-4 py-3' : 'mb-1'">
+    <h3 [class]="embedded() ? 'text-sm font-semibold text-fg' : 'panel-title'">Actividad</h3>
+    @if (embedded() && events().length > 0) {
+      <span class="text-[11px] text-fg-faint" data-testid="activity-count">
+        {{ events().length }} {{ events().length === 1 ? 'evento' : 'eventos' }}
+      </span>
+    }
+  </header>
 
   @if (events().length === 0) {
-    <p class="text-xs text-gray-500">Todavía no hay actividad.</p>
+    <p [class]="embedded() ? 'px-4 py-8 text-center text-xs text-fg-muted' : 'text-xs text-fg-muted'">Todavía no hay actividad.</p>
   } @else {
-    <ul class="max-h-48 min-h-0 space-y-1 overflow-y-auto pr-1" [class.flex-1]="!fluid()" data-testid="activity-list">
+    <ul
+      [class]="embedded() ? 'min-h-0 flex-1 divide-y divide-line overflow-y-auto' : 'max-h-48 min-h-0 space-y-1 overflow-y-auto pr-1'"
+      data-testid="activity-list"
+    >
       @for (event of events(); track event.id) {
-        <li class="border-b border-gray-100 pb-1 text-xs last:border-b-0" data-testid="activity-entry">
+        <li
+          [class]="embedded() ? 'px-4 py-2.5 text-xs' : 'border-b border-line pb-1 text-xs last:border-b-0'"
+          data-testid="activity-entry"
+        >
           <div class="flex items-baseline justify-between gap-2">
             <strong
               class="min-w-0 truncate"
-              [class.text-purple-700]="event.actor_kind === 'ia'"
-              [class.text-gray-800]="event.actor_kind !== 'ia'"
+              [class.text-accent-text]="event.actor_kind === 'ia'"
+              [class.text-fg]="event.actor_kind !== 'ia'"
             >
               @if (event.actor_kind === 'ia') {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="mr-0.5 inline h-3 w-3 align-[-1px]" aria-hidden="true"><path d="M12 2.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 18.9l-1.9-5.1a2 2 0 0 0-1.2-1.2L3.8 10.7l5.1-1.9a2 2 0 0 0 1.2-1.2L12 2.5zM19 15l.8 2.2a1 1 0 0 0 .6.6L22.6 19l-2.2.8a1 1 0 0 0-.6.6L19 22.6l-.8-2.2a1 1 0 0 0-.6-.6L15.4 19l2.2-.8a1 1 0 0 0 .6-.6L19 15z"/></svg>
               }
               {{ event.actor_name || 'Usuario' }}
             </strong>
-            <time class="shrink-0 text-[10px] text-gray-400" [attr.datetime]="event.created_at">
+            <time class="shrink-0 text-[10px] text-fg-faint" [attr.datetime]="event.created_at">
               {{ relativeTime(event.created_at) }}
             </time>
           </div>
-          <p class="text-gray-600">{{ event.summary }}</p>
+          <p class="mt-0.5 text-fg-muted">{{ event.summary }}</p>
           @for (finding of findingsOf(event); track $index) {
             <div
-              class="mt-0.5 flex items-start justify-between gap-2 rounded-lg bg-purple-50 px-2 py-1"
+              class="mt-1.5 flex items-start justify-between gap-2 rounded-lg bg-accent-soft px-2 py-1.5"
               data-testid="ia-suggestion"
             >
-              <span class="min-w-0 break-words text-gray-700">{{ finding.text }}</span>
+              <span class="min-w-0 break-words text-fg">{{ finding.text }}</span>
               @if (finding.prompt && !readOnly()) {
                 <button
                   type="button"
@@ -62,6 +70,6 @@
   }
 
   @if (suggestionError()) {
-    <p class="mt-1 text-xs text-red-600" role="alert" data-testid="suggestion-error">{{ suggestionError() }}</p>
+    <p [class]="embedded() ? 'px-4 pb-3 text-xs text-danger' : 'mt-1 text-xs text-danger'" role="alert" data-testid="suggestion-error">{{ suggestionError() }}</p>
   }
 </section>

@@ -1,30 +1,27 @@
-<section
-  class="card ml-auto flex h-28 w-64 max-w-full shrink-0 flex-col px-3 py-2"
-  aria-label="Participantes conectados"
-  data-testid="participants-panel"
->
-  <div class="mb-1 flex items-center">
-    <h3 class="panel-title">
+<section class="w-full" aria-label="Participantes conectados" data-testid="participants-panel">
+  <header class="flex items-center justify-between border-b border-line px-4 py-3">
+    <h3 class="text-sm font-semibold text-fg">
       Participantes ({{ participants().length }})
     </h3>
-  </div>
+  </header>
 
   @if (participants().length === 0) {
-    <p class="text-xs text-gray-500">Conectando...</p>
+    <p class="px-4 py-6 text-center text-xs text-fg-muted">Conectando...</p>
   } @else {
     <ul
-      class="max-h-48 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1"
+      class="max-h-64 min-h-0 divide-y divide-line overflow-y-auto"
       data-testid="participants-list"
     >
       @for (participant of participants(); track participant.peer; let index = $index) {
         <li
-          class="flex items-center gap-1.5 py-0.5 text-xs"
+          class="flex items-center gap-2.5 px-4 py-2 text-xs"
           data-testid="participant-entry"
         >
-          <span class="min-w-0 flex-1 truncate text-gray-700">
-            {{ participant.name || 'Usuario ' + (index + 1) }}
+          <span class="avatar !border-transparent" [style.background-color]="avatarColor(label(participant, index))" aria-hidden="true">{{ avatarInitial(label(participant, index)) }}</span>
+          <span class="min-w-0 flex-1 truncate text-fg">
+            {{ label(participant, index) }}
             @if (isCurrent(participant.peer)) {
-              <strong class="text-purple-700">(Tú)</strong>
+              <strong class="text-accent-text">(Tú)</strong>
             }
           </span>
           <span
@@ -49,10 +46,11 @@
   }
 
   <div
-    class="mt-1 flex items-center gap-1.5 border-t border-gray-100 pt-1 text-xs"
+    class="flex items-center gap-2.5 border-t border-line px-4 py-2.5 text-xs"
     data-testid="ia-participant"
   >
-    <span class="flex min-w-0 flex-1 items-center gap-1 truncate text-purple-700"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3 shrink-0" aria-hidden="true"><path d="M12 2.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 18.9l-1.9-5.1a2 2 0 0 0-1.2-1.2L3.8 10.7l5.1-1.9a2 2 0 0 0 1.2-1.2L12 2.5zM19 15l.8 2.2a1 1 0 0 0 .6.6L22.6 19l-2.2.8a1 1 0 0 0-.6.6L19 22.6l-.8-2.2a1 1 0 0 0-.6-.6L15.4 19l2.2-.8a1 1 0 0 0 .6-.6L19 15z"/></svg>IA</span>
+    <span class="avatar !border-transparent !bg-accent" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path d="M12 2.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 18.9l-1.9-5.1a2 2 0 0 0-1.2-1.2L3.8 10.7l5.1-1.9a2 2 0 0 0 1.2-1.2L12 2.5zM19 15l.8 2.2a1 1 0 0 0 .6.6L22.6 19l-2.2.8a1 1 0 0 0-.6.6L19 22.6l-.8-2.2a1 1 0 0 0-.6-.6L15.4 19l2.2-.8a1 1 0 0 0 .6-.6L19 15z"/></svg></span>
+    <span class="min-w-0 flex-1 truncate text-accent-text">IA</span>
     <span
       class="badge badge-brand"
       data-testid="ia-participant-status"

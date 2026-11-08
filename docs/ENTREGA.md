@@ -46,7 +46,7 @@ Todos los requisitos de `REQUIREMENTS.md` figuran como **hechos** salvo los que 
 
 | Suite | Resultado |
 |---|---|
-| Frontend (Karma) | 320 correctas, 0 fallos; `ng build` sin errores |
+| Frontend (Karma) | 344 correctas, 0 fallos; `ng build` sin errores |
 | Django (`manage.py test` con `settings_test`, sin Docker) | 392 pruebas, todas pasan; 19 de ellas se omiten sin un MongoDB real (`MONGO_TEST_URL`) y pasaron con él el 2026-10-26 |
 | Spring (incluye compilar de verdad el proyecto generado) | 12 correctas, 0 fallos |
 | Proyecto Flutter generado (`flutter test` y `flutter analyze` en un proyecto de ejemplo) | 111 correctas, 0 fallos; el analizador no da errores ni advertencias (2026-11-07) |

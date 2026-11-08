@@ -306,7 +306,7 @@ CASOS = {
         motivo="Lo pidió el ingeniero para quien está viajando: informarse de lo que pasa sin tener que editar.",
         proposito="Ver en vivo cómo cambia el diagrama y qué hace el equipo desde el celular, en solo lectura, y recibir avisos de lo importante.",
         precondicion="El actor tiene el enlace de seguimiento de la sala.",
-        flujo=["En el editor, el actor pulsa «Copiar enlace para seguir desde el celular» y lo abre en el teléfono.",
+        flujo=["En el editor, el actor pulsa «Compartir», luego «Copiar enlace para seguir desde el celular», y lo abre en el teléfono.",
                "El sistema lo conecta en modo de solo lectura: no cuenta como participante ni como host.",
                "El sistema le entrega el estado del diagrama y la actividad reciente.",
                "El actor ve el diagrama actualizándose y, debajo, la actividad.",

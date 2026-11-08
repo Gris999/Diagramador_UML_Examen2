@@ -41,7 +41,6 @@ export class SidePanel {
   validationResult = signal<any>(null);
   analyzingModel = signal<boolean>(false);
   roomId: string | null = null;
-  copied = signal<boolean>(false);
   recognizing = signal<boolean>(false);
   imageImportDialogOpen = signal<boolean>(false);
   appNameDialogOpen = signal<boolean>(false);
@@ -121,50 +120,6 @@ export class SidePanel {
     this.diagramService.closeDiagram(this.roomId!); // Cierra conexiones y limpia estado
     this.router.navigate(['/']); // redirige al inicio
   }
-  copyRoomCode() {
-    const roomId = this.route.snapshot.paramMap.get('roomId');
-    if (!roomId) return;
-    this.copyText(roomId);
-  }
-
-  /** Enlace de la vista de seguimiento (celular, solo lectura) de esta sala. */
-  copyFollowLink() {
-    const roomId = this.route.snapshot.paramMap.get('roomId');
-    if (!roomId) return;
-    this.copyText(`${window.location.origin}/sala/${encodeURIComponent(roomId)}/seguir`);
-  }
-
-  private copyText(text: string) {
-    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-
-    if (isSecure && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        this.copied.set(true);
-        setTimeout(() => this.copied.set(false), 2000);
-      }).catch(() => this.fallbackCopy(text));
-    } else {
-      this.fallbackCopy(text);
-    }
-  }
-
-  private fallbackCopy(text: string) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    try {
-      document.execCommand('copy');
-      this.copied.set(true);
-      setTimeout(() => this.copied.set(false), 2000);
-    } catch (err) {
-      console.error('Fallback copy failed', err);
-    }
-    document.body.removeChild(textarea);
-  }
-
   async toggleVoiceInput() {
     if (!this.isBrowser) {
       return;

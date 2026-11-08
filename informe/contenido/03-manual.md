@@ -9,7 +9,7 @@ Este manual enseña a usar la herramienta completa, la del primer parcial y lo n
 
 1. Pulsa **Crear Nuevo Lienzo** para empezar una sala nueva: cada una tiene un código propio.
 2. La primera vez, el navegador te pregunta «¿Cómo deseas que te vean en la sala?». Escribe tu nombre: los demás lo verán en la lista de participantes y en la actividad, y se guarda en tu navegador. No hay cuentas ni contraseñas.
-3. Para invitar a alguien, dentro de la sala pulsa **Copiar código de sala** y envíale el código. Esa persona lo escribe en **Ingresa el código del lienzo** y pulsa **Unirse al Lienzo**.
+3. Para invitar a alguien, dentro de la sala pulsa **Compartir** (el botón azul de arriba a la derecha). Copia el **enlace de invitación** y envíaselo: esa persona lo abre, escribe su nombre y entra a editar. También puedes pulsar **Copiar código de sala**: la otra persona lo escribe en **Ingresa el código del lienzo** y pulsa **Unirse al Lienzo**.
 
 ![Código no válido](capturas/11-codigo-invalido.png)
 *Figura 3.2. Si lo que se escribe no es un código de sala, la herramienta no entra y explica por qué.*
@@ -19,13 +19,14 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 ## 3.2 Dibujar el diagrama
 
 ![El editor](capturas/03-editor.png)
-*Figura 3.3. El editor: la paleta a la izquierda, el lienzo al centro, y arriba la actividad y los participantes.*
+*Figura 3.3. El editor: la paleta a la izquierda, el lienzo al centro, y arriba las herramientas y los botones Actividad, Participantes y Compartir.*
 
 - **Agregar una clase.** En **Paleta de elementos** arrastra **Clase UML** al lienzo.
 - **Cambiar un nombre, un atributo o un método.** Haz doble clic sobre el texto, selecciona todo (Cmd+A o Ctrl+A), escribe el nuevo y pulsa Enter.
 - **Unir dos clases.** Haz clic en una clase (aparecen círculos en sus bordes) y arrastra desde un círculo hasta la otra clase. Si sueltas sobre el lienzo vacío no queda ninguna relación. La paleta tiene **Asociación**, **Herencia**, **Agregación**, **Composición**, **Dependencia** y **Clase Asociativa**.
 - **Multiplicidad.** Haz doble clic sobre ella y escribe el valor, por ejemplo `*` o `0..1`. Cuando una asociación queda con «muchos» en los dos extremos, el editor la deja directa entre sus dos clases, con sus multiplicidades, y crea sola la clase asociativa (por ejemplo `Curso_Estudiante`) unida al medio de la línea con un conector punteado, sin multiplicidad. Si prefieres dibujarla tú, arrastra **Clase Asociativa** al lienzo, haz clic en tu clase y luego en la línea de la asociación. Si borras la clase asociativa que el editor generó, la asociación queda sin ella y no se vuelve a crear.
-- **Mover y ajustar.** Arrastra las clases; **Acercar**, **Alejar** y **Restablecer zoom** están arriba del lienzo.
+- **Mover y ajustar.** Arrastra las clases; **Acercar**, **Alejar** y **Restablecer zoom** están arriba del lienzo. El primer botón de la barra superior oculta o muestra el panel de herramientas para dar más lugar al lienzo.
+- **Tema oscuro o claro.** La herramienta se ve en tema oscuro; el botón con un sol o una luna de la barra superior (y de la página principal) cambia al tema claro y se recuerda en tu navegador.
 - **Validar el modelo.** **Sugerencias del modelo** abre un panel; con **Analizar modelo** la herramienta muestra las relaciones válidas y los errores con una sugerencia.
 
 ## 3.3 Crear o cambiar el diagrama con texto, voz o una imagen
@@ -43,9 +44,9 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 ![Dos personas en la sala](capturas/04-colaboracion.png)
 *Figura 3.5. Una sala con dos personas: cada acción aparece en la actividad con el nombre de quien la hizo.*
 
-- **Participantes.** Muestra quién está conectado. Tú apareces con «(Tú)» y la IA como un integrante más, «Disponible» o «Pensando».
+- **Participantes.** Las personas conectadas se ven como círculos con su inicial en la barra superior; al tocarlos se abre la lista. Tú apareces con «(Tú)» y la IA como un integrante más, «Disponible» o «Pensando».
 - **Host.** La primera persona que entra a una sala es el **Host**; las demás son **Participante**. Todos editan por igual. Solo el Host ve el botón **Expulsar** junto a cada participante: la persona expulsada ve «El host te expulsó de la sala» y vuelve al inicio, y puede volver a entrar con el código. Si el Host sale, pasa a serlo quien lleva más tiempo en la sala.
-- **Actividad.** Lista quién hizo qué («Bruno añadió la clase Autor»). Mover o cambiar el tamaño de una clase no se registra, para no saturar la lista.
+- **Actividad.** El botón **Actividad** de la barra superior abre la lista de quién hizo qué («Bruno añadió la clase Autor»); si llegó algo nuevo mientras estaba cerrada, el botón muestra un número. Mover o cambiar el tamaño de una clase no se registra, para no saturar la lista.
 - **Reconexión.** Si se corta tu conexión o cierras la pestaña, al volver recuperas el diagrama sin perder lo que ya estaba guardado.
 
 ## 3.5 La IA como integrante de la sala
@@ -82,7 +83,7 @@ Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la 
 ![Vista móvil](capturas/09-vista-movil.png)
 *Figura 3.10. Vista móvil de seguimiento, con el botón para activar los avisos.*
 
-1. En el editor pulsa **Copiar enlace para seguir desde el celular** y ábrelo en el teléfono.
+1. En el editor pulsa **Compartir**, luego **Copiar enlace para seguir desde el celular**, y ábrelo en el teléfono.
 2. Verás el diagrama actualizándose en vivo y, debajo, la actividad. Es de solo lectura: no tiene controles de edición y no cuenta como participante.
 3. Pulsa **Activar avisos** y permítelos en el navegador: cada vez que alguien cambie el diagrama o la IA publique una idea, el celular te avisa. Los avisos llegan solo mientras la página sigue abierta (no hay servidor de avisos). En un iPhone, ábrela en Safari y agrégala a la pantalla de inicio (Compartir → «Agregar a Inicio»): los avisos solo existen en esa app, no en una pestaña de Safari. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
 
@@ -101,7 +102,7 @@ El botón **Ayuda** está en la página principal y dentro de la sala (en la bar
 
 | Problema | Qué hacer |
 |---|---|
-| «El código no es válido» | Pide el código a quien creó la sala: se copia con **Copiar código de sala**. |
+| «El código no es válido» | Pide el código a quien creó la sala: se copia en **Compartir** → **Copiar código de sala**. |
 | «Demasiadas preguntas seguidas» | La IA y la ayuda tienen un tope de uso por persona, sala y servicio; espera un minuto. |
 | «La IA está atendiendo a…» | La IA atiende a una persona a la vez; espera a que termine y vuelve a enviar. |
 | «La IA no pudo responder ahora» | El diagrama no se modificó ni se guardó nada a medias; reintenta o sigue editando a mano. |

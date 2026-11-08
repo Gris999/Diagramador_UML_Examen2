@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, effect, ElementRef, HostListener, Inject, NgZone, OnDestroy, PLATFORM_ID, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, computed, effect, ElementRef, HostListener, inject, Inject, NgZone, OnDestroy, PLATFORM_ID, signal, ViewChild } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { CdkDragEnd, CdkDropListGroup, CdkDropList } from '@angular/cdk/drag-drop';
 import { SidePanel } from "../side-panel/side-panel";
@@ -16,17 +16,52 @@ import { P2PService } from '../../services/colaboration/p2p.service';
 import { ActivityPanel } from '../activity-panel/activity-panel';
 import { HelpPanel } from '../help-panel/help-panel';
 import { IaChatPanel } from '../ia-chat-panel/ia-chat-panel';
+import { ShareDialog } from '../share-dialog/share-dialog';
+import { avatarColor, avatarInitial } from '../participants-panel/avatar';
+import { ThemeService } from '../../services/theme.service';
+
+/** Cuántos círculos de personas se ven en la barra superior; el resto se resume en «+N». */
+const MAX_AVATARS = 3;
+
+type TopMenu = 'activity' | 'participants';
 
 @Component({
   selector: 'app-diagram',
   standalone: true,
   templateUrl: './diagram.html',
   styleUrls: ['./diagram.css'],
-  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel, HelpPanel]
+  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel, HelpPanel, ShareDialog]
 })
 export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;
   @ViewChild(SidePanel) sidePanel!: SidePanel;
+
+  readonly theme = inject(ThemeService);
+
+  /** Código de la sala (sale de la dirección): con él se arman los enlaces de «Compartir». */
+  readonly roomCode: string;
+
+  /** Panel de herramientas de la izquierda: se puede ocultar para dar más lugar al lienzo. */
+  readonly sidebarOpen = signal(true);
+  /** Menú de la barra superior que está abierto (solo uno a la vez). */
+  readonly menu = signal<TopMenu | null>(null);
+  readonly shareOpen = signal(false);
+  /** Sin ninguna clase todavía: el lienzo muestra una pista de cómo empezar. */
+  readonly isEmpty = signal(true);
+
+  readonly participantList = computed(() => this.p2p.participants());
+  readonly visiblePeople = computed(() => this.participantList().slice(0, MAX_AVATARS));
+  readonly hiddenPeople = computed(() => Math.max(0, this.participantList().length - MAX_AVATARS));
+  readonly avatarColor = avatarColor;
+  readonly avatarInitial = avatarInitial;
+
+  /** Último evento de actividad que la persona ya vio: lo que llega después se cuenta como novedad en el botón «Actividad». */
+  private readonly seenEventId = signal(0);
+  readonly unreadActivity = computed(() =>
+    this.menu() === 'activity'
+      ? 0
+      : this.p2p.liveActivityEvents().filter(event => event.id > this.seenEventId()).length
+  );
 
   private lastMousePos: { x: number; y: number } | null = null;
   private roomId: string | null = null;
@@ -47,6 +82,7 @@ export class Diagram implements AfterViewInit, OnDestroy {
   ) {
     // El servicio de colaboración vive toda la sesión: si esta persona fue expulsada antes y vuelve a entrar sin recargar la página, su expulsión
     // anterior no cuenta (entra como una persona nueva, CU4).
+    this.roomCode = this.route.snapshot.paramMap.get('roomId') ?? '';
     this.p2p.removed.set(false);
     // Si el host expulsa a esta persona, la conexión se cierra: se le avisa y
     // vuelve al inicio en lugar de quedarse con una sala congelada.
@@ -71,6 +107,8 @@ export class Diagram implements AfterViewInit, OnDestroy {
           const roomId = this.route.snapshot.paramMap.get('roomId') || 'default-room';
           this.roomId = roomId;
           await this.diagramService.initialize(this.paperContainer.nativeElement, roomId);
+          this.refreshEmpty();
+          this.diagramService.watchGraph(() => this.refreshEmpty());
           
           this.sidePanel.elementDragged.subscribe((event: CdkDragEnd) => {
             this.onDragEnded(event);
@@ -201,6 +239,7 @@ export class Diagram implements AfterViewInit, OnDestroy {
     }
     if (event.key === 'Escape') {
       this.diagramService.clearSelection();
+      this.setMenu(null);
     }
       // Atajos globales copiar, pegar, duplicar, cortar
       if (event.ctrlKey && event.key === 'c') {
@@ -321,6 +360,48 @@ export class Diagram implements AfterViewInit, OnDestroy {
     if (this.roomId) {
       this.diagramService.leaveRoom(this.roomId);
     }
+  }
+
+  private refreshEmpty(): void {
+    this.isEmpty.set(!this.diagramService.hasDiagramElements());
+  }
+
+  toggleSidebar(): void {
+    this.sidebarOpen.update(open => !open);
+  }
+
+  toggleMenu(which: TopMenu): void {
+    this.setMenu(this.menu() === which ? null : which);
+  }
+
+  openShare(): void {
+    this.setMenu(null);
+    this.shareOpen.set(true);
+  }
+
+  /** Nombre que se muestra de una persona: el que dio o, si no hay, su lugar en la lista. */
+  personName(person: { name?: string | null }, index: number): string {
+    return person.name || 'Usuario ' + (index + 1);
+  }
+
+  /** Tocar fuera de los menús los cierra. */
+  @HostListener('document:click', ['$event'])
+  closeMenuOnOutsideClick(event: MouseEvent): void {
+    if (this.menu() === null) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest?.('[data-menu-root]')) return;
+    this.setMenu(null);
+  }
+
+  private setMenu(next: TopMenu | null): void {
+    // Al abrir o cerrar «Actividad» todo lo que hay hasta ese momento cuenta como visto.
+    if (this.menu() === 'activity' || next === 'activity') this.markActivitySeen();
+    this.menu.set(next);
+  }
+
+  private markActivitySeen(): void {
+    const newest = this.p2p.liveActivityEvents().reduce((max, event) => Math.max(max, event.id), this.seenEventId());
+    this.seenEventId.set(newest);
   }
 
   zoomIn() {

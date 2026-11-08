@@ -12,7 +12,7 @@ import { FollowView, isIosDevice } from './follow-view';
 @Component({ selector: 'app-activity-panel', standalone: true, template: '<p data-testid="activity-stub"></p>' })
 class ActivityPanelStub {
   readOnly = input(false);
-  fluid = input(false);
+  embedded = input(false);
 }
 
 describe('FollowView', () => {

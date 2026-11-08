@@ -188,7 +188,7 @@ class HelpPromptTests(SimpleTestCase):
 class HelpKnowledgeTests(SimpleTestCase):
     # Los textos de los botones y paneles de la aplicación que una persona buscaría en el manual.
     MENU = [
-        "Crear Nuevo Lienzo", "Unirse al Lienzo", "Copiar código de sala", "Copiar enlace para seguir desde el celular", "Salir",
+        "Crear Nuevo Lienzo", "Unirse al Lienzo", "Compartir", "Copiar código de sala", "Copiar enlace para seguir desde el celular", "Salir",
         "Clase UML", "Asociación", "Herencia", "Agregación", "Composición", "Dependencia", "Clase Asociativa",
         "Importar Imagen", "Importar XMI", "Exportar XMI", "Exportar a Backend", "Exportar como Imagen", "Exportar como SQL", "Exportar Flutter",
         "Generar modelo", "Sugerencias del modelo", "Chat con la IA", "Preguntar", "Pedir cambio", "Revisar", "Aplicar",

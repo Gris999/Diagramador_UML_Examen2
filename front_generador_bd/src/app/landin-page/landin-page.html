@@ -1,11 +1,25 @@
-<div class="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-purple-50 via-white to-slate-50 px-4 py-10">
-  <div class="fixed right-4 top-3 z-40">
+<div class="relative flex min-h-screen flex-col items-center justify-center bg-app px-4 py-10" style="background-image: radial-gradient(70rem 32rem at 50% -8%, var(--c-accent-soft), transparent 70%)">
+  <div class="fixed right-4 top-3 z-40 flex items-center gap-1.5">
+    <button
+      type="button"
+      class="btn btn-ghost btn-sm !px-2"
+      [attr.aria-label]="theme.theme() === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'"
+      [title]="theme.theme() === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'"
+      data-testid="theme-toggle"
+      (click)="theme.toggle()"
+    >
+      @if (theme.theme() === 'dark') {
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
+      } @else {
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-[18px] w-[18px]" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z" /></svg>
+      }
+    </button>
     <app-help-panel></app-help-panel>
   </div>
 
   <!-- Marca y presentación -->
   <header class="mb-9 text-center">
-    <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-600 text-white shadow-lg shadow-purple-600/30">
+    <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-white shadow-lg shadow-accent/30">
       <!-- Dos clases UML unidas por una asociación -->
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
            stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8" aria-hidden="true">
@@ -16,28 +30,28 @@
         <path d="M6.5 10v4.5a2 2 0 0 0 2 2h5" />
       </svg>
     </div>
-    <p class="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-purple-600">Diagramador UML</p>
-    <h1 class="mb-2 text-4xl font-bold tracking-tight text-slate-900">Lienzo Colaborativo</h1>
-    <p class="text-slate-600">Crea o únete a un lienzo para colaborar</p>
+    <p class="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-accent-text">Diagramador UML</p>
+    <h1 class="mb-2 text-4xl font-bold tracking-tight text-fg">Lienzo Colaborativo</h1>
+    <p class="text-fg-muted">Crea o únete a un lienzo para colaborar</p>
 
-    <ul class="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600" aria-label="Qué puedes hacer">
-      <li class="badge bg-white px-3 py-1 ring-1 ring-slate-200">En equipo y en tiempo real</li>
-      <li class="badge bg-white px-3 py-1 ring-1 ring-slate-200">Una IA como parte de la sala</li>
-      <li class="badge bg-white px-3 py-1 ring-1 ring-slate-200">Genera Spring Boot y Flutter</li>
+    <ul class="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs text-fg-muted" aria-label="Qué puedes hacer">
+      <li class="badge bg-raised px-3 py-1 ring-1 ring-line">En equipo y en tiempo real</li>
+      <li class="badge bg-raised px-3 py-1 ring-1 ring-line">Una IA como parte de la sala</li>
+      <li class="badge bg-raised px-3 py-1 ring-1 ring-line">Genera Spring Boot y Flutter</li>
     </ul>
   </header>
 
   <!-- Crear Lienzo -->
   <section class="card mb-5 w-full max-w-md p-6" aria-labelledby="crear-titulo">
     <div class="mb-5 text-center">
-      <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-purple-100 text-purple-700">
+      <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent-text">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"
              stroke-width="2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
       </div>
-      <h2 id="crear-titulo" class="text-xl font-semibold text-slate-900">Crear Lienzo</h2>
-      <p class="text-sm text-slate-500">Inicia un nuevo lienzo colaborativo</p>
+      <h2 id="crear-titulo" class="text-xl font-semibold text-fg">Crear Lienzo</h2>
+      <p class="text-sm text-fg-muted">Inicia un nuevo lienzo colaborativo</p>
     </div>
     <button (click)="crearNuevoLienzo()" class="btn btn-primary btn-block py-3 text-base">
       Crear Nuevo Lienzo
@@ -47,7 +61,7 @@
   <!-- Unirme al Lienzo -->
   <section class="card w-full max-w-md p-6" aria-labelledby="unirme-titulo">
     <div class="mb-5 text-center">
-      <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-purple-100 text-purple-700">
+      <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent-text">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 36 36" stroke="currentColor"
              stroke-width="2.4" aria-hidden="true">
           <!-- Persona 1 -->
@@ -58,8 +72,8 @@
           <path d="M19 30v-3a6 6 0 0 1 12 0v3H19z" />
         </svg>
       </div>
-      <h2 id="unirme-titulo" class="text-xl font-semibold text-slate-900">Unirme al Lienzo</h2>
-      <p class="text-sm text-slate-500">Ingresa el código para unirte a un lienzo existente</p>
+      <h2 id="unirme-titulo" class="text-xl font-semibold text-fg">Unirme al Lienzo</h2>
+      <p class="text-sm text-fg-muted">Ingresa el código para unirte a un lienzo existente</p>
     </div>
     <input
       type="text"
@@ -70,7 +84,7 @@
       class="field mb-4"
     />
     @if (joinError) {
-      <p class="mb-4 text-sm text-red-600" role="alert" data-testid="join-error">{{ joinError }}</p>
+      <p class="mb-4 text-sm text-danger" role="alert" data-testid="join-error">{{ joinError }}</p>
     }
     <button
       (click)="unirseAlLienzo()"

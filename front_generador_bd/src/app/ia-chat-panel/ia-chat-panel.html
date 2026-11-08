@@ -4,12 +4,12 @@
       class="card flex h-96 w-80 max-w-full flex-col shadow-xl"
       aria-label="Chat de la sala con la IA"
     >
-      <header class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+      <header class="flex items-center justify-between border-b border-line px-3 py-2">
         <div>
-          <h3 class="text-sm font-semibold text-gray-800">Chat con la IA</h3>
-          <p class="text-[10px] text-gray-500">Lo ven todas las personas de la sala</p>
+          <h3 class="text-sm font-semibold text-fg">Chat con la IA</h3>
+          <p class="text-[10px] text-fg-muted">Lo ven todas las personas de la sala</p>
           @if (providerLabel()) {
-            <p class="text-[10px] text-purple-700" data-testid="ia-provider">{{ providerLabel() }}</p>
+            <p class="text-[10px] text-accent-text" data-testid="ia-provider">{{ providerLabel() }}</p>
           }
         </div>
         <button
@@ -23,16 +23,16 @@
         </button>
       </header>
 
-      <div class="flex gap-1 border-b border-gray-200 px-2 py-1.5" role="radiogroup" aria-label="Qué quieres que haga la IA">
+      <div class="flex gap-1 border-b border-line px-2 py-1.5" role="radiogroup" aria-label="Qué quieres que haga la IA">
         @for (option of modes; track option.id) {
           <button
             type="button"
             role="radio"
             class="rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors"
-            [class.bg-purple-600]="mode() === option.id"
+            [class.bg-accent]="mode() === option.id"
             [class.text-white]="mode() === option.id"
-            [class.bg-gray-100]="mode() !== option.id"
-            [class.text-gray-700]="mode() !== option.id"
+            [class.bg-hover]="mode() !== option.id"
+            [class.text-fg-muted]="mode() !== option.id"
             [attr.aria-checked]="mode() === option.id"
             [attr.data-testid]="'ia-mode-' + option.id"
             [title]="option.hint"
@@ -42,11 +42,11 @@
           </button>
         }
       </div>
-      <p class="px-3 pt-1 text-[10px] text-gray-500" data-testid="ia-mode-hint">{{ modeHint() }}</p>
+      <p class="px-3 pt-1 text-[10px] text-fg-muted" data-testid="ia-mode-hint">{{ modeHint() }}</p>
 
       <div #messageList class="flex-1 space-y-2 overflow-y-auto px-3 py-2" data-testid="ia-chat-messages">
         @if (messages().length === 0 && !sending()) {
-          <p class="text-xs text-gray-500">
+          <p class="text-xs text-fg-muted">
             Pregúntale algo a la IA, por ejemplo: «¿Qué hizo Beto?» o «Explícame este diagrama».
           </p>
         }
@@ -57,28 +57,28 @@
             [class.justify-end]="message.role === 'user' && message.author_name === myName()"
             data-testid="ia-chat-message"
           >
-            <span class="px-1 text-[10px] text-gray-500" data-testid="ia-chat-author">{{ message.author_name || (message.role === 'ia' ? 'IA' : 'Alguien') }}</span>
+            <span class="px-1 text-[10px] text-fg-muted" data-testid="ia-chat-author">{{ message.author_name || (message.role === 'ia' ? 'IA' : 'Alguien') }}</span>
             <p
               class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-xs"
-              [class.bg-purple-600]="message.role === 'user' && message.author_name === myName()"
+              [class.bg-accent]="message.role === 'user' && message.author_name === myName()"
               [class.text-white]="message.role === 'user' && message.author_name === myName()"
-              [class.bg-blue-100]="message.role === 'user' && message.author_name !== myName()"
-              [class.text-blue-900]="message.role === 'user' && message.author_name !== myName()"
-              [class.bg-gray-100]="message.role === 'ia'"
-              [class.text-gray-800]="message.role === 'ia'"
+              [class.bg-accent-soft]="message.role === 'user' && message.author_name !== myName()"
+              [class.text-fg]="message.role === 'user' && message.author_name !== myName()"
+              [class.bg-hover]="message.role === 'ia'"
+              [class.text-fg]="message.role === 'ia'"
             >{{ message.content }}</p>
           </div>
         }
         @if (sending()) {
-          <p class="text-xs italic text-gray-500" data-testid="ia-chat-thinking">La IA está pensando…</p>
+          <p class="text-xs italic text-fg-muted" data-testid="ia-chat-thinking">La IA está pensando…</p>
         }
       </div>
 
       @if (error()) {
-        <p class="px-3 pb-1 text-xs text-red-600" role="alert" data-testid="ia-chat-error">{{ error() }}</p>
+        <p class="px-3 pb-1 text-xs text-danger" role="alert" data-testid="ia-chat-error">{{ error() }}</p>
       }
 
-      <form class="flex gap-2 border-t border-gray-200 p-2" (submit)="$event.preventDefault(); send()">
+      <form class="flex gap-2 border-t border-line p-2" (submit)="$event.preventDefault(); send()">
         <textarea
           class="field h-14 min-w-0 flex-1 resize-none px-2 py-1 text-xs"
           [placeholder]="mode() === 'change' ? 'Describe el cambio que quieres…' : mode() === 'review' ? 'Opcional: qué quieres que revise…' : 'Escribe tu pregunta…'"
@@ -103,7 +103,7 @@
 
   <button
     type="button"
-    class="btn btn-primary rounded-full px-4 py-2.5 shadow-lg shadow-purple-600/30"
+    class="btn btn-primary rounded-full px-4 py-2.5 shadow-lg shadow-accent/30"
     [attr.aria-expanded]="open()"
     data-testid="ia-chat-toggle"
     (click)="toggle()"

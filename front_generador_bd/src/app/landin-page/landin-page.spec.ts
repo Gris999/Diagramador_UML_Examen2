@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { validate as isUuid } from 'uuid';
+import { THEME_STORAGE_KEY, ThemeService } from '../../services/theme.service';
 
 import { LandinPage } from './landin-page';
 
@@ -103,5 +104,20 @@ describe('LandinPage', () => {
     )!;
 
     expect(join.disabled).toBeTrue();
+  });
+
+  it('lets the person switch between the dark and the light theme from the start page', () => {
+    const theme = TestBed.inject(ThemeService);
+    const before = theme.theme();
+    try {
+      (element('[data-testid="theme-toggle"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(theme.theme()).not.toBe(before);
+      expect(document.documentElement.getAttribute('data-theme')).toBe(theme.theme());
+    } finally {
+      localStorage.removeItem(THEME_STORAGE_KEY);
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
   });
 });
