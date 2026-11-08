@@ -7,7 +7,7 @@ import { NotificationPermissionState, NotificationService } from '../../services
 import { P2PService } from '../../services/colaboration/p2p.service';
 import { DiagramService } from '../../services/diagram/diagram.service';
 import { ActivityPanel } from '../activity-panel/activity-panel';
-import { FollowView } from './follow-view';
+import { FollowView, isIosDevice } from './follow-view';
 
 @Component({ selector: 'app-activity-panel', standalone: true, template: '<p data-testid="activity-stub"></p>' })
 class ActivityPanelStub {
@@ -240,6 +240,45 @@ describe('FollowView', () => {
       expect(element('follow-notifications')).toBeNull();
       expect(element('follow-notifications-on')).toBeNull();
       expect(element('follow-notifications-blocked')).toBeNull();
+      expect(element('follow-ios-hint')).toBeNull();
+    });
+
+    it('tells an iPhone user in Safari to add the page to the home screen, since notifications only exist there', async () => {
+      spyOnProperty(navigator, 'userAgent', 'get').and.returnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+      );
+      permission.set('unsupported');
+      configure();
+
+      await start();
+
+      expect(element('follow-ios-hint')!.textContent).toContain('Agregar a Inicio');
+      expect(element('follow-notifications')).toBeNull();
+    });
+
+    it('does not show the iPhone hint once the notifications are available in the home screen app', async () => {
+      spyOnProperty(navigator, 'userAgent', 'get').and.returnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)');
+      permission.set('default');
+      configure();
+
+      await start();
+
+      expect(element('follow-ios-hint')).toBeNull();
+      expect(element('follow-notifications')).not.toBeNull();
+    });
+
+    describe('isIosDevice', () => {
+      it('recognizes iPhone and iPad, including an iPad that presents itself as a Mac', () => {
+        expect(isIosDevice('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5)).toBeTrue();
+        expect(isIosDevice('Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)', 5)).toBeTrue();
+        expect(isIosDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5)).toBeTrue();
+      });
+
+      it('does not take Android, Windows or a real Mac for an iPhone', () => {
+        expect(isIosDevice('Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile', 5)).toBeFalse();
+        expect(isIosDevice('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120', 0)).toBeFalse();
+        expect(isIosDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBeFalse();
+      });
     });
 
     it('notifies a new change from another person once the permission is granted', async () => {

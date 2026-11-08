@@ -18,6 +18,12 @@
     </span>
   </header>
 
+  @if (iosNeedsHomeScreen()) {
+    <p class="bg-purple-800 px-3 py-1.5 text-[11px] text-purple-100" data-testid="follow-ios-hint">
+      Para recibir avisos en iPhone: toca Compartir, elige «Agregar a Inicio» y abre la app desde tu pantalla de inicio.
+    </p>
+  }
+
   @if (notificationPermission() !== 'unsupported') {
     <div class="flex items-center justify-between gap-2 bg-purple-800 px-3 py-1.5 text-[11px] text-purple-100">
       @if (notificationPermission() === 'granted') {
