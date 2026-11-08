@@ -111,7 +111,7 @@ describe('ParticipantsPanel', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Participantes (12)');
     expect(entries.length).toBe(12);
-    expect(list.classList).toContain('max-h-48');
+    expect(list.classList).toContain('max-h-64');
     expect(list.classList).toContain('overflow-y-auto');
   });
 

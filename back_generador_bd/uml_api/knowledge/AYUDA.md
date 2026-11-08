@@ -7,12 +7,13 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 - En la página principal, «Crear Nuevo Lienzo» crea una sala nueva y te lleva a ella. Cada sala tiene un código.
 - Para entrar a una sala que ya existe, escribe su código en «Ingresa el código del lienzo» y pulsa «Unirse al Lienzo».
 - La primera vez, el navegador te pregunta «¿Cómo deseas que te vean en la sala?». Ese nombre es el que verán los demás y el que aparece en la actividad. Se guarda en tu navegador.
-- Para invitar a alguien, dentro de la sala pulsa «Copiar código de sala» y mándale el código.
-- Para salir pulsa «Salir» (arriba del panel izquierdo). Si vuelves a entrar con el mismo código, el diagrama y la actividad siguen ahí.
+- Para invitar a alguien, dentro de la sala pulsa «Compartir» (el botón azul de arriba a la derecha). Ahí copias el enlace de invitación: quien lo abre entra a la sala y solo escribe su nombre. También puedes pulsar «Copiar código de sala» y mandar el código: la otra persona lo escribe en «Ingresa el código del lienzo» de la página principal.
+- Para salir pulsa «Salir» (arriba del panel de herramientas, a la izquierda). Si vuelves a entrar con el mismo código, el diagrama y la actividad siguen ahí.
+- La herramienta se ve en tema oscuro por defecto. El botón con un sol o una luna de la barra superior cambia entre el tema oscuro y el claro (se recuerda en tu navegador). El botón de la izquierda de la barra superior oculta o muestra el panel de herramientas para dar más lugar al lienzo.
 
 ## 2. Participantes y roles
 
-- El panel «Participantes» muestra quién está conectado. Tú apareces con «(Tú)». La IA aparece como «IA» (con un ícono de destellos) y dice si está disponible o pensando.
+- Los círculos con la inicial de cada persona, arriba a la derecha, abren la lista «Participantes»: quién está conectado. Tú apareces con «(Tú)». La IA aparece como «IA» (con un ícono de destellos) y dice si está disponible o pensando.
 - La primera persona que entra a la sala es el «Host»; las demás son «Participante». Todos pueden editar el diagrama por igual.
 - Solo el Host ve el botón «Expulsar» junto a los demás. La persona expulsada ve un aviso y vuelve al inicio.
 - Si el Host sale, el rol pasa a la persona que lleva más tiempo conectada. Al volver a entrar, entras como participante.
@@ -42,7 +43,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 - Hay tres modos:
   - «Preguntar»: la IA solo responde, por ejemplo «¿Qué hizo Beto?» o «Explícame este diagrama». No toca el diagrama.
   - «Pedir cambio»: la IA modifica el diagrama y todos lo ven. En la actividad figura como «IA, a pedido de» quien lo pidió.
-  - «Revisar»: la IA revisa el diagrama y publica sus ideas para todos en el panel «Actividad».
+  - «Revisar»: la IA revisa el diagrama y publica sus ideas para todos en «Actividad».
 - Las ideas de una revisión tienen un botón «Aplicar». Quien lo pulsa aplica la idea a su nombre y queda marcada como aplicada para todos; nadie más puede aplicarla dos veces.
 - La IA nunca cambia el diagrama por su cuenta: solo cuando alguien se lo pide.
 - Hay un tope de preguntas por minuto. Si te pasas, espera un momento.
@@ -50,7 +51,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 ## 6. Actividad de la sala
 
-- El panel «Actividad» lista quién hizo qué: clases añadidas, elementos eliminados, relaciones, textos editados y las revisiones de la IA.
+- El botón «Actividad» de la barra superior abre la lista de quién hizo qué (si llegó algo nuevo mientras estaba cerrada, el botón muestra un número): clases añadidas, elementos eliminados, relaciones, textos editados y las revisiones de la IA.
 - Mover o cambiar el tamaño de una clase no se registra.
 
 ## 7. Validar el modelo
@@ -70,9 +71,9 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 ## 9. Seguir la sala desde el celular
 
-- Pulsa «Copiar enlace para seguir desde el celular» y abre ese enlace en el celular (tiene la forma /sala/CÓDIGO/seguir).
+- Pulsa «Compartir», luego «Copiar enlace para seguir desde el celular», y abre ese enlace en el celular (tiene la forma /sala/CÓDIGO/seguir). En un iPhone, ábrelo en Safari y agrégalo a la pantalla de inicio (Compartir → «Agregar a Inicio») para poder recibir avisos.
 - Es una vista de solo lectura: muestra el diagrama actualizándose en vivo y la actividad debajo. No tiene controles de edición y no cuenta como participante.
-- Pulsa «🔔 Activar avisos» para recibir una notificación del navegador cuando alguien cambie el diagrama o la IA publique una idea. Los avisos solo llegan mientras la página está abierta. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
+- Pulsa «🔔 Activar avisos» para recibir una notificación del navegador cuando alguien cambie el diagrama o la IA publique una idea. Los avisos solo llegan mientras la página siga abierta. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
 
 ## 10. Ayuda
 

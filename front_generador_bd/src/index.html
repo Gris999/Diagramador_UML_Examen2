@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <title>Diagramador UML</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#9333ea">
+  <meta name="theme-color" content="#131821">
   <meta name="description" content="Diagramador UML colaborativo con IA: modela en equipo y genera Spring Boot y Flutter.">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="manifest" href="manifest.webmanifest">
@@ -13,7 +13,13 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Diagramador">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <!-- Pone el tema recordado antes del primer dibujo, para que no parpadee entre oscuro y claro (ThemeService usa la misma clave). -->
+  <script>
+    try {
+      document.documentElement.setAttribute('data-theme', localStorage.getItem('diagramador-tema') === 'light' ? 'light' : 'dark');
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <app-root></app-root>

@@ -3,10 +3,83 @@
 /*
  * Sistema de diseño del diagramador.
  *
- * Una sola paleta: morado de marca (acento), grises neutros (superficies y texto) y rojo solo para acciones destructivas
- * o errores. Los botones, las tarjetas y los campos se definen una vez aquí y las plantillas solo los nombran
- * (`btn btn-primary`, `card`, `field`...), en vez de repetir decenas de clases de Tailwind en cada botón.
+ * Los colores viven como variables (`--c-*`) y cambian con el tema: oscuro por defecto y claro cuando `<html data-theme="light">`
+ * (ver ThemeService). Tailwind las expone con nombres de uso (`bg-panel`, `text-fg-muted`, `border-line`, `bg-accent`...), así que las
+ * plantillas nunca nombran un color concreto: nombran para qué sirve. Una sola marca (azul) y rojo/verde solo para peligro/éxito.
+ * Los botones, las tarjetas y los campos se definen una vez aquí y las plantillas solo los nombran (`btn btn-primary`, `card`, `field`...).
  */
+
+:root {
+  color-scheme: dark;
+  --c-app: #0d1016;            /* fondo detrás de todo */
+  --c-panel: #131821;          /* barras y paneles laterales */
+  --c-raised: #19202b;         /* tarjetas, campos y botones sobre un panel */
+  --c-hover: #232b38;
+  --c-line: #262e3b;
+  --c-line-strong: #364052;
+  --c-fg: #e7ebf1;
+  --c-fg-muted: #9aa6b6;
+  --c-fg-faint: #7f8a9b;
+  --c-accent: #2f6fe4;         /* fondo de botones: el texto blanco sobre él cumple el contraste */
+  --c-accent-hover: #1f5bd1;
+  --c-accent-soft: rgb(79 140 255 / 0.15);
+  --c-accent-text: #86b4ff;    /* acento como texto o borde sobre fondo oscuro */
+  --c-danger: #e5545f;
+  --c-danger-soft: rgb(229 84 95 / 0.14);
+  --c-ok: #3ecf8e;
+  --c-ok-soft: rgb(62 207 142 / 0.14);
+  --c-canvas: #0b0e14;         /* zona de dibujo */
+  --c-grid: #283241;
+  --c-link: #c9d3e3;           /* líneas y etiquetas de las relaciones UML sobre el lienzo */
+  --c-scrim: rgb(4 7 12 / 0.62);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --c-app: #f1f4f8;
+  --c-panel: #ffffff;
+  --c-raised: #ffffff;
+  --c-hover: #eef2f8;
+  --c-line: #e1e6ee;
+  --c-line-strong: #cbd4e1;
+  --c-fg: #17202e;
+  --c-fg-muted: #4f5c70;
+  --c-fg-faint: #6a7789;
+  --c-accent: #2f6fe4;
+  --c-accent-hover: #1f5bd1;
+  --c-accent-soft: rgb(47 111 228 / 0.1);
+  --c-accent-text: #1f5bd1;
+  --c-danger: #d63848;
+  --c-danger-soft: rgb(214 56 72 / 0.09);
+  --c-ok: #12855a;
+  --c-ok-soft: rgb(18 133 90 / 0.1);
+  --c-canvas: #f7f9fc;
+  --c-grid: #c9d1de;
+  --c-link: #333333;
+  --c-scrim: rgb(20 28 42 / 0.4);
+}
+
+@theme inline {
+  --color-app: var(--c-app);
+  --color-panel: var(--c-panel);
+  --color-raised: var(--c-raised);
+  --color-hover: var(--c-hover);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-fg-faint: var(--c-fg-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-text: var(--c-accent-text);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-ok: var(--c-ok);
+  --color-ok-soft: var(--c-ok-soft);
+  --color-canvas: var(--c-canvas);
+  --color-scrim: var(--c-scrim);
+}
 
 @layer base {
   html {
@@ -15,11 +88,16 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-800;
+    @apply bg-app text-fg;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-line-strong) transparent;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-purple-500);
+    outline: 2px solid var(--c-accent-text);
     outline-offset: 2px;
   }
 }
@@ -30,19 +108,19 @@
     @apply inline-flex cursor-pointer select-none items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply bg-purple-600 text-white shadow-sm hover:bg-purple-700;
+    @apply bg-accent text-white shadow-sm hover:bg-accent-hover;
   }
   .btn-secondary {
-    @apply border border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50;
+    @apply border border-line-strong bg-raised text-fg hover:bg-hover;
   }
   .btn-ghost {
-    @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+    @apply text-fg-muted hover:bg-hover hover:text-fg;
   }
   .btn-danger {
-    @apply bg-red-600 text-white shadow-sm hover:bg-red-700;
+    @apply bg-danger text-white shadow-sm hover:brightness-110;
   }
   .btn-danger-soft {
-    @apply border border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+    @apply border border-danger/30 bg-danger-soft text-danger hover:bg-danger/20;
   }
   .btn-sm {
     @apply gap-1.5 px-2.5 py-1.5 text-xs;
@@ -53,39 +131,89 @@
 
   /* botón cuadrado solo con ícono, para grupos (zoom) */
   .icon-btn {
-    @apply inline-flex h-8 w-9 cursor-pointer items-center justify-center text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900;
+    @apply inline-flex h-8 w-9 cursor-pointer items-center justify-center text-fg-muted transition-colors hover:bg-hover hover:text-fg;
   }
   .icon-btn + .icon-btn {
-    @apply border-l border-slate-200;
+    @apply border-l border-line;
   }
 
   /* ---- superficies ---- */
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-xl border border-line bg-raised shadow-sm;
   }
   .panel-title {
-    @apply text-xs font-semibold text-slate-800;
+    @apply text-xs font-semibold text-fg;
+  }
+  /* menú desplegable anclado a un botón de la barra superior */
+  .popover {
+    @apply absolute z-50 rounded-xl border border-line-strong bg-panel text-fg shadow-2xl shadow-black/40;
   }
 
   /* ---- formularios ---- */
   .field {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200;
+    @apply w-full rounded-lg border border-line-strong bg-app px-3 py-2 text-sm text-fg placeholder:text-fg-faint focus:border-accent-text focus:outline-none focus:ring-2 focus:ring-accent/30;
   }
 
   /* ---- panel lateral ---- */
   .section-toggle {
-    @apply flex w-full cursor-pointer items-center justify-between rounded-md px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:text-slate-900;
+    @apply flex w-full cursor-pointer items-center justify-between rounded-md px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg-faint transition-colors hover:text-fg;
   }
   .palette-tile {
-    @apply flex cursor-grab items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-purple-300 hover:bg-purple-50;
+    @apply flex cursor-grab items-center gap-3 rounded-lg border border-line bg-raised px-3 py-2 text-sm font-medium text-fg shadow-sm transition hover:border-accent-text/60 hover:bg-hover;
   }
   .palette-tile:active {
     @apply cursor-grabbing;
   }
   .badge {
-    @apply inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700;
+    @apply inline-flex items-center rounded-full bg-hover px-2 py-0.5 text-[10px] font-medium text-fg-muted;
   }
   .badge-brand {
-    @apply bg-purple-100 text-purple-800;
+    @apply bg-accent-soft text-accent-text;
   }
+  .badge-ok {
+    @apply bg-ok-soft text-ok;
+  }
+
+  /* inicial de una persona, con un color propio según su nombre (se pone en línea) */
+  .avatar {
+    @apply inline-flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full border-2 border-panel text-[11px] font-semibold text-white;
+  }
+}
+
+/*
+ * Lienzo oscuro: las clases UML se quedan claras (como tarjetas sobre el fondo), pero las líneas, las puntas y las etiquetas
+ * de las relaciones que JointJS dibuja con colores oscuros se aclaran. Es solo CSS: la imagen exportada se arma aparte con los
+ * colores originales sobre fondo claro, y el XMI no se toca.
+ */
+:root[data-theme="dark"] .joint-paper .joint-link .connection,
+:root[data-theme="dark"] .joint-paper .joint-link .marker-source,
+:root[data-theme="dark"] .joint-paper .joint-link .marker-target {
+  stroke: var(--c-link);
+}
+:root[data-theme="dark"] .joint-paper .joint-link .marker-source[fill="#333"],
+:root[data-theme="dark"] .joint-paper .joint-link .marker-target[fill="#333"],
+:root[data-theme="dark"] .joint-paper .joint-link .marker-source[fill="#333333"],
+:root[data-theme="dark"] .joint-paper .joint-link .marker-target[fill="#333333"] {
+  fill: var(--c-link);
+}
+:root[data-theme="dark"] .joint-paper .joint-link .marker-source[fill="#fff"],
+:root[data-theme="dark"] .joint-paper .joint-link .marker-target[fill="#fff"],
+:root[data-theme="dark"] .joint-paper .joint-link .marker-source[fill="#ffffff"],
+:root[data-theme="dark"] .joint-paper .joint-link .marker-target[fill="#ffffff"] {
+  fill: var(--c-canvas);
+}
+:root[data-theme="dark"] .joint-paper .joint-link .labels text {
+  fill: var(--c-link);
+}
+:root[data-theme="dark"] .joint-paper .joint-link .labels rect {
+  fill: var(--c-canvas);
+}
+.joint-paper-background {
+  background-color: var(--c-canvas) !important;
+}
+.joint-paper-grid {
+  opacity: 0.45;
+}
+:root[data-theme="light"] .joint-paper-grid {
+  opacity: 0.9;
 }

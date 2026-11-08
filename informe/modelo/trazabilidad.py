@@ -135,6 +135,8 @@ EXCLUIDAS = [
     ("services/exports/diagram-export.service.ts", "UmlRelationshipDTO", C_TIPO),
     ("services/exports/diagram-export.service.ts", "UmlExportDTO", C_TIPO),
     ("app/app.ts", "App", C_UI),
+    ("app/share-dialog/share-dialog.ts", "ShareDialog", C_UI),  # ventana «Compartir»: arma y copia los enlaces de la sala, sin lógica de negocio
+    ("services/theme.service.ts", "ThemeService", C_UI),  # tema oscuro o claro de la interfaz
     ("app/components/diagram/spinner/spinner.ts", "Spinner", C_UI),
     ("BackGeneratorUmlApplication.java", "BackGeneratorUmlApplication", C_GENERADOR),
     ("configuration/MustacheConfig.java", "MustacheConfig", C_GENERADOR),

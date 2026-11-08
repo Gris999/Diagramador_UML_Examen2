@@ -140,16 +140,23 @@ describe('ActivityPanel', () => {
       expect(applySuggestion).not.toHaveBeenCalled();
     });
 
-    it('can use the full width of a phone instead of the fixed editor width', () => {
-      http.expectOne(historyUrl).flush({ events: [] });
+    it('is a card by default and drops the card frame when it lives inside a dropdown', () => {
+      http.expectOne(historyUrl).flush({
+        events: [event(1, '2026-10-21T12:00:00Z'), event(2, '2026-10-21T12:01:00Z')]
+      });
+      fixture.detectChanges();
       const section = fixture.nativeElement.querySelector('[data-testid="activity-panel"]') as HTMLElement;
-      expect(section.classList).toContain('w-72');
+      expect(section.classList).toContain('card');
+      expect(section.classList).toContain('w-full');
+      expect(fixture.nativeElement.querySelector('[data-testid="activity-count"]')).toBeNull();
 
-      fixture.componentRef.setInput('fluid', true);
+      fixture.componentRef.setInput('embedded', true);
       fixture.detectChanges();
 
-      expect(section.classList).toContain('w-full');
-      expect(section.classList).not.toContain('w-72');
+      expect(section.classList).not.toContain('card');
+      expect(fixture.nativeElement.querySelector('[data-testid="activity-count"]').textContent).toContain('2 eventos');
+      const list = fixture.nativeElement.querySelector('[data-testid="activity-list"]') as HTMLElement;
+      expect(list.classList).toContain('overflow-y-auto');
     });
   });
 

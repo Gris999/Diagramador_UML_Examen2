@@ -1,0 +1,78 @@
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center bg-scrim px-4 backdrop-blur-[2px]"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="share-dialog-title"
+  data-testid="share-dialog"
+  (click)="close()"
+>
+  <div class="w-full max-w-lg rounded-2xl border border-line-strong bg-panel p-6 text-fg shadow-2xl shadow-black/50" (click)="$event.stopPropagation()">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 id="share-dialog-title" class="text-lg font-semibold">Compartir la sala</h2>
+        <p class="mt-1 text-sm text-fg-muted">Invita a tu equipo o sigue el diagrama desde el celular.</p>
+      </div>
+      <button type="button" class="btn btn-ghost !px-2" aria-label="Cerrar" data-testid="share-close" (click)="close()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-4 w-4" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      </button>
+    </div>
+
+    <section class="mt-6" aria-labelledby="share-invite-title">
+      <h3 id="share-invite-title" class="flex items-center gap-2 text-sm font-semibold">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20v-1a6.5 6.5 0 0 1 13 0v1" /><path d="M19 8v6M16 11h6" /></svg>
+        Invitar a editar
+      </h3>
+      <p class="mt-1 text-xs text-fg-muted">Quien abra este enlace entra a la sala, escribe su nombre y puede editar el diagrama.</p>
+      <input
+        type="text"
+        readonly
+        class="field mt-3 font-mono text-xs"
+        aria-label="Enlace de invitación"
+        data-testid="share-invite-link"
+        [value]="inviteLink()"
+        (focus)="selectAll($event)"
+      />
+      <div class="mt-2 flex flex-wrap gap-2">
+        <button type="button" class="btn btn-primary" data-testid="copy-invite-link" (click)="copy('invite')">
+          {{ copied() === 'invite' ? '¡Copiado!' : 'Copiar enlace de invitación' }}
+        </button>
+        <button type="button" class="btn btn-secondary" data-testid="copy-room-code" (click)="copy('code')">
+          {{ copied() === 'code' ? '¡Copiado!' : 'Copiar código de sala' }}
+        </button>
+      </div>
+      <p class="mt-2 text-xs text-fg-faint">
+        Con el código, la otra persona lo escribe en «Unirme al Lienzo» de la pantalla de inicio.
+      </p>
+    </section>
+
+    <hr class="my-5 border-line" />
+
+    <section aria-labelledby="share-follow-title">
+      <h3 id="share-follow-title" class="flex items-center gap-2 text-sm font-semibold">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2" /><path d="M11 18.5h2" /></svg>
+        Seguir desde el celular
+      </h3>
+      <p class="mt-1 text-xs text-fg-muted">
+        Solo lectura: el diagrama se ve en vivo y el celular avisa de cada cambio. En iPhone, ábrelo en Safari y agrégalo a Inicio para recibir los avisos.
+      </p>
+      <input
+        type="text"
+        readonly
+        class="field mt-3 font-mono text-xs"
+        aria-label="Enlace para seguir desde el celular"
+        data-testid="share-follow-link"
+        [value]="followLink()"
+        (focus)="selectAll($event)"
+      />
+      <div class="mt-2">
+        <button type="button" class="btn btn-secondary" data-testid="copy-follow-link" (click)="copy('follow')">
+          {{ copied() === 'follow' ? '¡Copiado!' : 'Copiar enlace para seguir desde el celular' }}
+        </button>
+      </div>
+    </section>
+
+    <div class="mt-6 flex justify-end">
+      <button type="button" class="btn btn-ghost" (click)="close()">Cerrar</button>
+    </div>
+  </div>
+</div>

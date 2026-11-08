@@ -1,8 +1,8 @@
-<div class="flex h-dvh flex-col bg-slate-50" data-testid="follow-view">
-  <header class="flex items-center justify-between gap-2 bg-purple-700 px-3 py-2 text-white shadow-sm">
+<div class="flex h-dvh flex-col bg-app" data-testid="follow-view">
+  <header class="flex items-center justify-between gap-2 border-b border-line bg-panel px-3 py-2 text-fg">
     <div class="min-w-0">
       <h1 class="truncate text-sm font-semibold">Siguiendo la sala</h1>
-      <p class="truncate text-[11px] text-purple-100" data-testid="follow-room">
+      <p class="truncate text-[11px] text-fg-muted" data-testid="follow-room">
         Solo lectura · {{ roomId }}
       </p>
     </div>
@@ -19,13 +19,13 @@
   </header>
 
   @if (iosNeedsHomeScreen()) {
-    <p class="bg-purple-800 px-3 py-1.5 text-[11px] text-purple-100" data-testid="follow-ios-hint">
+    <p class="border-b border-line bg-raised px-3 py-1.5 text-[11px] text-fg-muted" data-testid="follow-ios-hint">
       Para recibir avisos en iPhone: toca Compartir, elige «Agregar a Inicio» y abre la app desde tu pantalla de inicio.
     </p>
   }
 
   @if (notificationPermission() !== 'unsupported') {
-    <div class="flex items-center justify-between gap-2 bg-purple-800 px-3 py-1.5 text-[11px] text-purple-100">
+    <div class="flex items-center justify-between gap-2 border-b border-line bg-raised px-3 py-1.5 text-[11px] text-fg-muted">
       @if (notificationPermission() === 'granted') {
         <span data-testid="follow-notifications-on"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0" /></svg>Avisos activados mientras esta página esté abierta</span>
       } @else if (notificationPermission() === 'denied') {
@@ -34,7 +34,7 @@
         <span>Recibe un aviso cuando alguien cambie el diagrama</span>
         <button
           type="button"
-          class="btn btn-sm shrink-0 !bg-white !py-1 text-purple-800 hover:!bg-purple-50"
+          class="btn btn-primary btn-sm shrink-0 !py-1"
           data-testid="follow-notifications"
           (click)="enableNotifications()"
         >
@@ -46,19 +46,19 @@
 
   <div
     #scroll
-    class="relative min-h-[40vh] flex-1 overflow-auto bg-white"
+    class="relative min-h-[40vh] flex-1 overflow-auto bg-canvas"
     style="touch-action: pan-x pan-y pinch-zoom"
     data-testid="follow-canvas"
   >
     <!-- El lienzo no recibe ningún toque: solo se mira. -->
     <div #paperContainer class="pointer-events-none"></div>
     @if (failed()) {
-      <p class="absolute inset-x-0 top-4 px-4 text-center text-sm text-red-600" role="alert">
+      <p class="absolute inset-x-0 top-4 px-4 text-center text-sm text-danger" role="alert">
         No se pudo abrir la sala. Revisa el enlace e inténtalo de nuevo.
       </p>
     } @else if (!hasContent()) {
       <p
-        class="pointer-events-none absolute inset-x-0 top-4 px-4 text-center text-sm text-gray-500"
+        class="pointer-events-none absolute inset-x-0 top-4 px-4 text-center text-sm text-fg-muted"
         data-testid="follow-empty"
       >
         Esperando el diagrama de la sala…
@@ -66,7 +66,7 @@
     }
   </div>
 
-  <section class="max-h-[40vh] overflow-y-auto border-t border-slate-200 bg-slate-50 p-2">
-    <app-activity-panel [readOnly]="true" [fluid]="true"></app-activity-panel>
+  <section class="max-h-[40vh] overflow-y-auto border-t border-line bg-app p-2">
+    <app-activity-panel [readOnly]="true"></app-activity-panel>
   </section>
 </div>

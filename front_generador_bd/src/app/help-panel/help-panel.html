@@ -5,7 +5,7 @@
   data-testid="help-toggle"
   (click)="toggle()"
 >
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-purple-600" aria-hidden="true"><circle cx="12" cy="12" r="9.5" /><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9" /><path d="M12 17.4h.01" /></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><circle cx="12" cy="12" r="9.5" /><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9" /><path d="M12 17.4h.01" /></svg>
   Ayuda
 </button>
 
@@ -14,10 +14,10 @@
     class="fixed right-4 top-16 z-50 flex h-96 w-80 max-w-[calc(100vw-2rem)] flex-col card text-left shadow-xl"
     aria-label="Asistente de ayuda"
   >
-    <header class="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+    <header class="flex items-center justify-between border-b border-line px-3 py-2">
       <div>
-        <h3 class="text-sm font-semibold text-gray-800">Ayuda para usar la herramienta</h3>
-        <p class="text-[10px] text-gray-500" data-testid="help-private">Solo tú ves esta conversación</p>
+        <h3 class="text-sm font-semibold text-fg">Ayuda para usar la herramienta</h3>
+        <p class="text-[10px] text-fg-muted" data-testid="help-private">Solo tú ves esta conversación</p>
       </div>
       <button
         type="button"
@@ -32,32 +32,32 @@
 
     <div class="flex-1 space-y-2 overflow-y-auto px-3 py-2" data-testid="help-messages">
       @if (messages().length === 0 && !sending()) {
-        <p class="text-xs text-gray-500" data-testid="help-empty">
+        <p class="text-xs text-fg-muted" data-testid="help-empty">
           Pregúntame cómo usar la herramienta, por ejemplo: «¿Cómo creo una sala?», «¿Cómo exporto a Flutter?» o «¿Qué hace el modo Revisar?».
         </p>
       }
       @for (message of messages(); track $index) {
         <div class="flex flex-col" [class.items-end]="message.role === 'user'" data-testid="help-message">
-          <span class="px-1 text-[10px] text-gray-500" data-testid="help-author">{{ message.role === 'user' ? 'Tú' : 'Ayuda' }}</span>
+          <span class="px-1 text-[10px] text-fg-muted" data-testid="help-author">{{ message.role === 'user' ? 'Tú' : 'Ayuda' }}</span>
           <p
             class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-xs"
-            [class.bg-purple-600]="message.role === 'user'"
+            [class.bg-accent]="message.role === 'user'"
             [class.text-white]="message.role === 'user'"
-            [class.bg-gray-100]="message.role === 'ia'"
-            [class.text-gray-800]="message.role === 'ia'"
+            [class.bg-hover]="message.role === 'ia'"
+            [class.text-fg]="message.role === 'ia'"
           >{{ message.content }}</p>
         </div>
       }
       @if (sending()) {
-        <p class="text-xs italic text-gray-500" data-testid="help-thinking">Pensando…</p>
+        <p class="text-xs italic text-fg-muted" data-testid="help-thinking">Pensando…</p>
       }
     </div>
 
     @if (error()) {
-      <p class="px-3 pb-1 text-xs text-red-600" role="alert" data-testid="help-error">{{ error() }}</p>
+      <p class="px-3 pb-1 text-xs text-danger" role="alert" data-testid="help-error">{{ error() }}</p>
     }
 
-    <form class="flex gap-2 border-t border-gray-200 p-2" (submit)="$event.preventDefault(); send()">
+    <form class="flex gap-2 border-t border-line p-2" (submit)="$event.preventDefault(); send()">
       <textarea
         class="field h-14 min-w-0 flex-1 resize-none px-2 py-1 text-xs"
         placeholder="Escribe tu pregunta…"

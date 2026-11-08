@@ -10,7 +10,7 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 |---|---|
 | El sitio está sano | `scripts/smoke-test.sh` → debe terminar con "Todo en orden." |
 | Tres navegadores o perfiles distintos | Un perfil por persona (Ana, Bruno, Carla): **cada perfil guarda su propia identidad**; con pestañas del mismo perfil comparten nombre. Usar ventanas de incógnito distintas sirve. |
-| Un celular (o la ventana del navegador en tamaño móvil) | Se abre el enlace del botón "📱 Copiar enlace para seguir desde el celular" |
+| Un celular (o la ventana del navegador en tamaño móvil) | Se abre el enlace de **Compartir** → «Copiar enlace para seguir desde el celular» |
 | Chrome (no Safari) para el micrófono | El micrófono solo funciona en Chrome con HTTPS |
 | Enterprise Architect abierto con un proyecto vacío | Para el bloque XMI |
 | Una imagen de un diagrama de clases lista | Para "UML desde imagen" |
@@ -23,7 +23,7 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 
 ## 1. Primer parcial: el editor completo (4–5 min)
 
-1. **Crear la sala** (Ana). *"Cada sala tiene un código; quien lo conoce entra."* Mostrar el botón **Copiar código de sala**. Escribir `mi-sala` en «Unirse al Lienzo»: aparece *«El código no es válido»* y no entra.
+1. **Crear la sala** (Ana). *"Cada sala tiene un código; quien lo conoce entra."* Mostrar el botón **Compartir** (enlace de invitación y **Copiar código de sala**). Escribir `mi-sala` en «Unirse al Lienzo»: aparece *«El código no es válido»* y no entra.
 2. **Edición manual.** Se hace así (ensayado el 2026-10-22):
    - **Agregar clases:** arrastrar **Clase UML** de la paleta al lienzo (dos veces).
    - **Renombrar:** doble clic sobre el **nombre** de la clase; aparece una cajita de texto con el nombre actual. **Seleccionar todo antes de escribir** (triple clic o Cmd+A); si no, el texto nuevo se agrega al final ("EntidadCliente"). Enter confirma. Lo mismo para atributos y métodos (doble clic en su zona).

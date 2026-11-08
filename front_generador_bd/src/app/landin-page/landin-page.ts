@@ -1,9 +1,10 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { v4 as uuid, validate as isUuid } from 'uuid';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HelpPanel } from '../help-panel/help-panel';
+import { ThemeService } from '../../services/theme.service';
 
 @Component({
   selector: 'app-landin-page',
@@ -15,6 +16,8 @@ export class LandinPage {
   joinCode: string = '';
   /** Por qué no se pudo entrar con el código escrito; vacío si no hay problema. */
   joinError: string = '';
+
+  readonly theme = inject(ThemeService);
 
   constructor(private router: Router) {}
 

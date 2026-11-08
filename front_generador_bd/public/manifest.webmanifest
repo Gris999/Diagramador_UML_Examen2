@@ -4,8 +4,8 @@
   "description": "Diagramador UML colaborativo con IA: modela en equipo y sigue la sala desde el celular.",
   "lang": "es",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#9333ea",
+  "background_color": "#0d1016",
+  "theme_color": "#131821",
   "icons": [
     {
       "src": "icons/icon-192.png",

@@ -33,8 +33,8 @@ export class ActivityPanel implements OnInit, OnDestroy {
 
   /** Vista de seguimiento: se ven las ideas de la IA pero no se pueden aplicar. */
   readonly readOnly = input(false);
-  /** Ocupa todo el ancho disponible (celular) en lugar del ancho fijo del editor. */
-  readonly fluid = input(false);
+  /** Dentro de un menú desplegable (editor): sin marco de tarjeta, con encabezado propio y lista con desplazamiento. */
+  readonly embedded = input(false);
 
   readonly applying = signal<string | null>(null);
   readonly suggestionError = signal('');
