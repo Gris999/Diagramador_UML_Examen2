@@ -84,7 +84,7 @@ Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la 
 
 1. En el editor pulsa **Copiar enlace para seguir desde el celular** y ábrelo en el teléfono.
 2. Verás el diagrama actualizándose en vivo y, debajo, la actividad. Es de solo lectura: no tiene controles de edición y no cuenta como participante.
-3. Pulsa **Activar avisos** y permítelos en el navegador: cada vez que alguien cambie el diagrama o la IA publique una idea, el celular te avisa. Los avisos llegan solo mientras la página está abierta. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
+3. Pulsa **Activar avisos** y permítelos en el navegador: cada vez que alguien cambie el diagrama o la IA publique una idea, el celular te avisa. Los avisos llegan solo mientras la página sigue abierta (no hay servidor de avisos). En un iPhone, ábrela en Safari y agrégala a la pantalla de inicio (Compartir → «Agregar a Inicio»): los avisos solo existen en esa app, no en una pestaña de Safari. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
 
 ## 3.8 IA local y sin internet (opcional)
 
