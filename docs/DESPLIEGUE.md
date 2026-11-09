@@ -1,6 +1,6 @@
 # Despliegue en AWS (EC2) con dominio y HTTPS
 
-Estado verificado el **2026-11-09** (con el segundo parcial, MongoDB Atlas, el acceso con el correo con cuentas recordadas, las invitaciones, los roles y «Mis diagramas»). Sitio: **https://diagramador.dev**
+Estado verificado el **2026-11-09** (con el segundo parcial, MongoDB Atlas, el acceso con el correo con cuentas recordadas, las invitaciones, los roles, «Mis diagramas» y las herramientas por clic). Sitio: **https://diagramador.dev**
 
 ## 1. Resumen
 
@@ -86,7 +86,11 @@ Al tomar las capturas del manual en el sitio se vio que una propuesta con clase 
 
 Esa misma noche, dos despliegues más pusieron el acceso con el correo. El pull request 25 (entrar con el correo y un código de 6 dígitos, mensajes de invitación) llevó el servidor a `bbc21d4` (el commit anterior, `32e8ebc`, quedó en `~/deploy-prev-20261108e.txt`) y el 26 (salas solo por invitación, celular de solo lectura, página «sin acceso») a `433c563` (el anterior, `bbc21d4`, en `~/deploy-prev-20261108f.txt`); se reconstruyó `angular-app` y se reinició `django`, que aplicó `collab.0006_roommember`. Antes de activar `AUTH_REQUIRED=True` se configuró el correo: el dominio `diagramador.dev` se verificó en Resend con los 4 registros DNS que pide (agregados en name.com) y la clave del servicio se escribió en el `.env` del servidor con `scripts/poner-clave-correo.sh` (la lee sin mostrarla y no pasa por git). Los mensajes salen como «Diagramador UML <noreply@diagramador.dev>». Se observó que el buzón de la UAGRM tarda minutos en entregar aunque Resend marque «Delivered»: conviene probar con un correo de Gmail y no esperar la invitación en el último momento.
 
-### Último despliegue (2026-11-09, cuentas recordadas en el navegador)
+### Último despliegue (2026-11-09 por la tarde, herramientas por clic y relaciones que siguen a sus clases)
+
+El pull request 31 (la paleta se elige con un clic y la clase o la relación se colocan con clics sobre el lienzo, y las relaciones salen por el lado que mira a la otra clase, se acomodan al mover y dejan la multiplicidad a la vista) se fusionó con el commit `80d991a` y se desplegó sin usuarios conectados (0 grupos `asgi:group:*` en Redis y 0 conexiones al puerto 8000). Se etiquetaron las imágenes `angular-app` y `django` como `antes-20261109c` y el commit anterior (`ba42c71`) quedó en `~/deploy-prev-20261109c.txt`. Se hizo `git pull --ff-only origin develop`, se reconstruyó `angular-app` (unos 3 minutos), se levantó con `up -d --no-deps` y `django` se reinició (solo para leer el manual de ayuda actualizado, `AYUDA.md`); no hay migraciones. Después: `scripts/smoke-test.sh` «Todo en orden» y el paquete `main-*.js` publicado contiene el aviso «Haz clic en el lienzo donde quieras la clase». Volver atrás: sección 4, con la etiqueta `antes-20261109c` y `git checkout ba42c71`. Los diagramas guardados antes se actualizan solos al abrirlos (ruteo y multiplicidades); no se pierde nada de lo guardado.
+
+### Despliegue del 2026-11-09 (mañana): cuentas recordadas en el navegador
 
 El pull request 29 (el navegador recuerda hasta cinco cuentas, «Elige tu cuenta» y «Cambiar de cuenta», y la sesión se renueva mientras se usa la herramienta) se fusionó con el commit `ba42c71` y se desplegó sin usuarios conectados (0 grupos `asgi:group:*` en Redis y 0 conexiones al puerto 8000). Motivo: el navegador guardaba **una sola** sesión, así que al entrar con un segundo correo (uno personal y uno de la universidad) el primero se olvidaba y volvía a pedir el código. Se etiquetaron las imágenes `angular-app` y `django` como `antes-20261109b` y el commit anterior (`e490526`) quedó en `~/deploy-prev-20261109b.txt`; el servidor además trajo el pull request 28 (solo documentos). Se hizo `git pull --ff-only origin develop`, se reconstruyó `angular-app` (unos 3 minutos), se levantó con `up -d --no-deps` y `django` se reinició; no hay migraciones. Después: `scripts/smoke-test.sh` «Todo en orden», `GET /api/auth/me/` sin sesión responde 401 y el paquete `main-*.js` publicado contiene «Cambiar de cuenta». Volver atrás: sección 4, con la etiqueta `antes-20261109b` y `git checkout e490526`. La sesión sigue viviendo en cada navegador: en otro navegador o aparato hay que entrar una vez.
 
@@ -108,7 +112,7 @@ Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios
 
 ## 6. Pruebas de humo
 
-**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-11-09, todo en orden (13 comprobaciones, tras desplegar las cuentas recordadas; con el acceso por correo activo la API sin sesión debe dar 401). Tarda unos 3 minutos.
+**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-11-09, todo en orden (13 comprobaciones, tras desplegar las herramientas por clic; con el acceso por correo activo la API sin sesión debe dar 401). Tarda unos 3 minutos.
 
 Desde cualquier equipo, sustituyendo el dominio:
 
