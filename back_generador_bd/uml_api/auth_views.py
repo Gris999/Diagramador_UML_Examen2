@@ -99,6 +99,25 @@ def auth_me(request):
     return Response({"email": email, "name": auth.display_name_from_email(email)})
 
 
+@api_view(["GET", "POST"])
+def room_access_view(request, room):
+    """Quién tiene acceso a la sala. POST = entrar (la primera persona que abre una sala sin dueño queda como propietario); GET = solo mirar.
+
+    Con el interruptor apagado no hay control de acceso y la respuesta lo dice. Si el correo no está invitado, 403 con `code: not_invited`.
+    """
+    if not settings.AUTH_REQUIRED:
+        return Response({"required": False, "email": None, "role": None, "members": []})
+    email = getattr(request, "auth_email", None)
+    if email is None:
+        return Response({"error": "Inicia sesión con tu correo para continuar."}, status=status.HTTP_401_UNAUTHORIZED)
+    if auth.room_access(room, email, claim=request.method == "POST") != "ok":
+        return Response(
+            {"error": auth.NOT_INVITED_MESSAGE, "code": "not_invited", "email": email},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return Response({"required": True, "email": email, "role": auth.role_of(room, email), "members": auth.list_members(room)})
+
+
 @api_view(["POST"])
 def room_invite(request, room):
     """Invita por correo a otras personas a esta sala: les llega el enlace y, si hay login, entran con ese mismo correo."""
@@ -138,6 +157,8 @@ def room_invite(request, room):
     ):
         return _too_many("Mandaste muchas invitaciones. Espera un rato.")
 
+    # Con el control de acceso, invitar es dar acceso: el correo entra a la lista de la sala antes de mandarle el enlace.
+    added = auth.add_invited(room, recipients, sender_email) if settings.AUTH_REQUIRED and sender_email else []
     sent, failed = auth.send_invitations(
         sender_name=participant.display_name,
         sender_email=sender_email,
@@ -145,6 +166,13 @@ def room_invite(request, room):
         recipients=recipients,
         message=message,
     )
+    # Si el correo no salió, tampoco se deja dentro a quien no se avisó (y si invitan de nuevo, se vuelve a intentar).
+    if added:
+        auth.remove_invited(room, [email for email in failed if email in added])
+    members = auth.list_members(room) if settings.AUTH_REQUIRED else []
     if not sent:
-        return Response({"sent": [], "failed": failed, "error": "No pudimos mandar las invitaciones ahora. Intenta de nuevo."}, status=status.HTTP_502_BAD_GATEWAY)
-    return Response({"sent": sent, "failed": failed})
+        return Response(
+            {"sent": [], "failed": failed, "members": members, "error": "No pudimos mandar las invitaciones ahora. Intenta de nuevo."},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+    return Response({"sent": sent, "failed": failed, "members": members})

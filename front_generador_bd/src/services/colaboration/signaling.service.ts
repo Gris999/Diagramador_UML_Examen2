@@ -94,6 +94,8 @@ export class SignalingService {
       console.log('[Signaling] Disconnected');
       // 4401: el servidor no aceptó la sesión (venció o no es válida): se borra y se vuelve a la pantalla de entrada.
       if (event?.code === 4401) this.auth?.expire();
+      // 4403: la sesión vale pero ese correo no está en la lista de la sala.
+      if (event?.code === 4403) this.auth?.notInvited(roomId);
     };
   }
 

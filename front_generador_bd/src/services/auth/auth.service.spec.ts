@@ -189,4 +189,31 @@ describe('AuthService', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
   });
+
+  describe('when the account has no invitation to a room', () => {
+    it('goes to the page that explains it, remembering the room', () => {
+      const auth = create();
+
+      auth.notInvited('sala-9');
+
+      expect(navigate).toHaveBeenCalledOnceWith(['/sin-acceso'], { queryParams: { sala: 'sala-9' } });
+    });
+
+    it('goes there without a room when it is not known', () => {
+      const auth = create();
+
+      auth.notInvited(null);
+
+      expect(navigate).toHaveBeenCalledOnceWith(['/sin-acceso'], {});
+    });
+
+    it('keeps the session: the address is fine, it just was not invited', () => {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      const auth = create();
+
+      auth.notInvited('sala-9');
+
+      expect(auth.loggedIn()).toBeTrue();
+    });
+  });
 });

@@ -208,7 +208,7 @@ class InviteApiTests(AuthApiBase):
         response = self.invite(["beto@x.com", "Luis@X.com"], "Ven a modelar")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"sent": ["beto@x.com", "luis@x.com"], "failed": []})
+        self.assertEqual((response.data["sent"], response.data["failed"]), (["beto@x.com", "luis@x.com"], []))
         self.assertEqual([m.to for m in mail.outbox], [["beto@x.com"], ["luis@x.com"]])
         self.assertIn(f"/diagram/{self.room}", mail.outbox[0].body)
         self.assertIn("Ana te invitó", mail.outbox[0].subject)
@@ -230,6 +230,8 @@ class InviteApiTests(AuthApiBase):
 
     @override_settings(AUTH_REQUIRED=True)
     def test_when_login_is_required_the_invitation_needs_a_session_too(self):
+        auth.room_access(self.room, "ana@x.com", claim=True)
+
         self.assertEqual(self.invite(["beto@x.com"]).status_code, 401)
         self.assertEqual(self.invite(["beto@x.com"], session=auth.make_session("ana@x.com")).status_code, 200)
 
@@ -289,4 +291,149 @@ class InviteApiTests(AuthApiBase):
         with mock.patch("collab.auth.send_invitations", return_value=(["a@x.com"], ["b@x.com"])):
             response = self.invite(["a@x.com", "b@x.com"])
 
-        self.assertEqual((response.status_code, response.data), (200, {"sent": ["a@x.com"], "failed": ["b@x.com"]}))
+        self.assertEqual((response.status_code, response.data["sent"], response.data["failed"]), (200, ["a@x.com"], ["b@x.com"]))
+
+
+class RoomAccessApiTests(AuthApiBase):
+    """Con el interruptor prendido, a una sala solo entran el propietario y quienes invitó alguien de la sala."""
+
+    room = "sala-acc"
+
+    def setUp(self):
+        super().setUp()
+        self.ana = Participant.objects.create(room=self.room, token=uuid.uuid4(), display_name="Ana")
+
+    def session(self, email):
+        return {"HTTP_AUTHORIZATION": f"Bearer {auth.make_session(email)}"}
+
+    def enter(self, email, method="post", room=None):
+        return getattr(self.client, method)(f"/api/rooms/{room or self.room}/access/", **self.session(email))
+
+    def invite(self, as_email, emails, message=""):
+        return self.client.post(
+            f"/api/rooms/{self.room}/invite/", {"emails": emails, "message": message}, format="json",
+            HTTP_X_PARTICIPANT_TOKEN=str(self.ana.token), **self.session(as_email),
+        )
+
+    @override_settings(AUTH_REQUIRED=False)
+    def test_without_the_switch_there_is_no_access_control_and_it_says_so(self):
+        response = self.client.post(f"/api/rooms/{self.room}/access/")
+
+        self.assertEqual((response.status_code, response.data["required"], response.data["members"]), (200, False, []))
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_it_needs_a_session(self):
+        self.assertEqual(self.client.post(f"/api/rooms/{self.room}/access/").status_code, 401)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_the_first_person_to_enter_becomes_the_owner(self):
+        response = self.enter("ana@x.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual((response.data["role"], response.data["email"]), ("owner", "ana@x.com"))
+        self.assertEqual(response.data["members"], [{"email": "ana@x.com", "role": "owner"}])
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_somebody_who_was_not_invited_is_told_so_and_with_which_address(self):
+        self.enter("ana@x.com")
+
+        response = self.enter("beto@x.com")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual((response.data["code"], response.data["email"]), ("not_invited", "beto@x.com"))
+        self.assertEqual(self.enter("ana@x.com", "get").data["members"], [{"email": "ana@x.com", "role": "owner"}])
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_only_entering_claims_a_room_looking_at_it_does_not(self):
+        self.assertEqual(self.enter("ana@x.com", "get").status_code, 403)
+        self.assertEqual(self.enter("beto@x.com").status_code, 200)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_an_invitation_gives_access_to_that_address_and_the_answer_lists_everyone(self):
+        self.enter("ana@x.com")
+
+        response = self.invite("ana@x.com", ["beto@x.com", "luis@x.com"])
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([m["email"] for m in response.data["members"]], ["ana@x.com", "beto@x.com", "luis@x.com"])
+        self.assertEqual(self.enter("beto@x.com").data["role"], "invited")
+        self.assertEqual(self.enter("luis@x.com").status_code, 200)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_the_link_alone_is_not_enough_only_the_invited_address_enters(self):
+        self.enter("ana@x.com")
+        self.invite("ana@x.com", ["beto@x.com"])
+
+        self.assertEqual(self.enter("beto@x.com").status_code, 200)
+        self.assertEqual(self.enter("otro@x.com").status_code, 403)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_someone_who_was_not_invited_cannot_invite_others(self):
+        self.enter("ana@x.com")
+
+        response = self.invite("intruso@x.com", ["amigo@x.com"])
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(mail.outbox, [])
+        self.assertEqual(self.enter("amigo@x.com").status_code, 403)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_an_invited_person_can_invite_more_people(self):
+        self.enter("ana@x.com")
+        self.invite("ana@x.com", ["beto@x.com"])
+
+        self.assertEqual(self.invite("beto@x.com", ["luis@x.com"]).status_code, 200)
+        self.assertEqual(self.enter("luis@x.com").status_code, 200)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_an_address_whose_mail_did_not_go_does_not_keep_the_access(self):
+        from unittest import mock
+
+        self.enter("ana@x.com")
+        with mock.patch("collab.auth.send_invitations", return_value=(["ok@x.com"], ["malo@x.com"])):
+            response = self.invite("ana@x.com", ["ok@x.com", "malo@x.com"])
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([m["email"] for m in response.data["members"]], ["ana@x.com", "ok@x.com"])
+        self.assertEqual(self.enter("malo@x.com").status_code, 403)
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_if_no_mail_goes_nobody_new_gets_access(self):
+        from unittest import mock
+
+        self.enter("ana@x.com")
+        with mock.patch("collab.auth.send_invitations", return_value=([], ["a@x.com", "b@x.com"])):
+            response = self.invite("ana@x.com", ["a@x.com", "b@x.com"])
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual([m["email"] for m in response.data["members"]], ["ana@x.com"])
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_inviting_again_someone_who_was_already_in_does_not_demote_the_owner(self):
+        self.enter("ana@x.com")
+
+        self.invite("ana@x.com", ["ana@x.com", "beto@x.com"])
+
+        self.assertEqual(self.enter("ana@x.com", "get").data["role"], "owner")
+
+    @override_settings(AUTH_REQUIRED=True)
+    def test_the_backups_and_the_chat_of_a_room_follow_the_same_list(self):
+        room = "3f2c1b7e-9a4d-4c55-8e21-0b6f7d9a1c42"
+        self.enter("ana@x.com", room=room)
+
+        mine = self.client.get(f"/api/get_backup_uml/{room}/", **self.session("ana@x.com"))
+        other = self.client.get(f"/api/get_backup_uml/{room}/", **self.session("beto@x.com"))
+
+        self.assertNotEqual(mine.status_code, 403)
+        self.assertEqual(other.status_code, 403)
+
+    @override_settings(AUTH_REQUIRED=False)
+    def test_without_the_switch_inviting_does_not_create_a_list(self):
+        response = self.client.post(
+            f"/api/rooms/{self.room}/invite/", {"emails": ["beto@x.com"]}, format="json", HTTP_X_PARTICIPANT_TOKEN=str(self.ana.token)
+        )
+
+        self.assertEqual((response.status_code, response.data["members"]), (200, []))
+        from collab.models import RoomMember
+        self.assertEqual(RoomMember.objects.count(), 0)
+

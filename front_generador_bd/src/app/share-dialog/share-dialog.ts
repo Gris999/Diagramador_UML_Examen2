@@ -1,7 +1,8 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, computed, inject, input, output, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { AuthService } from '../../services/auth/auth.service';
+import { RoomAccessService, RoomMember } from '../../services/auth/room-access.service';
 import { InviteService, parseEmails } from '../../services/colaboration/invite.service';
 import { copyText } from './copy-text';
 
@@ -19,10 +20,11 @@ const COPIED_MS = 2000;
   standalone: true,
   templateUrl: './share-dialog.html'
 })
-export class ShareDialog {
+export class ShareDialog implements OnInit {
   private readonly document = inject(DOCUMENT);
   private readonly invites = inject(InviteService);
   private readonly auth = inject(AuthService);
+  private readonly access = inject(RoomAccessService);
 
   readonly roomId = input.required<string>();
   readonly closed = output<void>();
@@ -54,9 +56,15 @@ export class ShareDialog {
     return `mailto:${this.parsed().valid.join(',')}?subject=${encodeURIComponent('Te invito a un diagrama UML')}&body=${encodeURIComponent(body)}`;
   });
 
-  constructor() {
-    // Se pregunta una vez qué puede hacer el servidor (mandar correos o no) para mostrar el botón que corresponde.
-    this.auth.ensureConfig().subscribe();
+  /** Con el modo «entrar con el correo» a la sala solo se entra por invitación: no se ofrece copiar el enlace ni el código, y se lista quién tiene acceso. */
+  readonly restricted = computed(() => this.auth.config()?.authRequired === true);
+  readonly members = signal<RoomMember[]>([]);
+
+  ngOnInit(): void {
+    // Se pregunta una vez qué puede hacer el servidor (mandar correos, pedir sesión) para mostrar lo que corresponde.
+    this.auth.ensureConfig().subscribe(config => {
+      if (config.authRequired) this.access.members(this.roomId()).subscribe({ next: access => this.members.set(access.members ?? []), error: () => undefined });
+    });
   }
 
   onEmails(event: Event): void {
@@ -80,8 +88,9 @@ export class ShareDialog {
     this.sending.set(true);
     this.result.set(null);
     this.invites.send(this.roomId(), valid, this.message().trim()).subscribe({
-      next: ({ sent, failed }) => {
+      next: ({ sent, failed, members }) => {
         this.sending.set(false);
+        if (members && members.length > 0) this.members.set(members);
         if (failed.length === 0) this.emailsText.set('');
         this.result.set({
           kind: failed.length === 0 ? 'ok' : 'error',

@@ -95,3 +95,34 @@ class IaAttempt(models.Model):
         related_name="ia_attempts",
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+
+class RoomMember(models.Model):
+    """Quién tiene acceso a una sala cuando se entra con el correo (`collab.auth`).
+
+    El primero que abre una sala sin dueño queda como propietario y los demás entran solo si alguien de la sala los invitó por correo.
+    Una sala tiene un solo propietario (lo asegura la restricción de abajo, también si dos personas la abren al mismo tiempo).
+    """
+
+    ROLE_OWNER = "owner"
+    ROLE_INVITED = "invited"
+
+    room = models.CharField(max_length=64)
+    email = models.EmailField(max_length=254)
+    role = models.CharField(max_length=16, default=ROLE_INVITED)
+    invited_by = models.EmailField(max_length=254, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("room", "email"), name="unique_room_member_email"),
+            models.UniqueConstraint(
+                fields=("room",),
+                condition=models.Q(role="owner"),
+                name="one_owner_per_room",
+            ),
+        ]
+        indexes = [models.Index(fields=("room",), name="room_member_room_idx")]
+
+    def __str__(self):
+        return f"{self.email} ({self.role}) en {self.room}"

@@ -8,6 +8,7 @@ from collections import deque
 from urllib.parse import parse_qs
 
 from asgiref.sync import sync_to_async
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from uml_api.services.services_gemini import call_gemini_analysis
 import re
@@ -58,11 +59,18 @@ class CanvasConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
-        if settings.AUTH_REQUIRED and self._session_email() is None:
-            # Se acepta y se cierra con un código propio: así el navegador sabe que debe volver a iniciar sesión (un rechazo en el saludo solo muestra 1006).
-            await self.accept()
-            await self.close(code=4401)
-            return
+        if settings.AUTH_REQUIRED:
+            email = self._session_email()
+            # Se acepta y se cierra con un código propio: así el navegador sabe por qué (un rechazo en el saludo solo muestra 1006).
+            # 4401: hay que iniciar sesión; 4403: la sesión es válida pero ese correo no tiene acceso a esta sala.
+            if email is None:
+                await self.accept()
+                await self.close(code=4401)
+                return
+            if await database_sync_to_async(auth.room_access)(self.room_name, email) != "ok":
+                await self.accept()
+                await self.close(code=4403)
+                return
         self.room_group_name = room_group_name(self.room_name)
         self.viewers_group_name = viewers_group_name(self.room_name)
         self.is_viewer = self._requested_viewer()
