@@ -47,6 +47,27 @@ class SummarizeChangesTests(SimpleTestCase):
 
         self.assertEqual(summarize_changes(changes, UML), ["Relacionar Cliente con Pedido (composition)"])
 
+    def test_an_association_class_names_the_relationship_it_hangs_from_instead_of_its_id(self):
+        uml = {
+            "classes": UML["classes"],
+            "relationships": [{"id": "r1", "type": "association", "sourceId": "c1", "targetId": "c2"}],
+        }
+        changes = {
+            "classes": [{"id": "n1", "name": "Compra"}],
+            "relationships": [{"type": "association", "sourceId": "n1", "targetId": "r1"}],
+        }
+
+        self.assertEqual(summarize_changes(changes, uml), [
+            "Crear la clase Compra",
+            "Relacionar Compra con la relación Cliente–Pedido (association)",
+        ])
+
+    def test_an_unknown_identifier_is_never_shown_raw(self):
+        changes = {"classes": [], "relationships": [
+            {"type": "association", "sourceId": "c1", "targetId": "b7d6e1a5-4f0c-c345-6e7f-8a9b0c1d2e3f"}]}
+
+        self.assertEqual(summarize_changes(changes, UML), ["Relacionar Cliente con otro elemento del diagrama (association)"])
+
     def test_an_edit_says_what_was_renamed(self):
         changes = {
             "original": {"classes": [{"id": "c1", "name": "Cliente"}], "relationships": []},

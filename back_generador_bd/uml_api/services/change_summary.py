@@ -4,9 +4,12 @@ La IA no aplica nada sin permiso: antes de pedirlo se le muestra a la persona lo
 editor (crear, editar o eliminar), así que el resumen se arma leyendo ese JSON y no le pide nada más al modelo.
 """
 
+import re
+
 from .ia_context import _text
 
 MAX_LINES = 8
+_ID_LIKE = re.compile(r"^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 
 
 def _class_names(changes, uml):
@@ -25,6 +28,14 @@ def _class_names(changes, uml):
         for item in classes if isinstance(classes, list) else []:
             if isinstance(item, dict) and isinstance(item.get("id"), str) and _text(item.get("name"), 60):
                 names.setdefault(item["id"], _text(item["name"], 60))
+    # Una clase asociativa se une a una relación (no a una clase): su extremo se nombra por las clases que esa relación une.
+    for source in sources:
+        relationships = source.get("relationships")
+        for rel in relationships if isinstance(relationships, list) else []:
+            if isinstance(rel, dict) and isinstance(rel.get("id"), str) and rel["id"] not in names:
+                ends = [names.get(rel.get("sourceId")), names.get(rel.get("targetId"))]
+                if all(ends):
+                    names[rel["id"]] = f"la relación {ends[0]}–{ends[1]}"
     return names
 
 
@@ -48,7 +59,14 @@ def _existing_names(uml):
 
 
 def _end(value, names):
-    return names.get(value) or _text(value, 60) or "?"
+    """Nombre del extremo de una relación; un identificador que no se reconoce no se muestra tal cual."""
+    known = names.get(value)
+    if known:
+        return known
+    text = _text(value, 60)
+    if not text:
+        return "?"
+    return "otro elemento del diagrama" if _ID_LIKE.match(text) else text
 
 
 def _class_lines(section, existing, edited=False):
