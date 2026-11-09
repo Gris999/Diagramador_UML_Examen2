@@ -152,6 +152,17 @@ describe('SignalingService connection lifecycle', () => {
       expect(expire).toHaveBeenCalledTimes(1);
     });
 
+    it('shows the "not invited" page when the server closes the connection with 4403', () => {
+      const notInvited = jasmine.createSpy('notInvited');
+      const expire = jasmine.createSpy('expire');
+      new SignalingService(identity, { token: () => 'x', expire, notInvited } as any).connect('room-9');
+
+      (createdSockets[0].onclose as any)({ code: 4403 });
+
+      expect(notInvited).toHaveBeenCalledOnceWith('room-9');
+      expect(expire).not.toHaveBeenCalled();
+    });
+
     it('does not expire the session for any other way of closing', () => {
       const expire = jasmine.createSpy('expire');
       new SignalingService(identity, { token: () => 'x', expire } as any).connect('room-1');

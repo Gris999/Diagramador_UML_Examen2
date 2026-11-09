@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
 import { AuthConfig, AuthService } from '../../services/auth/auth.service';
+import { RoomAccess, RoomAccessService } from '../../services/auth/room-access.service';
 import { InviteResult, InviteService } from '../../services/colaboration/invite.service';
 import { ShareDialog } from './share-dialog';
 
@@ -11,6 +12,7 @@ describe('ShareDialog', () => {
   let writeText: jasmine.Spy;
   let sendInvites: jasmine.Spy<(room: string, emails: string[], message: string) => Observable<InviteResult>>;
   let authConfig: ReturnType<typeof signal<AuthConfig | null>>;
+  let loadMembers: jasmine.Spy<(room: string) => Observable<RoomAccess>>;
   const ROOM = '3f2c1b7e-9a4d-4c55-8e21-0b6f7d9a1c42';
 
   const element = (testId: string) => fixture.nativeElement.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
@@ -19,11 +21,13 @@ describe('ShareDialog', () => {
   async function create(roomId = ROOM): Promise<void> {
     sendInvites = jasmine.createSpy('send').and.returnValue(of({ sent: [], failed: [] }));
     authConfig = signal<AuthConfig | null>({ authRequired: false, mailConfigured: true });
+    loadMembers = jasmine.createSpy('members').and.returnValue(of({ required: true, email: 'ana@x.com', role: 'owner', members: [{ email: 'ana@x.com', role: 'owner' }] }));
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         { provide: InviteService, useValue: { send: sendInvites } },
-        { provide: AuthService, useValue: { config: authConfig, ensureConfig: () => of(authConfig()) } }
+        { provide: AuthService, useValue: { config: authConfig, ensureConfig: () => of(authConfig()) } },
+        { provide: RoomAccessService, useValue: { members: loadMembers } }
       ]
     });
     fixture = TestBed.createComponent(ShareDialog);
@@ -259,5 +263,86 @@ describe('ShareDialog', () => {
 
       expect((element('invite-message') as HTMLTextAreaElement).maxLength).toBe(300);
     });
+  });
+
+  describe('when the room is only for the people invited by email', () => {
+    async function restricted(members?: Observable<RoomAccess>): Promise<void> {
+      await create();
+      if (members) loadMembers.and.returnValue(members);
+      authConfig.set({ authRequired: true, mailConfigured: true });
+      fixture.componentInstance.ngOnInit();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('does not offer the link or the code of the room: the only way in is an invitation', async () => {
+      await restricted();
+
+      expect(element('share-invite-link')).toBeNull();
+      expect(element('copy-invite-link')).toBeNull();
+      expect(element('copy-room-code')).toBeNull();
+      expect(element('share-restricted-note')!.textContent).toContain('Solo entran las personas que invites por correo');
+      expect(element('share-email-box')).not.toBeNull();
+    });
+
+    it('still lets the person copy the link of the read-only view for their own phone', async () => {
+      await restricted();
+
+      expect(element('copy-follow-link')).not.toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('Entra con tu mismo correo');
+    });
+
+    it('lists who has access, the owner first, with their role', async () => {
+      await restricted(of({
+        required: true, email: 'ana@x.com', role: 'owner',
+        members: [{ email: 'ana@x.com', role: 'owner' }, { email: 'beto@x.com', role: 'invited' }]
+      }));
+
+      const rows = Array.from(fixture.nativeElement.querySelectorAll('[data-testid="share-member"]')) as HTMLElement[];
+      expect(loadMembers).toHaveBeenCalledWith(ROOM);
+      expect(rows.length).toBe(2);
+      expect(rows[0].textContent).toContain('ana@x.com');
+      expect(rows[0].textContent).toContain('Propietario');
+      expect(rows[1].textContent).toContain('beto@x.com');
+      expect(rows[1].textContent).toContain('Invitado');
+    });
+
+    it('updates the list with the answer of the invitation', async () => {
+      await restricted();
+      sendInvites.and.returnValue(of({
+        sent: ['luis@x.com'], failed: [],
+        members: [{ email: 'ana@x.com', role: 'owner' }, { email: 'luis@x.com', role: 'invited' }]
+      }));
+      const emails = input('invite-emails');
+      emails.value = 'luis@x.com';
+      emails.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      element('invite-send')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('luis@x.com');
+      expect(fixture.nativeElement.querySelectorAll('[data-testid="share-member"]').length).toBe(2);
+    });
+
+    it('keeps working if the list cannot be loaded', async () => {
+      await restricted(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      expect(element('share-members')).toBeNull();
+      expect(element('share-email-box')).not.toBeNull();
+    });
+  });
+
+  it('still offers the link and the code when the server does not control access', async () => {
+    await create();
+
+    expect(element('copy-invite-link')).not.toBeNull();
+    expect(element('copy-room-code')).not.toBeNull();
+    expect(element('share-restricted-note')).toBeNull();
+    expect(element('share-members')).toBeNull();
+    expect(loadMembers).not.toHaveBeenCalled();
   });
 });

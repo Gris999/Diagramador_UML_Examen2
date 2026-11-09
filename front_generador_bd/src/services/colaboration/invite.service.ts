@@ -4,7 +4,9 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { IdentityService } from './identity.service';
 
-export type InviteResult = { sent: string[]; failed: string[] };
+import type { RoomMember } from '../auth/room-access.service';
+
+export type InviteResult = { sent: string[]; failed: string[]; /** Quién tiene acceso ahora (solo con el modo «entrar con el correo»). */ members?: RoomMember[] };
 
 /** Los correos de un texto escrito a mano (separados por comas, punto y coma, espacios o saltos de línea), sin repetir y sin importar mayúsculas. */
 export function parseEmails(text: string): { valid: string[]; invalid: string[] } {

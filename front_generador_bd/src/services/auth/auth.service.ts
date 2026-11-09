@@ -97,6 +97,12 @@ export class AuthService {
     }
   }
 
+  /** El servidor cerró la sala porque este correo no tiene invitación: se muestra la pantalla que lo explica. */
+  notInvited(roomId: string | null): void {
+    const router = this.injector.get(Router);
+    void router.navigate(['/sin-acceso'], roomId ? { queryParams: { sala: roomId } } : {});
+  }
+
   private save(session: Session): void {
     this.session.set(session);
     if (!this.browser) return;
