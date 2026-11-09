@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AuthService } from '../services/auth/auth.service';
+import { RoomAccessService } from '../services/auth/room-access.service';
 import { routes } from './app.routes';
 
 describe('routes', () => {
@@ -30,7 +31,8 @@ describe('routes', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter(routes),
-        { provide: AuthService, useValue: auth }
+        { provide: AuthService, useValue: auth },
+        { provide: RoomAccessService, useValue: { enter: () => of({ required: true, email: 'ana@x.com', role: 'owner', members: [] }) } }
       ]
     });
     router = TestBed.inject(Router);

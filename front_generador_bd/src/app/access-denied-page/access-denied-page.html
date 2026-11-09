@@ -1,0 +1,16 @@
+<div class="relative flex min-h-screen flex-col items-center justify-center bg-app px-4 py-10" style="background-image: radial-gradient(70rem 32rem at 50% -8%, var(--c-accent-soft), transparent 70%)">
+  <main class="card w-full max-w-md p-7 text-center" data-testid="access-denied">
+    <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-text" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><rect x="4" y="10.5" width="16" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg>
+    </div>
+    <h1 class="text-xl font-semibold text-fg" data-testid="access-denied-title">No tienes invitación a esta sala</h1>
+    <p class="mt-2 text-sm text-fg-muted">
+      Entraste con <strong class="break-all text-fg" data-testid="access-denied-email">{{ email() }}</strong>, pero ese correo no está en la lista de la sala.
+      Pide a quien la creó que te invite a ese correo, o entra con el correo al que te llegó la invitación.
+    </p>
+    <div class="mt-6 flex flex-col gap-2">
+      <button type="button" class="btn btn-primary btn-block" data-testid="access-denied-change" (click)="changeAccount()">Entrar con otro correo</button>
+      <button type="button" class="btn btn-secondary btn-block" data-testid="access-denied-home" (click)="goHome()">Ir al inicio</button>
+    </div>
+  </main>
+</div>
