@@ -21,6 +21,11 @@
     <app-help-panel></app-help-panel>
   </div>
 
+  @if (library()) {
+    <div class="w-full max-w-5xl pt-12">
+      <app-my-diagrams />
+    </div>
+  } @else {
   <!-- Marca y presentación -->
   <header class="mb-9 text-center">
     <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-white shadow-lg shadow-accent/30">
@@ -98,4 +103,5 @@
       Unirse al Lienzo
     </button>
   </section>
+  }
 </div>

@@ -1,15 +1,16 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { v4 as uuid, validate as isUuid } from 'uuid';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HelpPanel } from '../help-panel/help-panel';
+import { MyDiagrams } from '../my-diagrams/my-diagrams';
 import { ThemeService } from '../../services/theme.service';
 import { AuthService } from '../../services/auth/auth.service';
 
 @Component({
   selector: 'app-landin-page',
-  imports: [CommonModule, FormsModule, HelpPanel],
+  imports: [CommonModule, FormsModule, HelpPanel, MyDiagrams],
   templateUrl: './landin-page.html',
   styleUrls: ['./landin-page.css']
 })
@@ -20,6 +21,8 @@ export class LandinPage {
 
   readonly theme = inject(ThemeService);
   readonly auth = inject(AuthService);
+  /** Con «entrar con el correo» la portada es la lista «Mis diagramas»; sin él, crear o unirse con un código como siempre. */
+  readonly library = computed(() => this.auth.config()?.authRequired === true && this.auth.loggedIn());
 
   constructor(private router: Router) {}
 
