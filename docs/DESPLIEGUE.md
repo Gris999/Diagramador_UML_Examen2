@@ -1,6 +1,6 @@
 # Despliegue en AWS (EC2) con dominio y HTTPS
 
-Estado verificado el **2026-11-09** (con el segundo parcial, MongoDB Atlas, el acceso con el correo, las invitaciones, los roles y «Mis diagramas»). Sitio: **https://diagramador.dev**
+Estado verificado el **2026-11-09** (con el segundo parcial, MongoDB Atlas, el acceso con el correo con cuentas recordadas, las invitaciones, los roles y «Mis diagramas»). Sitio: **https://diagramador.dev**
 
 ## 1. Resumen
 
@@ -86,7 +86,11 @@ Al tomar las capturas del manual en el sitio se vio que una propuesta con clase 
 
 Esa misma noche, dos despliegues más pusieron el acceso con el correo. El pull request 25 (entrar con el correo y un código de 6 dígitos, mensajes de invitación) llevó el servidor a `bbc21d4` (el commit anterior, `32e8ebc`, quedó en `~/deploy-prev-20261108e.txt`) y el 26 (salas solo por invitación, celular de solo lectura, página «sin acceso») a `433c563` (el anterior, `bbc21d4`, en `~/deploy-prev-20261108f.txt`); se reconstruyó `angular-app` y se reinició `django`, que aplicó `collab.0006_roommember`. Antes de activar `AUTH_REQUIRED=True` se configuró el correo: el dominio `diagramador.dev` se verificó en Resend con los 4 registros DNS que pide (agregados en name.com) y la clave del servicio se escribió en el `.env` del servidor con `scripts/poner-clave-correo.sh` (la lee sin mostrarla y no pasa por git). Los mensajes salen como «Diagramador UML <noreply@diagramador.dev>». Se observó que el buzón de la UAGRM tarda minutos en entregar aunque Resend marque «Delivered»: conviene probar con un correo de Gmail y no esperar la invitación en el último momento.
 
-### Último despliegue (2026-11-09, «Mis diagramas» y Compartir como Google Docs)
+### Último despliegue (2026-11-09, cuentas recordadas en el navegador)
+
+El pull request 29 (el navegador recuerda hasta cinco cuentas, «Elige tu cuenta» y «Cambiar de cuenta», y la sesión se renueva mientras se usa la herramienta) se fusionó con el commit `ba42c71` y se desplegó sin usuarios conectados (0 grupos `asgi:group:*` en Redis y 0 conexiones al puerto 8000). Motivo: el navegador guardaba **una sola** sesión, así que al entrar con un segundo correo (uno personal y uno de la universidad) el primero se olvidaba y volvía a pedir el código. Se etiquetaron las imágenes `angular-app` y `django` como `antes-20261109b` y el commit anterior (`e490526`) quedó en `~/deploy-prev-20261109b.txt`; el servidor además trajo el pull request 28 (solo documentos). Se hizo `git pull --ff-only origin develop`, se reconstruyó `angular-app` (unos 3 minutos), se levantó con `up -d --no-deps` y `django` se reinició; no hay migraciones. Después: `scripts/smoke-test.sh` «Todo en orden», `GET /api/auth/me/` sin sesión responde 401 y el paquete `main-*.js` publicado contiene «Cambiar de cuenta». Volver atrás: sección 4, con la etiqueta `antes-20261109b` y `git checkout e490526`. La sesión sigue viviendo en cada navegador: en otro navegador o aparato hay que entrar una vez.
+
+### Despliegue del 2026-11-09 (madrugada): «Mis diagramas» y Compartir como Google Docs
 
 El pull request 27 (roles dueño, editor y lector; acceso general restringido o cualquiera con el enlace; lista «Mis diagramas»; nombre del diagrama en la barra superior) se fusionó con el commit `e490526` y se desplegó de madrugada, sin usuarios conectados (0 grupos `asgi:group:*` en Redis y 0 conexiones al puerto 8000). Se etiquetaron las imágenes `angular-app` y `django` como `antes-20261109` y el commit anterior (`433c563`) quedó en `~/deploy-prev-20261109.txt`. Se hizo `git pull --ff-only origin develop`, se reconstruyó `angular-app` (unos 3 minutos), se levantó con `up -d --no-deps` y se reinició `django`, que aplicó **`collab.0007_room_sharing`** (tablas `RoomMember` con roles y `RoomSettings` con el nombre y el acceso general; los invitados anteriores pasan a editores y los dueños quedan con `source=owner`). Después: `scripts/smoke-test.sh` «Todo en orden» (13 comprobaciones), `/api/rooms/`, `/api/rooms/<sala>/access/` y `/settings/` sin sesión responden 401 y el paquete `main-*.js` publicado contiene «Mis diagramas». Volver atrás: sección 4, con la etiqueta `antes-20261109` y `git checkout 433c563`; la migración 0007 solo agrega columnas y una tabla, así que el código anterior sigue funcionando con ella. Las salas creadas antes del control de acceso no tienen dueño: quien la abra primero queda como propietario.
 
@@ -104,7 +108,7 @@ Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios
 
 ## 6. Pruebas de humo
 
-**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-11-09, todo en orden (13 comprobaciones, tras desplegar «Mis diagramas» y los roles; con el acceso por correo activo la API sin sesión debe dar 401). Tarda unos 3 minutos.
+**Un solo comando:** `scripts/smoke-test.sh [dominio]` ejecuta todas las comprobaciones siguientes (más el cierre de los puertos 4200, 7001 y 8000) y termina con código 0 si todo está bien. Solo lee, no modifica nada. Última corrida: 2026-11-09, todo en orden (13 comprobaciones, tras desplegar las cuentas recordadas; con el acceso por correo activo la API sin sesión debe dar 401). Tarda unos 3 minutos.
 
 Desde cualquier equipo, sustituyendo el dominio:
 
