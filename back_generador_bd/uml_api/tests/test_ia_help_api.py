@@ -193,6 +193,7 @@ class HelpKnowledgeTests(SimpleTestCase):
         "Importar Imagen", "Importar XMI", "Exportar XMI", "Exportar a Backend", "Exportar como Imagen", "Exportar como SQL", "Exportar Flutter",
         "Generar modelo", "Sugerencias del modelo", "Chat con la IA", "Aplicar", "Descartar", "Nube (Gemini)", "Local",
         "Participantes", "Actividad", "Expulsar", "Host", "Activar avisos", "Ayuda",
+        "Invitar por correo", "Enviar invitación", "Abrir mi correo", "Enviar código", "Pedir otro código", "Cerrar sesión",
     ]
 
     def test_the_manual_mentions_every_function_of_the_menu(self):
