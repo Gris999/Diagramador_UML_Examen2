@@ -1,4 +1,5 @@
 import { DiagramService } from './diagram.service';
+import { umlRouter, umlSideAnchor } from './link-look.util';
 
 describe('DiagramService AI edit regressions', () => {
   function createService(): DiagramService {
@@ -35,6 +36,7 @@ describe('DiagramService AI edit regressions', () => {
     }
     set(prop: string, value: any) { this.state[prop] = value; }
     get(prop: string) { return this.state[prop]; }
+    unset(prop: string) { delete this.state[prop]; }
   }
 
   it('preserves untouched attributes when the AI edits one attribute', () => {
@@ -299,7 +301,7 @@ describe('DiagramService AI edit regressions', () => {
     expect(addLinkBroadcasts[0][0].payload.labels.map((l: any) => l.attrs.text.text)).toEqual(['1', '0..*']);
   });
 
-  it('uses Manhattan routing and a rounded connector for every relationship type', () => {
+  it('draws every relationship type with a rounded connector and no router of its own, so the canvas default follows the classes', () => {
     const service = createService();
     (service as any).joint = { dia: { Link: FakeLink } };
 
@@ -315,13 +317,21 @@ describe('DiagramService AI edit regressions', () => {
       const link = service.createTypedRelationship('source', 'target', type, true);
 
       expect(link.get('relationType')).toBe(type);
-      expect(link.get('router')).toEqual({ name: 'manhattan' });
+      expect(link.get('router')).toBeUndefined();
       expect(link.get('connector')).toEqual({ name: 'rounded' });
       expect(link.get('attrs')).toBe((service as any).relationAttrs[type]);
     });
   });
 
-  it('uses the same routing for default and remote relationship builders', () => {
+  it('keeps the loop routing for a relationship from a class to itself, and a straight dotted line for the association class', () => {
+    const service = createService();
+    (service as any).joint = { dia: { Link: FakeLink } };
+
+    expect(service.createTypedRelationship('same', 'same', 'association', true).get('router')).toEqual({ name: 'manhattan' });
+    expect(service.createTypedRelationship('clase', 'linea', 'association-class', true).get('router')).toEqual({ name: 'normal' });
+  });
+
+  it('gives the default, remote and drawn-from-a-port relationship builders the same routing', () => {
     const service = createService();
     (service as any).joint = { dia: { Link: FakeLink } };
 
@@ -331,9 +341,57 @@ describe('DiagramService AI edit regressions', () => {
     ];
 
     links.forEach(link => {
-      expect(link.get('router')).toEqual({ name: 'manhattan' });
+      expect(link.get('router')).toBeUndefined();
       expect(link.get('connector')).toEqual({ name: 'rounded' });
     });
+    expect((service as any).buildRelationship('same', 'same').get('router')).toEqual({ name: 'manhattan' });
+  });
+
+  it('puts the multiplicities where the class does not cover them (centred text, away from the border)', () => {
+    const service = createService();
+    (service as any).joint = { dia: { Link: FakeLink } };
+
+    const link = service.createTypedRelationship('source', 'target', 'association', true);
+    const labels = link.get('labels');
+
+    expect(labels.map((label: any) => label.attrs.text.text)).toEqual(['0..1', '1..*']);
+    labels.forEach((label: any) => expect(label.attrs.text.textAnchor).toBe('middle'));
+    expect(Math.abs(labels[0].position.distance)).toBeGreaterThanOrEqual(20);
+    expect(labels[1].position.distance).toBeLessThan(0);
+  });
+
+  it('brings a relationship saved with the old look up to date when it is loaded', () => {
+    const service = createService();
+    (service as any).joint = { dia: { Link: FakeLink } };
+    const old = new FakeLink({
+      source: { id: 'a' },
+      target: { id: 'b' },
+      router: { name: 'manhattan' },
+      labels: [
+        { position: { distance: 20, offset: -10 }, attrs: { text: { text: '1' } } },
+        { position: { distance: 0.5, offset: 12 }, attrs: { text: { text: 'moved' } } }
+      ]
+    });
+
+    (service as any).upgradeLinkLook(old);
+
+    expect(old.get('router')).toBeUndefined();
+    const [first, second] = old.get('labels');
+    expect(first.attrs.text.textAnchor).toBe('middle');
+    expect(second.position).toEqual({ distance: 0.5, offset: 12 });
+  });
+
+  it('does not touch the routing of a loop or of the association class when loading', () => {
+    const service = createService();
+    (service as any).joint = { dia: { Link: FakeLink } };
+    const loop = new FakeLink({ source: { id: 'a' }, target: { id: 'a' }, router: { name: 'manhattan' }, labels: [] });
+    const dotted = new FakeLink({ source: { id: 'a' }, target: { id: 'l' }, relationType: 'association-class', router: { name: 'normal' }, labels: [] });
+
+    (service as any).upgradeLinkLook(loop);
+    (service as any).upgradeLinkLook(dotted);
+
+    expect(loop.get('router')).toEqual({ name: 'manhattan' });
+    expect(dotted.get('router')).toEqual({ name: 'normal' });
   });
 
   it('fills the export canvas before drawing the diagram image', () => {
@@ -700,6 +758,28 @@ describe('DiagramService backup persistence and room lifecycle', () => {
     await service.initialize(document.createElement('div'), 'room-1');
 
     expect((service as any).paper.options.linkPinning).toBeFalse();
+  });
+
+  it('draws the relationships with the routing and the anchors that follow the classes', async () => {
+    const { service, collab } = createServiceWithMocks();
+    Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
+
+    await service.initialize(document.createElement('div'), 'room-1');
+
+    const options = (service as any).paper.options;
+    expect(options.defaultAnchor).toBe(umlSideAnchor);
+    expect(options.defaultRouter).toBe(umlRouter);
+  });
+
+  it('when the screen asks twice for the canvas, the last request is the one that gets it', async () => {
+    const { service, collab } = createServiceWithMocks();
+    Object.assign(collab, { registerDiagramApi: () => undefined, init: () => undefined });
+    const first = document.createElement('div');
+    const second = document.createElement('div');
+
+    await Promise.all([service.initialize(first, 'room-1'), service.initialize(second, 'room-1')]);
+
+    expect((service as any).paper.el).toBe(second);
   });
 
   it('stops its animation-frame loops when the room is left, and restarts them for the next one', async () => {
