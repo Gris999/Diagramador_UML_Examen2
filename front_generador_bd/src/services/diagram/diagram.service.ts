@@ -9,6 +9,10 @@ import { UmlValidationService } from '../colaboration/uml-validation.service';
 import { BackupService } from '../exports/backup.service';
 import { isManyToManyLabels, junctionElementId, junctionDisplayName, associationClassLinkId } from './junction-naming.util';
 import { findAssociationClassAttachments, resolveAssociationClassesForGenerators, RelationshipLike } from './association-class.util';
+import { defaultLabels, endLabel, isOldDefaultLabel, umlRouter, umlSideAnchor, upgradeLabel } from './link-look.util';
+
+/** Una relación de una clase consigo misma (recursiva) conserva su ruteo de siempre: da un lazo alrededor de la clase. */
+const SELF_LOOP_ROUTER = { name: 'manhattan' };
 
 @Injectable({ providedIn: 'root' })
 export class DiagramService {
@@ -28,6 +32,8 @@ export class DiagramService {
   public clipboard: any = null;
   private roomId = '';
   private roomLeft = false;
+  /** Cuántas veces se llamó a `initialize`: solo la última llamada arma el lienzo. */
+  private initializeCalls = 0;
   private frameLoopGeneration = 0;
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly AUTOSAVE_DEBOUNCE_MS = 1500;
@@ -63,8 +69,12 @@ export class DiagramService {
       this.storageKey = `diagram-${roomId}`;
       this.roomId = roomId;
       this.roomLeft = false;
+      // Si la pantalla se crea dos veces seguidas (por ejemplo al hidratarse), cada una llama a `initialize` y la primera que termine de cargar
+      // JointJS no debe pisar el lienzo de la última: solo sigue la llamada más reciente.
+      const generation = ++this.initializeCalls;
       // Importamos JointJS
       this.joint = await import('jointjs');
+      if (generation !== this.initializeCalls) return;
       // Creamos el grafo
       this.graph = new this.joint.dia.Graph();
       // Creamos el papel/canvas
@@ -78,6 +88,9 @@ export class DiagramService {
         interactive: this.readOnly ? false : { elementMove: true, addLinkFromMagnet: true },
         background: { color: '#f8f9fa' },
         defaultConnector: { name: 'rounded' },
+        // Las relaciones salen por el lado que mira a la otra clase y se recalculan cada vez que algo se mueve (ver `link-look.util`).
+        defaultAnchor: umlSideAnchor,
+        defaultRouter: umlRouter,
         defaultLink: () => this.buildRelationship(),
         validateConnection: (cvS: any, _mS: any, cvT: any, _mT: any) => cvS !== cvT,
         // Una relación une dos clases: si se suelta sobre el lienzo vacío, desaparece en lugar de quedar colgada.
@@ -192,6 +205,11 @@ export class DiagramService {
         const p = m.position();
         this.collab.broadcast({ t: 'move', id: m.id, x: p.x, y: p.y });
         pendingPos = null; // limpiar
+      });
+
+      // Las relaciones guardadas con el formato anterior (ruteo Manhattan y multiplicidades pegadas a la clase) pasan al nuevo al cargarse.
+      this.graph.on('add', (cell: any) => {
+        if (cell?.isLink?.()) this.upgradeLinkLook(cell);
       });
 
 
@@ -486,25 +504,31 @@ export class DiagramService {
       relationType: 'association',    // 👈 tipo por defecto
       source: sourceId ? { id: sourceId } : undefined,
       target: targetId ? { id: targetId } : undefined,
-      router: { name: 'manhattan' },
+      ...this.routingFor(sourceId, targetId),
       connector: { name: 'rounded' },
       attrs: {
         '.connection': { stroke: '#333333', 'stroke-width': 2 },
         '.marker-target': { fill: '#333333', d: 'M 10 0 L 0 5 L 10 10 z' }
       },
-      labels: [
-        {
-          position: { distance: 20, offset: -10 },
-          attrs: { text: { text: '0..1', fill: '#333', fontSize: 12 } },
-          markup: [{ tagName: 'text', selector: 'text' }]
-        },
-        {
-          position: { distance: -20, offset: -10 },
-          attrs: { text: { text: '1..*', fill: '#333', fontSize: 12 } },
-          markup: [{ tagName: 'text', selector: 'text' }]
-        }
-      ]
+      labels: defaultLabels()
     });
+  }
+
+  /** Pone una relación guardada con el formato anterior al día: ruteo del lienzo (salvo la recursiva) y multiplicidades que no tapa la clase. */
+  private upgradeLinkLook(link: any): void {
+    if (link.get('relationType') === 'association-class') return;
+    const sourceId = link.get('source')?.id;
+    const selfLoop = !!sourceId && sourceId === link.get('target')?.id;
+    if (!selfLoop && link.get('router')?.name === 'manhattan') link.unset('router');
+    const labels = link.get('labels');
+    if (Array.isArray(labels) && labels.some(isOldDefaultLabel)) {
+      link.set('labels', labels.map((label: any) => (isOldDefaultLabel(label) ? upgradeLabel(label) : label)));
+    }
+  }
+
+  /** El ruteo propio de la relación: solo la recursiva lo trae; las demás usan el del lienzo (`defaultRouter`), que sigue a las clases. */
+  private routingFor(sourceId?: string, targetId?: string): { router?: { name: string } } {
+    return sourceId && sourceId === targetId ? { router: SELF_LOOP_ROUTER } : {};
   }
 
 
@@ -569,25 +593,14 @@ export class DiagramService {
       relationType: type,             // 👈 guarda el tipo
       source: { id: sourceId },
       target: { id: targetId },
-      // El conector de clase asociativa es una recta punteada hacia el medio de la asociación (UML); el resto, ortogonal.
-      router: { name: type === 'association-class' ? 'normal' : 'manhattan' },
+      // El conector de clase asociativa es una recta punteada hacia el medio de la asociación (UML); el resto, ortogonal y sigue a las clases.
+      ...(type === 'association-class' ? { router: { name: 'normal' } } : this.routingFor(sourceId, targetId)),
       connector: { name: type === 'association-class' ? 'normal' : 'rounded' },
       attrs
     });
 
     // El conector de clase asociativa no lleva cardinalidad propia.
-    link.set('labels', type === 'association-class' ? [] : [
-      {
-        position: { distance: 20, offset: -10 },
-        attrs: { text: { text: '0..1', fill: '#333', fontSize: 12 } },
-        markup: [{ tagName: 'text', selector: 'text' }]
-      },
-      {
-        position: { distance: -20, offset: -10 },
-        attrs: { text: { text: '1..*', fill: '#333', fontSize: 12 } },
-        markup: [{ tagName: 'text', selector: 'text' }]
-      }
-    ]);
+    link.set('labels', type === 'association-class' ? [] : defaultLabels());
 
     if (!remote) {
       this.graph.addCell(link);       // 👈 disparará 'add' → broadcast
@@ -875,22 +888,13 @@ export class DiagramService {
       name: 'Relacion',
       source: sourceId ? { id: sourceId } : undefined,
       target: targetId ? { id: targetId } : undefined,
-      router: { name: 'manhattan' },
+      ...this.routingFor(sourceId, targetId),
       connector: { name: 'rounded' },
       attrs: {
         '.connection': { stroke: '#333333', 'stroke-width': 2 },
         '.marker-target': { fill: '#333333', d: 'M 10 0 L 0 5 L 10 10 z' },
       },
-      labels: [
-        {
-          position: { distance: 20, offset: -10 },
-          attrs: { text: { text: '0..1', fill: '#333' } },
-        },
-        {
-          position: { distance: -20, offset: -10 },
-          attrs: { text: { text: '1..*', fill: '#333' } },
-        },
-      ],
+      labels: defaultLabels(),
     });
 
   // Expose para otros servicios (collab)
@@ -1073,11 +1077,7 @@ export class DiagramService {
       if (rel.labels) {
         link.set(
           'labels',
-          rel.labels.map((txt: string, i: number) => ({
-            position: { distance: i === 0 ? 20 : -20, offset: -10 },
-            attrs: { text: { text: txt, fill: '#333', fontSize: 12 } },
-            markup: [{ tagName: 'text', selector: 'text' }]
-          }))
+          rel.labels.map((txt: string, i: number) => endLabel(txt, i === 0 ? 'source' : 'target'))
         );
       }
 
@@ -1662,21 +1662,7 @@ export class DiagramService {
       );
 
       if (validLabels.length > 0) {
-        const newLabels = validLabels.map((labelText: string, index: number) => ({
-          position: {
-            distance: index === 0 ? 20 : -20,
-            offset: index === 0 ? -10 : 10
-          },
-          attrs: {
-            text: {
-              text: labelText.trim(),
-              fill: '#333',
-              fontSize: 12,
-              fontWeight: 'bold'
-            }
-          },
-          markup: [{ tagName: 'text', selector: 'text' }]
-        }));
+        const newLabels = validLabels.map((labelText: string, index: number) => endLabel(labelText.trim(), index === 0 ? 'source' : 'target'));
 
         newLink.set('labels', newLabels);
         //console.log(`✅ Cardinalidades aplicadas a nueva relación:`, validLabels);
@@ -1772,21 +1758,7 @@ export class DiagramService {
       );
 
       if (validLabels.length > 0) {
-        const newLabels = validLabels.map((labelText: string, index: number) => ({
-          position: {
-            distance: index === 0 ? 20 : -20,
-            offset: index === 0 ? -10 : 10
-          },
-          attrs: {
-            text: {
-              text: labelText.trim(),
-              fill: '#333',
-              fontSize: 12,
-              fontWeight: 'bold'
-            }
-          },
-          markup: [{ tagName: 'text', selector: 'text' }]
-        }));
+        const newLabels = validLabels.map((labelText: string, index: number) => endLabel(labelText.trim(), index === 0 ? 'source' : 'target'));
 
         // Limpiar etiquetas anteriores y aplicar las nuevas
         existingLink.set('labels', []);
@@ -2099,11 +2071,7 @@ export class DiagramService {
     const source = Array.isArray(labels) && labels.length >= 2 ? labels : ['0..*', '0..*'];
     return source.map((label: any, index: number) => {
       if (typeof label !== 'string') return this.cloneGraphValue(label);
-      return {
-        position: { distance: index === 0 ? 20 : -20, offset: -10 },
-        attrs: { text: { text: label, fill: '#333', fontSize: 12 } },
-        markup: [{ tagName: 'text', selector: 'text' }]
-      };
+      return endLabel(label, index === 0 ? 'source' : 'target');
     });
   }
 

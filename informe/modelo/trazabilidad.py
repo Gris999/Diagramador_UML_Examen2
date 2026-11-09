@@ -163,6 +163,7 @@ EXCLUIDAS = [
     ("app/app.ts", "App", C_UI),
     ("app/share-dialog/share-dialog.ts", "ShareDialog", C_UI),  # ventana «Compartir»: arma y copia los enlaces de la sala, sin lógica de negocio
     ("services/theme.service.ts", "ThemeService", C_UI),  # tema oscuro o claro de la interfaz
+    ("services/diagram/tool.service.ts", "ToolService", C_UI),  # la herramienta elegida con un clic en la paleta: estado de la interfaz, sin lógica de negocio
     ("app/components/diagram/spinner/spinner.ts", "Spinner", C_UI),
     ("BackGeneratorUmlApplication.java", "BackGeneratorUmlApplication", C_GENERADOR),
     ("configuration/MustacheConfig.java", "MustacheConfig", C_GENERADOR),

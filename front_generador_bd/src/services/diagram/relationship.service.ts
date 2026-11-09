@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DiagramService } from './diagram.service';
+import { ToolService } from './tool.service';
 
 @Injectable({ providedIn: 'root' })
 export class RelationshipService {
@@ -8,7 +9,7 @@ export class RelationshipService {
 	private clickHandler: any = null;
 	private currentType: string = 'association'; // por defecto
 
-	constructor(private diagramService: DiagramService) {}
+	constructor(private diagramService: DiagramService, private tools: ToolService) {}
 
 	/**
 	 * Inicia el modo de creación de relación con un tipo específico
@@ -32,7 +33,7 @@ export class RelationshipService {
 			// orden, y se une la clase con el MEDIO de esa línea con un conector punteado sin multiplicidad.
 			if (this.currentType === 'association-class') {
 				if (!this.sourceElement) {
-					this.sourceElement = model;
+					this.chooseSource(model);
 					return;
 				}
 				const first = this.sourceElement;
@@ -51,7 +52,10 @@ export class RelationshipService {
 
 			if (!this.sourceElement) {
 				// Primera selección
-				this.sourceElement = model;
+				this.chooseSource(model);
+			} else if (model.id === this.sourceElement.id) {
+				// Un segundo clic en la misma clase no la une consigo misma: se sigue esperando el destino.
+				return;
 			} else {
 				// Segunda selección, creamos la relación
 				this.createTypedRelationship(
@@ -65,12 +69,28 @@ export class RelationshipService {
 		this.paper.on('cell:pointerclick', this.clickHandler);
 	}
 
+	/** La primera elección: se marca con un resalte para que se vea qué se eligió. */
+	private chooseSource(model: any): void {
+		this.sourceElement = model;
+		this.highlight(model, true);
+		this.tools.chosen.set(1);
+	}
+
+	private highlight(model: any, on: boolean): void {
+		const view = model && this.paper?.findViewByModel?.(model);
+		if (!view) return;
+		if (on) view.highlight?.();
+		else view.unhighlight?.();
+	}
+
 	/** Limpia el estado y desactiva el modo de creación de relación. */
 	private finishLinkCreation(containerElement: HTMLElement): void {
 		this.paper.off('cell:pointerclick', this.clickHandler);
 		containerElement.style.cursor = 'default';
+		this.highlight(this.sourceElement, false);
 		this.sourceElement = null;
 		this.clickHandler = null;
+		this.tools.clear();
 	}
 
 	/**
@@ -88,6 +108,7 @@ export class RelationshipService {
 		if (this.paper && this.clickHandler) {
 			this.paper.off('cell:pointerclick', this.clickHandler);
 			containerElement.style.cursor = 'default';
+			this.highlight(this.sourceElement, false);
 			this.sourceElement = null;
 			this.clickHandler = null;
 			this.currentType = 'association';

@@ -118,12 +118,18 @@ caso("CU1", "N1",
       f("app/app.routes.spec.ts", "sends any unknown address back to the start page")])
 
 caso("CU2", "B",
-     "En una sala: se arrastra «Clase UML» al lienzo, se edita con doble clic el nombre, los atributos y los métodos, se une con otra clase arrastrando "
-     "desde un círculo de conexión y se editan las multiplicidades y etiquetas.",
-     "La clase aparece y crece si el texto es largo; la relación se dibuja con ruteo ortogonal y esquinas redondeadas; cada cambio se guarda en el navegador y, "
-     "pasados unos segundos sin editar, en el servidor (sin inundarlo).",
+     "En una sala: se elige «Clase UML» con un clic y se hace clic en el lienzo (o se arrastra la herramienta), se edita con doble clic el nombre, los atributos "
+     "y los métodos, se une con otra clase eligiendo la relación y haciendo clic en la clase de origen y en la de destino (o arrastrando desde un círculo de conexión) "
+     "y se editan las multiplicidades y etiquetas.",
+     "La clase aparece donde se hizo clic y crece si el texto es largo; la relación sale por el lado que mira a la otra clase, con ruteo ortogonal y esquinas redondeadas, "
+     "se acomoda al mover una clase y deja la multiplicidad a la vista; cada cambio se guarda en el navegador y, pasados unos segundos sin editar, en el servidor (sin inundarlo).",
      "sistema",
-     [f("services/diagram/diagram.service.spec.ts", "uses Manhattan routing and a rounded connector for every relationship type"),
+     [f("services/diagram/diagram.service.spec.ts", "draws every relationship type with a rounded connector and no router of its own, so the canvas default follows the classes"),
+      f("services/diagram/link-look.util.spec.ts", "only ever draws horizontal and vertical lines, whatever the layout"),
+      f("services/diagram/link-look.util.spec.ts", "puts both ends of the line at the middle of the shared band, so a line between classes that overlap is straight"),
+      f("services/diagram/diagram.service.spec.ts", "puts the multiplicities where the class does not cover them (centred text, away from the border)"),
+      f("app/diagram/diagram.spec.ts", "puts a class where the next click on the empty canvas lands, centred on it, and frees the tool"),
+      f("services/diagram/relationship.service.spec.ts", "first click chooses the origin (highlighted), second creates the relationship and frees the tool"),
       f("services/diagram/edition.service.spec.ts", "grows width for a long method and keeps textWrap and position aligned"),
       f("services/diagram/edition.service.spec.ts", "grows width for a long attribute without shrinking an existing class"),
       f("services/diagram/diagram.service.spec.ts", "debounces backend autosave so rapid diagram edits do not flood the backend"),

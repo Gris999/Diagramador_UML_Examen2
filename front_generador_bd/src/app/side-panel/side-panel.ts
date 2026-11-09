@@ -15,6 +15,7 @@ import { ChatbotService } from '../../services/IA/chatbot.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
 import { iaErrorMessage } from '../../services/IA/ia-chat.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
+import { ToolService, ToolType } from '../../services/diagram/tool.service';
 
 
 @Component({
@@ -29,6 +30,9 @@ export class SidePanel {
   private chatboxService = inject(ChatbotService);
   private iaActions = inject(IaActionsService);
   private backendGeneratorService=inject(BackendGeneratorService);
+  readonly tools = inject(ToolService);
+  /** Cuándo terminó el último arrastre de la paleta: el clic que algunos navegadores disparan al soltar no cuenta como elegir la herramienta. */
+  private lastDragEnd = 0;
   @Output() elementDragged = new EventEmitter<CdkDragEnd>();
   @Output() saveClicked = new EventEmitter<void>();
 
@@ -69,8 +73,17 @@ export class SidePanel {
 
 
   onDragEnded(event: CdkDragEnd) {
+    this.lastDragEnd = Date.now();
     this.elementDragged.emit(event);
     event.source.reset();
+  }
+
+  /** Elegir una herramienta con un clic (sin arrastrar): después se hace clic en el lienzo, o en las clases, donde corresponde. */
+  selectTool(tool: ToolType, event?: MouseEvent): void {
+    if (Date.now() - this.lastDragEnd < 300) return;
+    this.tools.toggle(tool);
+    // Con el ratón, la herramienta queda marcada por su estado y no por el foco (con el teclado, el foco se conserva).
+    if (event && event.detail > 0) (event.currentTarget as HTMLElement | null)?.blur?.();
   }
   onSaveClicked() {
     this.saveClicked.emit();
