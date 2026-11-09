@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { ActivityEvent } from './activity-event';
+import { AuthService, readStoredSession } from '../auth/auth.service';
 import { IdentityService } from './identity.service';
 import { resolveWsHost } from './ws-host.util';
 
@@ -29,7 +30,8 @@ export class SignalingService {
   private _roomId!: string;
   public onMessage?: (msg: Msg) => void;
 
-  constructor(private readonly identity: IdentityService) {}
+  /** `auth` es opcional para quien arma el servicio a mano (pruebas): sin él se lee la sesión guardada en el navegador. */
+  constructor(private readonly identity: IdentityService, private readonly auth?: AuthService) {}
 
   /** `viewer`: conexión de solo lectura (vista móvil); no entra al orden de roles de la sala. */
   connect(roomId: string, viewer = false) {
@@ -62,7 +64,12 @@ export class SignalingService {
         : environment.wsPort
           ? `:${environment.wsPort}`
           : '';
-    const wsUrl = `${scheme}://${host}${port}${environment.wsPath}${roomId}/${viewer ? '?mode=viewer' : ''}`;
+    // Con el servidor en modo «entrar con el correo», la sesión viaja en la dirección (`?s=`): sin ella el servidor cierra la conexión con 4401.
+    const params: string[] = [];
+    if (viewer) params.push('mode=viewer');
+    const session = this.auth?.token() ?? readStoredSession()?.token;
+    if (session) params.push(`s=${encodeURIComponent(session)}`);
+    const wsUrl = `${scheme}://${host}${port}${environment.wsPath}${roomId}/${params.length ? '?' + params.join('&') : ''}`;
 
     console.log('[Signaling] Connecting to', wsUrl);
     const socket = new WebSocket(wsUrl);
@@ -83,7 +90,11 @@ export class SignalingService {
         console.error('[Signaling] Error parsing message', e);
       }
     };
-    socket.onclose = () => console.log('[Signaling] Disconnected');
+    socket.onclose = (event?: { code?: number }) => {
+      console.log('[Signaling] Disconnected');
+      // 4401: el servidor no aceptó la sesión (venció o no es válida): se borra y se vuelve a la pantalla de entrada.
+      if (event?.code === 4401) this.auth?.expire();
+    };
   }
 
   sendSignal(to: string, payload: any) {

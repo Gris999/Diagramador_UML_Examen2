@@ -1,6 +1,7 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { validate as isUuid, v4 as uuid } from 'uuid';
+import { readStoredSession } from '../auth/auth.service';
 
 export const IDENTITY_TOKEN_STORAGE_KEY = 'uml-collab-participant-token';
 export const IDENTITY_NAME_STORAGE_KEY = 'uml-collab-participant-name';
@@ -40,6 +41,13 @@ export class IdentityService {
       this.memoryName = stored;
       this.writeStorage(IDENTITY_NAME_STORAGE_KEY, stored);
       return stored;
+    }
+
+    // Quien inició sesión con su correo ya tiene nombre (el del correo): no se le pregunta.
+    const fromSession = this.isBrowser() ? this.sanitizeName(readStoredSession()?.name ?? null) : '';
+    if (fromSession) {
+      this.memoryName = fromSession;
+      return fromSession;
     }
 
     const requested = this.requestName();
