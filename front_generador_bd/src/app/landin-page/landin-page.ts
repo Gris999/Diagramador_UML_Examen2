@@ -32,6 +32,11 @@ export class LandinPage {
     if (this.auth.config()?.authRequired) void this.router.navigate(['/entrar']);
   }
 
+  /** Pasa a otra cuenta recordada en este navegador (o a un correo nuevo) sin cerrar la actual. */
+  cambiarDeCuenta() {
+    void this.router.navigate(['/entrar'], { queryParams: { cambiar: 1 } });
+  }
+
   crearNuevoLienzo() {
     const roomId = uuid();
     this.router.navigate(['/diagram', roomId]);

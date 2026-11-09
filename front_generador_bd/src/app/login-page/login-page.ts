@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AuthService } from '../../services/auth/auth.service';
+import { AuthService, Session } from '../../services/auth/auth.service';
 import { ThemeService } from '../../services/theme.service';
 
 /** Segundos que hay que esperar para pedir otro código (el servidor además limita cuántos se piden). */
@@ -15,6 +15,10 @@ export function safeReturnUrl(value: string | null): string {
 
 /**
  * Pantalla de entrada: se escribe el correo, llega un código de 6 dígitos y, al escribirlo, se entra. No hay contraseñas.
+ *
+ * Los correos que ya entraron en este navegador se recuerdan (como las cuentas de Google o de GitHub): al volver se elige uno y se entra con un
+ * clic, sin pedir otro código, mientras su sesión valga. Con `?cambiar=1` (el botón «Cambiar de cuenta») la pantalla se muestra aunque ya haya
+ * una sesión, para pasar de una cuenta a otra.
  */
 @Component({
   selector: 'app-login-page',
@@ -29,6 +33,14 @@ export class LoginPage implements OnInit, OnDestroy {
   readonly theme = inject(ThemeService);
 
   readonly step = signal<'email' | 'code'>('email');
+  /** Las cuentas que ya entraron en este navegador. */
+  readonly accounts = this.auth.accounts;
+  /** La cuenta con la que se está ahora, si la hay (aparece marcada en la lista). */
+  readonly current = computed(() => this.auth.session()?.email ?? null);
+  /** La persona pidió usar otro correo en vez de una cuenta recordada. */
+  readonly adding = signal(false);
+  /** Se muestra la lista de cuentas recordadas en vez de pedir el correo. */
+  readonly choosing = computed(() => this.step() === 'email' && this.accounts().length > 0 && !this.adding());
   readonly email = signal('');
   readonly code = signal('');
   readonly busy = signal(false);
@@ -41,8 +53,9 @@ export class LoginPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.auth.ensureConfig().subscribe(config => {
-      // Si no hay que iniciar sesión, o ya se inició, esta pantalla no tiene nada que hacer.
-      if (!config.authRequired || this.auth.loggedIn()) void this.router.navigateByUrl(this.destination());
+      // Si no hay que iniciar sesión, o ya se inició (y no se pidió cambiar de cuenta), esta pantalla no tiene nada que hacer.
+      const switching = this.route.snapshot.queryParamMap.get('cambiar') === '1';
+      if (!config.authRequired || (this.auth.loggedIn() && !switching)) void this.router.navigateByUrl(this.destination());
     });
   }
 
@@ -84,6 +97,51 @@ export class LoginPage implements OnInit, OnDestroy {
       },
       error: failure => this.fail(failure, 'No pudimos comprobar el código. Intenta de nuevo.')
     });
+  }
+
+  /** Entra con una cuenta recordada, sin pedir otro código; si su sesión ya venció, se pide el código de ese correo. */
+  useAccount(account: Session): void {
+    if (this.busy()) return;
+    this.error.set('');
+    if (account.email === this.current()) {
+      void this.router.navigateByUrl(this.destination());
+      return;
+    }
+    this.busy.set(true);
+    this.auth.resume(account.email).subscribe({
+      next: () => {
+        this.busy.set(false);
+        void this.router.navigateByUrl(this.destination());
+      },
+      error: failure => {
+        this.busy.set(false);
+        if (failure instanceof HttpErrorResponse && failure.status === 401) {
+          this.email.set(account.email);
+          this.adding.set(true);
+          this.error.set(`La sesión de ${account.email} venció. Pide un código nuevo para entrar.`);
+        } else {
+          this.error.set('No pudimos entrar ahora. Intenta de nuevo.');
+        }
+      }
+    });
+  }
+
+  /** Quita una cuenta de la lista de este navegador (no borra nada en el servidor). */
+  forget(account: Session): void {
+    this.auth.forgetAccount(account.email);
+  }
+
+  /** «Usar otro correo»: se muestra el formulario del correo. */
+  addAccount(): void {
+    this.error.set('');
+    this.email.set('');
+    this.adding.set(true);
+  }
+
+  /** De vuelta a la lista de cuentas recordadas. */
+  backToAccounts(): void {
+    this.error.set('');
+    this.adding.set(false);
   }
 
   changeEmail(): void {

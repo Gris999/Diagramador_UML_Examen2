@@ -2,6 +2,7 @@
   <div class="fixed right-4 top-3 z-40 flex items-center gap-1.5">
     @if (auth.session(); as session) {
       <span class="hidden max-w-[14rem] truncate text-xs text-fg-muted sm:inline" data-testid="account-email" [title]="session.email">{{ session.email }}</span>
+      <button type="button" class="btn btn-ghost btn-sm" data-testid="switch-account" (click)="cambiarDeCuenta()">Cambiar de cuenta</button>
       <button type="button" class="btn btn-ghost btn-sm" data-testid="logout" (click)="cerrarSesion()">Cerrar sesión</button>
     }
     <button
