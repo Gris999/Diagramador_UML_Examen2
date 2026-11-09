@@ -12,6 +12,7 @@ import { FrontendGeneratorService } from '../../services/exports/frontend-genera
 import { FullProjectGeneratorService } from '../../services/exports/full-project-generator.service';
 import { SqlExportService } from '../../services/exports/sql-export.service';
 import { UmlImageServiceTs } from '../../services/imports/uml-image.service';
+import { ToolService } from '../../services/diagram/tool.service';
 import { SidePanel } from './side-panel';
 
 describe('SidePanel image import choices', () => {
@@ -108,6 +109,68 @@ describe('SidePanel image import choices', () => {
     fixture = TestBed.createComponent(SidePanel);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  describe('choosing a tool of the palette with a click', () => {
+    const tile = (type: string) => fixture.nativeElement.querySelector(`[data-testid="tool-${type}"]`) as HTMLElement;
+
+    it('chooses a class or a relationship with one click, and marks it', () => {
+      tile('association').click();
+      fixture.detectChanges();
+
+      expect(TestBed.inject(ToolService).armed()).toBe('association');
+      expect(tile('association').classList).toContain('palette-armed');
+      expect(tile('association').getAttribute('aria-pressed')).toBe('true');
+      expect(tile('class').getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('a second click on the same tool lets it go', () => {
+      tile('class').click();
+      tile('class').click();
+      fixture.detectChanges();
+
+      expect(TestBed.inject(ToolService).armed()).toBeNull();
+      expect(tile('class').classList).not.toContain('palette-armed');
+    });
+
+    it('choosing another tool replaces the first', () => {
+      tile('class').click();
+      tile('generalization').click();
+
+      expect(TestBed.inject(ToolService).armed()).toBe('generalization');
+    });
+
+    it('works from the keyboard with Enter and with Space', () => {
+      tile('dependency').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      expect(TestBed.inject(ToolService).armed()).toBe('dependency');
+
+      tile('dependency').dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      expect(TestBed.inject(ToolService).armed()).toBeNull();
+    });
+
+    it('is a button for the screen readers and can be reached with the keyboard', () => {
+      for (const type of ['class', 'association', 'generalization', 'aggregation', 'composition', 'dependency', 'association-class']) {
+        expect(tile(type).getAttribute('role')).toBe('button');
+        expect(tile(type).getAttribute('tabindex')).toBe('0');
+      }
+    });
+
+    it('the click some browsers send right after dropping a dragged tile does not count as choosing it', () => {
+      component.onDragEnded({ source: { reset: () => undefined } } as any);
+
+      tile('class').click();
+
+      expect(TestBed.inject(ToolService).armed()).toBeNull();
+    });
+
+    it('still passes the drag to the canvas', () => {
+      const dragged = jasmine.createSpy('dragged');
+      component.elementDragged.subscribe(dragged);
+
+      component.onDragEnded({ source: { reset: () => undefined } } as any);
+
+      expect(dragged).toHaveBeenCalled();
+    });
   });
 
   describe('exporting the mobile app and the full project', () => {

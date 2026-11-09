@@ -36,7 +36,9 @@
 
     @if(showPalette){
     <div class="space-y-2">
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'class' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'class' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'class'" [attr.aria-pressed]="tools.armed() === 'class'"
+           data-testid="tool-class" (click)="selectTool('class', $event)" (keydown.enter)="selectTool('class')" (keydown.space)="selectTool('class'); $event.preventDefault()">
         <span class="inline-flex shrink-0 justify-center" style="width:76px;">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                class="h-6 w-6 text-fg" aria-hidden="true">
@@ -46,7 +48,9 @@
         <span>Clase UML</span>
       </div>
 
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'association' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'association' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'association'" [attr.aria-pressed]="tools.armed() === 'association'"
+           data-testid="tool-association" (click)="selectTool('association', $event)" (keydown.enter)="selectTool('association')" (keydown.space)="selectTool('association'); $event.preventDefault()">
         <span class="inline-block shrink-0" style="width:76px;height:28px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="103%" height="100%" viewBox="25 -5 165 20">
             <g>
@@ -60,7 +64,9 @@
         <span>Asociación</span>
       </div>
 
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'generalization' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'generalization' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'generalization'" [attr.aria-pressed]="tools.armed() === 'generalization'"
+           data-testid="tool-generalization" (click)="selectTool('generalization', $event)" (keydown.enter)="selectTool('generalization')" (keydown.space)="selectTool('generalization'); $event.preventDefault()">
         <span class="inline-block shrink-0" style="width:76px;height:28px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="25 5 165 20">
             <g>
@@ -74,7 +80,9 @@
         <span>Herencia</span>
       </div>
 
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'aggregation' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'aggregation' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'aggregation'" [attr.aria-pressed]="tools.armed() === 'aggregation'"
+           data-testid="tool-aggregation" (click)="selectTool('aggregation', $event)" (keydown.enter)="selectTool('aggregation')" (keydown.space)="selectTool('aggregation'); $event.preventDefault()">
         <span class="inline-block shrink-0" style="width:76px;height:28px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="110%" height="100%" viewBox="25 5 165 20">
             <g>
@@ -87,7 +95,9 @@
         <span>Agregación</span>
       </div>
 
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'composition' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'composition' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'composition'" [attr.aria-pressed]="tools.armed() === 'composition'"
+           data-testid="tool-composition" (click)="selectTool('composition', $event)" (keydown.enter)="selectTool('composition')" (keydown.space)="selectTool('composition'); $event.preventDefault()">
         <span class="inline-block shrink-0" style="width:76px;height:28px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="115%" height="100%" viewBox="20 5 165 20">
             <g>
@@ -100,7 +110,9 @@
         <span>Composición</span>
       </div>
 
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'dependency' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'dependency' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'dependency'" [attr.aria-pressed]="tools.armed() === 'dependency'"
+           data-testid="tool-dependency" (click)="selectTool('dependency', $event)" (keydown.enter)="selectTool('dependency')" (keydown.space)="selectTool('dependency'); $event.preventDefault()">
         <span class="inline-block shrink-0" style="width:76px;height:28px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="110%" height="100%" viewBox="20 5 165 20">
             <g>
@@ -114,7 +126,9 @@
         <span>Dependencia</span>
       </div>
 
-      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'association-class' }" (cdkDragEnded)="onDragEnded($event)">
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'association-class' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'association-class'" [attr.aria-pressed]="tools.armed() === 'association-class'"
+           data-testid="tool-association-class" (click)="selectTool('association-class', $event)" (keydown.enter)="selectTool('association-class')" (keydown.space)="selectTool('association-class'); $event.preventDefault()">
         <span class="inline-block shrink-0" style="width:76px;height:28px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="110%" height="100%" viewBox="20 5 165 20">
             <path d="M 32 18 L 170 18" fill="none" stroke="currentColor" opacity="0.6" stroke-width="2" stroke-miterlimit="10"

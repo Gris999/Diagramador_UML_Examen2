@@ -164,6 +164,10 @@
   .palette-tile:active {
     @apply cursor-grabbing;
   }
+  /* Herramienta elegida con un clic: queda marcada hasta que se usa o se cancela. */
+  .palette-tile.palette-armed {
+    @apply border-accent-text bg-accent-soft ring-1 ring-accent-text;
+  }
   .badge {
     @apply inline-flex items-center rounded-full bg-hover px-2 py-0.5 text-[10px] font-medium text-fg-muted;
   }
