@@ -122,6 +122,35 @@ describe('LandinPage', () => {
     }
   });
 
+  describe('the list of diagrams', () => {
+    const stored = { token: 'tok', email: 'ana@x.com', name: 'Ana' };
+    let auth: AuthService;
+
+    beforeEach(() => {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      auth = TestBed.inject(AuthService);
+    });
+
+    afterEach(() => localStorage.removeItem(SESSION_STORAGE_KEY));
+
+    it('keeps the code boxes of always when the server works without accounts', () => {
+      auth.config.set({ authRequired: false, mailConfigured: false });
+      fixture.detectChanges();
+
+      expect(element('[data-testid="my-diagrams"]')).toBeNull();
+      expect(element('input[aria-label="Código del lienzo"]')).not.toBeNull();
+    });
+
+    it('shows "Mis diagramas" instead of the code boxes when the person logged in with the email', () => {
+      auth.config.set({ authRequired: true, mailConfigured: true });
+      auth.session.set(stored);
+      fixture.detectChanges();
+
+      expect(element('[data-testid="my-diagrams"]')).not.toBeNull();
+      expect(element('input[aria-label="Código del lienzo"]')).toBeNull();
+    });
+  });
+
   describe('the account', () => {
     const stored = { token: 'tok', email: 'ana@x.com', name: 'Ana' };
     let auth: AuthService;

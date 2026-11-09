@@ -194,6 +194,8 @@ class HelpKnowledgeTests(SimpleTestCase):
         "Generar modelo", "Sugerencias del modelo", "Chat con la IA", "Aplicar", "Descartar", "Nube (Gemini)", "Local",
         "Participantes", "Actividad", "Expulsar", "Host", "Activar avisos", "Ayuda",
         "Invitar por correo", "Enviar invitación", "Abrir mi correo", "Enviar código", "Pedir otro código", "Cerrar sesión",
+        "Mis diagramas", "Nuevo diagrama", "Cambiar nombre", "Eliminar", "Quitar de mi lista", "Agregar personas", "Personas con acceso",
+        "Acceso general", "Cualquiera con el enlace", "Restringido", "Copiar enlace", "Lector", "Editor", "Propietario",
     ]
 
     def test_the_manual_mentions_every_function_of_the_menu(self):

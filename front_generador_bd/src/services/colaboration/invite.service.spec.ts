@@ -58,9 +58,17 @@ describe('InviteService', () => {
 
     const request = http.expectOne(`${environment.endpoint_python}api/rooms/sala%201/invite/`);
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ emails: ['b@x.com'], message: 'Ven' });
+    expect(request.request.body).toEqual({ emails: ['b@x.com'], message: 'Ven', role: 'editor' });
     expect(request.request.headers.get('X-Participant-Token')).toBe('token-1');
     request.flush({ sent: ['b@x.com'], failed: [] });
     expect(result).toEqual({ sent: ['b@x.com'], failed: [] });
+  });
+
+  it('invites as viewer when the people only have to look', () => {
+    service.send('sala-1', ['eva@x.com'], '', 'viewer').subscribe();
+
+    const request = http.expectOne(`${environment.endpoint_python}api/rooms/sala-1/invite/`);
+    expect(request.request.body).toEqual({ emails: ['eva@x.com'], message: '', role: 'viewer' });
+    request.flush({ sent: ['eva@x.com'], failed: [] });
   });
 });

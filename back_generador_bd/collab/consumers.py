@@ -15,7 +15,7 @@ import re
 
 from django.conf import settings
 
-from . import auth
+from . import auth, rooms
 from .groups import room_group_name, viewers_group_name
 from .identity import RedisGroupIdentityStore
 from .roles import RedisGroupRoleStore
@@ -67,7 +67,9 @@ class CanvasConsumer(AsyncWebsocketConsumer):
                 await self.accept()
                 await self.close(code=4401)
                 return
-            if await database_sync_to_async(auth.room_access)(self.room_name, email) != "ok":
+            role = await database_sync_to_async(rooms.effective_role)(self.room_name, email)
+            # Quien solo puede leer no entra como editor: solo se conecta como observador (`?mode=viewer`, la vista de solo lectura).
+            if role is None or (not self._requested_viewer() and not rooms.at_least(role, rooms.EDITOR)):
                 await self.accept()
                 await self.close(code=4403)
                 return

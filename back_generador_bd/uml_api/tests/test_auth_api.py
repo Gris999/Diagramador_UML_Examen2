@@ -5,7 +5,7 @@ from django.core import mail
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from collab import auth
+from collab import auth, rooms
 from collab.limits import InMemoryRateLimiter
 from collab.models import Participant
 from collab.room_state import InMemoryRoomState
@@ -230,7 +230,7 @@ class InviteApiTests(AuthApiBase):
 
     @override_settings(AUTH_REQUIRED=True)
     def test_when_login_is_required_the_invitation_needs_a_session_too(self):
-        auth.room_access(self.room, "ana@x.com", claim=True)
+        rooms.enter(self.room, "ana@x.com", claim=True)
 
         self.assertEqual(self.invite(["beto@x.com"]).status_code, 401)
         self.assertEqual(self.invite(["beto@x.com"], session=auth.make_session("ana@x.com")).status_code, 200)
@@ -331,7 +331,7 @@ class RoomAccessApiTests(AuthApiBase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual((response.data["role"], response.data["email"]), ("owner", "ana@x.com"))
-        self.assertEqual(response.data["members"], [{"email": "ana@x.com", "role": "owner"}])
+        self.assertEqual(response.data["members"], [{"email": "ana@x.com", "role": "owner", "source": "owner"}])
 
     @override_settings(AUTH_REQUIRED=True)
     def test_somebody_who_was_not_invited_is_told_so_and_with_which_address(self):
@@ -341,7 +341,7 @@ class RoomAccessApiTests(AuthApiBase):
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual((response.data["code"], response.data["email"]), ("not_invited", "beto@x.com"))
-        self.assertEqual(self.enter("ana@x.com", "get").data["members"], [{"email": "ana@x.com", "role": "owner"}])
+        self.assertEqual(self.enter("ana@x.com", "get").data["members"], [{"email": "ana@x.com", "role": "owner", "source": "owner"}])
 
     @override_settings(AUTH_REQUIRED=True)
     def test_only_entering_claims_a_room_looking_at_it_does_not(self):
@@ -356,7 +356,7 @@ class RoomAccessApiTests(AuthApiBase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual([m["email"] for m in response.data["members"]], ["ana@x.com", "beto@x.com", "luis@x.com"])
-        self.assertEqual(self.enter("beto@x.com").data["role"], "invited")
+        self.assertEqual(self.enter("beto@x.com").data["role"], "editor")
         self.assertEqual(self.enter("luis@x.com").status_code, 200)
 
     @override_settings(AUTH_REQUIRED=True)
@@ -436,4 +436,182 @@ class RoomAccessApiTests(AuthApiBase):
         self.assertEqual((response.status_code, response.data["members"]), (200, []))
         from collab.models import RoomMember
         self.assertEqual(RoomMember.objects.count(), 0)
+
+
+@override_settings(AUTH_REQUIRED=True)
+class SharingApiTests(AuthApiBase):
+    """«Compartir» como en Google Docs: roles, acceso general, nombre, borrado y la lista «Mis diagramas»."""
+
+    room = "sala-share"
+
+    def setUp(self):
+        super().setUp()
+        self.ana = Participant.objects.create(room=self.room, token=uuid.uuid4(), display_name="Ana")
+        self.client.post(f"/api/rooms/{self.room}/access/", **self.session("ana@x.com"))
+
+    def session(self, email):
+        return {"HTTP_AUTHORIZATION": f"Bearer {auth.make_session(email)}"}
+
+    def put(self, path, data, email="ana@x.com"):
+        return self.client.put(f"/api/rooms/{self.room}/{path}", data, format="json", **self.session(email))
+
+    def delete(self, path, data=None, email="ana@x.com"):
+        return self.client.delete(f"/api/rooms/{self.room}/{path}", data, format="json", **self.session(email))
+
+    def invite(self, emails, role=None, email="ana@x.com"):
+        body = {"emails": emails}
+        if role is not None:
+            body["role"] = role
+        return self.client.post(
+            f"/api/rooms/{self.room}/invite/", body, format="json", HTTP_X_PARTICIPANT_TOKEN=str(self.ana.token), **self.session(email)
+        )
+
+    def enter(self, email):
+        return self.client.post(f"/api/rooms/{self.room}/access/", **self.session(email))
+
+    # ---- lo que dice la sala de sí misma
+    def test_the_access_answer_says_who_you_are_the_name_the_general_access_and_who_is_in(self):
+        self.put("settings/", {"title": "Mi modelo", "link_access": "anyone", "link_role": "editor"})
+
+        data = self.enter("ana@x.com").data
+
+        self.assertEqual((data["role"], data["is_owner"], data["can_edit"], data["title"]), ("owner", True, True, "Mi modelo"))
+        self.assertEqual((data["link_access"], data["link_role"], data["owner"]), ("anyone", "editor", "ana@x.com"))
+
+    # ---- invitar con rol
+    def test_an_invitation_gives_the_chosen_role_and_editor_is_the_default(self):
+        self.invite(["beto@x.com"])
+        self.invite(["eva@x.com"], role="viewer")
+
+        self.assertEqual(self.enter("beto@x.com").data["role"], "editor")
+        viewer = self.enter("eva@x.com").data
+        self.assertEqual((viewer["role"], viewer["can_edit"]), ("viewer", False))
+
+    def test_an_invitation_with_another_role_is_refused(self):
+        for role in ("owner", "admin", "", 3):
+            self.assertEqual(self.invite(["beto@x.com"], role=role).status_code, 400, repr(role))
+        self.assertEqual(mail.outbox, [])
+
+    def test_the_email_says_it_is_read_only_when_the_role_is_viewer(self):
+        self.invite(["eva@x.com"], role="viewer")
+        self.invite(["beto@x.com"], role="editor")
+
+        by_to = {m.to[0]: m.body for m in mail.outbox}
+        self.assertIn("solo lectura", by_to["eva@x.com"])
+        self.assertIn("trabajar en equipo", by_to["beto@x.com"])
+
+    def test_a_viewer_cannot_invite_anyone(self):
+        self.invite(["eva@x.com"], role="viewer")
+
+        response = self.invite(["amigo@x.com"], email="eva@x.com")
+
+        self.assertEqual((response.status_code, response.json()["code"]), (403, "read_only"))
+        self.assertEqual(self.enter("amigo@x.com").status_code, 403)
+
+    # ---- acceso general y nombre
+    def test_the_owner_opens_the_link_as_viewer_and_a_stranger_can_then_read_but_not_write(self):
+        self.put("settings/", {"link_access": "anyone", "link_role": "viewer"})
+
+        self.assertEqual(self.enter("luis@x.com").data["role"], "viewer")
+        self.assertEqual(self.client.get(f"/api/rooms/{self.room}/activity/", **self.session("luis@x.com")).status_code, 200)
+        denied = self.client.post(f"/api/rooms/{self.room}/ia/chat/", {"mode": "ask", "message": "hola"}, format="json", **self.session("luis@x.com"))
+        self.assertEqual((denied.status_code, denied.json()["code"]), (403, "read_only"))
+
+    def test_closing_the_link_shuts_the_stranger_out_again(self):
+        self.put("settings/", {"link_access": "anyone", "link_role": "editor"})
+        self.assertEqual(self.enter("luis@x.com").status_code, 200)
+
+        self.put("settings/", {"link_access": "restricted"})
+
+        self.assertEqual(self.enter("luis@x.com").status_code, 403)
+
+    def test_only_the_owner_changes_the_settings(self):
+        self.invite(["beto@x.com"], role="editor")
+
+        response = self.put("settings/", {"title": "Mío ahora"}, email="beto@x.com")
+
+        self.assertEqual((response.status_code, response.data["code"]), (403, "owner_only"))
+        self.assertEqual(self.enter("ana@x.com").data["title"], "")
+
+    def test_bad_settings_are_refused_with_the_reason(self):
+        for data in ({"link_access": "publico"}, {"link_role": "owner"}, {"title": "x" * 200}, {"title": 5}):
+            response = self.put("settings/", data)
+            self.assertEqual(response.status_code, 400, data)
+            self.assertIn("error", response.data)
+
+    # ---- personas
+    def test_the_owner_changes_a_role_and_takes_somebody_out(self):
+        self.invite(["beto@x.com"], role="editor")
+
+        changed = self.put("members/", {"email": "beto@x.com", "role": "viewer"})
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(self.enter("beto@x.com").data["can_edit"], False)
+
+        removed = self.delete("members/", {"email": "beto@x.com"})
+        self.assertEqual(removed.status_code, 200)
+        self.assertEqual([m["email"] for m in removed.data["members"]], ["ana@x.com"])
+        self.assertEqual(self.enter("beto@x.com").status_code, 403)
+
+    def test_only_the_owner_manages_people_and_the_owner_cannot_be_taken_out(self):
+        self.invite(["beto@x.com"], role="editor")
+
+        self.assertEqual(self.put("members/", {"email": "ana@x.com", "role": "viewer"}).status_code, 404)
+        self.assertEqual(self.delete("members/", {"email": "ana@x.com"}).status_code, 404)
+        self.assertEqual(self.put("members/", {"email": "beto@x.com", "role": "viewer"}, email="beto@x.com").status_code, 403)
+        self.assertEqual(self.delete("members/", {"email": "ana@x.com"}, email="beto@x.com").status_code, 403)
+        self.assertEqual(self.put("members/", {"email": "beto@x.com", "role": "owner"}).status_code, 400)
+        self.assertEqual(self.put("members/", {"email": "nadie@x.com", "role": "viewer"}).status_code, 404)
+        self.assertEqual(self.put("members/", {"email": "mal", "role": "viewer"}).status_code, 400)
+
+    def test_someone_can_take_themselves_off_the_list_but_the_owner_cannot(self):
+        self.invite(["beto@x.com"], role="editor")
+
+        left = self.delete("members/", {"email": "beto@x.com"}, email="beto@x.com")
+
+        self.assertEqual((left.status_code, left.data), (200, {"left": True}))
+        self.assertEqual(self.enter("beto@x.com").status_code, 403)
+        self.assertEqual(self.delete("members/", {"email": "ana@x.com"}, email="ana@x.com").status_code, 404)
+
+    # ---- borrar y «Mis diagramas»
+    def test_the_owner_deletes_the_room_and_it_closes_for_everyone(self):
+        self.invite(["beto@x.com"], role="editor")
+
+        response = self.delete("")
+
+        self.assertEqual((response.status_code, response.data), (200, {"deleted": True}))
+        for email in ("ana@x.com", "beto@x.com"):
+            self.assertEqual(self.enter(email).status_code, 403, email)
+        self.assertEqual(self.client.get("/api/rooms/", **self.session("ana@x.com")).data["rooms"], [])
+
+    def test_only_the_owner_can_delete_the_room(self):
+        self.invite(["beto@x.com"], role="editor")
+
+        response = self.delete("", email="beto@x.com")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.enter("beto@x.com").status_code, 200)
+
+    def test_my_diagrams_lists_what_i_created_what_i_was_invited_to_and_what_i_opened_by_link(self):
+        self.put("settings/", {"title": "Tienda"})
+        self.invite(["beto@x.com"], role="viewer")
+        self.client.post("/api/rooms/otra-sala/access/", **self.session("beto@x.com"))
+        self.client.put("/api/rooms/otra-sala/settings/", {"title": "Mía", "link_access": "anyone", "link_role": "editor"}, format="json", **self.session("beto@x.com"))
+        self.client.post("/api/rooms/otra-sala/access/", **self.session("ana@x.com"))
+
+        mine = self.client.get("/api/rooms/", **self.session("ana@x.com")).data["rooms"]
+        his = self.client.get("/api/rooms/", **self.session("beto@x.com")).data["rooms"]
+
+        self.assertEqual([(d["room"], d["title"], d["role"], d["owner"]) for d in mine],
+                         [("otra-sala", "Mía", "editor", "beto@x.com"), (self.room, "Tienda", "owner", "ana@x.com")])
+        self.assertEqual({d["room"]: d["role"] for d in his}, {"otra-sala": "owner", self.room: "viewer"})
+
+    def test_my_diagrams_needs_a_session(self):
+        self.assertEqual(self.client.get("/api/rooms/").status_code, 401)
+
+    @override_settings(AUTH_REQUIRED=False)
+    def test_without_the_switch_there_are_no_accounts_so_the_list_is_empty_and_the_sharing_routes_say_so(self):
+        self.assertEqual(self.client.get("/api/rooms/").data, {"required": False, "rooms": []})
+        self.assertEqual(self.client.put(f"/api/rooms/{self.room}/settings/", {"title": "x"}, format="json").status_code, 409)
+        self.assertEqual(self.client.put(f"/api/rooms/{self.room}/members/", {"email": "a@b.co", "role": "viewer"}, format="json").status_code, 409)
+        self.assertEqual(self.client.delete(f"/api/rooms/{self.room}/").status_code, 409)
 

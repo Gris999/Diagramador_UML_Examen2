@@ -1,5 +1,16 @@
 from django.urls import path
-from .auth_views import auth_config, auth_me, auth_request_code, auth_verify, room_access_view, room_invite
+from .auth_views import (
+    auth_config,
+    auth_me,
+    auth_request_code,
+    auth_verify,
+    my_rooms_view,
+    room_access_view,
+    room_delete_view,
+    room_invite,
+    room_members_view,
+    room_settings_view,
+)
 from .chat_views import chat_history, claim_suggestion, ia_chat, ia_provider_info, room_ia_provider
 from .help_views import ia_help
 from .views import (
@@ -36,7 +47,11 @@ urlpatterns = [
     ),
     path("rooms/<str:room>/ia/provider/", room_ia_provider, name="room-ia-provider"),
     path("rooms/<str:room>/invite/", room_invite, name="room-invite"),
+    path("rooms/", my_rooms_view, name="my-rooms"),
+    path("rooms/<str:room>/", room_delete_view, name="room-delete"),
     path("rooms/<str:room>/access/", room_access_view, name="room-access"),
+    path("rooms/<str:room>/settings/", room_settings_view, name="room-settings"),
+    path("rooms/<str:room>/members/", room_members_view, name="room-members"),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/code/", auth_request_code, name="auth-code"),
     path("auth/verify/", auth_verify, name="auth-verify"),

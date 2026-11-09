@@ -17,6 +17,7 @@ import { ActivityPanel } from '../activity-panel/activity-panel';
 import { HelpPanel } from '../help-panel/help-panel';
 import { IaChatPanel } from '../ia-chat-panel/ia-chat-panel';
 import { ShareDialog } from '../share-dialog/share-dialog';
+import { RoomTitle } from '../room-title/room-title';
 import { avatarColor, avatarInitial } from '../participants-panel/avatar';
 import { ThemeService } from '../../services/theme.service';
 
@@ -30,7 +31,7 @@ type TopMenu = 'activity' | 'participants';
   standalone: true,
   templateUrl: './diagram.html',
   styleUrls: ['./diagram.css'],
-  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel, HelpPanel, ShareDialog]
+  imports: [SidePanel, CdkDropListGroup, CdkDropList, ParticipantsPanel, ActivityPanel, IaChatPanel, HelpPanel, ShareDialog, RoomTitle]
 })
 export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild('paperContainer', { static: true }) paperContainer!: ElementRef;

@@ -98,20 +98,28 @@ class IaAttempt(models.Model):
 
 
 class RoomMember(models.Model):
-    """Quién tiene acceso a una sala cuando se entra con el correo (`collab.auth`).
+    """Quién aparece en una sala cuando se entra con el correo (`collab.rooms`): su rol y de dónde viene su acceso.
 
-    El primero que abre una sala sin dueño queda como propietario y los demás entran solo si alguien de la sala los invitó por correo.
+    `role` es lo que puede hacer: `owner` (todo), `editor` (editar e invitar) o `viewer` (solo mirar). `source` dice por qué está en la lista: lo
+    creó (`owner`), lo invitaron (`invite`) o abrió la sala por su enlace público (`link`); en este último caso la fila solo sirve para que la sala
+    aparezca en su lista «Mis diagramas»: lo que puede hacer lo decide la sala (`RoomSettings`) mientras el enlace siga abierto.
     Una sala tiene un solo propietario (lo asegura la restricción de abajo, también si dos personas la abren al mismo tiempo).
     """
 
     ROLE_OWNER = "owner"
-    ROLE_INVITED = "invited"
+    ROLE_EDITOR = "editor"
+    ROLE_VIEWER = "viewer"
+    SOURCE_OWNER = "owner"
+    SOURCE_INVITE = "invite"
+    SOURCE_LINK = "link"
 
     room = models.CharField(max_length=64)
     email = models.EmailField(max_length=254)
-    role = models.CharField(max_length=16, default=ROLE_INVITED)
+    role = models.CharField(max_length=16, default=ROLE_EDITOR)
+    source = models.CharField(max_length=16, default=SOURCE_INVITE)
     invited_by = models.EmailField(max_length=254, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    last_opened_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -122,7 +130,28 @@ class RoomMember(models.Model):
                 name="one_owner_per_room",
             ),
         ]
-        indexes = [models.Index(fields=("room",), name="room_member_room_idx")]
+        indexes = [
+            models.Index(fields=("room",), name="room_member_room_idx"),
+            models.Index(fields=("email",), name="room_member_email_idx"),
+        ]
 
     def __str__(self):
         return f"{self.email} ({self.role}) en {self.room}"
+
+
+class RoomSettings(models.Model):
+    """Cómo se comparte una sala y cómo se llama: el nombre, el acceso general (restringido o cualquiera con el enlace) y si está borrada."""
+
+    LINK_RESTRICTED = "restricted"
+    LINK_ANYONE = "anyone"
+
+    room = models.CharField(max_length=64, unique=True)
+    title = models.CharField(max_length=80, blank=True, default="")
+    link_access = models.CharField(max_length=16, default=LINK_RESTRICTED)
+    link_role = models.CharField(max_length=16, default=RoomMember.ROLE_VIEWER)
+    deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.title or 'Sin título'} ({self.room})"

@@ -6,53 +6,25 @@
   data-testid="share-dialog"
   (click)="close()"
 >
-  <div class="w-full max-w-lg rounded-2xl border border-line-strong bg-panel p-6 text-fg shadow-2xl shadow-black/50" (click)="$event.stopPropagation()">
+  <div class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line-strong bg-panel p-6 text-fg shadow-2xl shadow-black/50" (click)="$event.stopPropagation()">
     <div class="flex items-start justify-between gap-4">
-      <div>
-        <h2 id="share-dialog-title" class="text-lg font-semibold">Compartir la sala</h2>
-        <p class="mt-1 text-sm text-fg-muted">Invita a tu equipo o sigue el diagrama desde el celular.</p>
+      <div class="min-w-0">
+        <h2 id="share-dialog-title" class="truncate text-lg font-semibold" data-testid="share-title">
+          {{ withAccounts() ? 'Compartir' + (title() ? ' «' + title() + '»' : '') : 'Compartir la sala' }}
+        </h2>
+        <p class="mt-1 text-sm text-fg-muted">
+          {{ withAccounts() ? 'Agrega personas con su rol y decide quién más puede abrir el diagrama.' : 'Invita a tu equipo o sigue el diagrama desde el celular.' }}
+        </p>
       </div>
       <button type="button" class="btn btn-ghost !px-2" aria-label="Cerrar" data-testid="share-close" (click)="close()">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-4 w-4" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
       </button>
     </div>
 
-    <section class="mt-6" aria-labelledby="share-invite-title">
-      <h3 id="share-invite-title" class="flex items-center gap-2 text-sm font-semibold">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20v-1a6.5 6.5 0 0 1 13 0v1" /><path d="M19 8v6M16 11h6" /></svg>
-        Invitar a editar
-      </h3>
-      @if (restricted()) {
-        <p class="mt-1 text-xs text-fg-muted" data-testid="share-restricted-note">
-          Solo entran las personas que invites por correo. A cada una le llega un enlace y debe entrar con ese mismo correo.
-        </p>
-      } @else {
-        <p class="mt-1 text-xs text-fg-muted">Quien abra este enlace entra a la sala, escribe su nombre y puede editar el diagrama.</p>
-        <input
-          type="text"
-          readonly
-          class="field mt-3 font-mono text-xs"
-          aria-label="Enlace de invitación"
-          data-testid="share-invite-link"
-          [value]="inviteLink()"
-          (focus)="selectAll($event)"
-        />
-        <div class="mt-2 flex flex-wrap gap-2">
-          <button type="button" class="btn btn-primary" data-testid="copy-invite-link" (click)="copy('invite')">
-            {{ copied() === 'invite' ? '¡Copiado!' : 'Copiar enlace de invitación' }}
-          </button>
-          <button type="button" class="btn btn-secondary" data-testid="copy-room-code" (click)="copy('code')">
-            {{ copied() === 'code' ? '¡Copiado!' : 'Copiar código de sala' }}
-          </button>
-        </div>
-        <p class="mt-2 text-xs text-fg-faint">
-          Con el código, la otra persona lo escribe en «Unirme al Lienzo» de la pantalla de inicio.
-        </p>
-
-      }
-
-      <div class="mt-4 rounded-xl border border-line bg-raised p-3" data-testid="share-email-box">
-        <label for="invite-emails" class="text-xs font-semibold text-fg">Invitar por correo</label>
+    <!-- Invitar por correo: se usa con y sin cuentas; con cuentas se elige el rol de quien entra -->
+    <ng-template #emailBox>
+      <div class="rounded-xl border border-line bg-raised p-3" data-testid="share-email-box">
+        <label for="invite-emails" class="text-xs font-semibold text-fg">{{ withAccounts() ? 'Correos de las personas' : 'Invitar por correo' }}</label>
         <input
           id="invite-emails"
           type="text"
@@ -65,6 +37,15 @@
           (input)="onEmails($event)"
           (keydown.enter)="serverMail() && sendInvites()"
         />
+        @if (withAccounts()) {
+          <div class="mt-2 flex items-center gap-2">
+            <label for="invite-role" class="text-xs text-fg-muted">Entran como</label>
+            <select id="invite-role" class="field !w-auto py-1 text-xs" data-testid="invite-role" [value]="inviteRole()" [disabled]="sending()" (change)="onInviteRole($event)">
+              <option value="editor">Editor (puede cambiar el diagrama)</option>
+              <option value="viewer">Lector (solo mira)</option>
+            </select>
+          </div>
+        }
         <textarea
           class="field mt-2 h-14 resize-none text-xs"
           placeholder="Mensaje (opcional, sin enlaces)"
@@ -100,21 +81,135 @@
           </p>
         }
       </div>
+    </ng-template>
 
-      @if (restricted() && members().length > 0) {
-        <div class="mt-3" data-testid="share-members">
-          <p class="text-xs font-semibold text-fg">Con acceso</p>
-          <ul class="mt-1 space-y-1">
-            @for (member of members(); track member.email) {
-              <li class="flex items-center justify-between gap-2 text-xs text-fg-muted" data-testid="share-member">
-                <span class="min-w-0 truncate" [title]="member.email">{{ member.email }}</span>
-                <span class="badge" [class.badge-brand]="member.role === 'owner'">{{ member.role === 'owner' ? 'Propietario' : 'Invitado' }}</span>
-              </li>
-            }
-          </ul>
-        </div>
+    @if (withAccounts()) {
+      <!-- Con cuentas: como Google Docs -->
+      @if (canInvite()) {
+        <section class="mt-6" aria-labelledby="share-add-title" data-testid="share-add">
+          <h3 id="share-add-title" class="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20v-1a6.5 6.5 0 0 1 13 0v1" /><path d="M19 8v6M16 11h6" /></svg>
+            Agregar personas
+          </h3>
+          <ng-container *ngTemplateOutlet="emailBox" />
+        </section>
+      } @else {
+        <p class="mt-6 rounded-lg border border-line bg-raised px-3 py-2 text-xs text-fg-muted" data-testid="share-viewer-note">
+          Tienes acceso solo de lectura: puedes ver el diagrama, pero no invitar a nadie.
+        </p>
       }
-    </section>
+
+      <hr class="my-5 border-line" />
+
+      <section aria-labelledby="share-people-title" data-testid="share-members">
+        <h3 id="share-people-title" class="mb-2 text-sm font-semibold">Personas con acceso</h3>
+        <ul class="space-y-2">
+          @for (member of members(); track member.email) {
+            <li class="flex items-center justify-between gap-2 text-xs" data-testid="share-member">
+              <span class="min-w-0 truncate text-fg" [title]="member.email">{{ member.email }}</span>
+              @if (isOwner() && member.role !== 'owner') {
+                <span class="flex shrink-0 items-center gap-1.5">
+                  <select
+                    class="field !w-auto py-1 text-xs"
+                    data-testid="member-role"
+                    [attr.aria-label]="'Rol de ' + member.email"
+                    [value]="member.role"
+                    [disabled]="changing()"
+                    (change)="onMemberRole(member.email, $event)"
+                  >
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Lector</option>
+                  </select>
+                  <button type="button" class="btn btn-ghost btn-sm !px-2" [attr.aria-label]="'Quitar a ' + member.email" data-testid="member-remove" [disabled]="changing()" (click)="removeMember(member.email)">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-3.5 w-3.5" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                  </button>
+                </span>
+              } @else {
+                <span class="badge shrink-0" [class.badge-brand]="member.role === 'owner'" data-testid="member-role-label">{{ roleLabel(member.role) }}</span>
+              }
+            </li>
+          }
+        </ul>
+        @if (settingsError()) {
+          <p class="mt-2 text-xs text-danger" role="alert" data-testid="share-settings-error">{{ settingsError() }}</p>
+        }
+      </section>
+
+      <hr class="my-5 border-line" />
+
+      <section aria-labelledby="share-general-title" data-testid="share-general">
+        <h3 id="share-general-title" class="mb-2 text-sm font-semibold">Acceso general</h3>
+        @if (isOwner()) {
+          <div class="flex flex-wrap items-center gap-2">
+            <select class="field !w-auto py-1.5 text-xs" aria-label="Acceso general" data-testid="link-access" [value]="linkAccess()" [disabled]="changing()" (change)="onLinkAccess($event)">
+              <option value="restricted">Restringido: solo las personas agregadas</option>
+              <option value="anyone">Cualquiera con el enlace</option>
+            </select>
+            @if (linkAccess() === 'anyone') {
+              <select class="field !w-auto py-1.5 text-xs" aria-label="Rol de quien entra con el enlace" data-testid="link-role" [value]="linkRole()" [disabled]="changing()" (change)="onLinkRole($event)">
+                <option value="viewer">como Lector</option>
+                <option value="editor">como Editor</option>
+              </select>
+            }
+          </div>
+        }
+        <p class="mt-2 text-xs text-fg-muted" data-testid="share-general-note">
+          @if (linkAccess() === 'anyone') {
+            Cualquiera que tenga el enlace e inicie sesión con su correo puede {{ linkRole() === 'editor' ? 'ver y editar' : 'ver' }} el diagrama.
+          } @else {
+            Solo entran las personas agregadas, con el correo al que les llegó la invitación. El enlace por sí solo no abre el diagrama.
+          }
+        </p>
+        @if (linkAccess() === 'anyone') {
+          <input
+            type="text"
+            readonly
+            class="field mt-3 font-mono text-xs"
+            aria-label="Enlace del diagrama"
+            data-testid="share-invite-link"
+            [value]="inviteLink()"
+            (focus)="selectAll($event)"
+          />
+          <div class="mt-2">
+            <button type="button" class="btn btn-secondary" data-testid="copy-invite-link" (click)="copy('invite')">
+              {{ copied() === 'invite' ? '¡Copiado!' : 'Copiar enlace' }}
+            </button>
+          </div>
+        }
+      </section>
+    } @else {
+      <!-- Sin cuentas: el enlace y el código de siempre -->
+      <section class="mt-6" aria-labelledby="share-invite-title">
+        <h3 id="share-invite-title" class="flex items-center gap-2 text-sm font-semibold">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20v-1a6.5 6.5 0 0 1 13 0v1" /><path d="M19 8v6M16 11h6" /></svg>
+          Invitar a editar
+        </h3>
+        <p class="mt-1 text-xs text-fg-muted">Quien abra este enlace entra a la sala, escribe su nombre y puede editar el diagrama.</p>
+        <input
+          type="text"
+          readonly
+          class="field mt-3 font-mono text-xs"
+          aria-label="Enlace de invitación"
+          data-testid="share-invite-link"
+          [value]="inviteLink()"
+          (focus)="selectAll($event)"
+        />
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button type="button" class="btn btn-primary" data-testid="copy-invite-link" (click)="copy('invite')">
+            {{ copied() === 'invite' ? '¡Copiado!' : 'Copiar enlace de invitación' }}
+          </button>
+          <button type="button" class="btn btn-secondary" data-testid="copy-room-code" (click)="copy('code')">
+            {{ copied() === 'code' ? '¡Copiado!' : 'Copiar código de sala' }}
+          </button>
+        </div>
+        <p class="mt-2 text-xs text-fg-faint">
+          Con el código, la otra persona lo escribe en «Unirme al Lienzo» de la pantalla de inicio.
+        </p>
+        <div class="mt-4">
+          <ng-container *ngTemplateOutlet="emailBox" />
+        </div>
+      </section>
+    }
 
     <hr class="my-5 border-line" />
 
@@ -125,7 +220,7 @@
       </h3>
       <p class="mt-1 text-xs text-fg-muted">
         Solo lectura: el diagrama se ve en vivo y el celular avisa de cada cambio. En iPhone, ábrelo en Safari y agrégalo a Inicio para recibir los avisos.
-        @if (restricted()) { Entra con tu mismo correo: el enlace solo abre para quien tiene acceso a la sala. }
+        @if (withAccounts()) { Entra con tu mismo correo: el enlace solo abre para quien tiene acceso al diagrama. }
       </p>
       <input
         type="text"

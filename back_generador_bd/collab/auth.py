@@ -16,10 +16,9 @@ import secrets
 from django.conf import settings
 from django.core import signing
 from django.core.mail import EmailMessage, get_connection
-from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 
-from .models import RoomMember
+from . import rooms
 from .stores import get_rate_limiter, get_room_state
 
 logger = logging.getLogger(__name__)
@@ -37,6 +36,7 @@ PUBLIC_PREFIXES = ("/api/auth/",)
 # Las rutas de la API que son de una sala (la sala es el primer dato de la ruta, o el código de los respaldos).
 _ROOM_PATH = re.compile(r"^/api/(?:rooms/(?P<room>[^/]+)/|(?:set|get)_backup_uml/(?P<backup>[^/]+)/)")
 NOT_INVITED_MESSAGE = "No tienes invitación para esta sala. Pide que te inviten con tu correo."
+READ_ONLY_MESSAGE = "Tienes acceso solo de lectura a esta sala: no puedes cambiarla."
 
 _EMAIL = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?\.[A-Za-z]{2,}$")
 _LINK = re.compile(r"(?:://|www\.)", re.IGNORECASE)
@@ -136,62 +136,12 @@ def room_of_path(path):
     return (match.group("room") or match.group("backup")) if match else None
 
 
-def room_access(room, email, *, claim=False):
-    """`ok` si el correo tiene acceso a la sala; `denied` si la sala ya tiene gente y él no está; `unclaimed` si todavía nadie la abrió.
-
-    Con `claim=True` el primero que llega a una sala sin dueño queda como propietario. Si dos personas la abren a la vez, solo una gana
-    (restricción de la base de datos) y la otra queda `denied`.
-    """
-    members = RoomMember.objects.filter(room=room)
-    if members.filter(email=email).exists():
-        return "ok"
-    if members.exists():
-        return "denied"
-    if not claim:
-        return "unclaimed"
-    try:
-        with transaction.atomic():
-            RoomMember.objects.create(room=room, email=email, role=RoomMember.ROLE_OWNER)
-    except IntegrityError:
-        return room_access(room, email)
-    return "ok"
-
-
-def list_members(room):
-    """Los correos con acceso a la sala, el propietario primero."""
-    rows = RoomMember.objects.filter(room=room).order_by("created_at", "id")
-    owners = [{"email": r.email, "role": r.role} for r in rows if r.role == RoomMember.ROLE_OWNER]
-    others = [{"email": r.email, "role": r.role} for r in rows if r.role != RoomMember.ROLE_OWNER]
-    return owners + others
-
-
-def role_of(room, email):
-    member = RoomMember.objects.filter(room=room, email=email).first()
-    return member.role if member else None
-
-
-def add_invited(room, emails, invited_by):
-    """Da acceso a los correos y devuelve los que son nuevos (los que ya tenían acceso no cambian)."""
-    added = []
-    for email in emails:
-        _, created = RoomMember.objects.get_or_create(
-            room=room, email=email, defaults={"role": RoomMember.ROLE_INVITED, "invited_by": invited_by or ""}
-        )
-        if created:
-            added.append(email)
-    return added
-
-
-def remove_invited(room, emails):
-    """Quita el acceso de invitados (nunca del propietario): se usa si el correo de la invitación no salió."""
-    RoomMember.objects.filter(room=room, email__in=emails, role=RoomMember.ROLE_INVITED).delete()
-
-
 class EmailSessionMiddleware:
     """Deja en `request.auth_email` el correo de la sesión (o `None`) y, con `AUTH_REQUIRED`, exige sesión en toda la API menos en `/api/auth/`.
 
-    En las rutas de una sala exige además que ese correo tenga acceso a ella (invitado por correo); la ruta `/access/` lo decide en su vista
-    porque es la que reclama la sala para su primer propietario.
+    En las rutas de una sala exige además el rol que corresponde (`collab.rooms`): leer pide ser lector o más; escribir (todo lo que no sea GET)
+    pide ser editor o más. Sin acceso es 403 `not_invited`, y con acceso solo de lectura 403 `read_only`. La ruta `/access/` lo decide en su
+    vista porque es la que reclama la sala para su primer propietario.
     """
 
     def __init__(self, get_response):
@@ -209,8 +159,13 @@ class EmailSessionMiddleware:
             if request.auth_email is None:
                 return JsonResponse({"error": "Inicia sesión con tu correo para continuar."}, status=401)
             room = room_of_path(request.path)
-            if room and request.path != f"/api/rooms/{room}/access/" and room_access(room, request.auth_email) != "ok":
-                return JsonResponse({"error": NOT_INVITED_MESSAGE, "code": "not_invited"}, status=403)
+            if room and request.path != f"/api/rooms/{room}/access/":
+                role = rooms.effective_role(room, request.auth_email)
+                if role is None:
+                    return JsonResponse({"error": NOT_INVITED_MESSAGE, "code": "not_invited"}, status=403)
+                needed = rooms.VIEWER if request.method in rooms.SAFE_METHODS else rooms.EDITOR
+                if not rooms.at_least(role, needed):
+                    return JsonResponse({"error": READ_ONLY_MESSAGE, "code": "read_only"}, status=403)
         return self.get_response(request)
 
 
@@ -254,14 +209,17 @@ def invitation_problem(message):
     return None
 
 
-def send_invitations(*, sender_name, sender_email, room, recipients, message):
+def send_invitations(*, sender_name, sender_email, room, recipients, message, role=None):
     """Manda una invitación a cada correo. Devuelve `(enviados, fallaron)`; el envío de uno que falla no impide el de los demás."""
     link = f"{settings.PUBLIC_APP_URL}/diagram/{room}"
     name = clean_line(sender_name, 40) or "Alguien"
+    viewer = role == rooms.VIEWER
     lines = [
         "Hola,",
         "",
-        f"{name} te invitó a trabajar en equipo en un diagrama de clases UML en Diagramador UML.",
+        f"{name} te invitó a ver un diagrama de clases UML en Diagramador UML (solo lectura)."
+        if viewer
+        else f"{name} te invitó a trabajar en equipo en un diagrama de clases UML en Diagramador UML.",
     ]
     if message:
         lines += ["", f"Mensaje de {name}: {message}"]
@@ -270,7 +228,9 @@ def send_invitations(*, sender_name, sender_email, room, recipients, message):
         lines += [
             "",
             "La página te pedirá tu correo y te mandará un código para entrar. Usa este mismo correo: la sala solo abre para quienes invitan por correo.",
-            "Desde un computador o una tableta puedes editar; en el celular verás el diagrama en modo lectura.",
+            "Podrás ver el diagrama sin cambiarlo."
+            if viewer
+            else "Desde un computador o una tableta puedes editar; en el celular verás el diagrama en modo lectura.",
         ]
     lines += ["", "Si no esperabas esta invitación, ignora este correo."]
     body = "\n".join(lines) + "\n"

@@ -131,7 +131,7 @@ class WebSocketSessionTests(TransactionTestCase):
     @override_settings(AUTH_REQUIRED=True)
     async def test_an_invited_address_enters_the_room(self):
         await self.allow("ana@x.com")
-        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="beto@x.com", role="invited")
+        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="beto@x.com", role="editor")
 
         communicator, connected, _ = await self.open(f"?s={auth.make_session('beto@x.com')}")
 
@@ -141,6 +141,50 @@ class WebSocketSessionTests(TransactionTestCase):
 
     @override_settings(AUTH_REQUIRED=True)
     async def test_a_room_nobody_opened_is_closed_so_it_has_to_be_entered_through_the_access_route_first(self):
+        communicator, _, _ = await self.open(f"?s={auth.make_session('ana@x.com')}")
+
+        self.assertEqual((await communicator.receive_output(timeout=1)).get("code"), 4403)
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_a_viewer_cannot_open_the_editor_connection_but_can_follow_in_read_only(self):
+        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="ana@x.com", role="owner")
+        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="eva@x.com", role="viewer")
+        session = auth.make_session("eva@x.com")
+
+        editor, _, _ = await self.open(f"?s={session}")
+        self.assertEqual((await editor.receive_output(timeout=1)).get("code"), 4403)
+
+        viewer, connected, _ = await self.open(f"?mode=viewer&s={session}")
+        self.assertTrue(connected)
+        await viewer.disconnect()
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_with_the_link_open_as_viewer_a_stranger_follows_but_does_not_edit_and_as_editor_edits(self):
+        from collab import rooms
+
+        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="ana@x.com", role="owner")
+        await database_sync_to_async(rooms.update_settings)("auth-room", link_access="anyone", link_role="viewer")
+        session = auth.make_session("luis@x.com")
+
+        editor, _, _ = await self.open(f"?s={session}")
+        self.assertEqual((await editor.receive_output(timeout=1)).get("code"), 4403)
+        viewer, connected, _ = await self.open(f"?mode=viewer&s={session}")
+        self.assertTrue(connected)
+        await viewer.disconnect()
+
+        await database_sync_to_async(rooms.update_settings)("auth-room", link_role="editor")
+        allowed, connected, _ = await self.open(f"?s={session}")
+        self.assertTrue(connected)
+        self.assertEqual((await self.first_message(allowed))["action"], "self")
+        await allowed.disconnect()
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_a_deleted_room_closes_the_connection_even_for_the_owner(self):
+        from collab import rooms
+
+        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="ana@x.com", role="owner")
+        await database_sync_to_async(rooms.delete_room)("auth-room")
+
         communicator, _, _ = await self.open(f"?s={auth.make_session('ana@x.com')}")
 
         self.assertEqual((await communicator.receive_output(timeout=1)).get("code"), 4403)

@@ -1,8 +1,9 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { Observable } from 'rxjs';
 import { Component, HostListener, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { AuthService } from '../../services/auth/auth.service';
-import { RoomAccessService, RoomMember } from '../../services/auth/room-access.service';
+import { AssignableRole, LinkAccess, RoomAccess, RoomAccessService, RoomMember, RoomRole } from '../../services/auth/room-access.service';
 import { InviteService, parseEmails } from '../../services/colaboration/invite.service';
 import { copyText } from './copy-text';
 
@@ -11,13 +12,20 @@ export type ShareItem = 'invite' | 'code' | 'follow';
 /** Cuánto tiempo se ve «¡Copiado!» en el botón que se acaba de usar. */
 const COPIED_MS = 2000;
 
+/** Cómo se llama cada rol en pantalla. */
+export function roleLabel(role: RoomRole | string): string {
+  return role === 'owner' ? 'Propietario' : role === 'editor' ? 'Editor' : 'Lector';
+}
+
 /**
- * Ventana «Compartir» de la sala, como la de draw.io: un lugar único donde se sacan el enlace para invitar a editar, el código
- * de la sala y el enlace para seguirla desde el celular (solo lectura). Todo se arma con el origen del sitio y el código de la sala.
+ * Ventana «Compartir» de la sala. Con el servidor sin cuentas, como la de draw.io: el enlace de invitación, el código y el enlace para seguirla
+ * desde el celular. Con «entrar con el correo», como Google Docs: agregar personas por correo con su rol (editor o lector), ver y cambiar quién
+ * tiene acceso y el acceso general (restringido, o cualquiera con el enlace como lector o como editor, que es cuando el enlace se puede copiar).
  */
 @Component({
   selector: 'app-share-dialog',
   standalone: true,
+  imports: [NgTemplateOutlet],
   templateUrl: './share-dialog.html'
 })
 export class ShareDialog implements OnInit {
@@ -56,14 +64,69 @@ export class ShareDialog implements OnInit {
     return `mailto:${this.parsed().valid.join(',')}?subject=${encodeURIComponent('Te invito a un diagrama UML')}&body=${encodeURIComponent(body)}`;
   });
 
-  /** Con el modo «entrar con el correo» a la sala solo se entra por invitación: no se ofrece copiar el enlace ni el código, y se lista quién tiene acceso. */
-  readonly restricted = computed(() => this.auth.config()?.authRequired === true);
-  readonly members = signal<RoomMember[]>([]);
+  /** Con el modo «entrar con el correo» se comparte con roles y acceso general; sin él, con el enlace y el código de siempre. */
+  readonly withAccounts = computed(() => this.auth.config()?.authRequired === true);
+  readonly roomInfo = signal<RoomAccess | null>(null);
+  readonly members = computed<RoomMember[]>(() => this.roomInfo()?.members ?? []);
+  readonly isOwner = computed(() => this.roomInfo()?.is_owner === true);
+  /** Quien solo puede leer no invita a nadie. */
+  readonly canInvite = computed(() => this.roomInfo()?.can_edit !== false);
+  readonly linkAccess = computed<LinkAccess>(() => this.roomInfo()?.link_access ?? 'restricted');
+  readonly linkRole = computed<AssignableRole>(() => this.roomInfo()?.link_role ?? 'viewer');
+  readonly title = computed(() => this.roomInfo()?.title ?? '');
+  /** Con qué rol entran las personas que se invitan ahora. */
+  readonly inviteRole = signal<AssignableRole>('editor');
+  readonly changing = signal(false);
+  readonly settingsError = signal('');
+  readonly roleLabel = roleLabel;
 
   ngOnInit(): void {
     // Se pregunta una vez qué puede hacer el servidor (mandar correos, pedir sesión) para mostrar lo que corresponde.
     this.auth.ensureConfig().subscribe(config => {
-      if (config.authRequired) this.access.members(this.roomId()).subscribe({ next: access => this.members.set(access.members ?? []), error: () => undefined });
+      if (config.authRequired) this.access.info(this.roomId()).subscribe({ next: info => this.roomInfo.set(info), error: () => undefined });
+    });
+  }
+
+  onInviteRole(event: Event): void {
+    this.inviteRole.set((event.target as HTMLSelectElement).value === 'viewer' ? 'viewer' : 'editor');
+  }
+
+  /** Acceso general: restringido o cualquiera con el enlace (solo el propietario lo cambia). */
+  onLinkAccess(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value === 'anyone' ? 'anyone' : 'restricted';
+    this.change(this.access.updateSettings(this.roomId(), { link_access: value }));
+  }
+
+  /** Con qué rol entra quien llega por el enlace. */
+  onLinkRole(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value === 'editor' ? 'editor' : 'viewer';
+    this.change(this.access.updateSettings(this.roomId(), { link_role: value }));
+  }
+
+  onMemberRole(email: string, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value === 'viewer' ? 'viewer' : 'editor';
+    this.change(this.access.setMemberRole(this.roomId(), email, value));
+  }
+
+  removeMember(email: string): void {
+    this.change(this.access.removeMember(this.roomId(), email) as Observable<RoomAccess>);
+  }
+
+  /** Aplica un cambio de permisos: al volver, la lista y el acceso se muestran como quedaron; si falla, se dice por qué. */
+  private change(request: Observable<RoomAccess>): void {
+    if (this.changing()) return;
+    this.changing.set(true);
+    this.settingsError.set('');
+    request.subscribe({
+      next: info => {
+        this.changing.set(false);
+        if (info && Array.isArray(info.members)) this.roomInfo.set(info);
+      },
+      error: (failure: unknown) => {
+        this.changing.set(false);
+        const reason = failure instanceof HttpErrorResponse ? failure.error?.error : undefined;
+        this.settingsError.set(typeof reason === 'string' ? reason : 'No pudimos guardar el cambio. Intenta de nuevo.');
+      }
     });
   }
 
@@ -87,10 +150,10 @@ export class ShareDialog implements OnInit {
 
     this.sending.set(true);
     this.result.set(null);
-    this.invites.send(this.roomId(), valid, this.message().trim()).subscribe({
+    this.invites.send(this.roomId(), valid, this.message().trim(), this.inviteRole()).subscribe({
       next: ({ sent, failed, members }) => {
         this.sending.set(false);
-        if (members && members.length > 0) this.members.set(members);
+        if (members && members.length > 0) this.roomInfo.update(info => (info ? { ...info, members } : info));
         if (failed.length === 0) this.emailsText.set('');
         this.result.set({
           kind: failed.length === 0 ? 'ok' : 'error',

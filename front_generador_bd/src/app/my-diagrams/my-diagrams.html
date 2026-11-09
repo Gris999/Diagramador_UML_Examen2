@@ -1,0 +1,83 @@
+<section class="w-full max-w-5xl" aria-labelledby="mis-diagramas-titulo" data-testid="my-diagrams">
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 id="mis-diagramas-titulo" class="text-2xl font-semibold tracking-tight text-fg">Mis diagramas</h1>
+      <p class="mt-1 text-sm text-fg-muted">Los que creaste, a los que te invitaron y los que abriste con un enlace.</p>
+    </div>
+    <button type="button" class="btn btn-primary py-2.5" data-testid="new-diagram" (click)="create()">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" class="h-4 w-4" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      Nuevo diagrama
+    </button>
+  </div>
+
+  @if (error()) {
+    <p class="mb-4 text-sm text-danger" role="alert" data-testid="diagrams-error">{{ error() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="text-sm text-fg-muted" data-testid="diagrams-loading">Cargando tus diagramas…</p>
+  } @else if (empty()) {
+    <div class="card p-8 text-center" data-testid="diagrams-empty">
+      <p class="text-fg">Todavía no tienes diagramas.</p>
+      <p class="mt-1 text-sm text-fg-muted">Crea el primero con «Nuevo diagrama» o abre el enlace que te mandó alguien por correo.</p>
+    </div>
+  } @else {
+    <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      @for (diagram of diagrams(); track diagram.room) {
+        <li class="card group relative flex flex-col overflow-hidden" data-testid="diagram-card">
+          <button type="button" class="flex flex-1 flex-col text-left" [attr.aria-label]="'Abrir ' + (diagram.title || 'Sin título')" data-testid="diagram-open" (click)="open(diagram.room)">
+            <div class="flex h-28 items-center justify-center bg-raised text-accent-text" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" class="h-14 w-14">
+                <rect x="2.5" y="3" width="8" height="7" rx="1.2" />
+                <path d="M2.5 6h8" />
+                <rect x="13.5" y="14" width="8" height="7" rx="1.2" />
+                <path d="M13.5 17h8" />
+                <path d="M6.5 10v4.5a2 2 0 0 0 2 2h5" />
+              </svg>
+            </div>
+            <div class="flex flex-1 flex-col gap-1.5 px-4 pb-4 pt-3">
+              <h2 class="truncate pr-8 text-sm font-semibold text-fg" data-testid="diagram-title" [title]="diagram.title || 'Sin título'">{{ diagram.title || 'Sin título' }}</h2>
+              <div class="flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+                <span class="badge" [class.badge-brand]="diagram.role === 'owner'" data-testid="diagram-role">{{ roleLabel(diagram.role) }}</span>
+                @if (diagram.link_access === 'anyone') {
+                  <span class="badge" data-testid="diagram-public" title="Cualquiera con el enlace puede abrirlo">Con enlace</span>
+                }
+                @if (timeAgo(diagram.last_opened_at || diagram.created_at); as when) {
+                  <span data-testid="diagram-when">Abierto {{ when }}</span>
+                }
+              </div>
+              @if (diagram.role !== 'owner' && diagram.owner) {
+                <p class="truncate text-xs text-fg-faint" data-testid="diagram-owner" [title]="diagram.owner">De {{ diagram.owner }}</p>
+              }
+            </div>
+          </button>
+
+          <div class="absolute right-2 top-2">
+            <button
+              type="button"
+              class="icon-btn bg-panel/80 backdrop-blur"
+              aria-label="Más acciones"
+              aria-haspopup="menu"
+              [attr.aria-expanded]="menuFor() === diagram.room"
+              data-testid="diagram-menu"
+              (click)="toggleMenu(diagram.room, $event)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
+            </button>
+            @if (menuFor() === diagram.room) {
+              <div class="popover absolute right-0 z-20 mt-1 w-48 py-1 text-sm" role="menu" data-testid="diagram-menu-list">
+                <button type="button" role="menuitem" class="block w-full px-3 py-2 text-left hover:bg-hover" data-testid="diagram-menu-open" (click)="open(diagram.room)">Abrir</button>
+                @if (diagram.role === 'owner') {
+                  <button type="button" role="menuitem" class="block w-full px-3 py-2 text-left hover:bg-hover" data-testid="diagram-rename" (click)="rename(diagram)">Cambiar nombre</button>
+                  <button type="button" role="menuitem" class="block w-full px-3 py-2 text-left text-danger hover:bg-hover" data-testid="diagram-delete" (click)="remove(diagram)">Eliminar</button>
+                } @else {
+                  <button type="button" role="menuitem" class="block w-full px-3 py-2 text-left hover:bg-hover" data-testid="diagram-leave" (click)="leave(diagram)">Quitar de mi lista</button>
+                }
+              </div>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>
