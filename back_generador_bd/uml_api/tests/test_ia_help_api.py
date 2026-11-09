@@ -193,7 +193,7 @@ class HelpKnowledgeTests(SimpleTestCase):
         "Importar Imagen", "Importar XMI", "Exportar XMI", "Exportar a Backend", "Exportar como Imagen", "Exportar como SQL", "Exportar Flutter",
         "Generar modelo", "Sugerencias del modelo", "Chat con la IA", "Aplicar", "Descartar", "Nube (Gemini)", "Local",
         "Participantes", "Actividad", "Expulsar", "Host", "Activar avisos", "Ayuda",
-        "Invitar por correo", "Enviar invitación", "Abrir mi correo", "Enviar código", "Pedir otro código", "Cerrar sesión",
+        "Invitar por correo", "Enviar invitación", "Abrir mi correo", "Enviar código", "Pedir otro código", "Cerrar sesión", "Cambiar de cuenta", "Usar otro correo", "Elige tu cuenta",
         "Mis diagramas", "Nuevo diagrama", "Cambiar nombre", "Eliminar", "Quitar de mi lista", "Agregar personas", "Personas con acceso",
         "Acceso general", "Cualquiera con el enlace", "Restringido", "Copiar enlace", "Lector", "Editor", "Propietario",
     ]
