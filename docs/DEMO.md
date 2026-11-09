@@ -9,7 +9,7 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 | Qué | Cómo comprobarlo |
 |---|---|
 | El sitio está sano | `scripts/smoke-test.sh` → debe terminar con "Todo en orden." |
-| Tres navegadores o perfiles distintos | Un perfil por persona (Ana, Bruno, Carla): **cada perfil guarda su propia identidad**; con pestañas del mismo perfil comparten nombre. Usar ventanas de incógnito distintas sirve. |
+| Tres navegadores o perfiles distintos, **cada uno con una sesión iniciada con un correo distinto** | Un perfil por persona (Ana, Bruno, Carla): **cada perfil guarda su propia sesión**; con pestañas del mismo perfil comparten cuenta. Entrar **antes** de la demo (el código llega por correo y el buzón de la universidad puede tardar minutos: usar Gmail). Las sesiones duran 30 días. |
 | Un celular (o la ventana del navegador en tamaño móvil) | Se abre el enlace de **Compartir** → «Copiar enlace para seguir desde el celular» |
 | Chrome (no Safari) para el micrófono | El micrófono solo funciona en Chrome con HTTPS |
 | Enterprise Architect abierto con un proyecto vacío | Para el bloque XMI |
@@ -17,13 +17,13 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 | La IA local (opcional) | `ollama serve` en el computador de quien presenta; ver [`IA_LOCAL.md`](IA_LOCAL.md) |
 | Conexión a internet estable | La IA en la nube (Gemini) la necesita |
 | Un celular real con Chrome y HTTPS (para los avisos) | Los avisos solo se pueden permitir en HTTPS y con la página abierta; en un navegador de escritorio también sirven |
-| El código de una sala de ensayo y uno mal escrito (por ejemplo `mi-sala`) | Para mostrar que la portada no entra con un código inválido |
+| Un diagrama de ensayo ya creado por Ana y uno al que Bruno **no** esté invitado | Para mostrar «Mis diagramas» y la página «sin acceso» |
 
 **Si algo falla durante la demo:** la sala se puede rehacer en 10 segundos ("Crear Nuevo Lienzo"); todo lo que se ve ya está respaldado en el servidor.
 
 ## 1. Primer parcial: el editor completo (4–5 min)
 
-1. **Crear la sala** (Ana). *"Cada sala tiene un código; quien lo conoce entra."* Mostrar el botón **Compartir** (enlace de invitación y **Copiar código de sala**). Escribir `mi-sala` en «Unirse al Lienzo»: aparece *«El código no es válido»* y no entra.
+1. **Entrar y crear el diagrama** (Ana). *"Se entra con el correo: llega un código de 6 dígitos, sin contraseña."* En **Mis diagramas** (la lista de todo lo que Ana creó, o a lo que la invitaron) pulsar **Nuevo diagrama**, ponerle nombre arriba (queda en la barra con su rol, «Propietario») y abrir **Compartir**: *"Como en Google Docs, agrego personas por correo con un rol (editor o lector) y el acceso general es Restringido o Cualquiera con el enlace."* Mostrar que el enlace solo aparece cuando el acceso es público. Con una persona que no está en la lista (Bruno en el diagrama de ensayo): entra a *«No tienes acceso»*.
 2. **Edición manual.** Se hace así (ensayado el 2026-10-22):
    - **Agregar clases:** arrastrar **Clase UML** de la paleta al lienzo (dos veces).
    - **Renombrar:** doble clic sobre el **nombre** de la clase; aparece una cajita de texto con el nombre actual. **Seleccionar todo antes de escribir** (triple clic o Cmd+A); si no, el texto nuevo se agrega al final ("EntidadCliente"). Enter confirma. Lo mismo para atributos y métodos (doble clic en su zona).
@@ -43,7 +43,7 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 
 ## 2. Colaboración en tiempo real con tres personas (3 min)
 
-1. Bruno y Carla entran con el código. En **Participantes** se ve: Ana = **Host**, los otros = Participante, cada uno con su nombre.
+1. Ana invita por correo a Bruno (editor) y a Carla (lector, o también editor para la demo) desde **Compartir**; entran con el enlace del correo y su sesión. Carla como lectora entra a la vista de solo lectura; para editar los tres, invitar a Carla como editora. En **Participantes** se ve: Ana = **Host**, los otros = Participante, cada uno con su nombre.
 2. Los tres editan a la vez: lo que hace uno aparece en las otras pantallas. En **Actividad** aparece *quién hizo qué* ("Carla añadió la clase …"). *Mover o redimensionar no se registra a propósito, para no estorbar la edición.*
 3. **Permisos:** Ana (host) pulsa **Expulsar** en Carla → Carla ve el aviso *"El host te expulsó de la sala"* y vuelve al inicio; a Bruno no le aparece el botón.
 4. **Relevo de host:** Ana sale de la sala → Bruno pasa a ser **Host**.
@@ -98,20 +98,20 @@ Frase de apertura: *"La IA es un integrante más: no hace nada hasta que alguien
 - **Arquitectura:** Angular + JointJS (editor), Django + Channels + Redis (colaboración y API), Spring Boot (generador), PostgreSQL. Detalle y diagramas: [`puds/03-diseno.md`](puds/03-diseno.md).
 - **Despliegue:** AWS EC2 con Docker Compose, nginx y HTTPS (Let's Encrypt) en un dominio propio; solo los puertos 22, 80 y 443 están abiertos. Un solo comando comprueba todo: `scripts/smoke-test.sh`. Runbook: [`DESPLIEGUE.md`](DESPLIEGUE.md).
 - **Proceso PUDS:** fases, iteraciones, artefactos por disciplina y trazabilidad en [`puds/`](puds/README.md); estado de cada requisito en [`GAP_MATRIX.md`](GAP_MATRIX.md).
-- **Pruebas:** 302 del frontend y 365 del backend (19 de ellas contra un MongoDB real), 12 de Spring con la compilación real de los proyectos generados, 66 casos de prueba (uno por cada camino de los 14 casos de uso) y 21 procedimientos ejecutados a mano con la IA real (sección 2.5 del informe); y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
+- **Pruebas:** 514 del frontend y 631 del backend (19 de ellas contra un MongoDB real), 12 de Spring con la compilación real de los proyectos generados, 66 casos de prueba (uno por cada camino de los 14 casos de uso) y 21 procedimientos ejecutados a mano con la IA real (sección 2.5 del informe); y una revisión de código independiente cuyos hallazgos se corrigieron ([`puds/05-pruebas.md`](puds/05-pruebas.md)).
 
 ## Preguntas probables y respuestas cortas
 
 | Pregunta | Respuesta |
 |---|---|
-| ¿Por qué no hay cuentas de usuario? | Es una decisión de diseño (RF-17): el rol de host vive solo en la sala viva; la identidad es un nombre más un identificador anónimo del navegador. El código de sala es la "llave". |
+| ¿Hay cuentas de usuario? | Sí, sin contraseña (RF-36 a RF-41): se entra con el correo y un código de 6 dígitos que llega por mail. Cada diagrama tiene dueño, editores y lectores, y un acceso general (restringido o cualquiera con el enlace), como en Google Docs; «Mis diagramas» los lista. El rol de host de la sala viva (RF-12 a RF-17) sigue siendo pasajero. |
 | ¿Qué pasa si la IA falla? | Se muestra un mensaje claro, el diagrama no cambia y nada queda guardado a medias. |
 | ¿Puede la IA cambiar el diagrama sin que se lo pidan? | No. Solo cambia si alguien se lo pide, y antes **propone y espera permiso** (salvo que la persona diga «directamente»); lo aplica el navegador de quien lo pidió. Una pregunta, una revisión o un historial nunca devuelven cambios (hay pruebas automáticas con un proveedor falso que devuelve un diagrama). |
 | ¿Por qué una sola conversación con la IA para toda la sala? | Porque el docente lo pidió: es un integrante más del equipo, una sola instancia que conoce lo que hizo cada persona. Atiende un pedido a la vez (un cerrojo por sala en Redis) y cada mensaje muestra su autor. |
 | ¿Cómo se evita que alguien gaste la cuota de la IA? | Topes por persona (12/min), por sala (30/min) y en total (60/min) en el chat, y 6/min por persona y 30/min en total en la ayuda. Las rutas de imagen y de audio todavía no tienen tope propio (limitación conocida). |
 | ¿Cómo sé que lo que dice el documento está en el software? | La sección 2.6 lo comprueba en las dos direcciones cada vez que se genera el informe: cada clase, operación y mensaje de secuencia del diseño existe en el código, y cada clase del código que el diseño no modela tiene escrita su razón. |
-| ¿La vista móvil es segura? | Es solo lectura y no puede enviar nada, pero el enlace lleva el código de la sala; no es un permiso separado (se documenta en `DESPLIEGUE.md` §7). |
-| ¿Qué falta? | Evaluación con más pedidos de la IA local, pruebas en un celular físico y, si se quisiera separar permisos de lectura y edición, códigos distintos. |
+| ¿La vista móvil es segura? | Es solo lectura y el servidor lo exige: un lector (o el celular) no puede enviar cambios. Quien no está en la lista de una sala privada no entra aunque tenga el enlace (se documenta en `DESPLIEGUE.md` §7). |
+| ¿Qué falta? | Evaluación con más pedidos de la IA local, pruebas en un celular físico y con tres personas reales sobre el sitio. |
 
 ## Plan B
 
