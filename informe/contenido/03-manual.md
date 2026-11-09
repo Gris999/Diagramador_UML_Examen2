@@ -8,7 +8,8 @@ Este manual enseña a usar la herramienta completa, la del primer parcial y lo n
 *Figura 3.1. La página «Entrar»: se escribe el correo y la herramienta manda un código. No hay contraseñas.*
 
 1. Escribe tu correo y pulsa **Enviar código**. Te llega un mensaje de «Diagramador UML» con un código de 6 dígitos que vale 10 minutos (si tarda, mira la carpeta de correo no deseado; los buzones de algunas universidades demoran unos minutos).
-2. Escribe el código y pulsa **Entrar**. La sesión se queda guardada en ese navegador 30 días; **Cerrar sesión** (arriba a la derecha) la borra. Si no llega o te equivocas cinco veces, pide otro código con **Pedir otro código**.
+2. Escribe el código y pulsa **Entrar**. La sesión se queda guardada en ese navegador y se renueva cada vez que vuelves a usar la herramienta (vale 30 días desde la última vez), así que no vuelve a pedirte el código mientras la uses; en otro navegador u otro aparato hay que entrar una vez. **Cerrar sesión** (arriba a la derecha) borra la de la cuenta actual. Si no llega o te equivocas cinco veces, pide otro código con **Pedir otro código**.
+3. Si usas más de un correo (por ejemplo uno personal y otro de la universidad), el navegador los recuerda (hasta cinco). **Cambiar de cuenta** (arriba a la derecha de «Mis diagramas») abre **Elige tu cuenta**: pulsas un correo y entras sin código; **Usar otro correo** agrega uno nuevo y la cruz quita un correo de ese navegador. Si la sesión de un correo ya venció, la herramienta pide un código nuevo de ese correo.
 
 ![Escribir el código](capturas/14b-entrar-codigo.png)
 *Figura 3.1a. Segundo paso: el código de 6 dígitos que llegó al correo.*
@@ -18,9 +19,9 @@ Al entrar ves **Mis diagramas**: la lista de todo lo tuyo, como en Google Docs. 
 ![Mis diagramas](capturas/15-mis-diagramas.png)
 *Figura 3.1b. «Mis diagramas»: Ana es propietaria de dos, editora de uno y lectora de otro. Los tres puntos de cada tarjeta abren **Abrir**, **Cambiar nombre** y **Eliminar** (solo la persona propietaria) o **Quitar de mi lista** (las demás).*
 
-3. Pulsa **Nuevo diagrama** para empezar uno: quien lo abre primero queda como **Propietario**. El nombre («Sin título» al principio) se cambia en la barra superior del editor, junto a tu rol, o desde el menú de la tarjeta.
-4. No se te pregunta el nombre: la herramienta usa el que sale de tu correo («pedro.alaca@…» aparece como «Pedro Alaca»). Los demás lo verán en la lista de participantes y en la actividad.
-5. Para dar acceso a otras personas, dentro del diagrama pulsa **Compartir** (arriba a la derecha):
+4. Pulsa **Nuevo diagrama** para empezar uno: quien lo abre primero queda como **Propietario**. El nombre («Sin título» al principio) se cambia en la barra superior del editor, junto a tu rol, o desde el menú de la tarjeta.
+5. No se te pregunta el nombre: la herramienta usa el que sale de tu correo («pedro.alaca@…» aparece como «Pedro Alaca»). Los demás lo verán en la lista de participantes y en la actividad.
+6. Para dar acceso a otras personas, dentro del diagrama pulsa **Compartir** (arriba a la derecha):
    - En **Agregar personas** escribe uno o varios correos, elige con qué rol entran (**Editor**: puede cambiar el diagrama; **Lector**: solo mira), escribe un mensaje si quieres y pulsa **Enviar invitación**. A cada persona le llega un correo con el enlace; entra con ese mismo correo.
    - **Personas con acceso** lista quién tiene el diagrama. La persona propietaria cambia el rol de cada una o la quita con la cruz.
    - **Acceso general** decide quién más puede abrirlo: **Restringido** (solo las personas de la lista, con su correo) o **Cualquiera con el enlace** (como Lector o como Editor). El enlace para copiar solo aparece cuando el acceso es público.
@@ -28,7 +29,7 @@ Al entrar ves **Mis diagramas**: la lista de todo lo tuyo, como en Google Docs. 
 ![Compartir](capturas/16-compartir-roles.png)
 *Figura 3.1c. La ventana «Compartir» de un diagrama: personas con su rol, acceso general y enlace.*
 
-6. Si abres un diagrama privado con un correo que no está en su lista, ves «No tienes invitación a esta sala» y puedes entrar con otro correo; no se abre nada. Quien solo tiene rol de **Lector**, o abre el diagrama desde un celular, entra a la vista de solo lectura (sección 3.7).
+7. Si abres un diagrama privado con un correo que no está en su lista, ves «No tienes invitación a esta sala» y puedes entrar con otro correo; no se abre nada. Quien solo tiene rol de **Lector**, o abre el diagrama desde un celular, entra a la vista de solo lectura (sección 3.7).
 
 ![Sin invitación](capturas/17-sin-acceso.png)
 *Figura 3.1d. Una persona que no está en la lista de un diagrama privado no entra, aunque tenga el enlace.*
