@@ -34,6 +34,11 @@ export class IdentityService {
   }
 
   private getName(): string {
+    // Quien inició sesión con su correo ya tiene nombre (el del correo) y ese manda: así, al pasar a otra cuenta recordada del mismo navegador, el
+    // nombre cambia con ella en vez de quedarse con el de la anterior. No se guarda ni se pregunta.
+    const fromSession = this.isBrowser() ? this.sanitizeName(readStoredSession()?.name ?? null) : '';
+    if (fromSession) return fromSession;
+
     if (this.memoryName) return this.memoryName;
 
     const stored = this.sanitizeName(this.readStorage(IDENTITY_NAME_STORAGE_KEY));
@@ -41,13 +46,6 @@ export class IdentityService {
       this.memoryName = stored;
       this.writeStorage(IDENTITY_NAME_STORAGE_KEY, stored);
       return stored;
-    }
-
-    // Quien inició sesión con su correo ya tiene nombre (el del correo): no se le pregunta.
-    const fromSession = this.isBrowser() ? this.sanitizeName(readStoredSession()?.name ?? null) : '';
-    if (fromSession) {
-      this.memoryName = fromSession;
-      return fromSession;
     }
 
     const requested = this.requestName();
