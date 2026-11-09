@@ -43,6 +43,56 @@
       <p class="mt-2 text-xs text-fg-faint">
         Con el código, la otra persona lo escribe en «Unirme al Lienzo» de la pantalla de inicio.
       </p>
+
+      <div class="mt-4 rounded-xl border border-line bg-raised p-3" data-testid="share-email-box">
+        <label for="invite-emails" class="text-xs font-semibold text-fg">Invitar por correo</label>
+        <input
+          id="invite-emails"
+          type="text"
+          class="field mt-2 text-xs"
+          placeholder="correo@ejemplo.com, otro@ejemplo.com"
+          autocomplete="off"
+          data-testid="invite-emails"
+          [value]="emailsText()"
+          [disabled]="sending()"
+          (input)="onEmails($event)"
+          (keydown.enter)="serverMail() && sendInvites()"
+        />
+        <textarea
+          class="field mt-2 h-14 resize-none text-xs"
+          placeholder="Mensaje (opcional, sin enlaces)"
+          aria-label="Mensaje para la invitación"
+          maxlength="300"
+          data-testid="invite-message"
+          [value]="message()"
+          [disabled]="sending()"
+          (input)="onMessage($event)"
+        ></textarea>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          @if (serverMail()) {
+            <button type="button" class="btn btn-primary" data-testid="invite-send" [disabled]="sending() || parsed().valid.length === 0" (click)="sendInvites()">
+              {{ sending() ? 'Enviando…' : 'Enviar invitación' }}
+            </button>
+          } @else {
+            <a
+              class="btn btn-primary"
+              data-testid="invite-mailto"
+              [href]="mailtoHref()"
+              [class.pointer-events-none]="parsed().valid.length === 0"
+              [class.opacity-50]="parsed().valid.length === 0"
+              [attr.aria-disabled]="parsed().valid.length === 0"
+            >
+              Abrir mi correo
+            </a>
+          }
+          <span class="text-xs text-fg-faint">Les llega el enlace de la sala.</span>
+        </div>
+        @if (result(); as outcome) {
+          <p class="mt-2 text-xs" [class.text-accent-text]="outcome.kind === 'ok'" [class.text-danger]="outcome.kind === 'error'" role="status" data-testid="invite-result">
+            {{ outcome.text }}
+          </p>
+        }
+      </div>
     </section>
 
     <hr class="my-5 border-line" />
