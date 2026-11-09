@@ -106,6 +106,17 @@ await ana.waitForSelector('[data-testid="ia-chat-message"] ~ [data-testid="ia-ch
 await esperar(4000);
 await foto(ana, '06-chat-ia-respuesta.png');
 
+// 4b. Pedido de cambio: la IA propone y espera permiso (no se aplica: se descarta para no cambiar el diagrama de la captura)
+await ana.type('[data-testid="ia-chat-input"]', 'Agrega una clase Factura con total y fecha');
+await ana.waitForFunction(() => !document.querySelector('[data-testid="ia-chat-send"]').disabled, { timeout: 60000, polling: 500 });
+await ana.evaluate(() => document.querySelector('[data-testid="ia-chat-send"]').click());
+await ana.waitForSelector('[data-testid="ia-proposal"]', { timeout: 120000 }).catch(() => {});
+await esperar(1500);
+await foto(ana, '06b-propuesta-permiso.png');
+await ana.click('[data-testid="ia-proposal-discard"]').catch(() => {});
+await ana.waitForFunction(() => !document.querySelector('[data-testid="ia-proposal"]'), { timeout: 60000, polling: 500 }).catch(() => {});
+await esperar(1500);
+
 // 5. Revisión con ideas aplicables (un solo chat: la revisión se pide escribiendo)
 await ana.waitForFunction(() => !document.querySelector('[data-testid="ia-chat-send"]').disabled || document.querySelector('[data-testid="ia-chat-input"]'), { timeout: 60000, polling: 500 });
 await ana.type('[data-testid="ia-chat-input"]', 'Revisa el diagrama');

@@ -72,6 +72,9 @@ Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la 
 ![Respuesta de la IA](capturas/06-chat-ia-respuesta.png)
 *Figura 3.7. Respuesta a una pregunta: la IA usa el diagrama y la actividad de todos.*
 
+![Propuesta de cambio con permiso](capturas/06b-propuesta-permiso.png)
+*Figura 3.7b. Un pedido de cambio: la IA cuenta lo que haría y espera. El diagrama no cambia hasta que se pulsa **Aplicar**; **Descartar** lo cancela.*
+
 ![Revisión con ideas aplicables](capturas/07-revision-ideas.png)
 *Figura 3.8. Revisión: las ideas aparecen en la actividad de todos, cada una con un botón **Aplicar**.*
 
