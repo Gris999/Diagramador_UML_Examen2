@@ -1,4 +1,5 @@
 import { validate as isUuid } from 'uuid';
+import { SESSION_STORAGE_KEY } from '../auth/auth.service';
 import {
   IDENTITY_NAME_STORAGE_KEY,
   IDENTITY_TOKEN_STORAGE_KEY,
@@ -14,6 +15,36 @@ describe('IdentityService', () => {
   afterEach(() => {
     localStorage.removeItem(IDENTITY_TOKEN_STORAGE_KEY);
     localStorage.removeItem(IDENTITY_NAME_STORAGE_KEY);
+  });
+
+  describe('the person signed in with the email', () => {
+    const save = (name: string) => localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token: 't', email: 'x@y.com', name }));
+    afterEach(() => localStorage.removeItem(SESSION_STORAGE_KEY));
+
+    it('uses the name of the account and never asks for one', () => {
+      save('Pedro Alaca');
+      const prompt = spyOn(window, 'prompt');
+
+      expect(new IdentityService('browser').getIdentity().name).toBe('Pedro Alaca');
+      expect(prompt).not.toHaveBeenCalled();
+    });
+
+    it('prefers the name of the account over a name typed in an earlier visit', () => {
+      localStorage.setItem(IDENTITY_NAME_STORAGE_KEY, 'Pedro');
+      save('Pedro Alaca');
+
+      expect(new IdentityService('browser').getIdentity().name).toBe('Pedro Alaca');
+    });
+
+    it('changes the name when the browser goes to another account, without a reload', () => {
+      save('Pedro Alaca');
+      const service = new IdentityService('browser');
+      expect(service.getIdentity().name).toBe('Pedro Alaca');
+
+      save('Palaca Ficct');
+
+      expect(service.getIdentity().name).toBe('Palaca Ficct');
+    });
   });
 
   it('remembers a UUID token and sanitized display name in browser storage', () => {
@@ -77,17 +108,6 @@ describe('IdentityService', () => {
       expect(new IdentityService('browser').getIdentity().name).toBe('Ana Perez');
       expect(prompt).not.toHaveBeenCalled();
       expect(localStorage.getItem(IDENTITY_NAME_STORAGE_KEY)).toBeNull();
-    } finally {
-      localStorage.removeItem('diagramador-sesion');
-    }
-  });
-
-  it('keeps the name the person chose before logging in', () => {
-    localStorage.setItem(IDENTITY_NAME_STORAGE_KEY, 'Anita');
-    localStorage.setItem('diagramador-sesion', JSON.stringify({ token: 't', email: 'ana@x.com', name: 'Ana' }));
-
-    try {
-      expect(new IdentityService('browser').getIdentity().name).toBe('Anita');
     } finally {
       localStorage.removeItem('diagramador-sesion');
     }

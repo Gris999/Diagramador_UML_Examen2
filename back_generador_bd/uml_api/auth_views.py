@@ -96,7 +96,9 @@ def auth_me(request):
     email = getattr(request, "auth_email", None)
     if email is None:
         return Response({"error": "Inicia sesión con tu correo para continuar."}, status=status.HTTP_401_UNAUTHORIZED)
-    return Response({"email": email, "name": auth.display_name_from_email(email)})
+    # Cada vez que el navegador pregunta quién es, recibe una sesión nueva: quien sigue usando la herramienta no vuelve a pedir el código mientras
+    # no pase un mes entero sin entrar (como GitHub o draw.io).
+    return Response({"email": email, "name": auth.display_name_from_email(email), "token": auth.make_session(email)})
 
 
 OFF = {"required": False, "email": None, "role": None, "is_owner": False, "can_edit": True, "title": "", "link_access": "restricted", "link_role": "viewer", "owner": None, "members": []}

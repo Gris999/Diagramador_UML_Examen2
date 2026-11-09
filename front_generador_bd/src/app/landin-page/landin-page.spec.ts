@@ -175,6 +175,17 @@ describe('LandinPage', () => {
       expect(element('[data-testid="logout"]')!.textContent).toContain('Cerrar sesión');
     });
 
+    it('offers to change account, which opens the login page with the remembered accounts without closing the session', () => {
+      auth.session.set(stored);
+      auth.config.set({ authRequired: true, mailConfigured: true });
+      fixture.detectChanges();
+
+      (element('[data-testid="switch-account"]') as HTMLButtonElement).click();
+
+      expect(navigate).toHaveBeenCalledWith(['/entrar'], { queryParams: { cambiar: 1 } });
+      expect(auth.loggedIn()).toBeTrue();
+    });
+
     it('logs out and goes to the login page when the server asks for a session', () => {
       auth.session.set(stored);
       auth.config.set({ authRequired: true, mailConfigured: true });

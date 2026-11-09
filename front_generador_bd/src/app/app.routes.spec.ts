@@ -12,13 +12,16 @@ describe('routes', () => {
   let router: Router;
   let authRequired: boolean;
   let loggedIn: ReturnType<typeof signal<boolean>>;
+  let renew: jasmine.Spy;
 
   beforeEach(() => {
     authRequired = false;
     loggedIn = signal(false);
     // El servidor de pruebas no contesta: se simula lo que diría `/api/auth/config/`.
+    renew = jasmine.createSpy('renew');
     const auth = {
       isBrowser: () => true,
+      renew,
       loggedIn,
       ensureConfig: () => of({ authRequired, mailConfigured: true }),
       config: signal(null),
@@ -95,6 +98,23 @@ describe('routes', () => {
       await router.navigateByUrl('/diagram/3f2a9c1e-5b7d-4e8a-9c3b-1a2b3c4d5e6f');
 
       expect(router.url).toBe('/diagram/3f2a9c1e-5b7d-4e8a-9c3b-1a2b3c4d5e6f');
+    });
+
+    it('renews the session of whoever is let in, so staying in the tool keeps the login', async () => {
+      authRequired = true;
+      loggedIn.set(true);
+
+      await router.navigateByUrl('/diagram/3f2a9c1e-5b7d-4e8a-9c3b-1a2b3c4d5e6f');
+
+      expect(renew).toHaveBeenCalled();
+    });
+
+    it('renews nothing when the server does not ask for a session', async () => {
+      authRequired = false;
+
+      await router.navigateByUrl('/');
+
+      expect(renew).not.toHaveBeenCalled();
     });
 
     it('keeps the login page open for everybody', () => {

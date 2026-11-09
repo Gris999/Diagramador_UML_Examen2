@@ -182,7 +182,29 @@ class MeApiTests(AuthApiBase):
 
         response = self.client.get("/api/auth/me/", HTTP_AUTHORIZATION=f"Bearer {token}")
 
-        self.assertEqual(response.data, {"email": "ana.perez@x.com", "name": "Ana Perez"})
+        self.assertEqual(response.data["email"], "ana.perez@x.com")
+        self.assertEqual(response.data["name"], "Ana Perez")
+
+    def test_it_hands_back_a_fresh_session_for_the_same_address(self):
+        old = auth.make_session("ana.perez@x.com")
+
+        response = self.client.get("/api/auth/me/", HTTP_AUTHORIZATION=f"Bearer {old}")
+
+        self.assertEqual(auth.read_session(response.data["token"]), "ana.perez@x.com")
+
+    def test_the_fresh_session_works_on_the_next_request(self):
+        first = self.client.get("/api/auth/me/", HTTP_AUTHORIZATION=f"Bearer {auth.make_session('ana.perez@x.com')}")
+
+        second = self.client.get("/api/auth/me/", HTTP_AUTHORIZATION=f"Bearer {first.data['token']}")
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data["email"], "ana.perez@x.com")
+
+    def test_a_session_that_is_not_valid_gets_nothing_renewed(self):
+        response = self.client.get("/api/auth/me/", HTTP_AUTHORIZATION="Bearer eyJlbWFpbCI6ImFuYUB4LmNvbSJ9:1aaaaa:falsa")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn("token", response.data)
 
     def test_without_a_valid_session_it_is_401(self):
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)

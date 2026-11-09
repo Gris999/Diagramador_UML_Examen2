@@ -27,6 +27,11 @@ describe('LoginPage', () => {
   let config: ReturnType<typeof signal<AuthConfig | null>>;
   let loggedIn: ReturnType<typeof signal<boolean>>;
   let volver: string | null;
+  let cambiar: string | null;
+  let accounts: ReturnType<typeof signal<Session[]>>;
+  let active: ReturnType<typeof signal<Session | null>>;
+  let resume: jasmine.Spy<(email: string) => Observable<Session>>;
+  let forgetAccount: jasmine.Spy;
 
   const element = (testId: string) => fixture.nativeElement.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
   const input = (testId: string) => element(testId) as HTMLInputElement;
@@ -34,6 +39,9 @@ describe('LoginPage', () => {
   async function create(authConfig: AuthConfig = { authRequired: true, mailConfigured: true }): Promise<void> {
     config = signal<AuthConfig | null>(authConfig);
     loggedIn = signal(false);
+    active = signal<Session | null>(null);
+    resume = jasmine.createSpy('resume').and.returnValue(of({ token: 'nueva', email: 'beto@x.com', name: 'Beto' }));
+    forgetAccount = jasmine.createSpy('forgetAccount').and.callFake((email: string) => accounts.update(list => list.filter(a => a.email !== email)));
     requestCode = jasmine.createSpy('requestCode').and.returnValue(of(undefined));
     verify = jasmine.createSpy('verify').and.returnValue(of({ token: 't', email: 'ana@x.com', name: 'Ana' }));
     navigateByUrl = jasmine.createSpy('navigateByUrl').and.resolveTo(true);
@@ -43,10 +51,10 @@ describe('LoginPage', () => {
         provideZonelessChangeDetection(),
         {
           provide: AuthService,
-          useValue: { config, loggedIn, ensureConfig: () => of(config()), requestCode, verify }
+          useValue: { config, loggedIn, session: active, accounts, ensureConfig: () => of(config()), requestCode, verify, resume, forgetAccount }
         },
         { provide: Router, useValue: { navigateByUrl } },
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => volver } } } }
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: (key: string) => (key === 'cambiar' ? cambiar : volver) } } } }
       ]
     });
     fixture = TestBed.createComponent(LoginPage);
@@ -69,7 +77,11 @@ describe('LoginPage', () => {
     await fixture.whenStable();
   }
 
-  beforeEach(() => (volver = null));
+  beforeEach(() => {
+    volver = null;
+    cambiar = null;
+    accounts = signal<Session[]>([]);
+  });
 
   it('starts by asking for the email, with nothing sent yet', async () => {
     await create();
@@ -253,7 +265,7 @@ describe('LoginPage', () => {
       imports: [LoginPage],
       providers: [
         provideZonelessChangeDetection(),
-        { provide: AuthService, useValue: { config, loggedIn, ensureConfig: () => of(config()), requestCode, verify } },
+        { provide: AuthService, useValue: { config, loggedIn, session: signal(null), accounts, ensureConfig: () => of(config()), requestCode, verify } },
         { provide: Router, useValue: { navigateByUrl } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } }
       ]
@@ -262,6 +274,132 @@ describe('LoginPage', () => {
     TestBed.createComponent(LoginPage).detectChanges();
 
     expect(navigateByUrl).toHaveBeenCalledWith('/');
+  });
+
+  describe('the accounts remembered in this browser', () => {
+    const ana = { token: 'ta', email: 'ana@x.com', name: 'Ana' };
+    const beto = { token: 'tb', email: 'beto@x.com', name: 'Beto' };
+    const rows = () => Array.from(fixture.nativeElement.querySelectorAll('[data-testid="login-account"]')) as HTMLButtonElement[];
+
+    it('shows the remembered accounts instead of asking for the email', async () => {
+      accounts.set([ana, beto]);
+      await create();
+
+      expect(element('login-accounts')).not.toBeNull();
+      expect(element('login-email-form')).toBeNull();
+      expect(rows().map(row => row.textContent)).toEqual([jasmine.stringContaining('ana@x.com'), jasmine.stringContaining('beto@x.com')]);
+    });
+
+    it('asks for the email as before when no account is remembered', async () => {
+      await create();
+
+      expect(element('login-accounts')).toBeNull();
+      expect(element('login-email-form')).not.toBeNull();
+      expect(element('login-back-to-accounts')).toBeNull();
+    });
+
+    it('enters with a remembered account in one click, with no code, and goes where the person was heading', async () => {
+      accounts.set([ana, beto]);
+      volver = '/diagram/sala-9';
+      await create();
+
+      rows()[1].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(resume).toHaveBeenCalledWith('beto@x.com');
+      expect(requestCode).not.toHaveBeenCalled();
+      expect(navigateByUrl).toHaveBeenCalledWith('/diagram/sala-9');
+    });
+
+    it('asks for a new code of that address when its session is over', async () => {
+      accounts.set([ana, beto]);
+      await create();
+      resume.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+
+      rows()[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(element('login-email-form')).not.toBeNull();
+      expect(input('login-email').value).toBe('ana@x.com');
+      expect(element('login-error')!.textContent).toContain('venció');
+      expect(navigateByUrl).not.toHaveBeenCalledWith('/');
+    });
+
+    it('says it could not enter now, and keeps the list, when the failure is not a finished session', async () => {
+      accounts.set([ana]);
+      await create();
+      resume.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      rows()[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(element('login-error')!.textContent).toContain('No pudimos entrar ahora');
+      expect(element('login-accounts')).not.toBeNull();
+    });
+
+    it('goes straight on when the account chosen is the one already in use', async () => {
+      accounts.set([ana, beto]);
+      await create();
+      active.set(ana);
+      fixture.detectChanges();
+
+      rows()[0].click();
+
+      expect(resume).not.toHaveBeenCalled();
+      expect(navigateByUrl).toHaveBeenCalledWith('/');
+      expect(fixture.nativeElement.textContent).toContain('Cuenta actual');
+    });
+
+    it('lets the person use another email, and come back to the list', async () => {
+      accounts.set([ana]);
+      await create();
+
+      element('login-add-account')!.click();
+      fixture.detectChanges();
+      expect(element('login-email-form')).not.toBeNull();
+      expect(input('login-email').value).toBe('');
+
+      element('login-back-to-accounts')!.click();
+      fixture.detectChanges();
+      expect(element('login-accounts')).not.toBeNull();
+    });
+
+    it('removes an account from the list of this browser', async () => {
+      accounts.set([ana, beto]);
+      await create();
+
+      (element('login-account-forget') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(forgetAccount).toHaveBeenCalledWith('ana@x.com');
+      expect(rows().length).toBe(1);
+    });
+
+    it('stays on the page when asked to change account even if there is a session', async () => {
+      config = signal<AuthConfig | null>({ authRequired: true, mailConfigured: true });
+      loggedIn = signal(true);
+      cambiar = '1';
+      accounts.set([ana, beto]);
+      navigateByUrl = jasmine.createSpy('navigateByUrl').and.resolveTo(true);
+      TestBed.configureTestingModule({
+        imports: [LoginPage],
+        providers: [
+          provideZonelessChangeDetection(),
+          { provide: AuthService, useValue: { config, loggedIn, session: signal(ana), accounts, ensureConfig: () => of(config()), requestCode, verify } },
+          { provide: Router, useValue: { navigateByUrl } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: (key: string) => (key === 'cambiar' ? '1' : null) } } } }
+        ]
+      });
+
+      const page = TestBed.createComponent(LoginPage);
+      page.detectChanges();
+
+      expect(navigateByUrl).not.toHaveBeenCalled();
+      expect(page.nativeElement.querySelector('[data-testid="login-accounts"]')).not.toBeNull();
+    });
   });
 
   it('says that no password is needed', async () => {
