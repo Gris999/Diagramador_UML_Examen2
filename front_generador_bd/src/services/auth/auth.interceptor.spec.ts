@@ -36,6 +36,14 @@ describe('authInterceptor', () => {
     request.flush({});
   });
 
+  it('keeps the session a request already carries (going back to another remembered account)', () => {
+    http.get(`${api}auth/me/`, { headers: { Authorization: 'Bearer de-otra-cuenta' } }).subscribe();
+
+    const request = controller.expectOne(`${api}auth/me/`);
+    expect(request.request.headers.get('Authorization')).toBe('Bearer de-otra-cuenta');
+    request.flush({});
+  });
+
   it('sends nothing without a session', () => {
     token = null;
 

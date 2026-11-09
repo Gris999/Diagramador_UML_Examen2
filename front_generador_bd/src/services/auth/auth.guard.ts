@@ -13,10 +13,11 @@ export const authGuard: CanActivateFn = (_route, state) => {
   if (!auth.isBrowser()) return true;
 
   return auth.ensureConfig().pipe(
-    map(config =>
-      !config.authRequired || auth.loggedIn()
-        ? true
-        : router.createUrlTree(['/entrar'], { queryParams: { volver: state.url } })
-    )
+    map(config => {
+      if (!config.authRequired) return true;
+      if (!auth.loggedIn()) return router.createUrlTree(['/entrar'], { queryParams: { volver: state.url } });
+      auth.renew();
+      return true;
+    })
   );
 };
