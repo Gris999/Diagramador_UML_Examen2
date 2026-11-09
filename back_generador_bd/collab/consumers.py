@@ -12,6 +12,9 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from uml_api.services.services_gemini import call_gemini_analysis
 import re
 
+from django.conf import settings
+
+from . import auth
 from .groups import room_group_name, viewers_group_name
 from .identity import RedisGroupIdentityStore
 from .roles import RedisGroupRoleStore
@@ -47,8 +50,19 @@ class CanvasConsumer(AsyncWebsocketConsumer):
     # puede fabricar identidades sin fin.
     max_identity_changes = 5
 
+    def _session_email(self):
+        """El correo de la sesión que llega en la dirección del WebSocket (`?s=`), o `None`."""
+        query = parse_qs(self.scope.get("query_string", b"").decode("utf-8", "ignore"))
+        values = query.get("s", [])
+        return auth.read_session(values[0]) if values else None
+
     async def connect(self):
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
+        if settings.AUTH_REQUIRED and self._session_email() is None:
+            # Se acepta y se cierra con un código propio: así el navegador sabe que debe volver a iniciar sesión (un rechazo en el saludo solo muestra 1006).
+            await self.accept()
+            await self.close(code=4401)
+            return
         self.room_group_name = room_group_name(self.room_name)
         self.viewers_group_name = viewers_group_name(self.room_name)
         self.is_viewer = self._requested_viewer()
