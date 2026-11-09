@@ -1,23 +1,47 @@
 # 3. Manual de usuario
 
-Este manual enseña a usar la herramienta completa, la del primer parcial y lo nuevo de este parcial. Es un tutorial paso a paso, formato elegido como recurso de aprendizaje porque cada paso se puede seguir mirando la pantalla. Además, la herramienta tiene su propio **asistente de ayuda** (sección 3.9): una persona que no sabe cómo hacer algo se lo puede preguntar sin salir de la aplicación. Las capturas son de la aplicación funcionando con una sala de prueba.
+Este manual enseña a usar la herramienta completa, la del primer parcial y lo nuevo de este parcial. Es un tutorial paso a paso, formato elegido como recurso de aprendizaje porque cada paso se puede seguir mirando la pantalla. Además, la herramienta tiene su propio **asistente de ayuda** (sección 3.9): una persona que no sabe cómo hacer algo se lo puede preguntar sin salir de la aplicación. Las capturas son de la aplicación funcionando con una sala de prueba. Las de entrar con el correo, «Mis diagramas», Compartir con roles y «sin invitación» (figuras 3.1 a 3.1d) se tomaron en una copia local con datos de ejemplo y personas ficticias, porque el sitio publicado pide un código que llega por correo; las demás se tomaron en el sitio publicado el 8 de noviembre, antes de agregar el acceso por correo.
 
-## 3.1 Empezar: crear o entrar a una sala
+## 3.1 Empezar: entrar con tu correo, «Mis diagramas» y compartir
+
+![Entrar con el correo](capturas/14-entrar.png)
+*Figura 3.1. La página «Entrar»: se escribe el correo y la herramienta manda un código. No hay contraseñas.*
+
+1. Escribe tu correo y pulsa **Enviar código**. Te llega un mensaje de «Diagramador UML» con un código de 6 dígitos que vale 10 minutos (si tarda, mira la carpeta de correo no deseado; los buzones de algunas universidades demoran unos minutos).
+2. Escribe el código y pulsa **Entrar**. La sesión se queda guardada en ese navegador 30 días; **Cerrar sesión** (arriba a la derecha) la borra. Si no llega o te equivocas cinco veces, pide otro código con **Pedir otro código**.
+
+![Escribir el código](capturas/14b-entrar-codigo.png)
+*Figura 3.1a. Segundo paso: el código de 6 dígitos que llegó al correo.*
+
+Al entrar ves **Mis diagramas**: la lista de todo lo tuyo, como en Google Docs. Cada tarjeta muestra el nombre del diagrama, tu rol (**Propietario**, **Editor** o **Lector**), cuándo lo abriste por última vez, de quién es (si no es tuyo) y «Con enlace» si cualquiera con el enlace puede abrirlo. Aparecen los diagramas que creaste, a los que te invitaron y los que abriste con un enlace público.
+
+![Mis diagramas](capturas/15-mis-diagramas.png)
+*Figura 3.1b. «Mis diagramas»: Ana es propietaria de dos, editora de uno y lectora de otro. Los tres puntos de cada tarjeta abren **Abrir**, **Cambiar nombre** y **Eliminar** (solo la persona propietaria) o **Quitar de mi lista** (las demás).*
+
+3. Pulsa **Nuevo diagrama** para empezar uno: quien lo abre primero queda como **Propietario**. El nombre («Sin título» al principio) se cambia en la barra superior del editor, junto a tu rol, o desde el menú de la tarjeta.
+4. No se te pregunta el nombre: la herramienta usa el que sale de tu correo («pedro.alaca@…» aparece como «Pedro Alaca»). Los demás lo verán en la lista de participantes y en la actividad.
+5. Para dar acceso a otras personas, dentro del diagrama pulsa **Compartir** (arriba a la derecha):
+   - En **Agregar personas** escribe uno o varios correos, elige con qué rol entran (**Editor**: puede cambiar el diagrama; **Lector**: solo mira), escribe un mensaje si quieres y pulsa **Enviar invitación**. A cada persona le llega un correo con el enlace; entra con ese mismo correo.
+   - **Personas con acceso** lista quién tiene el diagrama. La persona propietaria cambia el rol de cada una o la quita con la cruz.
+   - **Acceso general** decide quién más puede abrirlo: **Restringido** (solo las personas de la lista, con su correo) o **Cualquiera con el enlace** (como Lector o como Editor). El enlace para copiar solo aparece cuando el acceso es público.
+
+![Compartir](capturas/16-compartir-roles.png)
+*Figura 3.1c. La ventana «Compartir» de un diagrama: personas con su rol, acceso general y enlace.*
+
+6. Si abres un diagrama privado con un correo que no está en su lista, ves «No tienes invitación a esta sala» y puedes entrar con otro correo; no se abre nada. Quien solo tiene rol de **Lector**, o abre el diagrama desde un celular, entra a la vista de solo lectura (sección 3.7).
+
+![Sin invitación](capturas/17-sin-acceso.png)
+*Figura 3.1d. Una persona que no está en la lista de un diagrama privado no entra, aunque tenga el enlace.*
+
+**Instalación local sin acceso por correo.** En una copia de la herramienta donde el servidor no pide entrar con el correo (como una instalación para desarrollo), no hay «Mis diagramas» ni invitaciones: la página principal ofrece **Crear Nuevo Lienzo** y **Unirse al Lienzo**, y el código de la sala hace de llave.
 
 ![Página principal](capturas/01-inicio.png)
-*Figura 3.1. Página principal: crear una sala nueva o unirse a una con su código. El botón «Ayuda» está siempre arriba a la derecha.*
-
-1. Pulsa **Crear Nuevo Lienzo** para empezar una sala nueva: cada una tiene un código propio.
-2. La primera vez, el navegador te pregunta «¿Cómo deseas que te vean en la sala?». Escribe tu nombre: los demás lo verán en la lista de participantes y en la actividad, y se guarda en tu navegador. No hay cuentas ni contraseñas.
-3. Para invitar a alguien, dentro de la sala pulsa **Compartir** (el botón azul de arriba a la derecha). Copia el **enlace de invitación** y envíaselo: esa persona lo abre, escribe su nombre y entra a editar. También puedes pulsar **Copiar código de sala**: la otra persona lo escribe en **Ingresa el código del lienzo** y pulsa **Unirse al Lienzo**.
-
-![Compartir la sala](capturas/12-compartir.png)
-*Figura 3.1b. La ventana «Compartir»: el enlace de invitación, el código de la sala y el enlace para seguirla desde el celular.*
+*Figura 3.1e. Página principal de una instalación sin acceso por correo: crear una sala nueva o unirse a una con su código. El botón «Ayuda» está siempre arriba a la derecha.*
 
 ![Código no válido](capturas/11-codigo-invalido.png)
-*Figura 3.2. Si lo que se escribe no es un código de sala, la herramienta no entra y explica por qué.*
+*Figura 3.2. En ese modo, si lo que se escribe no es un código de sala, la herramienta no entra y explica por qué.*
 
-El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y números con guiones). Si escribes otra cosa, aparece «El código no es válido» y te quedas en la página principal. Para salir de una sala pulsa **Salir**, arriba del panel izquierdo; si vuelves a entrar con el mismo código, el diagrama, la actividad y la conversación con la IA siguen donde los dejaste.
+El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y números con guiones). Si escribes otra cosa, aparece «El código no es válido» y te quedas en la página principal. Para salir de una sala pulsa **Salir**, arriba del panel izquierdo; si vuelves a entrar al mismo diagrama, el diagrama, la actividad y la conversación con la IA siguen donde los dejaste.
 
 ## 3.2 Dibujar el diagrama
 
@@ -51,7 +75,7 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 *Figura 3.5b. Los círculos de la barra superior abren la lista de participantes: quién es el Host, quién eres tú y si la IA está disponible.*
 
 - **Participantes.** Las personas conectadas se ven como círculos con su inicial en la barra superior; al tocarlos se abre la lista. Tú apareces con «(Tú)» y la IA como un integrante más, «Disponible» o «Pensando».
-- **Host.** La primera persona que entra a una sala es el **Host**; las demás son **Participante**. Todos editan por igual. Solo el Host ve el botón **Expulsar** junto a cada participante: la persona expulsada ve «El host te expulsó de la sala» y vuelve al inicio, y puede volver a entrar con el código. Si el Host sale, pasa a serlo quien lleva más tiempo en la sala.
+- **Host.** La primera persona que entra a una sala es el **Host**; las demás son **Participante**. Todos editan por igual. Solo el Host ve el botón **Expulsar** junto a cada participante: la persona expulsada ve «El host te expulsó de la sala» y vuelve al inicio, y puede volver a entrar si sigue en la lista del diagrama. Si el Host sale, pasa a serlo quien lleva más tiempo en la sala.
 - **Actividad.** El botón **Actividad** de la barra superior abre la lista de quién hizo qué («Bruno añadió la clase Autor»); si llegó algo nuevo mientras estaba cerrada, el botón muestra un número. Mover o cambiar el tamaño de una clase no se registra, para no saturar la lista.
 - **Reconexión.** Si se corta tu conexión o cierras la pestaña, al volver recuperas el diagrama sin perder lo que ya estaba guardado.
 
@@ -93,7 +117,7 @@ Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la 
 ![Vista móvil](capturas/09-vista-movil.png)
 *Figura 3.10. Vista móvil de seguimiento, con el botón para activar los avisos.*
 
-1. En el editor pulsa **Compartir**, luego **Copiar enlace para seguir desde el celular**, y ábrelo en el teléfono.
+1. En el editor pulsa **Compartir**, luego **Copiar enlace para seguir desde el celular**, y ábrelo en el teléfono con tu correo (un celular nunca abre el editor: siempre entra a esta vista de solo lectura, aunque seas editora). Si alguien solo tiene rol de **Lector**, también entra aquí.
 2. Verás el diagrama actualizándose en vivo y, debajo, la actividad. Es de solo lectura: no tiene controles de edición y no cuenta como participante.
 3. Pulsa **Activar avisos** y permítelos en el navegador: cada vez que alguien cambie el diagrama o la IA publique una idea, el celular te avisa. Los avisos llegan solo mientras la página sigue abierta (no hay servidor de avisos). En un iPhone, ábrela en Safari y agrégala a la pantalla de inicio (Compartir → «Agregar a Inicio»): los avisos solo existen en esa app, no en una pestaña de Safari. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
 
@@ -112,11 +136,13 @@ El botón **Ayuda** está en la página principal y dentro de la sala (en la bar
 
 | Problema | Qué hacer |
 |---|---|
-| «El código no es válido» | Pide el código a quien creó la sala: se copia en **Compartir** → **Copiar código de sala**. |
+| «No tienes invitación a esta sala» | Entraste con un correo que no está en la lista del diagrama. Pide a quien lo creó que te invite a ese correo, o entra con el correo al que te llegó la invitación (**Entrar con otro correo**). |
+| No llega el código ni la invitación | Mira el correo no deseado y espera unos minutos (algunos buzones de universidad demoran); pide otro código con **Pedir otro código** (hay un tiempo de espera entre pedidos). |
+| «El código no es válido» (instalación sin acceso por correo) | Pide el código a quien creó la sala: se copia en **Compartir** → **Copiar código de sala**. |
 | «Demasiadas preguntas seguidas» | La IA y la ayuda tienen un tope de uso por persona, sala y servicio; espera un minuto. |
 | «La IA está atendiendo a…» | La IA atiende a una persona a la vez; espera a que termine y vuelve a enviar. |
 | «La IA no pudo responder ahora» | El diagrama no se modificó ni se guardó nada a medias; reintenta o sigue editando a mano. |
 | «No se pudo generar el backend» o «…la aplicación móvil» | El generador no respondió; reintenta en unos momentos o revisa que el diagrama tenga clases. |
-| Me expulsaron | Vuelve a entrar con el código: entrarás como participante nuevo. |
+| Me expulsaron | Vuelve a entrar desde **Mis diagramas** (o con el enlace): entrarás como participante nuevo. |
 | El micrófono no responde | Usa Chrome con conexión segura (HTTPS), o escribe el texto. |
-| Una sala se comporta raro | Crea una sala nueva con **Crear Nuevo Lienzo**; lo que se hizo queda respaldado en el servidor. |
+| Una sala se comporta raro | Crea un diagrama nuevo con **Nuevo diagrama**; lo que se hizo queda respaldado en el servidor. |
