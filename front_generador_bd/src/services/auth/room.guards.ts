@@ -35,6 +35,15 @@ export const roomAccessGuard: CanActivateFn = route => {
   );
 };
 
+/** Quien solo tiene rol de lector no abre el editor: se va a la vista de solo lectura de la misma sala. Va después de `roomAccessGuard`, que trae el rol. */
+export const viewerGuard: CanActivateFn = route => {
+  const access = inject(RoomAccessService);
+  const router = inject(Router);
+  const roomId = route.paramMap.get('roomId');
+  if (!roomId) return true;
+  return access.lastAccess(roomId)?.can_edit === false ? router.createUrlTree(['/sala', roomId, 'seguir']) : true;
+};
+
 /** En un celular el editor no se abre: se va a la vista de solo lectura de la misma sala (la edición es desde un computador o una tableta). */
 export const phoneGuard: CanActivateFn = route => {
   const router = inject(Router);

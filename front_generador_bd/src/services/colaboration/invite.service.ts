@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { IdentityService } from './identity.service';
 
-import type { RoomMember } from '../auth/room-access.service';
+import type { AssignableRole, RoomMember } from '../auth/room-access.service';
 
 export type InviteResult = { sent: string[]; failed: string[]; /** Quién tiene acceso ahora (solo con el modo «entrar con el correo»). */ members?: RoomMember[] };
 
@@ -30,10 +30,11 @@ export class InviteService {
   private readonly http = inject(HttpClient);
   private readonly identity = inject(IdentityService);
 
-  send(roomId: string, emails: string[], message: string): Observable<InviteResult> {
+  /** `role`: con qué rol entran las personas invitadas (editor por defecto; lector si solo van a mirar). */
+  send(roomId: string, emails: string[], message: string, role: AssignableRole = 'editor'): Observable<InviteResult> {
     return this.http.post<InviteResult>(
       `${environment.endpoint_python}api/rooms/${encodeURIComponent(roomId)}/invite/`,
-      { emails, message },
+      { emails, message, role },
       { headers: new HttpHeaders({ 'X-Participant-Token': this.identity.getIdentity().token }) }
     );
   }

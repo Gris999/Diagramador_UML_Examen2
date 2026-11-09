@@ -32,7 +32,7 @@ describe('routes', () => {
         provideHttpClientTesting(),
         provideRouter(routes),
         { provide: AuthService, useValue: auth },
-        { provide: RoomAccessService, useValue: { enter: () => of({ required: true, email: 'ana@x.com', role: 'owner', members: [] }) } }
+        { provide: RoomAccessService, useValue: { enter: () => of({ required: true, email: 'ana@x.com', role: 'owner', members: [] }), lastAccess: () => undefined } }
       ]
     });
     router = TestBed.inject(Router);

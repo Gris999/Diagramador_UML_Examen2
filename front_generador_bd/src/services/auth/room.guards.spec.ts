@@ -5,13 +5,14 @@ import { ActivatedRouteSnapshot, Router, UrlTree, convertToParamMap } from '@ang
 import { Observable, firstValueFrom, isObservable, of, throwError } from 'rxjs';
 import { AuthConfig, AuthService } from './auth.service';
 import { RoomAccess, RoomAccessService } from './room-access.service';
-import { phoneGuard, roomAccessGuard } from './room.guards';
+import { phoneGuard, roomAccessGuard, viewerGuard } from './room.guards';
 
 describe('room guards', () => {
   let router: Router;
   let config: AuthConfig;
   let browser: boolean;
   let enter: jasmine.Spy<(room: string) => Observable<RoomAccess>>;
+  let lastAccess: jasmine.Spy<(room: string) => RoomAccess | undefined>;
 
   const route = (roomId: string | null) => ({ paramMap: convertToParamMap(roomId ? { roomId } : {}) }) as unknown as ActivatedRouteSnapshot;
 
@@ -24,11 +25,12 @@ describe('room guards', () => {
     config = { authRequired: true, mailConfigured: true };
     browser = true;
     enter = jasmine.createSpy('enter').and.returnValue(of({ required: true, email: 'ana@x.com', role: 'owner', members: [] }));
+    lastAccess = jasmine.createSpy('lastAccess').and.returnValue(undefined);
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         { provide: AuthService, useValue: { isBrowser: () => browser, ensureConfig: () => of(config) } },
-        { provide: RoomAccessService, useValue: { enter } }
+        { provide: RoomAccessService, useValue: { enter, lastAccess } }
       ]
     });
     router = TestBed.inject(Router);
@@ -74,6 +76,31 @@ describe('room guards', () => {
       browser = true;
       expect(await run(roomAccessGuard, null)).toBeTrue();
       expect(enter).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('viewerGuard', () => {
+    it('sends someone who can only read to the read-only view of the same room instead of the editor', async () => {
+      lastAccess.and.returnValue({ required: true, email: 'eva@x.com', role: 'viewer', can_edit: false, members: [] });
+
+      const result = await run(viewerGuard);
+
+      expect(result instanceof UrlTree).toBeTrue();
+      expect(router.serializeUrl(result as UrlTree)).toBe('/sala/sala-1/seguir');
+    });
+
+    it('lets owners and editors open the editor', async () => {
+      lastAccess.and.returnValue({ required: true, email: 'ana@x.com', role: 'owner', can_edit: true, members: [] });
+      expect(await run(viewerGuard)).toBeTrue();
+      lastAccess.and.returnValue({ required: true, email: 'beto@x.com', role: 'editor', can_edit: true, members: [] });
+      expect(await run(viewerGuard)).toBeTrue();
+    });
+
+    it('lets everyone through when nothing is known (the server without accounts, or no room)', async () => {
+      expect(await run(viewerGuard)).toBeTrue();
+      lastAccess.and.returnValue({ required: false, email: null, role: null, can_edit: true, members: [] });
+      expect(await run(viewerGuard)).toBeTrue();
+      expect(await run(viewerGuard, null)).toBeTrue();
     });
   });
 
