@@ -1,0 +1,103 @@
+<div class="relative flex min-h-screen flex-col items-center justify-center bg-app px-4 py-10" style="background-image: radial-gradient(70rem 32rem at 50% -8%, var(--c-accent-soft), transparent 70%)">
+  <button
+    type="button"
+    class="btn btn-ghost btn-sm fixed right-4 top-3 !px-2"
+    [attr.aria-label]="theme.theme() === 'dark' ? 'Cambiar al tema claro' : 'Cambiar al tema oscuro'"
+    data-testid="theme-toggle"
+    (click)="theme.toggle()"
+  >
+    {{ theme.theme() === 'dark' ? '☀' : '☾' }}
+  </button>
+
+  <header class="mb-8 text-center">
+    <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-white shadow-lg shadow-accent/30">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8" aria-hidden="true">
+        <rect x="2.5" y="3" width="8" height="7" rx="1.2" />
+        <path d="M2.5 6h8" />
+        <rect x="13.5" y="14" width="8" height="7" rx="1.2" />
+        <path d="M13.5 17h8" />
+        <path d="M6.5 10v4.5a2 2 0 0 0 2 2h5" />
+      </svg>
+    </div>
+    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-text">Diagramador UML</p>
+    <h1 class="mt-2 text-2xl font-semibold text-fg" data-testid="login-title">Entrar</h1>
+    <p class="mt-1 text-sm text-fg-muted">Te mandamos un código al correo. No hay contraseñas.</p>
+  </header>
+
+  <main class="card w-full max-w-sm p-6" data-testid="login-card">
+    @if (mailMissing()) {
+      <p class="mb-4 rounded-lg border border-line bg-accent-soft px-3 py-2 text-xs text-fg" role="alert" data-testid="login-mail-missing">
+        Este servidor todavía no puede mandar correos, así que no llegará ningún código.
+      </p>
+    }
+
+    @if (step() === 'email') {
+      <form (submit)="$event.preventDefault(); sendCode()" data-testid="login-email-form">
+        <label for="login-email" class="text-sm font-medium text-fg">Tu correo</label>
+        <input
+          id="login-email"
+          type="email"
+          name="email"
+          autocomplete="email"
+          inputmode="email"
+          class="field mt-2"
+          placeholder="nombre@ejemplo.com"
+          data-testid="login-email"
+          [ngModel]="email()"
+          (ngModelChange)="email.set($event)"
+          [disabled]="busy()"
+          maxlength="254"
+          required
+        />
+        <button type="submit" class="btn btn-primary btn-block mt-4" [disabled]="busy() || !email().trim()" data-testid="login-send-code">
+          {{ busy() ? 'Enviando…' : 'Enviar código' }}
+        </button>
+      </form>
+    } @else {
+      <form (submit)="$event.preventDefault(); verify()" data-testid="login-code-form">
+        <p class="text-sm text-fg" data-testid="login-sent-to">
+          Te mandamos un código de 6 dígitos a <strong class="break-all">{{ email() }}</strong>. Vale 10 minutos.
+        </p>
+        <label for="login-code" class="mt-4 block text-sm font-medium text-fg">Código</label>
+        <input
+          id="login-code"
+          type="text"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]*"
+          maxlength="6"
+          class="field mt-2 text-center font-mono text-lg tracking-[0.4em]"
+          placeholder="000000"
+          data-testid="login-code"
+          [ngModel]="code()"
+          (ngModelChange)="onCodeInput($event)"
+          [disabled]="busy()"
+        />
+        <button type="submit" class="btn btn-primary btn-block mt-4" [disabled]="busy() || code().length !== 6" data-testid="login-verify">
+          {{ busy() ? 'Comprobando…' : 'Entrar' }}
+        </button>
+        <div class="mt-3 flex items-center justify-between text-xs">
+          <button type="button" class="text-accent-text hover:underline" data-testid="login-change-email" (click)="changeEmail()">Cambiar correo</button>
+          <button
+            type="button"
+            class="text-accent-text hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+            [disabled]="cooldown() > 0 || busy()"
+            data-testid="login-resend"
+            (click)="resend()"
+          >
+            {{ cooldown() > 0 ? 'Pedir otro código (' + cooldown() + ' s)' : 'Pedir otro código' }}
+          </button>
+        </div>
+      </form>
+    }
+
+    @if (error()) {
+      <p class="mt-4 text-xs text-danger" role="alert" data-testid="login-error">{{ error() }}</p>
+    }
+  </main>
+
+  <p class="mt-6 max-w-sm text-center text-[11px] text-fg-faint">
+    Solo usamos tu correo para mandarte el código y para que tu equipo sepa quién eres.
+  </p>
+</div>
