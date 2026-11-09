@@ -1,9 +1,11 @@
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
-from django.test import SimpleTestCase, override_settings
+from channels.db import database_sync_to_async
+from django.test import TransactionTestCase, override_settings
 
 from collab import auth
 from collab.consumers import CanvasConsumer
+from collab.models import RoomMember
 from collab.routing import websocket_urlpatterns
 from collab.tests.fakes import (
     InMemoryActivityStore,
@@ -14,7 +16,7 @@ from collab.tests.fakes import (
 
 
 @override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
-class WebSocketSessionTests(SimpleTestCase):
+class WebSocketSessionTests(TransactionTestCase):
     """Con `AUTH_REQUIRED` el WebSocket solo se abre con una sesión; sin el interruptor funciona como siempre."""
 
     application = URLRouter(websocket_urlpatterns)
@@ -37,6 +39,10 @@ class WebSocketSessionTests(SimpleTestCase):
             CanvasConsumer.identity_store_class,
             CanvasConsumer.activity_store_class,
         ) = self.original
+
+    async def allow(self, email="ana@x.com", room="auth-room"):
+        """Pone al correo en la lista de la sala (como si la hubiera abierto o lo hubieran invitado)."""
+        await database_sync_to_async(RoomMember.objects.create)(room=room, email=email, role="owner")
 
     async def open(self, query=""):
         communicator = WebsocketCommunicator(self.application, f"/ws/canvas/auth-room/{query}")
@@ -73,6 +79,7 @@ class WebSocketSessionTests(SimpleTestCase):
 
     @override_settings(AUTH_REQUIRED=True)
     async def test_with_a_valid_session_the_connection_enters_the_room(self):
+        await self.allow()
         communicator, connected, _ = await self.open(f"?s={auth.make_session('ana@x.com')}")
 
         self.assertTrue(connected)
@@ -81,6 +88,7 @@ class WebSocketSessionTests(SimpleTestCase):
 
     @override_settings(AUTH_REQUIRED=True)
     async def test_the_mobile_viewer_needs_a_session_too(self):
+        await self.allow()
         communicator, _, _ = await self.open("?mode=viewer")
         output = await communicator.receive_output(timeout=1)
         self.assertEqual(output.get("code"), 4401)
@@ -91,6 +99,7 @@ class WebSocketSessionTests(SimpleTestCase):
 
     @override_settings(AUTH_REQUIRED=True)
     async def test_the_session_travels_in_the_address_only_and_not_in_a_message(self):
+        await self.allow()
         communicator, _, _ = await self.open(f"?s={auth.make_session('ana@x.com')}")
         while not await communicator.receive_nothing(timeout=0.2):  # lo que llega al entrar (presencia)
             await communicator.receive_json_from(timeout=1)
@@ -99,3 +108,40 @@ class WebSocketSessionTests(SimpleTestCase):
         await communicator.send_json_to({"type": "hello", "token": "no-uuid", "name": "X", "session": "x"})
         self.assertTrue(await communicator.receive_nothing(timeout=0.3))
         await communicator.disconnect()
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_a_valid_session_of_somebody_who_was_not_invited_is_closed_with_4403(self):
+        await self.allow("ana@x.com")
+
+        communicator, connected, _ = await self.open(f"?s={auth.make_session('beto@x.com')}")
+
+        self.assertTrue(connected)
+        output = await communicator.receive_output(timeout=1)
+        self.assertEqual((output["type"], output["code"]), ("websocket.close", 4403))
+        self.assertEqual(InMemoryRoleStore.rooms, {})
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_the_mobile_viewer_of_somebody_who_was_not_invited_is_closed_too(self):
+        await self.allow("ana@x.com")
+
+        viewer, _, _ = await self.open(f"?mode=viewer&s={auth.make_session('beto@x.com')}")
+
+        self.assertEqual((await viewer.receive_output(timeout=1)).get("code"), 4403)
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_an_invited_address_enters_the_room(self):
+        await self.allow("ana@x.com")
+        await database_sync_to_async(RoomMember.objects.create)(room="auth-room", email="beto@x.com", role="invited")
+
+        communicator, connected, _ = await self.open(f"?s={auth.make_session('beto@x.com')}")
+
+        self.assertTrue(connected)
+        self.assertEqual((await self.first_message(communicator))["action"], "self")
+        await communicator.disconnect()
+
+    @override_settings(AUTH_REQUIRED=True)
+    async def test_a_room_nobody_opened_is_closed_so_it_has_to_be_entered_through_the_access_route_first(self):
+        communicator, _, _ = await self.open(f"?s={auth.make_session('ana@x.com')}")
+
+        self.assertEqual((await communicator.receive_output(timeout=1)).get("code"), 4403)
+

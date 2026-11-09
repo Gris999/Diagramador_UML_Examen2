@@ -1,5 +1,5 @@
 from django.urls import path
-from .auth_views import auth_config, auth_me, auth_request_code, auth_verify, room_invite
+from .auth_views import auth_config, auth_me, auth_request_code, auth_verify, room_access_view, room_invite
 from .chat_views import chat_history, claim_suggestion, ia_chat, ia_provider_info, room_ia_provider
 from .help_views import ia_help
 from .views import (
@@ -36,6 +36,7 @@ urlpatterns = [
     ),
     path("rooms/<str:room>/ia/provider/", room_ia_provider, name="room-ia-provider"),
     path("rooms/<str:room>/invite/", room_invite, name="room-invite"),
+    path("rooms/<str:room>/access/", room_access_view, name="room-access"),
     path("auth/config/", auth_config, name="auth-config"),
     path("auth/code/", auth_request_code, name="auth-code"),
     path("auth/verify/", auth_verify, name="auth-verify"),
