@@ -7,12 +7,21 @@ import { RoomAccess, RoomAccessService } from '../../services/auth/room-access.s
 import { InviteResult, InviteService } from '../../services/colaboration/invite.service';
 import { ShareDialog } from './share-dialog';
 
+const OWNER_INFO: RoomAccess = {
+  required: true, email: 'ana@x.com', role: 'owner', is_owner: true, can_edit: true, title: 'Mi modelo',
+  link_access: 'restricted', link_role: 'viewer', owner: 'ana@x.com',
+  members: [{ email: 'ana@x.com', role: 'owner' }, { email: 'beto@x.com', role: 'editor' }]
+};
+
 describe('ShareDialog', () => {
   let fixture: ComponentFixture<ShareDialog>;
   let writeText: jasmine.Spy;
-  let sendInvites: jasmine.Spy<(room: string, emails: string[], message: string) => Observable<InviteResult>>;
+  let sendInvites: jasmine.Spy<(room: string, emails: string[], message: string, role?: string) => Observable<InviteResult>>;
+  let updateSettings: jasmine.Spy;
+  let setMemberRole: jasmine.Spy;
+  let removeMember: jasmine.Spy;
   let authConfig: ReturnType<typeof signal<AuthConfig | null>>;
-  let loadMembers: jasmine.Spy<(room: string) => Observable<RoomAccess>>;
+  let loadInfo: jasmine.Spy<(room: string) => Observable<RoomAccess>>;
   const ROOM = '3f2c1b7e-9a4d-4c55-8e21-0b6f7d9a1c42';
 
   const element = (testId: string) => fixture.nativeElement.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
@@ -21,13 +30,16 @@ describe('ShareDialog', () => {
   async function create(roomId = ROOM): Promise<void> {
     sendInvites = jasmine.createSpy('send').and.returnValue(of({ sent: [], failed: [] }));
     authConfig = signal<AuthConfig | null>({ authRequired: false, mailConfigured: true });
-    loadMembers = jasmine.createSpy('members').and.returnValue(of({ required: true, email: 'ana@x.com', role: 'owner', members: [{ email: 'ana@x.com', role: 'owner' }] }));
+    loadInfo = jasmine.createSpy('info').and.returnValue(of(OWNER_INFO));
+    updateSettings = jasmine.createSpy('updateSettings').and.callFake(() => of(OWNER_INFO));
+    setMemberRole = jasmine.createSpy('setMemberRole').and.callFake(() => of(OWNER_INFO));
+    removeMember = jasmine.createSpy('removeMember').and.callFake(() => of(OWNER_INFO));
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         { provide: InviteService, useValue: { send: sendInvites } },
         { provide: AuthService, useValue: { config: authConfig, ensureConfig: () => of(authConfig()) } },
-        { provide: RoomAccessService, useValue: { members: loadMembers } }
+        { provide: RoomAccessService, useValue: { info: loadInfo, updateSettings, setMemberRole, removeMember } }
       ]
     });
     fixture = TestBed.createComponent(ShareDialog);
@@ -172,7 +184,7 @@ describe('ShareDialog', () => {
 
       await pressSend();
 
-      expect(sendInvites).toHaveBeenCalledOnceWith(ROOM, ['beto@x.com', 'luis@x.com'], 'Ven a modelar');
+      expect(sendInvites).toHaveBeenCalledOnceWith(ROOM, ['beto@x.com', 'luis@x.com'], 'Ven a modelar', 'editor');
       expect(element('invite-result')!.textContent).toContain('Invitación enviada a beto@x.com, luis@x.com');
       expect(input('invite-emails').value).toBe('');
     });
@@ -265,10 +277,10 @@ describe('ShareDialog', () => {
     });
   });
 
-  describe('when the room is only for the people invited by email', () => {
-    async function restricted(members?: Observable<RoomAccess>): Promise<void> {
+  describe('with accounts: roles and general access, like Google Docs', () => {
+    async function withAccounts(info: RoomAccess = OWNER_INFO, failure?: Observable<RoomAccess>): Promise<void> {
       await create();
-      if (members) loadMembers.and.returnValue(members);
+      loadInfo.and.returnValue(failure ?? of(info));
       authConfig.set({ authRequired: true, mailConfigured: true });
       fixture.componentInstance.ngOnInit();
       fixture.detectChanges();
@@ -276,62 +288,138 @@ describe('ShareDialog', () => {
       fixture.detectChanges();
     }
 
-    it('does not offer the link or the code of the room: the only way in is an invitation', async () => {
-      await restricted();
+    const rows = () => Array.from(fixture.nativeElement.querySelectorAll('[data-testid="share-member"]')) as HTMLElement[];
+    const pick = (testId: string, value: string) => {
+      const select = element(testId) as HTMLSelectElement;
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    };
 
+    it('names the diagram in the title and does not offer the link or the code while the access is restricted', async () => {
+      await withAccounts();
+
+      expect(element('share-title')!.textContent).toContain('Compartir «Mi modelo»');
       expect(element('share-invite-link')).toBeNull();
       expect(element('copy-invite-link')).toBeNull();
       expect(element('copy-room-code')).toBeNull();
-      expect(element('share-restricted-note')!.textContent).toContain('Solo entran las personas que invites por correo');
-      expect(element('share-email-box')).not.toBeNull();
+      expect(element('share-general-note')!.textContent).toContain('El enlace por sí solo no abre el diagrama');
     });
 
-    it('still lets the person copy the link of the read-only view for their own phone', async () => {
-      await restricted();
+    it('lists the people with access, the owner first, with their role', async () => {
+      await withAccounts();
 
-      expect(element('copy-follow-link')).not.toBeNull();
-      expect(fixture.nativeElement.textContent).toContain('Entra con tu mismo correo');
+      expect(rows().length).toBe(2);
+      expect(rows()[0].textContent).toContain('ana@x.com');
+      expect(rows()[0].textContent).toContain('Propietario');
+      expect(rows()[1].textContent).toContain('beto@x.com');
+      expect((rows()[1].querySelector('[data-testid="member-role"]') as HTMLSelectElement).value).toBe('editor');
     });
 
-    it('lists who has access, the owner first, with their role', async () => {
-      await restricted(of({
-        required: true, email: 'ana@x.com', role: 'owner',
-        members: [{ email: 'ana@x.com', role: 'owner' }, { email: 'beto@x.com', role: 'invited' }]
-      }));
-
-      const rows = Array.from(fixture.nativeElement.querySelectorAll('[data-testid="share-member"]')) as HTMLElement[];
-      expect(loadMembers).toHaveBeenCalledWith(ROOM);
-      expect(rows.length).toBe(2);
-      expect(rows[0].textContent).toContain('ana@x.com');
-      expect(rows[0].textContent).toContain('Propietario');
-      expect(rows[1].textContent).toContain('beto@x.com');
-      expect(rows[1].textContent).toContain('Invitado');
-    });
-
-    it('updates the list with the answer of the invitation', async () => {
-      await restricted();
-      sendInvites.and.returnValue(of({
-        sent: ['luis@x.com'], failed: [],
-        members: [{ email: 'ana@x.com', role: 'owner' }, { email: 'luis@x.com', role: 'invited' }]
-      }));
+    it('invites with the role chosen: editor by default and viewer when it is chosen', async () => {
+      await withAccounts();
+      sendInvites.and.returnValue(of({ sent: ['eva@x.com'], failed: [], members: [...OWNER_INFO.members, { email: 'eva@x.com', role: 'viewer' }] }));
       const emails = input('invite-emails');
-      emails.value = 'luis@x.com';
+      emails.value = 'eva@x.com';
       emails.dispatchEvent(new Event('input'));
-      fixture.detectChanges();
+      pick('invite-role', 'viewer');
 
       element('invite-send')!.click();
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain('luis@x.com');
-      expect(fixture.nativeElement.querySelectorAll('[data-testid="share-member"]').length).toBe(2);
+      expect(sendInvites).toHaveBeenCalledOnceWith(ROOM, ['eva@x.com'], '', 'viewer');
+      expect(rows().length).toBe(3);
     });
 
-    it('keeps working if the list cannot be loaded', async () => {
-      await restricted(throwError(() => new HttpErrorResponse({ status: 500 })));
+    it('lets the owner change the role of someone and take them out', async () => {
+      await withAccounts();
 
-      expect(element('share-members')).toBeNull();
+      pick('member-role', 'viewer');
+      expect(setMemberRole).toHaveBeenCalledOnceWith(ROOM, 'beto@x.com', 'viewer');
+
+      (element('member-remove') as HTMLButtonElement).click();
+      expect(removeMember).toHaveBeenCalledOnceWith(ROOM, 'beto@x.com');
+    });
+
+    it('shows the list as the server left it after a change', async () => {
+      await withAccounts();
+      removeMember.and.returnValue(of({ ...OWNER_INFO, members: [{ email: 'ana@x.com', role: 'owner' }] }));
+
+      (element('member-remove') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(rows().length).toBe(1);
+    });
+
+    it('says why a change was refused and keeps the list', async () => {
+      await withAccounts();
+      setMemberRole.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403, error: { error: 'Solo el propietario puede hacer esto.' } })));
+
+      pick('member-role', 'viewer');
+      fixture.detectChanges();
+
+      expect(element('share-settings-error')!.textContent).toContain('Solo el propietario');
+      expect(rows().length).toBe(2);
+    });
+
+    it('lets the owner open the link for anyone, as viewer or as editor, and then the link can be copied', async () => {
+      await withAccounts();
+
+      pick('link-access', 'anyone');
+      expect(updateSettings).toHaveBeenCalledOnceWith(ROOM, { link_access: 'anyone' });
+
+      updateSettings.and.returnValue(of({ ...OWNER_INFO, link_access: 'anyone', link_role: 'viewer' }));
+      pick('link-access', 'anyone');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(input('share-invite-link').value).toBe(`${window.location.origin}/diagram/${ROOM}`);
+      expect(element('copy-invite-link')).not.toBeNull();
+      expect(element('share-general-note')!.textContent).toContain('puede ver el diagrama');
+
+      pick('link-role', 'editor');
+      expect(updateSettings).toHaveBeenCalledWith(ROOM, { link_role: 'editor' });
+    });
+
+    it('says that with the link as editor anyone can edit', async () => {
+      await withAccounts({ ...OWNER_INFO, link_access: 'anyone', link_role: 'editor' });
+
+      expect(element('share-general-note')!.textContent).toContain('ver y editar');
+      expect((element('link-role') as HTMLSelectElement).value).toBe('editor');
+    });
+
+    it('does not let someone who is not the owner change the people or the general access', async () => {
+      await withAccounts({ ...OWNER_INFO, role: 'editor', is_owner: false, email: 'beto@x.com' });
+
+      expect(element('member-role')).toBeNull();
+      expect(element('member-remove')).toBeNull();
+      expect(element('link-access')).toBeNull();
+      expect(rows()[1].textContent).toContain('Editor');
+      expect(element('share-add')).not.toBeNull();
+    });
+
+    it('does not let a viewer invite anyone', async () => {
+      await withAccounts({ ...OWNER_INFO, role: 'viewer', is_owner: false, can_edit: false, email: 'eva@x.com' });
+
+      expect(element('share-add')).toBeNull();
+      expect(element('invite-send')).toBeNull();
+      expect(element('share-viewer-note')!.textContent).toContain('solo de lectura');
+    });
+
+    it('still lets the person copy the link of the read-only view for their own phone', async () => {
+      await withAccounts();
+
+      expect(element('copy-follow-link')).not.toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('Entra con tu mismo correo');
+    });
+
+    it('keeps working if the information of the room cannot be loaded', async () => {
+      await withAccounts(OWNER_INFO, throwError(() => new HttpErrorResponse({ status: 500 })));
+
+      expect(rows().length).toBe(0);
       expect(element('share-email-box')).not.toBeNull();
     });
   });
@@ -343,6 +431,7 @@ describe('ShareDialog', () => {
     expect(element('copy-room-code')).not.toBeNull();
     expect(element('share-restricted-note')).toBeNull();
     expect(element('share-members')).toBeNull();
-    expect(loadMembers).not.toHaveBeenCalled();
+    expect(element('invite-role')).toBeNull();
+    expect(loadInfo).not.toHaveBeenCalled();
   });
 });
