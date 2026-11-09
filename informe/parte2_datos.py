@@ -21,11 +21,11 @@ Roles de cada caso de uso para los diagramas de análisis (reglas de robustez):
 
 ACTORES = [
     ("A1", "Diseñador", "Actor que crea una sala o es el primero en conectarse a una que ya está viva (el *host*). Hace todo lo que "
-     "hace un Colaborador y, además, puede expulsar a otros participantes. Es un rol temporal de la sala, no una cuenta: es una "
+     "hace un Colaborador y, además, puede expulsar a otros participantes. Es un rol temporal de la sala (no un permiso guardado): es una "
      "especialización de A2."),
-    ("A2", "Colaborador", "Actor que se incorpora a una sala mediante su código y trabaja sobre el diagrama con las mismas "
-     "capacidades de edición que el Diseñador. No tiene cuenta: se identifica con un nombre y un identificador anónimo guardado "
-     "en su navegador."),
+    ("A2", "Colaborador", "Actor que se incorpora a una sala y trabaja sobre el diagrama con las mismas "
+     "capacidades de edición que el Diseñador. Con el acceso por correo activo (RA-07) entra con su correo y solo si la sala lo tiene en su lista; "
+     "se identifica con un nombre y un identificador anónimo guardado en su navegador."),
 ]
 NOMBRE_ACTOR = {codigo: nombre for codigo, nombre, _ in ACTORES}
 # No hay actores secundarios: la IA y su servicio no son actores (ver criterios de modelado).
