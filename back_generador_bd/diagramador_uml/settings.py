@@ -51,6 +51,22 @@ OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
 # Modelo reentrenado (carpeta ml/) para los cambios al diagrama; vacío = usar OLLAMA_MODEL.
 OLLAMA_CHANGE_MODEL = env("OLLAMA_CHANGE_MODEL", default="")
 
+# Entrar con el correo (`collab.auth`). Con AUTH_REQUIRED=True la API y el WebSocket piden una sesión; apagado (por defecto) todo funciona como antes.
+# Es el interruptor para volver al comportamiento sin cuentas si el correo falla: poner False y reiniciar Django.
+AUTH_REQUIRED = env.bool("AUTH_REQUIRED", default=False)
+AUTH_SESSION_DAYS = env.int("AUTH_SESSION_DAYS", default=30)
+# Dirección pública de la aplicación para los enlaces de las invitaciones (nunca se toma de lo que manda el navegador).
+PUBLIC_APP_URL = env("PUBLIC_APP_URL", default="https://diagramador.dev").rstrip("/")
+# Correo saliente (SMTP). Vacío = sin envío real: el servidor lo dice y la interfaz ofrece abrir el correo de la persona.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Diagramador UML <noreply@diagramador.dev>")
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -100,6 +116,7 @@ CHANNEL_LAYERS = {
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+    "collab.auth.EmailSessionMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
