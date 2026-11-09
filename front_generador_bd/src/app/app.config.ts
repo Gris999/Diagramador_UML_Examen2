@@ -6,7 +6,8 @@ import { provideClientHydration, withEventReplay } from '@angular/platform-brows
 import { DiagramService } from '../services/diagram/diagram.service';
 import { FallbackService } from '../services/diagram/fallback.service';
 import { RelationshipService } from '../services/diagram/relationship.service';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { authInterceptor } from '../services/auth/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,6 +19,6 @@ export const appConfig: ApplicationConfig = {
     DiagramService,
     FallbackService,
     RelationshipService,
-    provideHttpClient()
+    provideHttpClient(withInterceptors([authInterceptor]))
   ]
 };

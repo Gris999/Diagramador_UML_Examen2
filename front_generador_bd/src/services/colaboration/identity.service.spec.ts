@@ -68,4 +68,28 @@ describe('IdentityService', () => {
     expect(setItem).not.toHaveBeenCalled();
     expect(prompt).not.toHaveBeenCalled();
   });
+
+  it('does not ask the name of someone who logged in with their email: it uses the one from the email', () => {
+    const prompt = spyOn(window, 'prompt');
+    localStorage.setItem('diagramador-sesion', JSON.stringify({ token: 't', email: 'ana.perez@x.com', name: 'Ana Perez' }));
+
+    try {
+      expect(new IdentityService('browser').getIdentity().name).toBe('Ana Perez');
+      expect(prompt).not.toHaveBeenCalled();
+      expect(localStorage.getItem(IDENTITY_NAME_STORAGE_KEY)).toBeNull();
+    } finally {
+      localStorage.removeItem('diagramador-sesion');
+    }
+  });
+
+  it('keeps the name the person chose before logging in', () => {
+    localStorage.setItem(IDENTITY_NAME_STORAGE_KEY, 'Anita');
+    localStorage.setItem('diagramador-sesion', JSON.stringify({ token: 't', email: 'ana@x.com', name: 'Ana' }));
+
+    try {
+      expect(new IdentityService('browser').getIdentity().name).toBe('Anita');
+    } finally {
+      localStorage.removeItem('diagramador-sesion');
+    }
+  });
 });

@@ -1,5 +1,9 @@
 <div class="relative flex min-h-screen flex-col items-center justify-center bg-app px-4 py-10" style="background-image: radial-gradient(70rem 32rem at 50% -8%, var(--c-accent-soft), transparent 70%)">
   <div class="fixed right-4 top-3 z-40 flex items-center gap-1.5">
+    @if (auth.session(); as session) {
+      <span class="hidden max-w-[14rem] truncate text-xs text-fg-muted sm:inline" data-testid="account-email" [title]="session.email">{{ session.email }}</span>
+      <button type="button" class="btn btn-ghost btn-sm" data-testid="logout" (click)="cerrarSesion()">Cerrar sesión</button>
+    }
     <button
       type="button"
       class="btn btn-ghost btn-sm !px-2"

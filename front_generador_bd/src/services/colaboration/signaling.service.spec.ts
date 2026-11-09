@@ -107,4 +107,59 @@ describe('SignalingService connection lifecycle', () => {
 
     expect(createdSockets[0].url).toMatch(/\/room-1\/$/);
   });
+
+  describe('entering with the email', () => {
+    const identity = { getIdentity: () => ({ token: 'token', name: 'Ana' }) } as any;
+
+    afterEach(() => localStorage.removeItem('diagramador-sesion'));
+
+    it('opens the socket with the session of the person in the address', () => {
+      const service = new SignalingService(identity, { token: () => 'se sion/1', expire: jasmine.createSpy('expire') } as any);
+
+      service.connect('room-1');
+
+      expect(createdSockets[0].url).toMatch(/\/room-1\/\?s=se%20sion%2F1$/);
+    });
+
+    it('puts the session next to the viewer mode for the mobile view', () => {
+      const service = new SignalingService(identity, { token: () => 'abc', expire: jasmine.createSpy('expire') } as any);
+
+      service.connect('room-1', true);
+
+      expect(createdSockets[0].url).toMatch(/\/room-1\/\?mode=viewer&s=abc$/);
+    });
+
+    it('reads the saved session when it is built without the auth service', () => {
+      localStorage.setItem('diagramador-sesion', JSON.stringify({ token: 'guardada', email: 'a@b.co', name: 'A' }));
+
+      new SignalingService(identity).connect('room-1');
+
+      expect(createdSockets[0].url).toMatch(/\?s=guardada$/);
+    });
+
+    it('adds nothing to the address when nobody is logged in', () => {
+      new SignalingService(identity, { token: () => null, expire: jasmine.createSpy('expire') } as any).connect('room-1');
+
+      expect(createdSockets[0].url).toMatch(/\/room-1\/$/);
+    });
+
+    it('expires the session when the server closes the connection with 4401', () => {
+      const expire = jasmine.createSpy('expire');
+      new SignalingService(identity, { token: () => 'x', expire } as any).connect('room-1');
+
+      (createdSockets[0].onclose as any)({ code: 4401 });
+
+      expect(expire).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not expire the session for any other way of closing', () => {
+      const expire = jasmine.createSpy('expire');
+      new SignalingService(identity, { token: () => 'x', expire } as any).connect('room-1');
+
+      (createdSockets[0].onclose as any)({ code: 1006 });
+      (createdSockets[0].onclose as any)();
+
+      expect(expire).not.toHaveBeenCalled();
+    });
+  });
 });

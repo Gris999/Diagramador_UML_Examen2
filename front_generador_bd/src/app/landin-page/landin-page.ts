@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HelpPanel } from '../help-panel/help-panel';
 import { ThemeService } from '../../services/theme.service';
+import { AuthService } from '../../services/auth/auth.service';
 
 @Component({
   selector: 'app-landin-page',
@@ -18,8 +19,15 @@ export class LandinPage {
   joinError: string = '';
 
   readonly theme = inject(ThemeService);
+  readonly auth = inject(AuthService);
 
   constructor(private router: Router) {}
+
+  /** Cierra la sesión del correo y vuelve a la pantalla de entrada (si el servidor no pide sesión, la portada sigue igual). */
+  cerrarSesion() {
+    this.auth.logout();
+    if (this.auth.config()?.authRequired) void this.router.navigate(['/entrar']);
+  }
 
   crearNuevoLienzo() {
     const roomId = uuid();

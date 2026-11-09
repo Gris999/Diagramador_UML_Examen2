@@ -1,5 +1,8 @@
 import { DOCUMENT } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, HostListener, computed, inject, input, output, signal } from '@angular/core';
+import { AuthService } from '../../services/auth/auth.service';
+import { InviteService, parseEmails } from '../../services/colaboration/invite.service';
 import { copyText } from './copy-text';
 
 export type ShareItem = 'invite' | 'code' | 'follow';
@@ -18,6 +21,8 @@ const COPIED_MS = 2000;
 })
 export class ShareDialog {
   private readonly document = inject(DOCUMENT);
+  private readonly invites = inject(InviteService);
+  private readonly auth = inject(AuthService);
 
   readonly roomId = input.required<string>();
   readonly closed = output<void>();
@@ -32,6 +37,71 @@ export class ShareDialog {
   readonly inviteLink = computed(() => `${this.origin}/diagram/${encodeURIComponent(this.roomId())}`);
   /** Vista del celular: solo lectura y con avisos. */
   readonly followLink = computed(() => `${this.origin}/sala/${encodeURIComponent(this.roomId())}/seguir`);
+
+  /** Lo que se escribe en «Invitar por correo». */
+  readonly emailsText = signal('');
+  readonly message = signal('');
+  readonly sending = signal(false);
+  readonly result = signal<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  /** El servidor no puede mandar correos: se ofrece abrir el correo de la propia persona con el mensaje escrito. */
+  private readonly mailFallback = signal(false);
+
+  readonly parsed = computed(() => parseEmails(this.emailsText()));
+  readonly serverMail = computed(() => this.auth.config()?.mailConfigured !== false && !this.mailFallback());
+  readonly mailtoHref = computed(() => {
+    const note = this.message().trim();
+    const body = ['Hola,', '', 'Te invito a trabajar en equipo en un diagrama de clases UML.', ...(note ? ['', note] : []), '', `Entra aquí: ${this.inviteLink()}`].join('\n');
+    return `mailto:${this.parsed().valid.join(',')}?subject=${encodeURIComponent('Te invito a un diagrama UML')}&body=${encodeURIComponent(body)}`;
+  });
+
+  constructor() {
+    // Se pregunta una vez qué puede hacer el servidor (mandar correos o no) para mostrar el botón que corresponde.
+    this.auth.ensureConfig().subscribe();
+  }
+
+  onEmails(event: Event): void {
+    this.emailsText.set((event.target as HTMLInputElement).value);
+    this.result.set(null);
+  }
+
+  onMessage(event: Event): void {
+    this.message.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  sendInvites(): void {
+    const { valid, invalid } = this.parsed();
+    if (this.sending()) return;
+    if (invalid.length > 0) {
+      this.result.set({ kind: 'error', text: `Revisa este correo: «${invalid[0]}» no parece válido.` });
+      return;
+    }
+    if (valid.length === 0) return;
+
+    this.sending.set(true);
+    this.result.set(null);
+    this.invites.send(this.roomId(), valid, this.message().trim()).subscribe({
+      next: ({ sent, failed }) => {
+        this.sending.set(false);
+        if (failed.length === 0) this.emailsText.set('');
+        this.result.set({
+          kind: failed.length === 0 ? 'ok' : 'error',
+          text: failed.length === 0
+            ? `Invitación enviada a ${sent.join(', ')}.`
+            : `Enviada a ${sent.join(', ') || 'nadie'}. No se pudo enviar a: ${failed.join(', ')}.`
+        });
+      },
+      error: (failure: unknown) => {
+        this.sending.set(false);
+        if (failure instanceof HttpErrorResponse && failure.status === 503) {
+          this.mailFallback.set(true);
+          this.result.set({ kind: 'error', text: 'Este servidor todavía no puede mandar correos. Usa «Abrir mi correo».' });
+          return;
+        }
+        const reason = failure instanceof HttpErrorResponse ? failure.error?.error : undefined;
+        this.result.set({ kind: 'error', text: typeof reason === 'string' ? reason : 'No pudimos mandar las invitaciones. Intenta de nuevo.' });
+      }
+    });
+  }
 
   async copy(item: ShareItem): Promise<void> {
     const text = item === 'invite' ? this.inviteLink() : item === 'follow' ? this.followLink() : this.roomId();

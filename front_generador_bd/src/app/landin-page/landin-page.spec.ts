@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { validate as isUuid } from 'uuid';
+import { SESSION_STORAGE_KEY, AuthService } from '../../services/auth/auth.service';
 import { THEME_STORAGE_KEY, ThemeService } from '../../services/theme.service';
 
 import { LandinPage } from './landin-page';
@@ -119,5 +120,54 @@ describe('LandinPage', () => {
       localStorage.removeItem(THEME_STORAGE_KEY);
       document.documentElement.setAttribute('data-theme', 'dark');
     }
+  });
+
+  describe('the account', () => {
+    const stored = { token: 'tok', email: 'ana@x.com', name: 'Ana' };
+    let auth: AuthService;
+
+    beforeEach(() => {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      auth = TestBed.inject(AuthService);
+    });
+
+    afterEach(() => localStorage.removeItem(SESSION_STORAGE_KEY));
+
+    it('shows nothing about an account when nobody logged in', () => {
+      expect(element('[data-testid="account-email"]')).toBeNull();
+      expect(element('[data-testid="logout"]')).toBeNull();
+    });
+
+    it('shows who is logged in and a button to log out', () => {
+      auth.session.set(stored);
+      fixture.detectChanges();
+
+      expect(element('[data-testid="account-email"]')!.textContent).toContain('ana@x.com');
+      expect(element('[data-testid="logout"]')!.textContent).toContain('Cerrar sesión');
+    });
+
+    it('logs out and goes to the login page when the server asks for a session', () => {
+      auth.session.set(stored);
+      auth.config.set({ authRequired: true, mailConfigured: true });
+      fixture.detectChanges();
+
+      (element('[data-testid="logout"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(auth.loggedIn()).toBeFalse();
+      expect(navigate).toHaveBeenCalledWith(['/entrar']);
+      expect(element('[data-testid="account-email"]')).toBeNull();
+    });
+
+    it('logs out and stays on the start page when the server does not ask for a session', () => {
+      auth.session.set(stored);
+      auth.config.set({ authRequired: false, mailConfigured: true });
+      fixture.detectChanges();
+
+      (element('[data-testid="logout"]') as HTMLButtonElement).click();
+
+      expect(auth.loggedIn()).toBeFalse();
+      expect(navigate).not.toHaveBeenCalledWith(['/entrar']);
+    });
   });
 });

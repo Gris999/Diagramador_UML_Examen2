@@ -1,17 +1,31 @@
-import { provideZonelessChangeDetection } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Observable, of, throwError } from 'rxjs';
+import { AuthConfig, AuthService } from '../../services/auth/auth.service';
+import { InviteResult, InviteService } from '../../services/colaboration/invite.service';
 import { ShareDialog } from './share-dialog';
 
 describe('ShareDialog', () => {
   let fixture: ComponentFixture<ShareDialog>;
   let writeText: jasmine.Spy;
+  let sendInvites: jasmine.Spy<(room: string, emails: string[], message: string) => Observable<InviteResult>>;
+  let authConfig: ReturnType<typeof signal<AuthConfig | null>>;
   const ROOM = '3f2c1b7e-9a4d-4c55-8e21-0b6f7d9a1c42';
 
   const element = (testId: string) => fixture.nativeElement.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
   const input = (testId: string) => element(testId) as HTMLInputElement;
 
   async function create(roomId = ROOM): Promise<void> {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    sendInvites = jasmine.createSpy('send').and.returnValue(of({ sent: [], failed: [] }));
+    authConfig = signal<AuthConfig | null>({ authRequired: false, mailConfigured: true });
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: InviteService, useValue: { send: sendInvites } },
+        { provide: AuthService, useValue: { config: authConfig, ensureConfig: () => of(authConfig()) } }
+      ]
+    });
     fixture = TestBed.createComponent(ShareDialog);
     fixture.componentRef.setInput('roomId', roomId);
     await fixture.whenStable();
@@ -114,5 +128,136 @@ describe('ShareDialog', () => {
     expect(dialog.getAttribute('role')).toBe('dialog');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)!.textContent).toContain('Compartir la sala');
+  });
+
+  describe('invite by email', () => {
+    async function writeEmails(text: string, note = ''): Promise<void> {
+      const emails = input('invite-emails');
+      emails.value = text;
+      emails.dispatchEvent(new Event('input'));
+      if (note) {
+        const message = element('invite-message') as HTMLTextAreaElement;
+        message.value = note;
+        message.dispatchEvent(new Event('input'));
+      }
+      fixture.detectChanges();
+      await fixture.whenStable();
+    }
+
+    async function pressSend(): Promise<void> {
+      element('invite-send')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('does not let the person send until there is a valid address', async () => {
+      await create();
+
+      expect((element('invite-send') as HTMLButtonElement).disabled).toBeTrue();
+      await writeEmails('sinarroba');
+      expect((element('invite-send') as HTMLButtonElement).disabled).toBeTrue();
+      await writeEmails('beto@x.com');
+      expect((element('invite-send') as HTMLButtonElement).disabled).toBeFalse();
+    });
+
+    it('asks the server to mail the room link to every valid address, with the note', async () => {
+      await create();
+      sendInvites.and.returnValue(of({ sent: ['beto@x.com', 'luis@x.com'], failed: [] }));
+      await writeEmails('Beto@X.com, luis@x.com; beto@x.com', 'Ven a modelar');
+
+      await pressSend();
+
+      expect(sendInvites).toHaveBeenCalledOnceWith(ROOM, ['beto@x.com', 'luis@x.com'], 'Ven a modelar');
+      expect(element('invite-result')!.textContent).toContain('Invitación enviada a beto@x.com, luis@x.com');
+      expect(input('invite-emails').value).toBe('');
+    });
+
+    it('points at the address that does not look right instead of sending', async () => {
+      await create();
+      await writeEmails('beto@x.com, malo@');
+
+      await pressSend();
+
+      expect(sendInvites).not.toHaveBeenCalled();
+      expect(element('invite-result')!.textContent).toContain('«malo@»');
+    });
+
+    it('says which ones could not be sent and keeps what was typed', async () => {
+      await create();
+      sendInvites.and.returnValue(of({ sent: ['a@x.com'], failed: ['b@x.com'] }));
+      await writeEmails('a@x.com, b@x.com');
+
+      await pressSend();
+
+      expect(element('invite-result')!.textContent).toContain('Enviada a a@x.com');
+      expect(element('invite-result')!.textContent).toContain('No se pudo enviar a: b@x.com');
+      expect(input('invite-emails').value).toContain('b@x.com');
+    });
+
+    it('shows the reason the server gives, for example too many invitations', async () => {
+      await create();
+      sendInvites.and.returnValue(throwError(() => new HttpErrorResponse({ status: 429, error: { error: 'Mandaste muchas invitaciones. Espera un rato.' } })));
+      await writeEmails('a@x.com');
+
+      await pressSend();
+
+      expect(element('invite-result')!.textContent).toContain('Mandaste muchas invitaciones');
+      expect((element('invite-send') as HTMLButtonElement).disabled).toBeFalse();
+    });
+
+    it('has a generic message when the server gives no reason', async () => {
+      await create();
+      sendInvites.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      await writeEmails('a@x.com');
+
+      await pressSend();
+
+      expect(element('invite-result')!.textContent).toContain('No pudimos mandar las invitaciones');
+    });
+
+    it('blocks a second press while the first is still being sent', async () => {
+      await create();
+      sendInvites.and.returnValue(new Observable<InviteResult>(() => undefined));
+      await writeEmails('a@x.com');
+
+      await pressSend();
+      expect((element('invite-send') as HTMLButtonElement).disabled).toBeTrue();
+      element('invite-send')!.click();
+
+      expect(sendInvites).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers the person\'s own mail app when the server cannot send mail', async () => {
+      await create();
+      authConfig.set({ authRequired: false, mailConfigured: false });
+      fixture.detectChanges();
+      await writeEmails('beto@x.com, luis@x.com', 'Ven');
+
+      const link = element('invite-mailto') as HTMLAnchorElement;
+      expect(element('invite-send')).toBeNull();
+      expect(link.getAttribute('href')).toContain('mailto:beto@x.com,luis@x.com?subject=');
+      const body = decodeURIComponent(link.getAttribute('href')!.split('body=')[1]);
+      expect(body).toContain(`${window.location.origin}/diagram/${ROOM}`);
+      expect(body).toContain('Ven');
+    });
+
+    it('falls back to the mail app when the server answers that it cannot send mail', async () => {
+      await create();
+      sendInvites.and.returnValue(throwError(() => new HttpErrorResponse({ status: 503, error: { error: 'x' } })));
+      await writeEmails('beto@x.com');
+
+      await pressSend();
+
+      expect(element('invite-result')!.textContent).toContain('todavía no puede mandar correos');
+      expect(element('invite-mailto')).not.toBeNull();
+      expect(element('invite-send')).toBeNull();
+    });
+
+    it('limits the note to 300 characters', async () => {
+      await create();
+
+      expect((element('invite-message') as HTMLTextAreaElement).maxLength).toBe(300);
+    });
   });
 });
