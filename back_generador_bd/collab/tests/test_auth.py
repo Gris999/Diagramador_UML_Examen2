@@ -223,6 +223,7 @@ class MailTests(AuthTestBase):
         self.assertIn("Ana te invitó", message.subject)
         self.assertIn("Mensaje de Ana: ¡Ven!", message.body)
         self.assertIn("mismo correo", message.body)
+        self.assertIn("modo lectura", message.body)
         self.assertEqual(message.reply_to, ["ana@x.com"])
 
     @override_settings(AUTH_REQUIRED=False)

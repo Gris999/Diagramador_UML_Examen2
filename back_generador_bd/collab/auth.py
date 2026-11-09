@@ -267,7 +267,11 @@ def send_invitations(*, sender_name, sender_email, room, recipients, message):
         lines += ["", f"Mensaje de {name}: {message}"]
     lines += ["", f"Entra aquí: {link}"]
     if settings.AUTH_REQUIRED:
-        lines += ["", "La página te pedirá tu correo y te mandará un código para entrar. Usa este mismo correo."]
+        lines += [
+            "",
+            "La página te pedirá tu correo y te mandará un código para entrar. Usa este mismo correo: la sala solo abre para quienes invitan por correo.",
+            "Desde un computador o una tableta puedes editar; en el celular verás el diagrama en modo lectura.",
+        ]
     lines += ["", "Si no esperabas esta invitación, ignora este correo."]
     body = "\n".join(lines) + "\n"
 
