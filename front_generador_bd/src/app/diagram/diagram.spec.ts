@@ -6,6 +6,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ActivityEvent } from '../../services/colaboration/activity-event';
 import { P2PService } from '../../services/colaboration/p2p.service';
 import { DiagramService } from '../../services/diagram/diagram.service';
+import { RelationshipService } from '../../services/diagram/relationship.service';
+import { ToolService } from '../../services/diagram/tool.service';
 
 import { Diagram } from './diagram';
 
@@ -175,6 +177,123 @@ describe('Diagram', () => {
 
     it('tells that the canvas is empty until the graph has elements', () => {
       expect(component.isEmpty()).toBeTrue();
+    });
+  });
+
+  describe('the tool chosen with a click', () => {
+    let paper: { once: jasmine.Spy; off: jasmine.Spy };
+    let container: HTMLElement;
+    let diagram: any;
+    let createUmlClass: jasmine.Spy;
+    let tools: ToolService;
+
+    beforeEach(() => {
+      paper = { once: jasmine.createSpy('once'), off: jasmine.createSpy('off') };
+      container = document.createElement('div');
+      (component as any).paperContainer = { nativeElement: container };
+      diagram = TestBed.inject(DiagramService) as any;
+      diagram.paper = paper;
+      diagram.readOnly = false;
+      createUmlClass = spyOn(diagram, 'createUmlClass');
+      tools = TestBed.inject(ToolService);
+    });
+
+    afterEach(() => {
+      diagram.paper = undefined;
+      tools.clear();
+    });
+
+    it('puts a class where the next click on the empty canvas lands, centred on it, and frees the tool', () => {
+      tools.arm('class');
+      TestBed.tick();
+
+      expect(paper.once).toHaveBeenCalledOnceWith('blank:pointerclick', jasmine.any(Function));
+      expect(container.style.cursor).toBe('crosshair');
+
+      paper.once.calls.mostRecent().args[1]({}, 300, 205);
+
+      expect(createUmlClass).toHaveBeenCalledOnceWith(jasmine.objectContaining({ name: 'Entidad', position: { x: 210, y: 150 } }));
+      expect(tools.armed()).toBeNull();
+    });
+
+    it('never places a class outside of the canvas (negative corner)', () => {
+      tools.arm('class');
+      TestBed.tick();
+
+      paper.once.calls.mostRecent().args[1]({}, 10, 10);
+
+      expect(createUmlClass).toHaveBeenCalledOnceWith(jasmine.objectContaining({ position: { x: 0, y: 0 } }));
+    });
+
+    it('starts choosing the two classes when a relationship is chosen', () => {
+      const start = spyOn(TestBed.inject(RelationshipService), 'startLinkCreation');
+
+      tools.arm('composition');
+      TestBed.tick();
+
+      expect(start).toHaveBeenCalledOnceWith(paper, container, 'composition');
+    });
+
+    it('Escape lets the tool go and removes the click it was waiting for', () => {
+      tools.arm('class');
+      TestBed.tick();
+
+      component.handleEscape(new KeyboardEvent('keydown', { key: 'Escape' }));
+      TestBed.tick();
+
+      expect(tools.armed()).toBeNull();
+      expect(paper.off).toHaveBeenCalledWith('blank:pointerclick', jasmine.any(Function));
+      expect(container.style.cursor).toBe('default');
+    });
+
+    it('Escape cancels a relationship that was half chosen', () => {
+      const cancel = spyOn(TestBed.inject(RelationshipService), 'cancelLinkCreation');
+      spyOn(TestBed.inject(RelationshipService), 'startLinkCreation');
+      tools.arm('association');
+      TestBed.tick();
+
+      component.handleEscape(new KeyboardEvent('keydown', { key: 'Escape' }));
+      TestBed.tick();
+
+      expect(cancel).toHaveBeenCalledWith(container);
+    });
+
+    it('choosing another tool drops the click the first one was waiting for', () => {
+      spyOn(TestBed.inject(RelationshipService), 'startLinkCreation');
+      tools.arm('class');
+      TestBed.tick();
+
+      tools.arm('dependency');
+      TestBed.tick();
+
+      expect(paper.off).toHaveBeenCalledWith('blank:pointerclick', jasmine.any(Function));
+    });
+
+    it('does nothing in a diagram that can only be read', () => {
+      diagram.readOnly = true;
+
+      tools.arm('class');
+      TestBed.tick();
+
+      expect(paper.once).not.toHaveBeenCalled();
+      expect(tools.armed()).toBeNull();
+    });
+
+    it('dragging a relationship from the palette to the canvas chooses it, as the click does', () => {
+      container.getBoundingClientRect = () => ({ left: 100, top: 50 }) as DOMRect;
+
+      component.onDragEnded({ source: { data: { type: 'generalization' } }, dropPoint: { x: 400, y: 300 } } as any);
+
+      expect(tools.armed()).toBe('generalization');
+    });
+
+    it('dragging a class from the palette still puts it where it was dropped', () => {
+      container.getBoundingClientRect = () => ({ left: 100, top: 50 }) as DOMRect;
+
+      component.onDragEnded({ source: { data: { type: 'class' } }, dropPoint: { x: 400, y: 300 } } as any);
+
+      expect(createUmlClass).toHaveBeenCalledOnceWith(jasmine.objectContaining({ position: { x: 300, y: 250 } }));
+      expect(tools.armed()).toBeNull();
     });
   });
 });

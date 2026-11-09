@@ -1,10 +1,11 @@
-import { AfterViewInit, Component, computed, effect, ElementRef, HostListener, inject, Inject, NgZone, OnDestroy, PLATFORM_ID, signal, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, computed, effect, ElementRef, HostListener, inject, Inject, NgZone, OnDestroy, PLATFORM_ID, signal, untracked, ViewChild } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { CdkDragEnd, CdkDropListGroup, CdkDropList } from '@angular/cdk/drag-drop';
 import { SidePanel } from "../side-panel/side-panel";
 import { DiagramService } from '../../services/diagram/diagram.service';
 import { FallbackService } from '../../services/diagram/fallback.service';
 import { RelationshipService } from '../../services/diagram/relationship.service';
+import { ToolService, ToolType, isToolType } from '../../services/diagram/tool.service';
 import { UmlClass, Attribute, Method } from '../../models/uml-class.model';
 import { DiagramExportService } from '../../services/exports/diagram-export.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
@@ -26,6 +27,9 @@ const MAX_AVATARS = 3;
 
 type TopMenu = 'activity' | 'participants';
 
+/** Tamaño de una clase nueva. */
+const ENTITY_SIZE = { width: 180, height: 110 };
+
 @Component({
   selector: 'app-diagram',
   standalone: true,
@@ -38,6 +42,10 @@ export class Diagram implements AfterViewInit, OnDestroy {
   @ViewChild(SidePanel) sidePanel!: SidePanel;
 
   readonly theme = inject(ThemeService);
+  /** La herramienta de la paleta elegida con un clic (ver `ToolService`): su indicación se muestra sobre el lienzo. */
+  readonly tools = inject(ToolService);
+  /** Deshace lo que preparó la herramienta elegida (el clic en el lienzo o la selección de clases). */
+  private disposeTool: (() => void) | null = null;
 
   /** Código de la sala (sale de la dirección): con él se arman los enlaces de «Compartir». */
   readonly roomCode: string;
@@ -92,6 +100,46 @@ export class Diagram implements AfterViewInit, OnDestroy {
       alert('El host te expulsó de la sala.');
       this.leaveAfterRemoval();
     });
+    // Cada vez que se elige (o se suelta) una herramienta de la paleta se prepara (o se deshace) lo que espera del lienzo.
+    effect(() => {
+      const tool = this.tools.armed();
+      untracked(() => this.applyTool(tool));
+    });
+  }
+
+  /**
+   * Prepara el lienzo para la herramienta elegida con un clic en la paleta:
+   * - clase: el siguiente clic en un lugar vacío del lienzo la coloca ahí (centrada en el clic);
+   * - relación: se hace clic en la clase de origen y luego en la de destino (`RelationshipService`).
+   * Soltar la herramienta (Esc, o pulsarla otra vez) lo deshace.
+   */
+  private applyTool(tool: ToolType | null): void {
+    this.disposeTool?.();
+    this.disposeTool = null;
+    const paper = this.diagramService['paper'];
+    const container = this.paperContainer?.nativeElement as HTMLElement | undefined;
+    if (!tool || !paper || !container) return;
+    if (this.diagramService['readOnly']) {
+      this.tools.clear();
+      return;
+    }
+    if (tool === 'class') {
+      container.style.cursor = 'crosshair';
+      const placeHere = (_event: unknown, x: number, y: number) => {
+        this.ngZone.run(() => {
+          this.createEntityAt({ x: Math.max(0, Math.round((x - ENTITY_SIZE.width / 2) / 10) * 10), y: Math.max(0, Math.round((y - ENTITY_SIZE.height / 2) / 10) * 10) });
+          this.tools.clear();
+        });
+      };
+      paper.once('blank:pointerclick', placeHere);
+      this.disposeTool = () => {
+        paper.off('blank:pointerclick', placeHere);
+        container.style.cursor = 'default';
+      };
+      return;
+    }
+    this.relationshipService.startLinkCreation(paper, container, tool);
+    this.disposeTool = () => this.relationshipService.cancelLinkCreation(container);
   }
 
   private leaveAfterRemoval(): void {
@@ -241,6 +289,7 @@ export class Diagram implements AfterViewInit, OnDestroy {
     if (event.key === 'Escape') {
       this.diagramService.clearSelection();
       this.setMenu(null);
+      this.tools.clear();
     }
       // Atajos globales copiar, pegar, duplicar, cortar
       if (event.ctrlKey && event.key === 'c') {
@@ -285,6 +334,28 @@ export class Diagram implements AfterViewInit, OnDestroy {
   }
 
 
+  /** Pone una clase nueva (con sus atributos y métodos de ejemplo) con su esquina superior izquierda en `pos`. */
+  private createEntityAt(pos: { x: number; y: number }): void {
+    try {
+      this.diagramService.createUmlClass({
+        name: 'Entidad',
+        position: pos,
+        size: { ...ENTITY_SIZE },
+        attributes: [{ name: 'id', type: 'int' }, { name: 'nombre', type: 'string' }],
+        methods: [{ name: 'crear' }, { name: 'eliminar' }]
+      } as UmlClass);
+    } catch (error) {
+      console.error('Error al crear el elemento:', error);
+      // Si falla, usamos el fallback HTML
+      this.fallbackService.createFallbackElement(this.paperContainer.nativeElement, {
+        name: 'Entidad',
+        position: pos,
+        attributes: [{ name: 'id', type: 'int' }, { name: 'nombre', type: 'string' }],
+        methods: [{ name: 'crear' }, { name: 'eliminar' }]
+      } as UmlClass);
+    }
+  }
+
   onDragEnded(event: CdkDragEnd) {
     // Ejecutamos dentro de ngZone para asegurar la detección de cambios
     this.ngZone.run(() => {
@@ -298,61 +369,21 @@ export class Diagram implements AfterViewInit, OnDestroy {
       console.log('Elemento arrastrado:', type, 'Posición:', pos);
 
       if (type === 'class') {
-        try {
-          // Crear un modelo de clase UML
-          const umlClassModel: UmlClass = {
-            name: 'Entidad',
-            position: pos,
-            size: { width: 180, height: 110 },
-            attributes: [
-              { name: 'id', type: 'int' },
-              { name: 'nombre', type: 'string' }
-            ],
-            methods: [
-              { name: 'crear' },
-              { name: 'eliminar' }
-            ]
-          };
-          
-          // Usar el servicio para crear la clase UML
-          this.diagramService.createUmlClass(umlClassModel);
-          console.log('Entidad UML creada correctamente');
-        } catch (error) {
-          console.error('Error al crear el elemento:', error);
-          
-          // Si falla, usamos el fallback HTML
-          const fallbackClass: UmlClass = {
-            name: 'Entidad',
-            position: pos,
-            attributes: [
-              { name: 'id', type: 'int' },
-              { name: 'nombre', type: 'string' }
-            ],
-            methods: [
-              { name: 'crear' },
-              { name: 'eliminar' }
-            ]
-          };
-          
-          this.fallbackService.createFallbackElement(
-            this.paperContainer.nativeElement, 
-            fallbackClass
-          );
-        }
+        this.createEntityAt(pos);
       }
 
-      if (['association','generalization','aggregation','composition','dependency','association-class'].includes(type)) {
-        this.relationshipService.startLinkCreation(
-          this.diagramService['paper'],
-          this.paperContainer.nativeElement,
-          type // 👈 pasamos el tipo
-        );
+      if (isToolType(type) && type !== 'class') {
+        // Arrastrar una relación al lienzo equivale a elegirla con un clic: después se hace clic en las clases.
+        this.tools.arm(type);
         console.log(`Modo de creación de relación activado: ${type}`);
       }
 
     });
   }
   ngOnDestroy(): void {
+    this.tools.clear();
+    this.disposeTool?.();
+    this.disposeTool = null;
     // Red de seguridad: si el usuario abandona la sala por cualquier vía que
     // no sea el botón "Home" (back button, otro enlace, cierre de pestaña
     // detectado por Angular al destruir la ruta), esto garantiza que el

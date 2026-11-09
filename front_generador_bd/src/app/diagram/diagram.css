@@ -28,7 +28,7 @@
 
 /* Lienzo sin clases: una pista centrada que no recibe clics (el dibujo queda encima y arrastrar sigue funcionando) */
 .diagram-container.is-empty::after {
-  content: 'Arrastra una «Clase UML» desde la paleta, o descríbela en «Generar modelo»';
+  content: 'Elige «Clase UML» en la paleta y haz clic aquí, o descríbela en «Generar modelo»';
   position: absolute;
   inset: 0;
   z-index: 0;
