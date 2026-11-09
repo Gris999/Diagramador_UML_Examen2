@@ -66,6 +66,7 @@ def matriz():
 RF_POR_REQUISITO_ADICIONAL = {
     "RF-33": "RA-01", "RNF-02": "RA-05", "RNF-04": "RA-02", "RNF-05": "RA-03", "RNF-07": "RA-05", "RNF-08": "RA-06",
     "RNF-03": "este documento y la carpeta `docs/`",
+    "RF-36": "RA-07", "RF-37": "RA-07", "RF-38": "RA-07", "RF-39": "RA-07", "RF-40": "RA-07", "RF-41": "RA-07",
 }
 
 
@@ -80,7 +81,9 @@ RF_GLOSA = {
     "RF-24": "La IA aparece como integrante de la sala", "RF-25": "Registro de actividad de la sala", "RF-26": "Una conversación con la IA por sala",
     "RF-27": "La IA responde sobre la actividad de cualquiera", "RF-28": "La IA cambia el diagrama solo si se lo piden", "RF-29": "Cambios de la IA a nombre de «IA, a pedido de X»",
     "RF-30": "Revisión del diagrama por la IA", "RF-31": "Retomar la sesión", "RF-32": "Vista de seguimiento en el celular", "RF-33": "Proveedor de IA configurable",
-    "RF-34": "Avisos en la vista del celular", "RF-35": "Asistente de ayuda", "RNF-01": "Persistencia local sin conexión en la aplicación móvil",
+    "RF-34": "Avisos en la vista del celular", "RF-35": "Asistente de ayuda",
+    "RF-36": "Entrar con el correo y un código", "RF-37": "Salas solo para las personas de su lista", "RF-38": "Roles: propietario, editor y lector",
+    "RF-39": "Acceso general: restringido o cualquiera con el enlace", "RF-40": "Lista «Mis diagramas»", "RF-41": "El celular nunca abre el editor", "RNF-01": "Persistencia local sin conexión en la aplicación móvil",
     "RNF-02": "Arquitectura desplegable en AWS", "RNF-03": "Documentación de ingeniería", "RNF-04": "Un pedido a la IA a la vez por sala",
     "RNF-05": "Resiliencia ante los fallos de la IA", "RNF-06": "La actividad no estorba la edición", "RNF-07": "Despliegue reproducible con prueba de humo",
     "RNF-08": "Actividad y conversación en una base documental",
@@ -109,11 +112,27 @@ C_APOYO = "Módulo de apoyo de un componente modelado (funciones sueltas, sin es
 C_GENERADOR = "Utilidad o configuración interna del generador Spring Boot"
 C_UI = "Componente de arranque o de presentación mínima, sin lógica de negocio"
 C_CLIENTE = "Cliente de un servidor modelado: abre la conexión y entrega el resultado"
+C_ACCESO = ("Control de acceso por correo (RA-07): se construyó el 8 y 9 de noviembre, después de congelar los diagramas (4 de noviembre), y no tiene "
+            "realización de análisis ni de diseño en Enterprise Architect; queda descrito en RA-07, en el manual y en el Anexo C (deuda de diseño)")
 C_ESTADO = ("Puerto y adaptadores del estado pasajero de la sala (la propuesta de la IA que espera permiso y el modelo de IA elegido): siguen el "
             "mismo patrón que el turno de la IA (TurnStore), ya modelado")
 
 # (sufijo de la ruta, clase o módulo, categoría). `validar()` exige que sean exactamente las clases del código que el diseño no modela.
 EXCLUIDAS = [
+    ("collab/auth.py", "<auth.py>", C_ACCESO),
+    ("collab/auth.py", "EmailSessionMiddleware", C_ACCESO),
+    ("collab/models.py", "RoomMember", C_ACCESO),
+    ("collab/models.py", "RoomSettings", C_ACCESO),
+    ("collab/rooms.py", "<rooms.py>", C_ACCESO),
+    ("collab/rooms.py", "SharingError", C_ACCESO),
+    ("uml_api/auth_views.py", "<auth_views.py>", C_ACCESO),
+    ("services/auth/auth.service.ts", "AuthService", C_ACCESO),
+    ("services/auth/room-access.service.ts", "RoomAccessService", C_ACCESO),
+    ("services/colaboration/invite.service.ts", "InviteService", C_ACCESO),
+    ("app/access-denied-page/access-denied-page.ts", "AccessDeniedPage", C_ACCESO),
+    ("app/login-page/login-page.ts", "LoginPage", C_ACCESO),
+    ("app/my-diagrams/my-diagrams.ts", "MyDiagrams", C_ACCESO),
+    ("app/room-title/room-title.ts", "RoomTitle", C_ACCESO),
     ("collab/consumers.py", "ValidationBudget", C_TIPO),
     ("collab/conversation.py", "<conversation.py>", C_APOYO),
     ("collab/ports.py", "RoomStateStore", C_ESTADO),
@@ -285,6 +304,17 @@ EVIDENCIA_RA = {
               [j("configuration/SecurityConfigurationCorsIntegrationTest.java", "preflightDeUnOrigenDesconocidoEsRechazado"),
                j("configuration/SecurityConfigurationTest.java", "conVariable_sumaLosNuevosSinQuitarLosExistentes")],
               ["docs/DESPLIEGUE.md", "scripts/smoke-test.sh", "docker-compose.app.yml", "docker-compose.db.yml"]),
+    "RA-07": ("El correo y un código dan una sesión; el servidor deja entrar a una sala solo a quien está en su lista (o llega por un enlace público), con su rol, en la API y en el WebSocket; "
+              "un lector no escribe y cerrar el enlace quita el acceso. En el navegador, las guardas mandan a quien solo lee a la vista de seguimiento y a quien no está invitado a la página «sin acceso».",
+              [b("uml_api/tests/test_auth_api.py", "VerifyApiTests.test_the_right_code_gives_a_session_for_that_address"),
+               b("collab/tests/test_room_access.py", "RoomMiddlewareTests.test_a_viewer_can_read_but_not_write"),
+               b("collab/tests/test_room_access.py", "RoomMiddlewareTests.test_somebody_who_was_not_added_gets_a_403_that_says_so"),
+               b("collab/tests/test_room_access.py", "RoomLinkAccessTests.test_closing_the_link_takes_the_access_away_and_the_room_leaves_their_list"),
+               b("collab/tests/test_auth_websocket.py", "WebSocketSessionTests.test_with_the_switch_a_connection_without_session_is_closed_with_4401"),
+               b("collab/tests/test_auth_websocket.py", "WebSocketSessionTests.test_a_valid_session_of_somebody_who_was_not_invited_is_closed_with_4403"),
+               f("services/auth/room.guards.spec.ts", "sends someone who can only read to the read-only view of the same room instead of the editor, in the same step as the access"),
+               f("app/my-diagrams/my-diagrams.spec.ts", "offers rename and delete only to the owner, and \"quitar de mi lista\" to the others")],
+              ["docs/DESPLIEGUE.md", "back_generador_bd/collab/rooms.py", "back_generador_bd/collab/auth.py"]),
     "RA-06": ("Cada dato en la base que le corresponde: PostgreSQL lo relacional, MongoDB los documentos que solo se agregan y Redis lo efímero; las pruebas de contrato lo comprueban en cada una.",
               [b("collab/tests/test_activity_store.py", "ActivityStoreContract.test_update_data_applies_the_change_and_returns_the_event"),
                b("collab/tests/test_turn_store.py", "TurnStoreContract.test_a_second_request_in_the_same_room_waits_and_learns_who_has_the_turn"),

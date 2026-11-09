@@ -37,7 +37,7 @@ It should support:
 - **RF-14** — Only the current host may remove another participant, and the server verifies that permission.
 - **RF-15** — When the host disconnects, the longest-connected remaining participant becomes host.
 - **RF-16** — A reconnect is a new connection and does not restore a prior role or identity.
-- **RF-17** — Roles exist only for the live room session; they require no account or persistent ownership.
+- **RF-17** — Roles exist only for the live room session; they require no account or persistent ownership. *(Scope clarified on 2026-11-09: this is about the live roles host/participant, which are still ephemeral. Who may open a room at all, and as what, is decided by the accounts and sharing requirements RF-36 to RF-41.)*
 
 ## AI as a room participant
 
@@ -56,6 +56,17 @@ Requested by the instructor on 2026-10-13: the AI becomes one more member of the
 - **RF-33** — *(Optional)* The AI provider is configurable: Gemini or local (Ollama/Qwen).
 - **RF-34** — The mobile follow-along view can notify the person of each new event of the room (a change or an AI review) through the browser's notifications, only after the person turns them on with a button and only while the page is open.
 - **RF-35** — A help assistant, available from the landing page and inside a room, teaches how to use the tool from the tool's own manual (`back_generador_bd/uml_api/knowledge/AYUDA.md`). Its conversation is personal and kept in the browser; it answers only about the tool and has per-person and global usage limits.
+
+## Accounts, access and sharing
+
+Requested by the team on 2026-11-08 and 2026-11-09 (invite by email like draw.io, mandatory sign-in with the email, and a document list with private/public sharing like Google Docs). Controlled by the server switch `AUTH_REQUIRED` (on in production, off by default so that a local checkout still works without mail).
+
+- **RF-36** — With the switch on, a person enters with the email only: the server mails a 6-digit code (valid 10 minutes, 5 attempts) and, once it is typed, gives a signed session of 30 days. There are no passwords. Requests for codes are limited per email, per address and in total.
+- **RF-37** — A room is private by default: only the people on its list (the owner and the people invited by email) can open it, and the server checks it on every API call and on the WebSocket. Inviting sends an email with the link; the same email must be used to sign in.
+- **RF-38** — Each person has a role in a room: **owner** (everything, one per room), **editor** (edit and invite) or **reader** (look only). The server enforces it: reads need reader, writes need editor, and a reader's connection is read-only.
+- **RF-39** — General access, as in Google Docs: *Restringido* (only the people on the list) or *Cualquiera con el enlace*, as reader or as editor. The link is offered only when the access is public. A person's effective role is the higher of their own role and the link role.
+- **RF-40** — «Mis diagramas»: the start page lists, for the email that signed in, the diagrams the person created, was invited to or opened through a public link, with name, role and last opened. The owner can rename (the name shows in the editor top bar) and delete; anyone else can remove it from their own list.
+- **RF-41** — A phone never opens the editor: it goes to the read-only follow view (RF-32).
 
 Additional non-functional requirements:
 

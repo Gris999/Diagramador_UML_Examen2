@@ -22,7 +22,7 @@ Estilos por utilidades que mantienen la interfaz consistente y adaptable a disti
 
 ### API de notificaciones del navegador y service worker
 
-Los avisos de la vista del celular usan la API de notificaciones del navegador, sin servidor de avisos ni suscripciones: son locales y solo funcionan con la página abierta, lo que alcanza para «informarse desde el celular» sin cuentas. Como Android no deja crear una notificación directamente desde la página, un service worker mínimo (`notification-sw.js`) la muestra en su lugar.
+Los avisos de la vista del celular usan la API de notificaciones del navegador, sin servidor de avisos ni suscripciones: son locales y solo funcionan con la página abierta, lo que alcanza para «informarse desde el celular» sin montar un servicio de avisos. Como Android no deja crear una notificación directamente desde la página, un service worker mínimo (`notification-sw.js`) la muestra en su lugar.
 
 ## Backend
 
@@ -53,6 +53,10 @@ Guarda lo relacional: los participantes, los intentos de uso de la IA (para sus 
 ### MongoDB 7
 
 Guarda la actividad de la sala y la conversación con la IA cuando se activa. Son documentos que solo se agregan, con un campo `data` que cambia según el tipo de evento, y que se consultan siempre por sala y por orden: el encaje clásico de una base documental, sin las uniones ni la integridad relacional que PostgreSQL ofrece y aquí no hacen falta. La alternativa de Amazon, DynamoDB, ata el sistema a un proveedor y no se puede levantar en el computador del equipo; MongoDB corre igual en Docker en el equipo (MongoDB 7, con una caché acotada a 0,25 GB) y como servicio gestionado en la nube. En el servidor de AWS, que tiene 2 GB de memoria y ya usa memoria de intercambio, no se levanta como un contenedor más: el sitio usa MongoDB Atlas, en su plan gratuito (AWS, región N. Virginia, MongoDB 8.0), con acceso solo desde la IP del servidor, así que no consume la memoria de la máquina.
+
+### Entrar con el correo: códigos de un solo uso, sesiones firmadas y Resend
+
+Se entra con el correo y un código de 6 dígitos que vale 10 minutos, sin contraseñas: no hay contraseñas que guardar, filtrar ni olvidar, y quien recibe una invitación solo necesita su buzón. El servidor guarda el código con una huella HMAC en Redis (con su vencimiento y un máximo de 5 intentos) y entrega una sesión firmada con `django.core.signing` que dura 30 días y viaja en el encabezado `Authorization` (y en la dirección del WebSocket, que no admite encabezados). Los correos salen por SMTP desde Resend, con el dominio propio verificado, como «Diagramador UML <noreply@diagramador.dev>»; un interruptor del servidor (`AUTH_REQUIRED`) activa todo esto, y apagado la herramienta funciona como antes, sin cuentas.
 
 ### Spring Boot 3.5 (Java 21) y Maven Wrapper
 

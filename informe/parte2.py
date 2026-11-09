@@ -670,8 +670,7 @@ def parte_requisitos():
           "visibles y aplicables por cualquiera.",
           "- Permitir retomar una sesión anterior y seguir la sala en vivo, solo lectura, desde el celular.",
           "- Ofrecer una IA local que funcione sin internet, reentrenada con LoRA, con la evidencia de cómo se entrenó.\n",
-          "**Alcance.** Incluye lo anterior y el despliegue en AWS con HTTPS. No incluye cuentas de usuario con inicio de "
-          "sesión (el código de la sala es la llave de acceso) ni edición desde la vista móvil.\n",
+          "**Alcance.** Incluye todo lo anterior, el despliegue en AWS con HTTPS y, agregado después de congelar los diagramas (4 de noviembre), el acceso con el correo: cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o cualquiera con el enlace) y una lista «Mis diagramas» (RA-07). No incluye contraseñas ni recuperación de cuenta, ni la edición desde la vista del celular.\n",
           "### 2.1.1 Actores\n",
           "Los actores son los mismos del primer parcial: A1 Diseñador y A2 Colaborador. No se agregaron actores nuevos.\n"]
     for c, n, d in ACTORES:

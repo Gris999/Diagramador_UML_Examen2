@@ -97,8 +97,7 @@ def generar():
           "deja sus ideas a la vista.",
           "- Permitir retomar el trabajo en otra sesión, seguirlo desde el celular y aprender a usar la herramienta con un asistente.",
           "- Intercambiar modelos con Enterprise Architect y ofrecer una IA local reentrenada, sin internet.\n",
-          "**Alcance.** Incluye todo lo anterior y el despliegue en AWS con HTTPS. No incluye cuentas de usuario con inicio de sesión (el código de la "
-          "sala es la llave de acceso) ni la edición desde la vista del celular.\n"]
+          "**Alcance.** Incluye todo lo anterior, el despliegue en AWS con HTTPS y, agregado después de congelar los diagramas (4 de noviembre), el acceso con el correo: cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o cualquiera con el enlace) y una lista «Mis diagramas» (RA-07). No incluye contraseñas ni recuperación de cuenta, ni la edición desde la vista del celular.\n"]
 
     # 2.1.1 actores
     md += ["### 2.1.1 Actores\n",

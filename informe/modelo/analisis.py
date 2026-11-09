@@ -66,7 +66,7 @@ CLASES = {
     "Sala": _c("Sala", "entidad", "nucleo",
                "El espacio de trabajo compartido que se identifica con un código.",
                [("código", "Texto único"), ("estado", "Viva o sin conexiones"), ("host actual", "Participante")],
-               ["El código es la llave de acceso: no hay cuentas."],
+               ["El código identifica la sala; quién la puede abrir lo decide su lista de personas y su acceso general (RA-07)."],
                "existe", "Grupo de canal de la sala (collab/groups.py) y código en la dirección del lienzo"),
     "Participante": _c("Participante", "entidad", "nucleo",
                        "Quien trabaja en una sala, identificado por un código anónimo y un nombre visible.",

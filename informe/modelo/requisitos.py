@@ -27,8 +27,8 @@ ACTORES = [
      "Colaborador y, además, puede expulsar a otros participantes. Es un rol temporal de la sala, no una cuenta: es una "
      "especialización de A2."),
     ("A2", "Colaborador",
-     "Persona que se incorpora a una sala con su código y trabaja sobre el diagrama con las mismas capacidades de edición que el "
-     "Diseñador. No tiene cuenta: se identifica con un nombre y un identificador anónimo guardados en su navegador."),
+     "Persona que se incorpora a una sala (por la invitación a su correo o por un enlace público) y trabaja sobre el diagrama con las mismas capacidades de edición que el "
+     "Diseñador. Con el acceso por correo activo (RA-07) entra con su correo y solo si la sala lo tiene en su lista; se identifica con un nombre y un identificador anónimo guardados en su navegador."),
     ("A3", "Servicio de IA",
      "Sistema externo que genera las respuestas de la inteligencia artificial: Google Gemini (en la nube) u Ollama con un modelo Qwen "
      "(local). Recibe del sistema el pedido, el diagrama y la actividad, y devuelve texto o cambios al diagrama. Es un actor secundario: "
@@ -73,7 +73,7 @@ CASOS = {
                    ["El sistema abre una sala vacía con ese código."])],
         postcondicion="El actor está en la sala con su nombre y su rol, y los demás lo ven en la lista de participantes.",
         excepciones=["Si el nombre o el identificador no son válidos, el sistema los ignora y el actor figura con un nombre genérico; no se rechaza."],
-        especiales=["No hay cuentas ni contraseñas: el código de la sala es la llave de acceso.",
+        especiales=["Con el acceso por correo activo (producción) solo entra quien está en la lista de la sala, con el correo con el que inició sesión, y no hay contraseñas (RA-07); sin él (instalación local), el código de la sala es la llave.",
                     "El identificador anónimo y el nombre se guardan en el navegador del actor.",
                     "El rol existe solo mientras la sala está viva: al reconectarse, el actor entra como una conexión nueva (RF-16, RF-17)."],
         no_permitido=["Entrar al editor sin haber pasado por la sala."],
@@ -390,6 +390,12 @@ REQUISITOS_ADICIONALES = [
     ("RA-05", "Despliegue seguro y reproducible",
      "Sitio en AWS con HTTPS, sin puertos internos expuestos, y con una prueba de humo.",
      "Anexo C"),
+    ("RA-07", "Acceso con el correo, invitaciones, roles y «Mis diagramas»",
+     "Se entra con el correo y un código de 6 dígitos, sin contraseña. Cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o "
+     "cualquiera con el enlace como lector o editor) y aparece en la lista «Mis diagramas» de cada persona. El servidor lo exige en la API y en el "
+     "WebSocket; el celular solo ve. Es transversal: condiciona todos los casos de uso, por eso no es un caso propio. Se construyó el 8 y 9 de noviembre, "
+     "después de congelar los diagramas (4 de noviembre): no tiene realización de análisis ni de diseño en Enterprise Architect (deuda de diseño; ver 2.6).",
+     "Pruebas de acceso, roles y WebSocket (`collab/tests/test_auth.py`, `test_room_access.py`, `test_auth_websocket.py`, `uml_api/tests/test_auth_api.py`) y de la interfaz (`auth.service.spec.ts`, `room.guards.spec.ts`, `my-diagrams.spec.ts`, `share-dialog.spec.ts`)"),
     ("RA-06", "Bases de datos adecuadas a cada dato",
      "PostgreSQL guarda lo relacional (participantes, topes de uso, respaldo del diagrama); MongoDB, la conversación y la actividad, que son "
      "documentos que solo se agregan; Redis, el estado efímero de la sala (quién está y en qué orden).",
@@ -400,7 +406,7 @@ REQUISITOS_ADICIONALES = [
 GLOSARIO = [
     ("Sala", "Espacio compartido, identificado por un código, donde varias personas editan un mismo diagrama."),
     ("Diseñador (host)", "Rol temporal del participante que lleva más tiempo conectado en la sala viva; puede expulsar a otros."),
-    ("Colaborador", "Participante de la sala que edita el diagrama; no tiene cuenta."),
+    ("Colaborador", "Participante de la sala que edita el diagrama; con el acceso por correo activo entra con su correo y su rol en la sala."),
     ("Presencia", "Lista en vivo de quién está en la sala, con su nombre y su rol."),
     ("Operación", "Mensaje pequeño que describe un cambio del diagrama (agregar una clase, editar un texto, enlazar, borrar)."),
     ("Respaldo", "Copia del diagrama de una sala guardada en el servidor para recuperar el estado."),
@@ -414,6 +420,10 @@ GLOSARIO = [
     ("Modelo reentrenado", "Modelo abierto (Qwen) ajustado con LoRA para modificar diagramas; funciona sin internet."),
     ("Vista del celular", "Página de solo lectura para seguir una sala en vivo."),
     ("Asistente de ayuda", "Modo de la IA que conoce el manual y responde cómo usar la herramienta."),
+    ("Cuenta", "El correo con el que una persona entra: recibe un código de 6 dígitos y el servidor le da una sesión de 30 días; no hay contraseña."),
+    ("Rol de acceso", "Lo que una persona puede hacer en un diagrama: propietario (todo, uno por diagrama), editor (editar e invitar) o lector (solo mirar)."),
+    ("Acceso general", "Quién más, además de las personas de la lista, puede abrir un diagrama: nadie (restringido) o cualquiera con el enlace, como lector o editor."),
+    ("Mis diagramas", "Lista de los diagramas que una persona creó, a los que la invitaron o que abrió con un enlace público."),
 ]
 
 
