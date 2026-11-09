@@ -6,6 +6,7 @@
         class="field !w-48 py-1 text-sm"
         aria-label="Nombre del diagrama"
         maxlength="80"
+        #titleInput
         data-testid="room-title-input"
         [value]="draft()"
         [disabled]="saving()"
@@ -13,7 +14,6 @@
         (keydown.enter)="save()"
         (keydown.escape)="cancel()"
         (blur)="save()"
-        autofocus
       />
     } @else {
       <button

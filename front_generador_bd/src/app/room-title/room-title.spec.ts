@@ -92,6 +92,19 @@ describe('RoomTitle', () => {
     expect(element('room-title-text')!.textContent).toContain('Mi tienda');
   });
 
+  it('puts the cursor in the name field when the owner starts renaming, with the name selected to type over it', async () => {
+    await create();
+
+    element('room-title-text')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const field = element('room-title-input') as HTMLInputElement;
+    expect(document.activeElement).toBe(field);
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe(field.value.length);
+  });
+
   it('cancels with Escape without saving', async () => {
     await create();
     element('room-title-text')!.click();

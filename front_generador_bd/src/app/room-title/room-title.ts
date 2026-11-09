@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
 import { AuthService } from '../../services/auth/auth.service';
 import { RoomAccess, RoomAccessService } from '../../services/auth/room-access.service';
 import { roleLabel } from '../share-dialog/share-dialog';
@@ -15,8 +15,10 @@ import { roleLabel } from '../share-dialog/share-dialog';
 export class RoomTitle implements OnInit {
   private readonly access = inject(RoomAccessService);
   private readonly auth = inject(AuthService);
+  private readonly injector = inject(Injector);
 
   readonly roomId = input.required<string>();
+  private readonly field = viewChild<ElementRef<HTMLInputElement>>('titleInput');
 
   readonly info = signal<RoomAccess | null>(null);
   readonly editing = signal(false);
@@ -44,6 +46,12 @@ export class RoomTitle implements OnInit {
     this.draft.set(this.title());
     this.error.set('');
     this.editing.set(true);
+    // El campo recién aparece: se le da el cursor y se selecciona el nombre para escribir encima (`autofocus` no sirve en un campo que se agrega después).
+    afterNextRender(() => {
+      const input = this.field()?.nativeElement;
+      input?.focus();
+      input?.select();
+    }, { injector: this.injector });
   }
 
   onInput(event: Event): void {
