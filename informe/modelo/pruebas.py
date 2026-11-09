@@ -790,7 +790,7 @@ DEFECTOS = [
 
 # ---- resultados de la ejecución completa -------------------------------------------------------------------------------
 RESULTADOS = [
-    ("Django (API y colaboración)", "back_generador_bd/.venv/bin/python manage.py test", "471 pruebas: todas pasaron (19 de ellas, contra un MongoDB real, se saltan sin MONGO_TEST_URL)", "pasó"),
+    ("Django (API y colaboración)", "back_generador_bd/.venv/bin/python manage.py test", "473 pruebas: todas pasaron (19 de ellas, contra un MongoDB real, se saltan sin MONGO_TEST_URL)", "pasó"),
     ("Django, adaptadores de MongoDB contra un servidor real", "MONGO_TEST_URL=mongodb://127.0.0.1:27018 manage.py test collab.tests.test_mongo_integration", "19 pruebas: todas pasaron", "pasó"),
     ("Django, adaptadores de MongoDB contra MongoDB Atlas (8.0), desde el servidor de AWS", "MONGO_TEST_URL=$MONGO_URL manage.py test collab.tests.test_mongo_integration --settings=diagramador_uml.settings_test", "19 pruebas: todas pasaron el 2026-11-04", "pasó"),
     ("Angular (servicios, componentes y vistas)", "ng test --watch=false --browsers=ChromeHeadless", "365 pruebas: todas pasaron", "pasó"),
