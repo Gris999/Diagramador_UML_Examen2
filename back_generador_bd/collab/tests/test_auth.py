@@ -142,22 +142,22 @@ class MiddlewareTests(SimpleTestCase):
 
     @override_settings(AUTH_REQUIRED=False)
     def test_without_the_switch_nothing_is_required_but_a_valid_session_is_still_read(self):
-        response, seen = self.call("/api/rooms/x/activity/")
+        response, seen = self.call("/api/ia/provider/")
         self.assertEqual((response.status_code, seen["email"]), (200, None))
 
-        response, seen = self.call("/api/rooms/x/activity/", f"Bearer {auth.make_session('ana@x.com')}")
+        response, seen = self.call("/api/ia/provider/", f"Bearer {auth.make_session('ana@x.com')}")
         self.assertEqual((response.status_code, seen["email"]), (200, "ana@x.com"))
 
     @override_settings(AUTH_REQUIRED=True)
     def test_with_the_switch_the_api_needs_a_session(self):
-        response, seen = self.call("/api/rooms/x/activity/")
+        response, seen = self.call("/api/ia/provider/")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(seen, {})
 
-        response, seen = self.call("/api/rooms/x/activity/", "Bearer inventada")
+        response, seen = self.call("/api/ia/provider/", "Bearer inventada")
         self.assertEqual(response.status_code, 401)
 
-        response, seen = self.call("/api/rooms/x/activity/", f"Bearer {auth.make_session('ana@x.com')}")
+        response, seen = self.call("/api/ia/provider/", f"Bearer {auth.make_session('ana@x.com')}")
         self.assertEqual((response.status_code, seen["email"]), (200, "ana@x.com"))
 
     @override_settings(AUTH_REQUIRED=True)
@@ -170,7 +170,7 @@ class MiddlewareTests(SimpleTestCase):
     def test_the_rest_of_the_site_and_the_preflight_are_not_touched(self):
         response, _ = self.call("/")
         self.assertEqual(response.status_code, 200)
-        response, _ = self.call("/api/rooms/x/activity/", method="options")
+        response, _ = self.call("/api/ia/provider/", method="options")
         self.assertEqual(response.status_code, 200)
 
     @override_settings(AUTH_REQUIRED=True)
