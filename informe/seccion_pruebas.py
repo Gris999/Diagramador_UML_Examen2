@@ -45,10 +45,10 @@ def _rango_ids(refs, ids):
 
 
 def generar():
-    """Sección 2.5. Misma estructura que los documentos de referencia: solo el reporte de prueba, con el número del caso de uso en la primera columna.
-    El plan, los procedimientos, la ejecución, los defectos, la evaluación y el índice de pruebas están en el Anexo F (`generar_anexo`)."""
+    """Sección 2.5. Misma estructura que los documentos de referencia: solo el reporte de prueba, con el número del caso de uso en la primera columna y los
+    pasos de cada procedimiento en la columna de procedimientos. El plan, la ejecución, los defectos, la evaluación y el índice de pruebas (`generar_anexo`)
+    no se incluyen en el informe."""
     P.validar()
-    ids = _ids_de_pruebas()
     md = ["## 2.5 Flujo de trabajo: pruebas\n",
           "### 2.5.1 Reporte de prueba\n"]
     for numero_ciclo, titulo, codigos in R.CICLOS:
@@ -56,12 +56,14 @@ def generar():
         md += ["| CU | Criterios de aceptación | Datos de prueba | Procedimientos de prueba | Resultado esperado |", "|---|---|---|---|---|"]
         for cu in codigos:
             for c in P.casos_de_prueba(cu):
-                procedimientos = f"Pruebas automáticas ({c['nivel']}): {_rango_ids(c['auto'], ids)}." if c["auto"] else "Sin pruebas automáticas."
+                automaticas = f"Pruebas automáticas ({c['nivel']}): {len(c['auto'])}." if c["auto"] else "Sin pruebas automáticas."
                 if c["manual"]:
-                    procedimientos += " Procedimiento manual (Anexo F)."
+                    pasos = "<br>".join(f"{i}. {_celda(paso)}" for i, paso in enumerate(c["manual"], 1))
+                    procedimientos = f"{pasos}<br>{automaticas}"
+                else:
+                    procedimientos = automaticas
                 md.append(f"| {cu} | {_etiqueta(c['camino'])} ({P.id_caso(c)}) | {_celda(c['entrada'])} | {procedimientos} | {_celda(c['esperado'])} |")
         md.append("")
-    md += ["Los identificadores T-nnn son los del índice de pruebas automáticas (Anexo F), con la pila, el archivo y el nombre de cada prueba.\n"]
     return "\n".join(md)
 
 

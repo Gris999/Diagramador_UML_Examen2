@@ -129,7 +129,7 @@ La primera corrida mostró qué fallaba (sección 5), así que se hizo una **seg
 
 ### 7.1 Los 10 pedidos fijos de la plataforma
 
-Los mismos 10 pedidos de `scripts/evaluar_ia.py` con los que se midieron Gemini y Qwen 3.5 de 9 B (Anexo A), esta vez con el modelo reentrenado haciendo los cambios (la revisión sigue con el modelo general): **JSON válido 10/10 y correctos 8/10** (el modelo de 9 B y Gemini acertaron 10/10). Fallan *crear dos clases y una relación* (la debilidad ya conocida) y *herencia*, donde el modelo **invirtió la dirección** (hizo padre al hijo). Cada cambio tarda unos 2 segundos, frente a 9 a 22 s de los otros modelos. Estos pedidos no se usaron para entrenar, aunque algunas frases se parecen a las plantillas, así que el conjunto de 200 ejemplos reservados es la medida principal.
+Los mismos 10 pedidos de `scripts/evaluar_ia.py` con los que se midieron Gemini y Qwen 3.5 de 9 B (ver `docs/IA_LOCAL.md`), esta vez con el modelo reentrenado haciendo los cambios (la revisión sigue con el modelo general): **JSON válido 10/10 y correctos 8/10** (el modelo de 9 B y Gemini acertaron 10/10). Fallan *crear dos clases y una relación* (la debilidad ya conocida) y *herencia*, donde el modelo **invirtió la dirección** (hizo padre al hijo). Cada cambio tarda unos 2 segundos, frente a 9 a 22 s de los otros modelos. Estos pedidos no se usaron para entrenar, aunque algunas frases se parecen a las plantillas, así que el conjunto de 200 ejemplos reservados es la medida principal.
 
 **Defecto encontrado al evaluar con la plataforma real.** En el pedido «Cambia el tipo del atributo *total* de la clase *Pedido*» el modelo devolvió el nombre correcto pero **el id de otra clase** (*Cliente*). Aplicado tal cual, el editor habría renombrado *Cliente* como *Pedido* y le habría quitado sus atributos. El adaptador del proveedor ahora **da prioridad al nombre cuando es el de una clase que existe** (y mantiene el id cuando se trata de un renombrado a un nombre nuevo); hay pruebas automáticas de ambos casos y el pedido pasó de fallar a acertar (de 7/10 a 8/10).
 
@@ -151,5 +151,5 @@ Se puede **mostrar un mini-entrenamiento en vivo** (100 iteraciones, unos 9 minu
 
 - Es un modelo pequeño entrenado con datos generados por plantillas: acierta mucho en lo que vio, y menos en operaciones poco frecuentes o con redacciones muy distintas.
 - No supera a Gemini ni a un modelo grande en comprensión general; su ventaja es que corre sin internet, es ajustable y es barato.
-- Solo se probó en un conjunto de 200 ejemplos generados; los 10 pedidos fijos de `scripts/evaluar_ia.py` se miden aparte (Anexo A).
+- Solo se probó en un conjunto de 200 ejemplos generados; los 10 pedidos fijos de `scripts/evaluar_ia.py` se miden aparte (ver `docs/IA_LOCAL.md`).
 - El servidor de AWS (2 GB de memoria) no puede ejecutarlo: se usa en el computador de quien presenta o en un servidor de IA con más memoria.

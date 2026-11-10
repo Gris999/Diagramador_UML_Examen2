@@ -128,7 +128,7 @@ Pulsa **Chat** (abajo a la derecha). **Es el chat de toda la sala**: las persona
 
 ## 3.8 IA local y sin internet (opcional)
 
-La plataforma puede usar un modelo de IA que corre en el propio computador, sin enviar nada a internet, en lugar de Gemini. Se activa con la configuración del servidor (`AI_PROVIDER=ollama`) y, para los cambios al diagrama, puede usar el modelo reentrenado por el equipo (`OLLAMA_CHANGE_MODEL`). El chat muestra «IA local» cuando está activa. Los pasos de instalación están en el Anexo A.
+La plataforma puede usar un modelo de IA que corre en el propio computador, sin enviar nada a internet, en lugar de Gemini. Se activa con la configuración del servidor (`AI_PROVIDER=ollama`) y, para los cambios al diagrama, puede usar el modelo reentrenado por el equipo (`OLLAMA_CHANGE_MODEL`). El chat muestra «IA local» cuando está activa. Los pasos de instalación están en `docs/IA_LOCAL.md` del repositorio.
 
 ## 3.9 Aprender con el asistente de ayuda
 

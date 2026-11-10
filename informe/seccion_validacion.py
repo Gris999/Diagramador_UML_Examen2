@@ -1,4 +1,4 @@
-"""Anexo G del informe: validación, verificación y auditoría, generada de `modelo/trazabilidad.py`.
+"""Anexo C del informe: validación, verificación y auditoría, generada de `modelo/trazabilidad.py`.
 
 Los cuatro pasos que pidió el docente: 1) la documentación (capítulos 1 y 2); 2) la validación; 3) la verificación (control de calidad); 4) la auditoría.
 Todo se calcula del modelo y del repositorio al generar el informe y `trazabilidad.validar()` falla si algo no coincide.
@@ -36,7 +36,7 @@ def _git(*args):
 
 
 def generar_anexo():
-    """El contenido del Anexo G; los títulos van un nivel más abajo que en el cuerpo (## y ###) y el generador del informe los numera 6.7.n."""
+    """El contenido del Anexo G; los títulos van un nivel más abajo que en el cuerpo (## y ###) y el generador del informe los numera 6.3.n."""
     resumen = T.validar()
     ver = resumen["verificacion"]
     filas = T.matriz()
@@ -77,15 +77,14 @@ def generar_anexo():
     md.append("")
 
     md += ["### Validación del producto\n",
-           "El producto es el correcto si cada camino de cada caso de uso, tal como lo promete su ficha, ocurre en el software. Eso es justamente lo que mide el reporte de prueba (sección 2.5 y Anexo F): "
+           "El producto es el correcto si cada camino de cada caso de uso, tal como lo promete su ficha, ocurre en el software. Eso es justamente lo que mide el reporte de prueba (sección 2.5): "
            f"los {len(R.CASOS)} casos de uso tienen {len(P.caminos_del_modelo())} caminos, cada uno con su caso de prueba, y todos tienen pruebas automáticas que pasan; "
            f"{sum(f['manuales'] for f in filas)} caminos se ejecutaron además a mano en el navegador con la IA real y todos pasaron. Al preparar esas pruebas aparecieron {len(P.DEFECTOS)} "
-           "defectos en los que el software no hacía lo que decía el documento (o al revés), y se corrigieron (defectos del Anexo F). La validación del producto se cumple con este resultado: "
+           "defectos en los que el software no hacía lo que decía el documento (o al revés), y se corrigieron. La validación del producto se cumple con este resultado: "
            f"los {len(T.requisitos_del_proyecto())} requisitos de la tabla anterior están cubiertos y cada camino prometido ocurre en el software.\n"]
 
     md += ["### Validación de la calidad\n",
-           "El segundo nivel pregunta si el producto, además de hacer lo que promete, tiene las cualidades que se necesitan. Cada atributo de calidad se demuestra con pruebas que existen "
-           "(identificadas con el índice T-nnn del Anexo F cuando una prueba ya figuraba allí):\n",
+           "El segundo nivel pregunta si el producto, además de hacer lo que promete, tiene las cualidades que se necesitan. Cada atributo de calidad se demuestra con pruebas que existen:\n",
            "| Atributo | Qué se exige | Cómo se verificó | Pruebas |", "|---|---|---|---|"]
     for atributo, exige, como, refs in T.calidad():
         nombres = "<br>".join(f"{P.NOMBRE_PILA[p]}: `{a.split('/')[-1]}` · {n.split('.')[-1] if p != 'front' else n}" for p, a, n in refs)
@@ -129,16 +128,16 @@ def generar_anexo():
 
     md += ["### Hallazgos de la verificación\n",
            "Verificar en las dos direcciones encontró diferencias entre el documento y el software. Todas se corrigieron y las que cambiaron el comportamiento tienen una prueba "
-           "que fallaba antes (defectos del Anexo F):\n",
+           "que fallaba antes:\n",
            "| Hallazgo | Dirección | Qué se hizo |", "|---|---|---|",
            "| `POST /api/chatbot/` seguía publicado: pedía cambios a la IA sin turno ni topes de uso y la aplicación ya no lo usaba | Software sin documento | Se eliminó el endpoint y se agregó una prueba de que no existe |",
-           "| El diseño llamaba `conversation_messages` a la colección de mensajes y le daba campos (`id`, `actor_id`) que el código no tiene | Documento distinto del software | Se corrigió el diseño y la implementación (Anexo E, tablas y colecciones) comprueba los nombres de las colecciones y de sus campos |",
+           "| El diseño llamaba `conversation_messages` a la colección de mensajes y le daba campos (`id`, `actor_id`) que el código no tiene | Documento distinto del software | Se corrigió el diseño y la implementación comprueba los nombres de las colecciones y de sus campos |",
            "| El análisis de consistencia del modelo (CU9, camino A3) no tenía clase de diseño ni diagrama de secuencia | Software sin documento | Se agregó `UmlValidationService` y el escenario «analizar la consistencia del modelo» a COL-11 |",
-           "| La ficha de CU1 decía que un código mal escrito «avisa y vuelve a la portada» y el software abría cualquier texto como sala (D-01) | Documento sin software | Se implementó la validación del código y se corrigió la ficha (A1 y A2) |",
-           "| La ficha de CU2 prohíbe relaciones sin clase en un extremo y el software las dejaba colgadas y las exportaba (D-02, D-03) | Documento sin software | Se impidió en el lienzo y en la exportación |",
-           "| Las fichas de CU11 y CU12 prometen avisar si el generador falla y el software solo escribía en la consola (D-04) | Documento sin software | Se muestra un aviso claro |",
-           "| La ficha de CU4 permite volver a entrar tras una expulsión y el software volvía a expulsar a quien volvía sin recargar (D-05) | Documento sin software | Se corrigió el estado de la expulsión |",
-           "| La ficha de CU14 decía que ante un fallo de la IA se «remite al manual» y el software solo muestra un mensaje (D-07) | Documento distinto del software | Se corrigió la ficha |",
+           "| La ficha de CU1 decía que un código mal escrito «avisa y vuelve a la portada» y el software abría cualquier texto como sala | Documento sin software | Se implementó la validación del código y se corrigió la ficha (A1 y A2) |",
+           "| La ficha de CU2 prohíbe relaciones sin clase en un extremo y el software las dejaba colgadas y las exportaba | Documento sin software | Se impidió en el lienzo y en la exportación |",
+           "| Las fichas de CU11 y CU12 prometen avisar si el generador falla y el software solo escribía en la consola | Documento sin software | Se muestra un aviso claro |",
+           "| La ficha de CU4 permite volver a entrar tras una expulsión y el software volvía a expulsar a quien volvía sin recargar | Documento sin software | Se corrigió el estado de la expulsión |",
+           "| La ficha de CU14 decía que ante un fallo de la IA se «remite al manual» y el software solo muestra un mensaje | Documento distinto del software | Se corrigió la ficha |",
            "| Varios requisitos del proyecto no los citaba ningún caso de uso (por ejemplo RF-13, RF-15 a RF-17, RF-22, RF-34, RF-35, RNF-06) | Documento incompleto | Se agregaron a las fichas de CU3, CU6, CU12, CU13 y CU14 y se comprobó que todos quedan cubiertos |", ""]
 
     md += ["### Auditoría\n",
@@ -183,7 +182,9 @@ def generar_anexo():
            "**Limitaciones conocidas que la auditoría deja a la vista.**\n",
            "- Los endpoints de imagen y de audio (`/api/uml_from_image/` y `/api/uml_from_audio/`) no tienen topes de uso propios como el chat y la ayuda: las tres peticiones comparten solo la cuota del proveedor de IA.",
            "- El asistente de la aplicación móvil usa un modelo de IA local pequeño (Qwen2.5-1.5B): puede explicar un concepto de forma imprecisa y su velocidad en un iPhone físico no se midió. Las órdenes sobre los datos tienen protecciones (solo aceptan valores que la persona dijo y campos del esquema); la conversación no, por eso se le indica usar solo los datos reales y reconocer lo que no puede hacer.",
-           "- Lo que todavía no se probó, y por eso no se afirma, está en la evaluación de la prueba del Anexo F.\n"]
+           "- Lo que todavía no se probó, y por eso no se afirma:\n"]
+    md += [f"  - {pendiente}" for pendiente in P.PENDIENTES]
+    md.append("")
     return "\n".join(md)
 
 

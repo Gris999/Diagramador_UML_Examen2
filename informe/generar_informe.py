@@ -45,7 +45,7 @@ REFERENCIAS = {
     "01-requisitos.md": "la sección 2.2", "02-analisis.md": "la sección 2.3", "03-diseno.md": "la sección 2.4",
     "04-implementacion.md": "la sección 2.5", "05-pruebas.md": "la sección 2.6", "README.md": "la sección 2.1",
     "REQUIREMENTS.md": "la lista de requisitos", "PLAN_PUDS_IA_PARTICIPANTE.md": "el plan de trabajo PUDS",
-    "DESPLIEGUE.md": "el Anexo C", "GAP_MATRIX.md": "la matriz de requisitos", "IA_LOCAL.md": "el Anexo A",
+    "DESPLIEGUE.md": "el documento de despliegue del repositorio", "GAP_MATRIX.md": "la matriz de requisitos", "IA_LOCAL.md": "el documento de IA local del repositorio",
     "ENTREGA.md": "la guía de entrega", "DEMO.md": "el guion de la demostración", "PLAN_REENTRENAMIENTO_IA.md": "el Anexo B",
     "AI_CONTEXT.md": "el contexto del proyecto",
 }
@@ -702,19 +702,14 @@ def main():
     b.markdown(conclusion)
     b.markdown(leer(contenido / "04-bibliografia.md"))
 
-    # Anexos
-    b.titulo("6. Anexos", 1, salto_pagina=True)
-    anexos = [
-        ("Anexo A. IA local con Ollama (instalación, activación y evaluación)", DOCS / "IA_LOCAL.md", "A"),
-        ("Anexo B. Reentrenamiento del modelo de IA", DOCS / "REENTRENAMIENTO_IA.md", "B"),
-        ("Anexo C. Despliegue en AWS", DOCS / "DESPLIEGUE.md", "C"),
-    ]
-    for titulo_anexo, ruta, letra in anexos:
-        b.markdown(leer(ruta), prefijo=f"6.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
-    # Anexos D a G: estándares de codificación y lo que el cuerpo del capítulo 2 no repite (se generan de los mismos modelos).
+    # Anexos: como en los informes de referencia, los estándares de codificación; además el reentrenamiento de la IA local y la validación, verificación y auditoría.
     import seccion_anexo
 
-    for numero, (titulo_anexo, generar_anexo) in enumerate(seccion_anexo.ANEXOS, len(anexos) + 1):
+    b.titulo("6. Anexos", 1, salto_pagina=True)
+    anexos = [(seccion_anexo.TITULO_ESTANDARES, seccion_anexo.estandares),
+              ("Anexo B. Reentrenamiento del modelo de IA", lambda: leer(DOCS / "REENTRENAMIENTO_IA.md")),
+              (seccion_anexo.TITULO_VALIDACION, seccion_anexo.validacion)]
+    for numero, (titulo_anexo, generar_anexo) in enumerate(anexos, 1):
         b.markdown(generar_anexo(), prefijo=f"6.{numero}", renumerar=True, titulo_h1=titulo_anexo)
 
     revisar_lenguaje(b.doc)

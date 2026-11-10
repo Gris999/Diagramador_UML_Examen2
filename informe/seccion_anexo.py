@@ -1,11 +1,10 @@
-"""Anexos D a G del informe, generados de los mismos modelos que el cuerpo del capítulo 2.
+"""Anexos del informe que se generan de los mismos modelos que el cuerpo del capítulo 2.
 
 Los informes de referencia solo llevan en el cuerpo los diagramas de cada flujo de trabajo y dejan los estándares de codificación en los anexos. Lo que este proyecto
-tiene de más (el detalle del análisis, del diseño y de la implementación, el plan y los resultados de las pruebas, y la validación, verificación y auditoría) está aquí,
-así que no puede diferir del cuerpo: sale de `modelo/analisis.py`, `modelo/diseno.py`, `modelo/realizaciones.py`, `modelo/implementacion.py`, `modelo/pruebas.py`
+tiene de más sale de los mismos modelos que el cuerpo, así que no puede diferir de él: sale de `modelo/analisis.py`, `modelo/diseno.py`, `modelo/realizaciones.py`, `modelo/implementacion.py`, `modelo/pruebas.py`
 y `modelo/trazabilidad.py`.
 
-Cada anexo empieza con un título de nivel 1 (que el generador del informe numera 6.4, 6.5, …) y sigue con títulos de nivel 2 y 3.
+Cada anexo empieza con un título de nivel 1 (que el generador del informe numera 6.1, 6.2, …) y sigue con títulos de nivel 2 y 3.
 """
 
 import seccion_analisis
@@ -14,10 +13,10 @@ import seccion_implementacion
 import seccion_pruebas
 import seccion_validacion
 
-TITULO_ESTANDARES = "Anexo D. Estándares de codificación"
-TITULO_DETALLE = "Anexo E. Detalle del análisis, del diseño y de la implementación"
-TITULO_PRUEBAS = "Anexo F. Pruebas: plan, procedimientos y resultados"
-TITULO_VALIDACION = "Anexo G. Validación, verificación y auditoría"
+TITULO_ESTANDARES = "Anexo A. Estándares de codificación"
+TITULO_DETALLE = "Detalle del análisis, del diseño y de la implementación"
+TITULO_PRUEBAS = "Pruebas: plan, procedimientos y resultados"
+TITULO_VALIDACION = "Anexo C. Validación, verificación y auditoría"
 
 
 def estandares():
@@ -56,5 +55,8 @@ def validacion():
     return "\n".join([f"# {TITULO_VALIDACION}\n", _bajar(seccion_validacion.generar_anexo())])
 
 
-# (título del anexo, función que lo genera), en el orden en que van después del anexo C
-ANEXOS = [(TITULO_ESTANDARES, estandares), (TITULO_DETALLE, detalle), (TITULO_PRUEBAS, pruebas), (TITULO_VALIDACION, validacion)]
+# Los anexos del informe son A (estándares), B (reentrenamiento de la IA, de `docs/REENTRENAMIENTO_IA.md`) y C (validación, verificación y auditoría), como en los informes de
+# referencia, que solo llevan los estándares de codificación. `detalle` y `pruebas` generan el detalle del análisis, del diseño y de la implementación y el plan y los
+# resultados de las pruebas; no se incluyen en el informe por decisión del equipo (demasiado para un anexo), pero siguen disponibles aquí.
+ANEXOS = [(TITULO_ESTANDARES, estandares), (TITULO_VALIDACION, validacion)]
+ANEXOS_OPCIONALES = [(TITULO_DETALLE, detalle), (TITULO_PRUEBAS, pruebas)]
