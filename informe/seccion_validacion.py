@@ -1,4 +1,4 @@
-"""Sección 2.6 del informe: validación, verificación y auditoría, generada de `modelo/trazabilidad.py`.
+"""Anexo G del informe: validación, verificación y auditoría, generada de `modelo/trazabilidad.py`.
 
 Los cuatro pasos que pidió el docente: 1) la documentación (capítulos 1 y 2); 2) la validación; 3) la verificación (control de calidad); 4) la auditoría.
 Todo se calcula del modelo y del repositorio al generar el informe y `trazabilidad.validar()` falla si algo no coincide.
@@ -35,7 +35,8 @@ def _git(*args):
     return subprocess.run(["git", "-C", str(T.RAIZ), *args], capture_output=True, text=True, check=True).stdout.strip()
 
 
-def generar():
+def generar_anexo():
+    """El contenido del Anexo G; los títulos van un nivel más abajo que en el cuerpo (## y ###) y el generador del informe los numera 6.7.n."""
     resumen = T.validar()
     ver = resumen["verificacion"]
     filas = T.matriz()
@@ -45,7 +46,7 @@ def generar():
     revisados, _, descartados = T.escanear_secretos()
     dep = T.dependencias()
 
-    md = ["## 2.6 Validación, verificación y auditoría\n",
+    md = ["## Validación, verificación y auditoría\n",
           "Cerrada la documentación (capítulos 1 y 2), faltan tres pasos que comprueban que lo documentado y lo construido son lo mismo. La **validación** responde si se construyó "
           "el producto correcto: todo lo que está en el documento está en el software, en dos niveles, el del **producto** (los casos de uso y los requisitos) y el de la **calidad** "
           "(seguridad, fiabilidad, costo, recuperación, mantenibilidad, interoperabilidad y usabilidad). La **verificación** es el control de calidad que responde si se construyó bien: "
@@ -54,7 +55,7 @@ def generar():
           "Estas comprobaciones no se hacen a mano: la sección se genera de un modelo que lee el repositorio y falla si encuentra una celda vacía, una operación que no existe en el código, "
           "una clase del código sin explicar o un secreto escrito en un archivo. Si falla, el informe no se genera.\n"]
 
-    md += ["### 2.6.1 Matriz de trazabilidad\n",
+    md += ["### Matriz de trazabilidad\n",
            "Cada fila sigue un caso de uso a lo largo de todos los flujos de trabajo: los requisitos que cubre, las colaboraciones del análisis (sección 2.2), las realizaciones del diseño "
            "con sus diagramas de secuencia (sección 2.3), el código que las implementa (sección 2.4) y los casos de prueba (sección 2.5). No tiene celdas vacías.\n",
            "| Caso de uso | Requisitos | Análisis | Diseño: realización · escenarios · mensajes | Implementación: clases · archivos | Pruebas: casos · automáticas · manuales |", "|---|---|---|---|---|---|"]
@@ -70,21 +71,21 @@ def generar():
            "en el total. Un caso de uso puede tener más de una colaboración y una colaboración puede realizar más de un caso de uso (por ejemplo, COL-08 realiza CU7 y CU9).\n"]
 
     md += ["#### Requisitos del proyecto\n",
-           "Cada requisito de `docs/REQUIREMENTS.md` lo cubre un caso de uso o un requisito adicional (RA, sección 2.6.3) o es la documentación misma.\n",
+           "Cada requisito de `docs/REQUIREMENTS.md` lo cubre un caso de uso o un requisito adicional (RA, ver «Validación de la calidad» más abajo) o es la documentación misma.\n",
            "| Requisito | Qué pide | Lo cubre |", "|---|---|---|"]
     md += [f"| {i} | {g} | {c} |" for i, g, c in T.requisitos_del_proyecto()]
     md.append("")
 
-    md += ["### 2.6.2 Validación del producto\n",
-           "El producto es el correcto si cada camino de cada caso de uso, tal como lo promete su ficha, ocurre en el software. Eso es justamente lo que mide la sección 2.5: "
+    md += ["### Validación del producto\n",
+           "El producto es el correcto si cada camino de cada caso de uso, tal como lo promete su ficha, ocurre en el software. Eso es justamente lo que mide el reporte de prueba (sección 2.5 y Anexo F): "
            f"los {len(R.CASOS)} casos de uso tienen {len(P.caminos_del_modelo())} caminos, cada uno con su caso de prueba, y todos tienen pruebas automáticas que pasan; "
            f"{sum(f['manuales'] for f in filas)} caminos se ejecutaron además a mano en el navegador con la IA real y todos pasaron. Al preparar esas pruebas aparecieron {len(P.DEFECTOS)} "
-           "defectos en los que el software no hacía lo que decía el documento (o al revés), y se corrigieron (sección 2.5.5). La validación del producto se cumple con este resultado: "
+           "defectos en los que el software no hacía lo que decía el documento (o al revés), y se corrigieron (defectos del Anexo F). La validación del producto se cumple con este resultado: "
            f"los {len(T.requisitos_del_proyecto())} requisitos de la tabla anterior están cubiertos y cada camino prometido ocurre en el software.\n"]
 
-    md += ["### 2.6.3 Validación de la calidad\n",
+    md += ["### Validación de la calidad\n",
            "El segundo nivel pregunta si el producto, además de hacer lo que promete, tiene las cualidades que se necesitan. Cada atributo de calidad se demuestra con pruebas que existen "
-           "(identificadas con el índice T-nnn de la sección 2.5.7 cuando una prueba ya figuraba allí):\n",
+           "(identificadas con el índice T-nnn del Anexo F cuando una prueba ya figuraba allí):\n",
            "| Atributo | Qué se exige | Cómo se verificó | Pruebas |", "|---|---|---|---|"]
     for atributo, exige, como, refs in T.calidad():
         nombres = "<br>".join(f"{P.NOMBRE_PILA[p]}: `{a.split('/')[-1]}` · {n.split('.')[-1] if p != 'front' else n}" for p, a, n in refs)
@@ -98,7 +99,7 @@ def generar():
         md.append(f"| {ra[0]} | {ra[1]} | {ra[2]} | {texto} Pruebas: {pruebas}{files}. |")
     md.append("")
 
-    md += ["### 2.6.4 Verificación: del documento al software\n",
+    md += ["### Verificación: del documento al software\n",
            "Todo lo que el diseño dice del software se compara con el código. La comparación la hace el modelo de diseño con un índice del código (lee las clases y los métodos de los archivos Python, "
            "TypeScript y Java) cada vez que se arma el informe:\n",
            "| Lo que dice el documento | Cuántos | Qué se comprueba en el código |", "|---|---|---|",
@@ -111,9 +112,9 @@ def generar():
            f"| Mensajes de secuencia | {ver['mensajes']} | Cada mensaje es una operación que existe en la clase que lo recibe ({ver['operaciones']} operaciones distintas; {ver['externos']} mensajes marcados como del navegador o de un producto externo no se comprueban) |",
            f"| Dependencias entre subsistemas | — | Las mismas que entre los paquetes del análisis, sin ciclos |", "",
            "Cada diagrama de secuencia está relacionado con el software: lo está en cada mensaje. Esta comprobación encontró discrepancias que se corrigieron "
-           "(sección 2.6.6), por ejemplo una colección de MongoDB que el diseño llamaba de otra manera y un camino de CU9 (analizar la consistencia del modelo) que no tenía diagrama de secuencia.\n"]
+           "(hallazgos de la verificación, más abajo), por ejemplo una colección de MongoDB que el diseño llamaba de otra manera y un camino de CU9 (analizar la consistencia del modelo) que no tenía diagrama de secuencia.\n"]
 
-    md += ["### 2.6.5 Verificación: del software al documento\n",
+    md += ["### Verificación: del software al documento\n",
            f"La otra dirección pregunta qué hay en el código que el documento no nombra. El índice del código encuentra **{cobertura['total']} clases y módulos** en las carpetas del sistema "
            f"(sin las pruebas); **{cobertura['modeladas']}** están en el diseño ({cobertura['modeladas'] * 100 // cobertura['total']} %). Las otras {len(cobertura['sin_modelar'])} no se modelan a propósito, "
            "cada una por una razón que está escrita y que se comprueba: si aparece código nuevo sin modelar y sin razón, o si una razón deja de corresponder a código, el informe no se genera.\n",
@@ -126,12 +127,12 @@ def generar():
         md.append(f"| {categoria} | {len(clases)} | {ejemplos} |")
     md.append("")
 
-    md += ["### 2.6.6 Hallazgos de la verificación\n",
+    md += ["### Hallazgos de la verificación\n",
            "Verificar en las dos direcciones encontró diferencias entre el documento y el software. Todas se corrigieron y las que cambiaron el comportamiento tienen una prueba "
-           "que fallaba antes (sección 2.5.5):\n",
+           "que fallaba antes (defectos del Anexo F):\n",
            "| Hallazgo | Dirección | Qué se hizo |", "|---|---|---|",
            "| `POST /api/chatbot/` seguía publicado: pedía cambios a la IA sin turno ni topes de uso y la aplicación ya no lo usaba | Software sin documento | Se eliminó el endpoint y se agregó una prueba de que no existe |",
-           "| El diseño llamaba `conversation_messages` a la colección de mensajes y le daba campos (`id`, `actor_id`) que el código no tiene | Documento distinto del software | Se corrigió el diseño y la implementación (sección 2.4.7) comprueba los nombres de las colecciones y de sus campos |",
+           "| El diseño llamaba `conversation_messages` a la colección de mensajes y le daba campos (`id`, `actor_id`) que el código no tiene | Documento distinto del software | Se corrigió el diseño y la implementación (Anexo E, tablas y colecciones) comprueba los nombres de las colecciones y de sus campos |",
            "| El análisis de consistencia del modelo (CU9, camino A3) no tenía clase de diseño ni diagrama de secuencia | Software sin documento | Se agregó `UmlValidationService` y el escenario «analizar la consistencia del modelo» a COL-11 |",
            "| La ficha de CU1 decía que un código mal escrito «avisa y vuelve a la portada» y el software abría cualquier texto como sala (D-01) | Documento sin software | Se implementó la validación del código y se corrigió la ficha (A1 y A2) |",
            "| La ficha de CU2 prohíbe relaciones sin clase en un extremo y el software las dejaba colgadas y las exportaba (D-02, D-03) | Documento sin software | Se impidió en el lienzo y en la exportación |",
@@ -140,7 +141,7 @@ def generar():
            "| La ficha de CU14 decía que ante un fallo de la IA se «remite al manual» y el software solo muestra un mensaje (D-07) | Documento distinto del software | Se corrigió la ficha |",
            "| Varios requisitos del proyecto no los citaba ningún caso de uso (por ejemplo RF-13, RF-15 a RF-17, RF-22, RF-34, RF-35, RNF-06) | Documento incompleto | Se agregaron a las fichas de CU3, CU6, CU12, CU13 y CU14 y se comprobó que todos quedan cubiertos |", ""]
 
-    md += ["### 2.6.7 Auditoría\n",
+    md += ["### Auditoría\n",
            "La auditoría revisa el proceso y sus versiones. Todo el trabajo está en un repositorio de Git, con una copia en GitHub (el código QR de la carátula lleva a ella), de modo que cada "
            "cambio se puede rastrear a quién lo hizo, cuándo y por qué.\n",
            "**Versiones.**\n",
@@ -177,12 +178,12 @@ def generar():
            "- Angular: `npx ng test --watch=false --browsers=ChromeHeadless` en `front_generador_bd`.",
            "- Spring: `./mvnw test` en `back_generator_uml` (compila el proyecto que genera).",
            "- MongoDB real: `MONGO_TEST_URL=mongodb://127.0.0.1:27018 manage.py test collab.tests.test_mongo_integration` con un contenedor `mongo:7`.",
-           "- Este documento: `python generar_informe.py` en `informe/`, que corre todas las validaciones de las secciones 2.4 a 2.6 antes de escribir el archivo.",
+           "- Este documento: `python generar_informe.py` en `informe/`, que corre todas las validaciones de la implementación, las pruebas y este anexo antes de escribir el archivo.",
            "- Despliegue: `scripts/smoke-test.sh`.", "",
            "**Limitaciones conocidas que la auditoría deja a la vista.**\n",
            "- Los endpoints de imagen y de audio (`/api/uml_from_image/` y `/api/uml_from_audio/`) no tienen topes de uso propios como el chat y la ayuda: las tres peticiones comparten solo la cuota del proveedor de IA.",
            "- El asistente de la aplicación móvil usa un modelo de IA local pequeño (Qwen2.5-1.5B): puede explicar un concepto de forma imprecisa y su velocidad en un iPhone físico no se midió. Las órdenes sobre los datos tienen protecciones (solo aceptan valores que la persona dijo y campos del esquema); la conversación no, por eso se le indica usar solo los datos reales y reconocer lo que no puede hacer.",
-           "- Lo que todavía no se probó, y por eso no se afirma, está en la sección 2.5.6.\n"]
+           "- Lo que todavía no se probó, y por eso no se afirma, está en la evaluación de la prueba del Anexo F.\n"]
     return "\n".join(md)
 
 

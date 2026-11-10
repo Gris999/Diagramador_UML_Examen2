@@ -711,10 +711,11 @@ def main():
     ]
     for titulo_anexo, ruta, letra in anexos:
         b.markdown(leer(ruta), prefijo=f"6.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
-    # Anexo D: el detalle del análisis y del diseño que el cuerpo del capítulo 2 no repite (se genera de los mismos modelos).
+    # Anexos D a G: estándares de codificación y lo que el cuerpo del capítulo 2 no repite (se generan de los mismos modelos).
     import seccion_anexo
 
-    b.markdown(seccion_anexo.generar(), prefijo="6.4", renumerar=True, titulo_h1=seccion_anexo.TITULO)
+    for numero, (titulo_anexo, generar_anexo) in enumerate(seccion_anexo.ANEXOS, len(anexos) + 1):
+        b.markdown(generar_anexo(), prefijo=f"6.{numero}", renumerar=True, titulo_h1=titulo_anexo)
 
     revisar_lenguaje(b.doc)
     BUILD.mkdir(exist_ok=True)

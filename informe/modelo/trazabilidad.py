@@ -1,4 +1,4 @@
-"""Validación, verificación y auditoría (sección 2.6): la matriz de trazabilidad y las comprobaciones de que el documento y el software coinciden.
+"""Validación, verificación y auditoría (Anexo G): la matriz de trazabilidad y las comprobaciones de que el documento y el software coinciden.
 
 El docente pidió cuatro pasos: 1) la documentación; 2) la **validación**, que todo lo que está en el documento esté en el software y en dos niveles, producto y
 calidad; 3) la **verificación** (control de calidad), que todo lo registrado en el documento esté en el software **o al revés**, y que el diagrama de secuencia esté

@@ -1,4 +1,4 @@
-"""Sección 2.5 del informe: flujo de trabajo de pruebas (PUDS cap. 12), generada de `modelo/pruebas.py`.
+"""Sección 2.5 del informe y Anexo F: flujo de trabajo de pruebas (PUDS cap. 12), generada de `modelo/pruebas.py`.
 
 Plan de prueba, un caso de prueba por cada camino de cada caso de uso, procedimientos manuales con su ejecución, resultados de la ejecución completa,
 defectos y evaluación. Cada prueba automática que se cita existe en el repositorio (`pruebas.validar()` lo comprueba al generar el informe).
@@ -45,9 +45,10 @@ def _rango_ids(refs, ids):
 
 
 def generar():
-    resumen = P.validar()
+    """Sección 2.5. Misma estructura que los documentos de referencia: solo el reporte de prueba, con el número del caso de uso en la primera columna.
+    El plan, los procedimientos, la ejecución, los defectos, la evaluación y el índice de pruebas están en el Anexo F (`generar_anexo`)."""
+    P.validar()
     ids = _ids_de_pruebas()
-    casos = P.casos_de_prueba()
     md = ["## 2.5 Flujo de trabajo: pruebas\n",
           "### 2.5.1 Reporte de prueba\n"]
     for numero_ciclo, titulo, codigos in R.CICLOS:
@@ -57,12 +58,21 @@ def generar():
             for c in P.casos_de_prueba(cu):
                 procedimientos = f"Pruebas automáticas ({c['nivel']}): {_rango_ids(c['auto'], ids)}." if c["auto"] else "Sin pruebas automáticas."
                 if c["manual"]:
-                    procedimientos += " Procedimiento manual (sección 2.5.3)."
-                md.append(f"| {P.id_caso(c)} | {_etiqueta(c['camino'])} | {_celda(c['entrada'])} | {procedimientos} | {_celda(c['esperado'])} |")
+                    procedimientos += " Procedimiento manual (Anexo F)."
+                md.append(f"| {cu} | {_etiqueta(c['camino'])} ({P.id_caso(c)}) | {_celda(c['entrada'])} | {procedimientos} | {_celda(c['esperado'])} |")
         md.append("")
-    md += ["Los identificadores T-nnn son los del índice de pruebas automáticas (sección 2.5.7), con la pila, el archivo y el nombre de cada prueba.\n"]
+    md += ["Los identificadores T-nnn son los del índice de pruebas automáticas (Anexo F), con la pila, el archivo y el nombre de cada prueba.\n"]
+    return "\n".join(md)
 
-    md += ["### 2.5.2 Plan de prueba\n",
+
+def generar_anexo():
+    """Plan, procedimientos, ejecución, defectos, evaluación e índice de las pruebas para el Anexo F (títulos de nivel 2; el generador del informe los numera 6.6.n)."""
+    resumen = P.validar()
+    ids = _ids_de_pruebas()
+    casos = P.casos_de_prueba()
+    md = []
+
+    md += ["## Plan de prueba\n",
            f"**Cobertura.** Los {len(R.CASOS)} casos de uso tienen **{resumen['caminos']} caminos** (el básico, cada alterno, cada excepción y cada camino no permitido) y "
            f"**{resumen['casos']} casos de prueba**: uno por camino. Todos tienen pruebas automáticas ({resumen['pruebas_citadas']} pruebas distintas, de las {resumen['pruebas_del_repositorio']} "
            f"que hay en el repositorio) y {resumen['con_manual']} tienen además un procedimiento manual, porque el resultado depende de varias personas, del navegador real, de archivos que "
@@ -73,7 +83,7 @@ def generar():
            "| Unidad | Servicios y componentes del navegador, utilidades puras, servicios y vistas de Django | Jasmine y Karma (Angular), `manage.py test` (Django), JUnit (Spring) |",
            "| Integración | El WebSocket de la sala con clientes simulados, las vistas de la API con la base de datos, los adaptadores de PostgreSQL, Redis y MongoDB con las mismas pruebas de contrato, "
            "los generadores de punta a punta y la compilación del proyecto Spring generado | Django (`WebsocketCommunicator`, `APITestCase`), JUnit, MongoDB 7 en Docker |",
-           "| Sistema | Varias personas en la misma sala con la IA real, el celular, los archivos que se descargan, el intercambio con otras herramientas | Procedimientos manuales en el navegador (sección 2.5.3) |",
+           "| Sistema | Varias personas en la misma sala con la IA real, el celular, los archivos que se descargan, el intercambio con otras herramientas | Procedimientos manuales en el navegador (sección «Procedimientos de prueba» de este anexo) |",
            "| Despliegue | El sitio responde, el WebSocket negocia y los puertos internos están cerrados | `scripts/smoke-test.sh` (se ejecuta después de cada despliegue) |", "",
            "**Criterios.** Un cambio entra a la rama de integración cuando compila, pasan las pruebas relevantes, no lleva secretos y no hay regresiones en roles, expulsión, XMI ni "
            "exportaciones. Las pruebas que usan base de datos se ejecutan contra PostgreSQL; los adaptadores de MongoDB, además, contra un servidor real.\n",
@@ -81,9 +91,9 @@ def generar():
            "herramienta de desarrollo. Como las pestañas de un mismo navegador comparten el almacenamiento local, cada persona se creó fijando su nombre y su identificador antes de abrir su "
            "pestaña. La IA fue Google Gemini real.\n"]
 
-    md += ["### 2.5.3 Procedimientos de prueba\n",
+    md += ["## Procedimientos de prueba\n",
            f"Los procedimientos manuales se ejecutaron el {P.FECHA_EJECUCION}. El resultado es «pasó», o «pasó con observación» cuando algo del procedimiento no se pudo repetir o se notó algo "
-           "que conviene saber; ninguno falló después de las correcciones de la sección 2.5.5.\n",
+           "que conviene saber; ninguno falló después de las correcciones de los defectos que se listan más abajo.\n",
            "| Caso | Pasos | Resultado |", "|---|---|---|"]
     for c in casos:
         if not c["manual"]:
@@ -96,13 +106,13 @@ def generar():
         md.append(f"| {P.id_caso(dict(cu=cu, camino=camino))} ({_etiqueta(camino)}) | {_celda(texto)} |")
     md.append("")
 
-    md += ["### 2.5.4 Ejecución de las pruebas automáticas\n",
+    md += ["## Ejecución de las pruebas automáticas\n",
            f"Ejecución completa del {P.FECHA_EJECUCION}, con el código que se entrega:\n",
            "| Qué | Comando | Resultado | Estado |", "|---|---|---|---|"]
     md += [f"| {q} | `{cmd}` | {r} | {e.capitalize()} |" for q, cmd, r, e in P.RESULTADOS]
     md.append("")
 
-    md += ["### 2.5.5 Defectos\n",
+    md += ["## Defectos\n",
            "Preparar las pruebas encontró defectos que las pruebas anteriores no habían visto: unos al trazar cada camino de los casos de uso contra el software, y otros al ejecutar "
            "los procedimientos en el navegador. Cada defecto se reprodujo con una prueba automática que fallaba antes de la corrección y que ahora pasa.\n",
            "| ID | Caso de uso y camino | Cómo se encontró | Efecto | Corrección | Pruebas | Estado |", "|---|---|---|---|---|---|---|"]
@@ -110,7 +120,7 @@ def generar():
            for d in P.DEFECTOS]
     md.append("")
 
-    md += ["### 2.5.6 Evaluación de la prueba\n",
+    md += ["## Evaluación de la prueba\n",
            "**Compleción.** Se mide contra el modelo de casos de uso, que es lo que el sistema prometió.\n",
            "| Caso de uso | Caminos | Casos de prueba | Pruebas automáticas distintas | Procedimientos manuales ejecutados |", "|---|---|---|---|---|"]
     total_caminos = total_manuales = 0
@@ -125,13 +135,13 @@ def generar():
            f"- Caminos con caso de prueba: {resumen['casos']} de {resumen['caminos']} (100 %).",
            f"- Casos con al menos una prueba automática: {resumen['con_automatica']} de {resumen['casos']} (100 %).",
            f"- Casos con procedimiento manual: {resumen['con_manual']}, todos ejecutados.", "",
-           "**Fiabilidad.** Con el código que se entrega, todas las pruebas automáticas pasan (sección 2.5.4) y todos los procedimientos manuales pasan, dos de ellos con una observación. "
+           "**Fiabilidad.** Con el código que se entrega, todas las pruebas automáticas pasan (ejecución completa, más arriba) y todos los procedimientos manuales pasan, dos de ellos con una observación. "
            f"Se encontraron {len(P.DEFECTOS)} defectos y los {len(P.DEFECTOS)} están corregidos; no hay defectos abiertos.\n",
            "**Lo que falta probar.** No se probó todavía, y por eso no se afirma:\n"]
     md += [f"- {p}" for p in P.PENDIENTES]
     md.append("")
 
-    md += ["### 2.5.7 Índice de pruebas automáticas\n",
+    md += ["## Índice de pruebas automáticas\n",
            "Cada prueba automática que cita un caso o un defecto, con su pila, el archivo (relativo a la carpeta de esa pila) y su nombre. Es la matriz que une el caso de prueba con el código.\n",
            "| ID | Pila | Archivo | Prueba |", "|---|---|---|---|"]
     for ref, ident in sorted(ids.items(), key=lambda kv: int(kv[1][2:])):

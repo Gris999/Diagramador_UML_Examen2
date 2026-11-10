@@ -106,24 +106,30 @@ def _tabla_trazas():
 
 
 def generar():
-    """Sección 2.3. Misma estructura que el documento de referencia: diseño de la arquitectura (físico y lógico), diseño de datos y diseño de casos de uso
-    (diagramas de secuencia por ciclo de vida). El resto del diseño (nodos, subsistemas, mecanismos, C4, clases de diseño y detalle de las realizaciones)
-    está en el Anexo D (`generar_anexo`)."""
+    """Sección 2.3. Misma estructura que los documentos de referencia: patrón C4 (contexto, contenedor, componentes y código), diseño de la arquitectura
+    (físico y lógico) y diagramas de secuencia por ciclo de vida. El resto del diseño (nodos, subsistemas, mecanismos, clases de diseño y detalle de las
+    realizaciones) está en el Anexo E (`generar_anexo`)."""
     D.validar(analisis=A)
     D.validar_realizaciones(A)
     md = ["## 2.3 Flujo de trabajo: diseño\n"]
 
-    # ---- 2.3.1 arquitectura
-    md += ["### 2.3.1 Diseño de la arquitectura\n",
-           "#### 2.3.1.1 Diseño físico\n", _uml_respaldo("di-despliegue", "Diagrama de despliegue"),
-           "#### 2.3.1.2 Diseño lógico\n", _uml_respaldo("di-capas", "Diseño en capas")]
+    # ---- 2.3.1 patrón de desarrollo C4 (el nivel de código es el diseño de datos: las clases persistentes y su mapeo)
+    md += ["### 2.3.1 Patrón de desarrollo C4\n",
+           "#### 2.3.1.1 Diagrama de contexto del sistema\n", _uml_respaldo("c4-contexto", "Diagrama de contexto del sistema"),
+           "#### 2.3.1.2 Diagrama de contenedor\n", _uml_respaldo("di-c4-contenedores", "Diagrama de contenedor"),
+           "#### 2.3.1.3 Diagrama de componentes\n", _uml_respaldo("di-c4-componentes", "Diagrama de componentes (C4)"),
+           "#### 2.3.1.4 Diagrama de código\n",
+           _uml_respaldo("dd-postgres", "Modelo de datos relacional (PostgreSQL)"), _uml_respaldo("dd-mongo", "Colecciones de MongoDB"),
+           "Mapeo de las clases persistentes a tablas de PostgreSQL:\n", _tabla_datos(),
+           "Mapeo a colecciones de MongoDB:\n", _tabla_colecciones()]
 
-    # ---- 2.3.2 datos
-    md += ["### 2.3.2 Diseño de datos\n",
-           _uml_respaldo("dd-postgres", "Modelo de datos relacional (PostgreSQL)"), _uml_respaldo("dd-mongo", "Colecciones de MongoDB")]
+    # ---- 2.3.2 diseño de la arquitectura
+    md += ["### 2.3.2 Diseño de la arquitectura\n",
+           "#### 2.3.2.1 Diseño físico (diagrama de despliegue)\n", _uml_respaldo("di-despliegue", "Diagrama de despliegue"),
+           "#### 2.3.2.2 Diseño lógico: diagrama de paquete organizado en capas\n", _uml_respaldo("di-capas", "Diseño en capas")]
 
-    # ---- 2.3.3 diseño de casos de uso: diagramas de secuencia por ciclo de vida
-    md += ["### 2.3.3 Diseño de casos de uso\n"]
+    # ---- 2.3.3 diagramas de secuencia por ciclo de vida
+    md += ["### 2.3.3 Diagrama de secuencia\n"]
     for numero_ciclo, titulo, codigos in Q.CICLOS:
         md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
         for cu in codigos:
@@ -134,8 +140,8 @@ def generar():
 
 
 def generar_anexo():
-    """Detalle del diseño para el Anexo D (títulos de nivel 2 y 3; el generador del informe los numera 6.4.n): nodos y conexiones, subsistemas e
-    interfaces, clases activas y mecanismos, modelo C4, clases de diseño por subsistema y detalle de las realizaciones."""
+    """Detalle del diseño para el Anexo E (títulos de nivel 2 y 3; el generador del informe los numera 6.5.n): nodos y conexiones, subsistemas e
+    interfaces, clases activas y mecanismos, clases de diseño por subsistema y detalle de las realizaciones."""
     D.validar(analisis=A)
     D.validar_realizaciones(A)
     md = ["## Diseño: nodos y conexiones\n",
@@ -157,10 +163,7 @@ def generar_anexo():
           "no saben si detrás hay PostgreSQL, MongoDB, Redis, Gemini u Ollama.\n",
           _tabla_interfaces(),
           "## Diseño: clases activas y mecanismos genéricos\n", _tabla_activas(),
-          "Cada requisito especial común del análisis (Anexo D, requisitos especiales comunes) se resuelve una sola vez con un mecanismo, y las clases lo usan:\n", _tabla_mecanismos(),
-          "## Diseño: modelo C4\n",
-          _uml_respaldo("c4-contexto", "Diagrama de contexto del sistema"), _uml_respaldo("di-c4-contenedores", "Diagrama de contenedor"),
-          _uml_respaldo("di-c4-componentes", "Diagrama de componentes (C4)")]
+          "Cada requisito especial común del análisis (Anexo E, requisitos especiales comunes) se resuelve una sola vez con un mecanismo, y las clases lo usan:\n", _tabla_mecanismos()]
 
     md += ["## Diseño: clases de diseño por subsistema\n",
            "Cada clase usa el lenguaje de programación y su visibilidad (`+` pública, `#` protegida, `-` privada); los atributos y las operaciones son los del código. "
