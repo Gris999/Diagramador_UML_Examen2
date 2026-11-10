@@ -7,7 +7,7 @@
   sq-<COL>-<escenario>                                        diagrama de secuencia de un escenario (operaciones reales del código)
   dd-postgres, dd-mongo                                       diseño de datos
 
-Las clases y operaciones se leen del código (`modelo/codigo.py`): lo que se dibuja es lo que existe, salvo lo que los cambios C1 a C4 agregan (amarillo).
+Las clases y operaciones se leen del código (`modelo/codigo.py`): lo que se dibuja es lo que existe.
 """
 
 import sys
@@ -429,7 +429,7 @@ def diagrama_datos_postgres(m):
     for nombre, estado, cols in D.TABLAS:
         m.elem(f"dd:{nombre}", "Class", nombre, ruta, est="table", attrs=[(c, t, "PK" if "PK" in k else "FK" if "FK" in k else "", "Public") for c, t, k in cols])
         tam[nombre] = (270, 40 + 17 * len(cols))
-        nuevos[nombre] = estado.startswith(("cambia", "nuevo"))
+        nuevos[nombre] = False  # no se destacan tablas: el diagrama muestra el modelo de datos tal como es
     objetos = [("dd:collab_participant", 330, 150, *tam["collab_participant"]), ("dd:collab_activityevent", 0, 0, *tam["collab_activityevent"]),
                ("dd:collab_chatmessage", 690, 0, *tam["collab_chatmessage"], *((NUEVO,) if nuevos["collab_chatmessage"] else ())),
                ("dd:collab_iaattempt", 690, 300, *tam["collab_iaattempt"]), ("dd:uml_api_backupuml", 0, 340, *tam["uml_api_backupuml"]),
@@ -450,7 +450,7 @@ def diagrama_datos_mongo(m):
                ("dm:counters", 450, 300, *tam["counters"], NUEVO)]
     conectores = [dict(de="dm:activity_events", a="dm:counters", tipo="Dependency", nombre="id con $inc", arbol="V"),
                   dict(de="dm:chat_messages", a="dm:counters", tipo="Dependency", nombre="id con $inc", arbol="V")]
-    m.diagrama("dd-mongo", "Colecciones de MongoDB (C3)", "Class", ruta, objetos, conectores)
+    m.diagrama("dd-mongo", "Colecciones de MongoDB", "Class", ruta, objetos, conectores)
 
 
 def construir(m, solo=None):
