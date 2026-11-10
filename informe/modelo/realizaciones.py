@@ -400,4 +400,54 @@ REALIZACIONES = [
            ("help_views", "help_knowledge", "build_help_prompt", "knowledge, history, message"),
            ("help_views", "GeminiProvider", "chat", "prompt")])],
        ["Solo responde sobre la herramienta.", "Séptima pregunta en un minuto: 429.", "No depende de una sala."]),
+    _r("COL-19",
+       ["`LoginPage.sendCode` pide a `AuthService.requestCode` un código para el correo escrito; en el servidor `auth_views.auth_request_code` cuenta el pedido con "
+        "`auth.allow` (por correo, por dirección y en total), lo emite con `auth.issue_code` (guardado con una huella HMAC y un vencimiento) y lo manda con "
+        "`auth.send_code_email`. Al escribir el código, `LoginPage.verify` llama a `AuthService.verify`, que cambia el código por una sesión firmada: "
+        "`auth.check_code` lo comprueba (una sola vez y con un máximo de intentos) y `auth.make_session` la entrega; el navegador la guarda y la renueva.",
+        "`MyDiagrams` pide la lista de la persona con `RoomAccessService.myRooms` (`auth_views.my_rooms_view` → `rooms.my_rooms`). Al abrir un diagrama, la guardia de la ruta "
+        "llama a `RoomAccessService.enter` (`auth_views.room_access_view` → `rooms.enter` y `rooms.describe`): quien no está en la lista de la sala recibe 403 y el WebSocket "
+        "se cierra con `CanvasConsumer.connect` a través de `rooms.effective_role`. La persona propietaria comparte desde `ShareDialog`: cambia el acceso con "
+        "`RoomAccessService.updateSettings` (`auth_views.room_settings_view` → `rooms.update_settings`) o invita con `InviteService.send` (`auth_views.room_invite` → "
+        "`rooms.add_members` y `auth.send_invitations`)."],
+       [_e("a", "Pedir el código por correo", [
+           ("U", "LoginPage", "sendCode", ""),
+           ("LoginPage", "AuthService", "requestCode", "email"),
+           ("AuthService", "vistas_acceso", "auth_request_code", "email"),
+           ("vistas_acceso", "auth", "allow", "clave, tope, ventana"),
+           ("vistas_acceso", "auth", "issue_code", "email"),
+           ("vistas_acceso", "auth", "send_code_email", "email, code")]),
+        _e("b", "Escribir el código y abrir la sesión", [
+            ("U", "LoginPage", "verify", ""),
+            ("LoginPage", "AuthService", "verify", "email, code"),
+            ("AuthService", "vistas_acceso", "auth_verify", "email, code"),
+            ("vistas_acceso", "auth", "check_code", "email, code"),
+            ("vistas_acceso", "auth", "make_session", "email"),
+            ("LoginPage", "MyDiagrams", "·router.navigateByUrl", "'/'")]),
+        _e("c", "Ver mis diagramas y abrir uno con el rol de la persona", [
+            ("U", "MyDiagrams", "ngOnInit", ""),
+            ("MyDiagrams", "RoomAccessService", "myRooms", ""),
+            ("RoomAccessService", "vistas_acceso", "my_rooms_view", ""),
+            ("vistas_acceso", "rooms", "my_rooms", "email"),
+            ("U", "MyDiagrams", "open", "room"),
+            ("MyDiagrams", "RoomAccessService", "·guardia de la ruta: enter", "room"),
+            ("RoomAccessService", "vistas_acceso", "room_access_view", "room"),
+            ("vistas_acceso", "rooms", "enter", "room, email, claim"),
+            ("vistas_acceso", "rooms", "describe", "room, email, role")]),
+        _e("d", "El servidor exige la lista de la sala en el WebSocket", [
+            ("SignalingService", "CanvasConsumer", "connect", ""),
+            ("CanvasConsumer", "rooms", "effective_role", "room, email")]),
+        _e("e", "Cambiar el acceso general de un diagrama", [
+            ("U", "ShareDialog", "onLinkAccess", "event"),
+            ("ShareDialog", "RoomAccessService", "updateSettings", "room, patch"),
+            ("RoomAccessService", "vistas_acceso", "room_settings_view", "room"),
+            ("vistas_acceso", "rooms", "update_settings", "room, title, link_access, link_role")]),
+        _e("f", "Invitar a otras personas por correo con un rol", [
+            ("U", "ShareDialog", "sendInvites", ""),
+            ("ShareDialog", "InviteService", "send", "room, emails, message, role"),
+            ("InviteService", "vistas_acceso", "room_invite", "room"),
+            ("vistas_acceso", "rooms", "add_members", "room, emails, invited_by, role"),
+            ("vistas_acceso", "auth", "send_invitations", "sender_name, sender_email, room, recipients, message, role")])],
+       ["La sesión es una cadena firmada con `django.core.signing`: el servidor no guarda sesiones, así que entrar en otro aparato no cierra las demás.",
+        "`EmailSessionMiddleware` aplica la misma lista a cada llamada de la API: leer exige ser lector; escribir, editor."]),
 ]
