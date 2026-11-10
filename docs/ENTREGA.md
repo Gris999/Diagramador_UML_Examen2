@@ -81,7 +81,7 @@ Comandos exactos: [`puds/05-pruebas.md`](puds/05-pruebas.md) §3.
 - [x] **Desplegado en AWS** el 2026-11-04: migración `collab/0005_chatmessage_author_name` aplicada, memoria medida y `scripts/smoke-test.sh` en orden (`DESPLIEGUE.md` §4).
 - [x] **MongoDB Atlas activado en el servidor** el 2026-11-04 (`DESPLIEGUE.md` §8).
 - [ ] **Pruebas físicas:** exportar e importar XMI con Enterprise Architect, generar el Flutter y usarlo sin red en un dispositivo, recibir una notificación en un celular físico, Android o iPhone con la página agregada a Inicio (en un emulador de Android, en el simulador de iPhone y en Chrome ya se vio) y trabajar con tres personas reales en tres navegadores sobre el sitio desplegado.
-- [ ] **Revisar el PDF página por página** e imprimir las dos carátulas.
+- [ ] **Revisar el PDF página por página** e imprimir la carátula (una sola, con los códigos QR de GitHub y del sitio desplegado).
 - [ ] **Confirmar con el docente** si hay presentación oral y qué día.
 - [ ] **Ensayar la demostración** con las personas reales (`DEMO.md`), cada una en su propio navegador o perfil.
 - [ ] **Subir a la plataforma** `Informe.pdf`, `Informe.docx` y `modelo.qea` antes del martes 2026-11-10 a las 8 a.m. (idealmente la noche del 9).
