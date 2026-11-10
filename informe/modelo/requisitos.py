@@ -397,6 +397,14 @@ REQUISITOS_ADICIONALES = [
      "después de los primeros diagramas, y se modeló después: tiene su colaboración de análisis (COL-19) y su realización de diseño, con las clases "
      "`LoginPage`, `AuthService`, `auth`, `rooms`, `MyDiagrams` y `ShareDialog` (secciones 2.2 y 2.3).",
      "Pruebas de acceso, roles y WebSocket (`collab/tests/test_auth.py`, `test_room_access.py`, `test_auth_websocket.py`, `uml_api/tests/test_auth_api.py`) y de la interfaz (`auth.service.spec.ts`, `room.guards.spec.ts`, `my-diagrams.spec.ts`, `share-dialog.spec.ts`)"),
+    ("RA-08", "Chat de la sala, Uma, holograma y líneas movibles",
+     "El chat de la sala es de las personas: un mensaje escrito al equipo llega a todas en vivo, sin recargar (un aviso por el WebSocket hace que cada navegador lo "
+     "vuelva a leer), y no pasa por la IA. La IA de la sala se llama Uma y solo responde cuando el mensaje empieza con su nombre. Lo que propone se dibuja sobre "
+     "el diagrama como un holograma (trazo punteado: morado lo nuevo, ámbar lo que se agrega a una clase, rojo lo que se eliminaría) hasta que la persona lo aplique o "
+     "lo descarte, sin entrar al diagrama. Las líneas de relación se mueven a mano con asas en sus tramos y vuelven al trazado automático con un doble clic. Es "
+     "transversal a los casos de uso 3, 7 y 9; se construyó el 10 de noviembre, después de los diagramas del segundo parcial, por lo que su detalle está en el manual "
+     "(3.2 y 3.5) y en este requisito, y no en las realizaciones de análisis y diseño.",
+     "Pruebas del chat entre personas, del nombre de la IA y de la propuesta (`uml_api/tests/test_chat_sala_api.py`, `test_chat_intent.py`, `test_chat_unico_api.py`) y de la interfaz (`ia-chat-panel.spec.ts`, `hologram.util.spec.ts`, `link-look.util.spec.ts`, `diagram.service.spec.ts`)"),
     ("RA-06", "Bases de datos adecuadas a cada dato",
      "PostgreSQL guarda lo relacional (participantes, topes de uso, respaldo del diagrama, personas y acceso de cada sala); MongoDB, la conversación y la actividad, que son "
      "documentos que solo se agregan; Redis, el estado efímero de la sala (quién está y en qué orden).",
