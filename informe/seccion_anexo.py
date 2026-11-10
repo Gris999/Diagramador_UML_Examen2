@@ -17,6 +17,7 @@ TITULO_ESTANDARES = "Anexo A. Estándares de codificación"
 TITULO_DETALLE = "Detalle del análisis, del diseño y de la implementación"
 TITULO_PRUEBAS = "Pruebas: plan, procedimientos y resultados"
 TITULO_VALIDACION = "Anexo C. Validación, verificación y auditoría"
+TITULO_HOJA = "Anexo D. Hoja del segundo examen parcial"
 
 
 def estandares():
@@ -55,8 +56,15 @@ def validacion():
     return "\n".join([f"# {TITULO_VALIDACION}\n", _bajar(seccion_validacion.generar_anexo())])
 
 
-# Los anexos del informe son A (estándares), B (reentrenamiento de la IA, de `docs/REENTRENAMIENTO_IA.md`) y C (validación, verificación y auditoría), como en los informes de
+def hoja():
+    """La hoja escrita a mano del segundo examen parcial (foto en `recursos/hoja-examen.jpg`), como la última página de los anexos de los informes de referencia."""
+    return "\n".join([f"# {TITULO_HOJA}\n",
+                      "Hoja del segundo examen parcial del equipo, con la propuesta de agregar un generador automático de Flutter a la herramienta CASE colaborativa.\n",
+                      "![Hoja del segundo examen parcial](recursos/hoja-examen.jpg)\n"])
+
+
+# Los anexos del informe son A (estándares), B (reentrenamiento de la IA, de `docs/REENTRENAMIENTO_IA.md`), C (validación, verificación y auditoría) y D (la hoja del examen), como en los informes de
 # referencia, que solo llevan los estándares de codificación. `detalle` y `pruebas` generan el detalle del análisis, del diseño y de la implementación y el plan y los
 # resultados de las pruebas; no se incluyen en el informe por decisión del equipo (demasiado para un anexo), pero siguen disponibles aquí.
-ANEXOS = [(TITULO_ESTANDARES, estandares), (TITULO_VALIDACION, validacion)]
+ANEXOS = [(TITULO_ESTANDARES, estandares), (TITULO_VALIDACION, validacion), (TITULO_HOJA, hoja)]
 ANEXOS_OPCIONALES = [(TITULO_DETALLE, detalle), (TITULO_PRUEBAS, pruebas)]

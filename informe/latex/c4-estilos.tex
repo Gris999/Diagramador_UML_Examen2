@@ -1,0 +1,32 @@
+% Estilos del modelo C4 para TikZ (colores y formas de C4). Los tres diagramas del informe los cargan con \input.
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,fit,backgrounds}
+\renewcommand{\familydefault}{\sfdefault}
+\hyphenpenalty=10000 \exhyphenpenalty=10000 % sin guiones al partir las palabras en las cajas
+
+\definecolor{c4persona}{HTML}{08427B}   \definecolor{c4personab}{HTML}{073B6F}
+\definecolor{c4sistema}{HTML}{1168BD}   \definecolor{c4sistemab}{HTML}{0B4884}
+\definecolor{c4externo}{HTML}{999999}   \definecolor{c4externob}{HTML}{6B6B6B}
+\definecolor{c4cont}{HTML}{438DD5}      \definecolor{c4contb}{HTML}{3C7FC0}
+\definecolor{c4comp}{HTML}{85BBF0}      \definecolor{c4compb}{HTML}{78A8D8}
+
+% \elem{Nombre}{[Tipo: tecnología]}{Descripción}: el texto de un elemento en tres líneas, como en C4.
+\newcommand{\elem}[3]{\textbf{#1}\\[1pt]{\scriptsize #2}\if\relax\detokenize{#3}\relax\else\\[3pt]{\scriptsize #3}\fi}
+
+\tikzset{
+  c4box/.style={draw, rounded corners=4pt, align=center, inner sep=5pt, text=white, font=\sffamily\small,
+                text width=3.1cm, minimum height=2.0cm},
+  persona/.style={c4box, fill=c4persona, draw=c4personab},
+  sistema/.style={c4box, fill=c4sistema, draw=c4sistemab},
+  externo/.style={c4box, fill=c4externo, draw=c4externob},
+  contenedor/.style={c4box, fill=c4cont, draw=c4contb},
+  componente/.style={c4box, fill=c4comp, draw=c4compb, text=black},
+  basedatos/.style={contenedor, shape=cylinder, shape border rotate=90, aspect=0.16, minimum height=2.4cm},
+  limite/.style={draw=c4externob, dashed, rounded corners=6pt, inner sep=0.45cm},
+  rel/.style={-{Stealth[length=2.4mm,width=1.9mm]}, line width=0.7pt, color=black!70},
+  etq/.style={fill=white, inner sep=1.5pt, align=center, font=\sffamily\scriptsize, text=black!85},
+}
+
+% Cabeza de una persona (se dibuja detrás de su caja): \cabeza{nombre de la caja}
+\newcommand{\cabeza}[1]{\begin{scope}[on background layer]\node[circle, fill=c4persona, draw=c4personab, minimum size=0.9cm] at ([yshift=0.18cm]#1.north) {};\end{scope}}
