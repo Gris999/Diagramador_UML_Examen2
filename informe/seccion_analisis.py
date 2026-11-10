@@ -75,45 +75,31 @@ def _ficha_clase(c):
              ("ATRIBUTOS", _atributos(c)),
              ("RELACIONES", _relaciones(c["clave"])),
              ("REQUISITOS ESPECIALES", _lista(c["espec"])),
-             ("EN EL SOFTWARE", f"{c['estado'].capitalize()}: {c['donde']}")]
+             ("EN EL SOFTWARE", c["donde"])]
     return "\n".join(["| | |", "|---|---|"] + [f"| **{k}** | {v} |" for k, v in filas]) + "\n"
-
-
-def _tabla_trazabilidad():
-    filas = ["| Clase del análisis | Estereotipo | Paquete | Estado | Dónde vive en el software |", "|---|---|---|---|---|"]
-    for p in A.PAQUETES:
-        for c in A.clases_de_paquete(p["id"]):
-            filas.append(f"| {c['nombre']} | {c['est']} | {p['nombre']} | {c['estado']} | {c['donde']} |")
-    return "\n".join(filas) + "\n"
 
 
 def generar():
     A.validar(R)
-    md = ["## 2.2 Análisis\n",
+    md = ["## 2.2 Flujo de trabajo: análisis\n",
           "El análisis refina cada caso de uso en términos de clases y objetos que colaboran, sin pensar todavía en el lenguaje ni en las "
           "tecnologías: se ocupa de los requisitos funcionales y deja los demás, que aquí se llaman requisitos especiales, para el diseño. "
           f"El modelo de análisis tiene {len(A.PAQUETES)} paquetes (dos de ellos de servicio), {len(A.CLASES)} clases y "
           f"{len(A.COLABORACIONES)} colaboraciones que realizan los {len(R.CASOS)} casos de uso. Cada clase es de interfaz (lo que depende de "
           "un actor), de control (la coordinación de un caso de uso) o de entidad (la información que perdura), y sus responsabilidades no se escribieron a "
-          "mano: son los mensajes que recibe en las colaboraciones. Como el modelo manda y el software debe seguirlo, la sección 2.2.4 dice dónde "
-          "vive hoy cada clase en el código y qué clases son nuevas o cambian en este parcial.\n"]
+          "mano: son los mensajes que recibe en las colaboraciones.\n"]
 
-    # ---- 2.2.1 arquitectura
+    # ---- 2.2.1 análisis de la arquitectura
     md += ["### 2.2.1 Análisis de la arquitectura\n",
-           "#### Paquetes del análisis\n",
+           "#### 2.2.1.1 Identificar paquetes\n",
            "Los paquetes agrupan los casos de uso por el actor que los usa, por el proceso del que forman parte o por la relación entre ellos "
            "(generalización o extensión). Las clases de entidad que casi todos necesitan se extraen a un paquete propio (el núcleo de la sala) y "
            "lo opcional va en paquetes de servicio, que se entregan o se quitan enteros.\n",
            _tabla_paquetes(),
+           "#### 2.2.1.2 Relacionar paquetes y casos de uso\n",
+           "Cada paquete se relaciona con los casos de uso que sus clases realizan.\n",
            _uml_respaldo("an-paquetes", "Paquetes del análisis y casos de uso que realizan"),
-           "#### Dependencias entre paquetes y capas\n",
-           "Las dependencias salen de los mensajes y asociaciones de las colaboraciones: un paquete depende de otro si alguna de sus clases usa una "
-           "clase del otro. Se buscó cohesión alta y acoplamiento bajo, y no hay ciclos: el modelo se ordena en una capa general (el núcleo de la "
-           "sala y la edición del diagrama) y una capa específica de la aplicación que descansa sobre ella. Los paquetes de servicio dependen "
-           "como parte del paquete que los contiene.\n",
-           _dependencias(),
-           _uml_respaldo("an-dependencias", "Dependencias entre los paquetes del análisis"),
-           "#### Requisitos especiales comunes\n",
+           "#### 2.2.1.3 Requisitos especiales comunes\n",
            "El arquitecto identifica los requisitos que atraviesan varias clases para que las realizaciones y las clases los citen y el diseño "
            "los resuelva una sola vez.\n",
            "| ID | Requisito especial | Qué exige |", "|---|---|---|"]
@@ -125,31 +111,16 @@ def generar():
     md += [f"| {' | '.join(fila)} |" for fila in A.PERSISTENCIA]
     md.append("")
 
-    # ---- 2.2.2 clases por paquete
-    md += ["### 2.2.2 Clases del análisis por paquete\n",
-           "Cada paquete se muestra con sus clases y atributos (que llevan tipos conceptuales, no de un lenguaje); las asociaciones con "
-           "multiplicidad están en el diagrama de clases participantes de cada realización (sección 2.2.3) y en la ficha de cada clase. Las "
-           "responsabilidades de cada ficha son las de las colaboraciones, que se citan entre corchetes.\n"]
-    for p in A.PAQUETES:
-        if p["padre"]:
-            continue
-        servicios = [q for q in A.PAQUETES if q["padre"] == p["id"]]
-        md += [f"#### Paquete {p['nombre']}\n", f"{p['por_que']}\n",
-               _uml_respaldo(f"an-pkg-{p['id']}", f"Clases del análisis del paquete {p['nombre']}")]
-        md += [_ficha_clase(c) for c in A.clases_de_paquete(p["id"])]
-        for q in servicios:
-            md += [f"**Paquete de servicio {q['nombre']}.** {q['por_que']}\n"]
-            md += [_ficha_clase(c) for c in A.clases_de_paquete(q["id"])]
-
-    # ---- 2.2.3 realizaciones
-    md += ["### 2.2.3 Realización de los casos de uso: análisis\n",
+    # ---- 2.2.2 análisis de casos de uso
+    md += ["### 2.2.2 Análisis de casos de uso\n",
+           "#### 2.2.2.1 Diagramas de comunicación\n",
            "Cada caso de uso se realiza con una o más colaboraciones, una por cada flujo diferenciado. Todas empiezan con un mensaje de un actor "
            "a una clase de interfaz; los mensajes dicen para qué un objeto invoca a otro (no son operaciones) y los enlaces son instancias de las "
            "asociaciones del diagrama de clases participantes. El servicio de IA, que es un actor sistema externo, se comunica a través de su "
            "propia clase de interfaz. En los diagramas, cuando dos objetos intercambian mensajes en los dos sentidos comparten una sola línea y "
            "la flecha de texto «->» o «<-» dice el sentido.\n"]
     for numero_ciclo, titulo, codigos in R.CICLOS:
-        md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
+        md.append(f"##### Ciclo de vida #{numero_ciclo}\n")
         for cu in codigos:
             md.append(f"**{cu}: {R.CASOS[cu]['nombre']}.**\n")
             for col in A.colaboraciones_de(cu):
@@ -166,10 +137,28 @@ def generar():
                 if col["especiales"]:
                     md += ["Requisitos especiales de la realización:\n"] + [f"- {e}" for e in col["especiales"]] + [""]
 
-    # ---- 2.2.4 trazabilidad
-    md += ["### 2.2.4 Las clases del análisis en el software\n",
-           "El modelo manda: esta tabla dice, para cada clase del análisis, si ya existe en el código (y dónde), si cambia por alguno de los cambios "
-           "de este parcial (C1: conversación compartida con la IA; C2: avisos en la vista del celular; C3: MongoDB para la conversación y la "
-           "actividad) o si es nueva (C4: asistente de ayuda). La entidad Diagrama vive en el navegador (JointJS) y se respalda en el servidor.\n",
-           _tabla_trazabilidad()]
+    # ---- 2.2.3 análisis de clases
+    md += ["### 2.2.3 Análisis de clases\n",
+           "Cada paquete se muestra con sus clases y atributos (que llevan tipos conceptuales, no de un lenguaje); las asociaciones con "
+           "multiplicidad están en el diagrama de clases participantes de cada colaboración (sección 2.2.2) y en la ficha de cada clase. Las "
+           "responsabilidades de cada ficha son las de las colaboraciones, que se citan entre corchetes.\n"]
+    for p in A.PAQUETES:
+        if p["padre"]:
+            continue
+        servicios = [q for q in A.PAQUETES if q["padre"] == p["id"]]
+        md += [f"#### Paquete {p['nombre']}\n", f"{p['por_que']}\n",
+               _uml_respaldo(f"an-pkg-{p['id']}", f"Clases del análisis del paquete {p['nombre']}")]
+        md += [_ficha_clase(c) for c in A.clases_de_paquete(p["id"])]
+        for q in servicios:
+            md += [f"**Paquete de servicio {q['nombre']}.** {q['por_que']}\n"]
+            md += [_ficha_clase(c) for c in A.clases_de_paquete(q["id"])]
+
+    # ---- 2.2.4 análisis de paquetes
+    md += ["### 2.2.4 Análisis de paquetes\n",
+           "Las dependencias salen de los mensajes y asociaciones de las colaboraciones: un paquete depende de otro si alguna de sus clases usa una "
+           "clase del otro. Se buscó cohesión alta y acoplamiento bajo, y no hay ciclos: el modelo se ordena en una capa general (el núcleo de la "
+           "sala y la edición del diagrama) y una capa específica de la aplicación que descansa sobre ella. Los paquetes de servicio dependen "
+           "como parte del paquete que los contiene.\n",
+           _dependencias(),
+           _uml_respaldo("an-dependencias", "Dependencias entre los paquetes del análisis")]
     return "\n".join(md)

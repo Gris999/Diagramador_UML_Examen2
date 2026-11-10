@@ -70,7 +70,7 @@ def generar():
            "en el total. Un caso de uso puede tener más de una colaboración y una colaboración puede realizar más de un caso de uso (por ejemplo, COL-08 realiza CU7 y CU9).\n"]
 
     md += ["#### Requisitos del proyecto\n",
-           "Cada requisito de `docs/REQUIREMENTS.md` lo cubre un caso de uso o un requisito adicional (RA, sección 2.1.8) o es la documentación misma.\n",
+           "Cada requisito de `docs/REQUIREMENTS.md` lo cubre un caso de uso o un requisito adicional (RA, sección 2.6.3) o es la documentación misma.\n",
            "| Requisito | Qué pide | Lo cubre |", "|---|---|---|"]
     md += [f"| {i} | {g} | {c} |" for i, g, c in T.requisitos_del_proyecto()]
     md.append("")
@@ -89,12 +89,13 @@ def generar():
     for atributo, exige, como, refs in T.calidad():
         nombres = "<br>".join(f"{P.NOMBRE_PILA[p]}: `{a.split('/')[-1]}` · {n.split('.')[-1] if p != 'front' else n}" for p, a, n in refs)
         md.append(f"| {atributo} | {exige} | {como} | {nombres} |")
-    md += ["", "Los requisitos adicionales del modelo de requisitos (sección 2.1.8) se demuestran así:\n", "| Requisito adicional | Evidencia |", "|---|---|"]
+    md += ["", "**Requisitos adicionales.** Son los requisitos no funcionales que no se pueden asociar a un caso de uso en particular (los que sí, están en la ficha de su "
+           "caso de uso). Cada uno se demuestra así:\n", "| ID | Requisito | Descripción | Evidencia |", "|---|---|---|---|"]
     for ra in R.REQUISITOS_ADICIONALES:
         texto, refs, archivos = T.EVIDENCIA_RA[ra[0]]
         pruebas = "; ".join(f"`{n.split('.')[-1] if p != 'front' else n}`" for p, a, n in refs)
         files = ("; archivos: " + ", ".join(f"`{x}`" for x in archivos)) if archivos else ""
-        md.append(f"| {ra[0]}: {ra[1]} | {texto} Pruebas: {pruebas}{files}. |")
+        md.append(f"| {ra[0]} | {ra[1]} | {ra[2]} | {texto} Pruebas: {pruebas}{files}. |")
     md.append("")
 
     md += ["### 2.6.4 Verificación: del documento al software\n",
@@ -109,7 +110,7 @@ def generar():
            f"| Diagramas de secuencia | {ver['escenarios']} | Cada uno es un escenario de una realización |",
            f"| Mensajes de secuencia | {ver['mensajes']} | Cada mensaje es una operación que existe en la clase que lo recibe ({ver['operaciones']} operaciones distintas; {ver['externos']} mensajes marcados como del navegador o de un producto externo no se comprueban) |",
            f"| Dependencias entre subsistemas | — | Las mismas que entre los paquetes del análisis, sin ciclos |", "",
-           "El docente pidió que «el diagrama de secuencia debe estar relacionado con el software»: aquí lo está en cada mensaje. Esta comprobación encontró discrepancias que se corrigieron "
+           "Cada diagrama de secuencia está relacionado con el software: lo está en cada mensaje. Esta comprobación encontró discrepancias que se corrigieron "
            "(sección 2.6.6), por ejemplo una colección de MongoDB que el diseño llamaba de otra manera y un camino de CU9 (analizar la consistencia del modelo) que no tenía diagrama de secuencia.\n"]
 
     md += ["### 2.6.5 Verificación: del software al documento\n",
@@ -146,7 +147,7 @@ def generar():
            "| Dato | Valor |", "|---|---|",
            f"| Repositorio en GitHub (`origin`) | {aud['remotos'].get('origin', '—').removesuffix('.git')} |",
            f"| Repositorio del que se partió (`upstream`) | {aud['remotos'].get('upstream', '—').removesuffix('.git')} |",
-           f"| Línea base del primer parcial | etiqueta `{aud['base']['etiqueta']}`, commit `{aud['base']['commit']}` ({aud['base']['fecha']}) |",
+           f"| Línea base | etiqueta `{aud['base']['etiqueta']}`, commit `{aud['base']['commit']}` ({aud['base']['fecha']}) |",
            f"| Etiquetas | {', '.join(f'`{e}`' for e in aud['etiquetas'])} |",
            f"| Ramas locales | {', '.join(f'`{r}`' for r in aud['ramas'])} |",
            f"| Commits en total y desde la línea base | {aud['commits_total']} y {aud['desde_base']} |",
@@ -157,7 +158,7 @@ def generar():
            "una revisión automática que compara el cambio con las reglas de `AGENTS.md` y lo rechaza si las incumple; las pruebas se ejecutan antes de dar un trabajo por terminado.\n"]
     sin_revision = _git("log", "--fixed-strings", "--grep=without the automatic review", "--date=short", "--pretty=format:%h (%ad)").splitlines()
     if sin_revision:
-        md += ["**Excepciones registradas.** La cuota del servicio de la revisión automática se agotó durante la preparación de este documento. Por eso "
+        md += ["**Excepciones registradas.** La cuota del servicio de la revisión automática se agotó durante el desarrollo. Por eso "
                f"{'un commit entró' if len(sin_revision) == 1 else f'{len(sin_revision)} commits entraron'} sin esa revisión, con autorización expresa de quien dirige el proyecto, y "
                f"{'su mensaje lo dice' if len(sin_revision) == 1 else 'sus mensajes lo dicen'}: " + ", ".join(f"`{x}`" for x in sin_revision) + ". Tenían sus pruebas en verde.\n"]
 

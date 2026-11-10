@@ -76,13 +76,13 @@ def tabla_priorizacion(codigos):
 
 def generar():
     R.validar()
-    md = ["# 2. Registro del proceso de desarrollo de software (PUDS)\n",
+    md = ["# 2. Proceso de desarrollo\n",
           "Este capítulo registra cómo se aplicó el Proceso Unificado de Desarrollo de Software a la herramienta CASE colaborativa. El proceso "
           "no pide inventar nada: establece un flujo de trabajo (requisitos, análisis, diseño, implementación y pruebas) que se repite en cada "
-          "ciclo de vida. Como el segundo parcial reúne todo lo construido, el documento recorre **cuatro ciclos de vida**: los ciclos 1 a 3 son la "
-          "herramienta del primer parcial (con lo que cambió) y el **ciclo 4 es lo nuevo del segundo parcial**: la inteligencia artificial como un "
-          "integrante más de la sala, la actividad del equipo, el seguimiento desde el celular y el asistente de ayuda. Todos los diagramas siguen "
-          "la notación UML 2.5.1 y están hechos en Enterprise Architect.\n",
+          "ciclo de vida. El documento recorre **cuatro ciclos de vida**: los ciclos 1 a 3 construyen la herramienta CASE colaborativa (la sala, el "
+          "diagrama, la edición en equipo, la IA que modifica el modelo, el intercambio y los generadores) y el **ciclo 4** suma la inteligencia "
+          "artificial como un integrante más de la sala, la actividad del equipo, el seguimiento desde el celular y el asistente de ayuda. Todos los "
+          "diagramas siguen la notación UML 2.5.1 y están hechos en Enterprise Architect.\n",
           "## 2.1 Captura de requisitos\n",
           "**Visión del proyecto.** Modelar un sistema con UML suele hacerse de forma individual y en herramientas de escritorio, y pasar del modelo "
           "al código es un trabajo manual. Cuando varias personas diseñan a la vez se pierde la visión de quién cambió qué, y la inteligencia "
@@ -97,7 +97,7 @@ def generar():
           "deja sus ideas a la vista.",
           "- Permitir retomar el trabajo en otra sesión, seguirlo desde el celular y aprender a usar la herramienta con un asistente.",
           "- Intercambiar modelos con Enterprise Architect y ofrecer una IA local reentrenada, sin internet.\n",
-          "**Alcance.** Incluye todo lo anterior, el despliegue en AWS con HTTPS y, agregado después de congelar los diagramas (4 de noviembre), el acceso con el correo: cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o cualquiera con el enlace) y una lista «Mis diagramas» (RA-07). No incluye contraseñas ni recuperación de cuenta, ni la edición desde la vista del celular.\n"]
+          "**Alcance.** Incluye todo lo anterior, el despliegue en AWS con HTTPS y el acceso con el correo: cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o cualquiera con el enlace) y una lista «Mis diagramas» (RA-07). No incluye contraseñas ni recuperación de cuenta, ni la edición desde la vista del celular.\n"]
 
     # 2.1.1 actores
     md += ["### 2.1.1 Actores\n",
@@ -145,8 +145,7 @@ def generar():
            "Los casos de uso se estructuran con relaciones de uso (`include`: secuencias comunes), de extensión (`extend`: comportamiento opcional) y "
            "generalizaciones. Se agregan solo cuando hay algo que factorizar. Aquí hay una generalización de actores (el Diseñador es un Colaborador "
            "con un permiso más, el de expulsar) y una extensión: aplicar una idea que publicó la IA en una revisión (CU9) ejecuta el cambio de CU7. "
-           "«Estar en una sala» es una precondición de casi todos los casos, no una inclusión. En los diagramas, los casos en amarillo son los nuevos "
-           "del segundo parcial y los grises son de otro ciclo y solo se muestran por una relación.\n"]
+           "«Estar en una sala» es una precondición de casi todos los casos, no una inclusión. En los diagramas, los casos en gris son de otro ciclo y solo se muestran por una relación.\n"]
     md += ["Una extensión indica a qué caso de uso se le agrega el comportamiento, bajo qué condición y en qué punto de extensión:\n",
            "| Extensión | Caso de uso extendido | Condición | Punto de extensión |", "|---|---|---|---|"]
     md += [f"| {o}: {R.CASOS[o]['nombre']} | {d}: {R.CASOS[d]['nombre']} | {_mayuscula(R.CONDICION_EXTENSION[(o, d)])} | {punto} |"
@@ -156,30 +155,4 @@ def generar():
         md += [f"#### Ciclo de vida #{numero_ciclo}\n", _uml_respaldo(f"uc-ciclo-{numero_ciclo}", f"Casos de uso del ciclo de vida {numero_ciclo}")]
     md += ["#### Modelo completo (ciclos 1 a 4)\n", _uml_respaldo("uc-modelo", "Modelo de casos de uso completo")]
 
-    # 2.1.6 prototipo
-    md += ["### 2.1.6 Prototipo de interfaz de usuario\n",
-           "Pantallas reales de la aplicación para cada caso de uso que las tiene, como prototipo de lo que ve cada actor.\n"]
-    mostradas = set()
-    numero_figura = 0
-    for codigo in sorted(R.CASOS, key=R.numero):
-        pantalla = R.CASOS[codigo]["pantalla"]
-        if not pantalla or pantalla in mostradas:
-            continue
-        mostradas.add(pantalla)
-        numero_figura += 1
-        usados = [c for c in sorted(R.CASOS, key=R.numero) if R.CASOS[c]["pantalla"] == pantalla]
-        md += [f"![Pantalla de {', '.join(usados)}](capturas/{pantalla})",
-               f"*Figura 2.{numero_figura}. Pantalla de {', '.join(usados)}.*\n"]
-
-    # 2.1.7 glosario
-    md += ["### 2.1.7 Glosario\n", "| Término | Significado |", "|---|---|"]
-    md += [f"| **{t}** | {d} |" for t, d in R.GLOSARIO]
-    md.append("")
-
-    # 2.1.8 requisitos adicionales
-    md += ["### 2.1.8 Requisitos adicionales\n",
-           "Son los requisitos no funcionales que no se pueden asociar a un caso de uso en particular; los que sí, están en la ficha de su caso de uso.\n",
-           "| ID | Requisito | Descripción | Verificación |", "|---|---|---|---|"]
-    md += [f"| {i} | {n} | {d} | {v} |" for i, n, d, v in R.REQUISITOS_ADICIONALES]
-    md.append("")
     return "\n".join(md)

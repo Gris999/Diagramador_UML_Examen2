@@ -107,7 +107,7 @@ CASOS = {
     "CU5": dict(
         nombre="Retomar el trabajo en otra sesión", actores=["A1", "A2"], ciclo=1, origen="Primer parcial (guardar y recuperar), ampliado",
         prioridad="crítico", riesgo="significativo", estado="validado", rf=["RF-10", "RF-11", "RF-31"],
-        motivo="El ingeniero exigió persistencia obligatoria: lo avanzado hoy se continúa mañana con todo registrado.",
+        motivo="Exige persistencia: lo avanzado hoy se continúa mañana con todo registrado.",
         proposito="Continuar el trabajo donde se quedó, con el diagrama, la actividad de la sala y la conversación con la IA.",
         precondicion="El actor ya participó en esa sala desde el mismo navegador.",
         flujo=["El actor vuelve a abrir la sala con su código (CU1).",
@@ -308,7 +308,7 @@ CASOS = {
     "CU13": dict(
         nombre="Mantenerse informado desde el celular", actores=["A1", "A2"], ciclo=4, origen="Nuevo",
         prioridad="importante", riesgo="ordinario", estado="aprobado", rf=["RF-32", "RF-34"],
-        motivo="Lo pidió el ingeniero para quien está viajando: informarse de lo que pasa sin tener que editar.",
+        motivo="Sirve a quien está viajando: informarse de lo que pasa sin tener que editar.",
         proposito="Ver en vivo cómo cambia el diagrama y qué hace el equipo desde el celular, en solo lectura, y recibir avisos de lo importante.",
         precondicion="El actor tiene el enlace de seguimiento de la sala.",
         flujo=["En el editor, el actor pulsa «Compartir», luego «Copiar enlace para seguir desde el celular», y lo abre en el teléfono.",
@@ -327,7 +327,7 @@ CASOS = {
     "CU14": dict(
         nombre="Aprender a usar la herramienta con el asistente de ayuda", actores=["A1", "A2", "A3"], ciclo=4, origen="Nuevo",
         prioridad="secundario", riesgo="ordinario", estado="aprobado", rf=["RF-35"],
-        motivo="El ingeniero pidió un mecanismo para que el usuario aprenda a usar la herramienta sin problema: un asistente de IA que conozca el proyecto.",
+        motivo="Es el mecanismo para que el usuario aprenda a usar la herramienta sin problema: un asistente de IA que conoce el proyecto.",
         proposito="Resolver una duda de uso («¿cómo exporto el diagrama?») preguntándole a un asistente de IA que conoce el manual y las funciones.",
         precondicion="Ninguna: está disponible desde la página principal y dentro de la sala.",
         flujo=["El actor abre «Ayuda».",
@@ -348,7 +348,7 @@ CICLOS = [
     (1, "Base del lienzo: entrar, modelar y retomar", ["CU1", "CU2", "CU5"]),
     (2, "Colaboración, control de la sala y entrada con IA", ["CU3", "CU4", "CU7", "CU8"]),
     (3, "Intercambio y generación de código", ["CU10", "CU11", "CU12"]),
-    (4, "La IA como integrante, actividad, celular y ayuda (nuevo en el segundo parcial)", ["CU6", "CU9", "CU13", "CU14"]),
+    (4, "La IA como integrante, actividad, celular y ayuda", ["CU6", "CU9", "CU13", "CU14"]),
 ]
 
 # Relaciones entre casos de uso. Solo se declara lo que cumple la regla: extend = comportamiento opcional de otro caso.
@@ -374,7 +374,7 @@ PORQUE_SIGNIFICATIVOS = {
 # ---- requisitos adicionales (no asociables a un caso de uso: PUDS p. 28) -------------------------------------
 REQUISITOS_ADICIONALES = [
     ("RA-01", "IA local reentrenada",
-     "El ingeniero la pidió como extra valorable, no obligatoria. Un modelo abierto (Qwen) reentrenado con LoRA se sirve con Ollama y reemplaza "
+     "Es un extra no obligatorio. Un modelo abierto (Qwen) reentrenado con LoRA se sirve con Ollama y reemplaza "
      "a Gemini sin cambiar lo que ve el usuario; el proveedor se elige con una variable del servidor.",
      "Anexos A y B"),
     ("RA-02", "Conversación única de la sala",
@@ -393,17 +393,15 @@ REQUISITOS_ADICIONALES = [
     ("RA-07", "Acceso con el correo, invitaciones, roles y «Mis diagramas»",
      "Se entra con el correo y un código de 6 dígitos, sin contraseña. Cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o "
      "cualquiera con el enlace como lector o editor) y aparece en la lista «Mis diagramas» de cada persona. El servidor lo exige en la API y en el "
-     "WebSocket; el celular solo ve. Es transversal: condiciona todos los casos de uso, por eso no es un caso propio. Se construyó el 8 y 9 de noviembre, "
-     "después de los primeros diagramas, y se modeló después: tiene su colaboración de análisis (COL-19) y su realización de diseño, con las clases "
-     "`LoginPage`, `AuthService`, `auth`, `rooms`, `MyDiagrams` y `ShareDialog` (secciones 2.2 y 2.3).",
+     "WebSocket; el celular solo ve. Es transversal: condiciona todos los casos de uso, por eso no es un caso propio. Tiene su colaboración de análisis (COL-19) y "
+     "su realización de diseño, con las clases `LoginPage`, `AuthService`, `auth`, `rooms`, `MyDiagrams` y `ShareDialog` (secciones 2.2 y 2.3).",
      "Pruebas de acceso, roles y WebSocket (`collab/tests/test_auth.py`, `test_room_access.py`, `test_auth_websocket.py`, `uml_api/tests/test_auth_api.py`) y de la interfaz (`auth.service.spec.ts`, `room.guards.spec.ts`, `my-diagrams.spec.ts`, `share-dialog.spec.ts`)"),
     ("RA-08", "Chat de la sala, Uma, holograma y líneas movibles",
      "El chat de la sala es de las personas: un mensaje escrito al equipo llega a todas en vivo, sin recargar (un aviso por el WebSocket hace que cada navegador lo "
      "vuelva a leer), y no pasa por la IA. La IA de la sala se llama Uma y solo responde cuando el mensaje empieza con su nombre. Lo que propone se dibuja sobre "
      "el diagrama como un holograma (trazo punteado: morado lo nuevo, ámbar lo que se agrega a una clase, rojo lo que se eliminaría) hasta que la persona lo aplique o "
      "lo descarte, sin entrar al diagrama. Las líneas de relación se mueven a mano con asas en sus tramos y vuelven al trazado automático con un doble clic. Es "
-     "transversal a los casos de uso 3, 7 y 9; se construyó el 10 de noviembre, después de los diagramas del segundo parcial, por lo que su detalle está en el manual "
-     "(3.2 y 3.5) y en este requisito, y no en las realizaciones de análisis y diseño.",
+     "transversal a los casos de uso 3, 7 y 9; su detalle de uso está en el manual (secciones 3.2 y 3.5).",
      "Pruebas del chat entre personas, del nombre de la IA y de la propuesta (`uml_api/tests/test_chat_sala_api.py`, `test_chat_intent.py`, `test_chat_unico_api.py`) y de la interfaz (`ia-chat-panel.spec.ts`, `hologram.util.spec.ts`, `link-look.util.spec.ts`, `diagram.service.spec.ts`)"),
     ("RA-06", "Bases de datos adecuadas a cada dato",
      "PostgreSQL guarda lo relacional (participantes, topes de uso, respaldo del diagrama, personas y acceso de cada sala); MongoDB, la conversación y la actividad, que son "
