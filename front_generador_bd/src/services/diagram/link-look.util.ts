@@ -201,9 +201,12 @@ export function orthogonalRoute(from: Point, fromSide: Side, to: Point, toSide: 
 
 /**
  * El ruteo de las relaciones para JointJS (`defaultRouter` del lienzo): usa los mismos lados que `umlSideAnchor`, así que la línea sale
- * siempre por el lado que mira a la otra clase. Sin dos clases distintas en los extremos no dibuja esquinas.
+ * siempre por el lado que mira a la otra clase. Sin dos clases distintas en los extremos no dibuja esquinas. Una línea que la persona movió
+ * a mano (con vértices) se dibuja por ellos.
  */
-export function umlRouter(this: any, _vertices: unknown): Point[] {
+export function umlRouter(this: any, vertices: unknown): Point[] {
+  // Si la persona movió la línea a mano (hay vértices guardados), se respeta tal cual; doble clic en la línea la devuelve al trazado automático.
+  if (Array.isArray(vertices) && vertices.length > 0) return vertices.map((vertex: Point) => ({ x: vertex.x, y: vertex.y }));
   const linkView = this;
   const link = linkView?.model;
   const source = link?.getSourceElement?.();

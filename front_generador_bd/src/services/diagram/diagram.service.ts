@@ -9,6 +9,7 @@ import { UmlValidationService } from '../colaboration/uml-validation.service';
 import { BackupService } from '../exports/backup.service';
 import { isManyToManyLabels, junctionElementId, junctionDisplayName, associationClassLinkId } from './junction-naming.util';
 import { findAssociationClassAttachments, resolveAssociationClassesForGenerators, RelationshipLike } from './association-class.util';
+import { planHologram, renderHologram } from './hologram.util';
 import { defaultLabels, endLabel, isOldDefaultLabel, umlRouter, umlSideAnchor, upgradeLabel } from './link-look.util';
 
 /** Una relación de una clase consigo misma (recursiva) conserva su ruteo de siempre: da un lazo alrededor de la clase. */
@@ -85,7 +86,11 @@ export class DiagramService {
         height: 600,
         gridSize: 10,
         drawGrid: true,
-        interactive: this.readOnly ? false : { elementMove: true, addLinkFromMagnet: true },
+        // JointJS agrega un vértice a una línea con solo hacer clic en ella (y la mueve entera al arrastrarla): eso se apaga, porque el trazado
+        // lo mueve la persona con las asas de `showLinkTools` y no a ciegas.
+        interactive: this.readOnly
+          ? false
+          : { elementMove: true, addLinkFromMagnet: true, vertexAdd: false, vertexMove: false, vertexRemove: false, linkMove: false },
         background: { color: '#f8f9fa' },
         defaultConnector: { name: 'rounded' },
         // Las relaciones salen por el lado que mira a la otra clase y se recalculan cada vez que algo se mueve (ver `link-look.util`).
@@ -375,6 +380,11 @@ export class DiagramService {
           });
         }
       });
+      //👉 Clic en una relación: aparecen asas en sus tramos para moverla a mano (doble clic en la línea la devuelve al trazado automático)
+      this.paper.on('link:pointerclick', (linkView: any, evt: MouseEvent) => {
+        if (linkView.model.get('name') !== 'Relacion' || this.getClickedLabelIndex(linkView, evt) !== null) return;
+        this.showLinkTools(linkView);
+      });
       //👉 Deselect al hacer click en el fondo
       this.paper.on('blank:pointerclick', () => this.clearSelection());
       this.paper.on('cell:pointerdblclick', (cellView: any, _evt: any, x: number, y: number) => {
@@ -396,7 +406,10 @@ export class DiagramService {
         const model = linkView.model;
         if (model.get('name') !== 'Relacion') return;
         const labelIndex = this.getClickedLabelIndex(linkView, evt);
-        if (labelIndex === null) return;
+        if (labelIndex === null) {
+          this.resetLinkRoute(linkView);
+          return;
+        }
         const label = model.label(labelIndex);
         const currentValue = label?.attrs?.text?.text || '';
         this.edition.startEditingLabel(model, this.paper, labelIndex, currentValue, x, y, this.collab, this.graph);
@@ -664,6 +677,7 @@ export class DiagramService {
   }
 
   clearSelection() {
+    this.paper?.removeTools?.();
     if (this.selectedCell?.isElement?.()) {
       this.selectedCell.attr('.uml-outer/stroke', '#2196f3');
       this.selectedCell.attr('.uml-outer/stroke-width', 2);
@@ -672,6 +686,48 @@ export class DiagramService {
       });
     }
     this.selectedCell = null;
+  }
+
+  /**
+   * Muestra las asas para mover los tramos de la relación. Si la línea todavía se traza sola, antes se fija su trazado actual como vértices
+   * (así lo que se ve es lo que se mueve); desde ese momento la línea respeta lo que la persona le haga, y se sincroniza con la sala.
+   */
+  private showLinkTools(linkView: any): void {
+    if (!this.paper || !this.joint) return;
+    this.clearSelection(); // deja de resaltar la clase elegida y quita las asas de otra relación
+    const model = linkView.model;
+    const route = Array.isArray(linkView.route) ? linkView.route : [];
+    if (!(model.vertices?.() ?? []).length && route.length > 0) {
+      model.vertices(route.map((point: any) => ({ x: Math.round(point.x), y: Math.round(point.y) })));
+    }
+    linkView.addTools(
+      new this.joint.dia.ToolsView({
+        tools: [new this.joint.linkTools.Segments({ snapRadius: 8, redundancyRemoval: true })]
+      })
+    );
+  }
+
+  /**
+   * Dibuja sobre el diagrama, en trazo punteado, lo que la IA propone (`changes`), sin tocarlo: no entra al grafo, así que no se sincroniza ni se
+   * guarda. Va dentro del `viewport` del lienzo para seguir al zoom y al desplazamiento. Se quita con `clearHologram`.
+   */
+  showHologram(changes: unknown): void {
+    this.clearHologram();
+    const viewport = this.paper?.viewport as SVGElement | undefined;
+    if (!viewport || typeof document === 'undefined') return;
+    const ghosts = planHologram(changes, this.exportToJson());
+    if (ghosts.length > 0) viewport.appendChild(renderHologram(ghosts));
+  }
+
+  clearHologram(): void {
+    (this.paper?.viewport as SVGElement | undefined)?.querySelectorAll?.('.hologram').forEach(node => node.remove());
+  }
+
+  /** Quita los vértices de la relación: vuelve a trazarse sola, esquivando las clases como antes. */
+  private resetLinkRoute(linkView: any): void {
+    const model = linkView.model;
+    linkView.removeTools();
+    if ((model.vertices?.() ?? []).length > 0) model.vertices([]);
   }
 
   // ========= Obtener índice de etiqueta clicada =========
@@ -2321,7 +2377,7 @@ export class DiagramService {
 
     // ❌ Eliminar elementos no deseados (handles, herramientas, puertos)
     svgElement.querySelectorAll(
-      '.marker-vertices, .marker-arrowheads, .link-tools, .tool, .connection-wrap'
+      '.marker-vertices, .marker-arrowheads, .link-tools, .tool, .connection-wrap, .hologram'
     ).forEach(el => el.remove());
 
     // Ajustar tamaño al contenido
