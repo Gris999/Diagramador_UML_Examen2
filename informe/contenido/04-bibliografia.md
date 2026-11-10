@@ -4,6 +4,8 @@ Bass, L., Clements, P., & Kazman, R. (2012). *Software architecture in practice*
 
 Beck, K. (2002). *Test-driven development: By example*. Addison-Wesley.
 
+Booch, G., Rumbaugh, J., & Jacobson, I. (1999). *The Unified Modeling Language user guide*. Addison-Wesley.
+
 Brown, S. (s. f.). *The C4 model for visualising software architecture*. https://c4model.com
 
 Cockburn, A. (2005). *Hexagonal architecture*. https://alistair.cockburn.us/hexagonal-architecture/
@@ -24,7 +26,11 @@ GitHub. (2025). *Spec Kit: Toolkit to help you get started with spec-driven deve
 
 Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., & Chen, W. (2021). *LoRA: Low-rank adaptation of large language models*. arXiv. https://arxiv.org/abs/2106.09685
 
+Jacobson, I. (1992). *Object-oriented software engineering: A use case driven approach*. Addison-Wesley.
+
 Jacobson, I., Booch, G., & Rumbaugh, J. (2000). *El proceso unificado de desarrollo de software*. Addison-Wesley.
+
+Kruchten, P. (1995). The 4+1 view model of architecture. *IEEE Software, 12*(6), 42–50.
 
 Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., Küttler, H., Lewis, M., Yih, W., Rocktäschel, T., Riedel, S., & Kiela, D. (2020). Retrieval-augmented generation for knowledge-intensive NLP tasks. En *Advances in Neural Information Processing Systems 33*. https://arxiv.org/abs/2005.11401
 
