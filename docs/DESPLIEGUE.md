@@ -1,6 +1,6 @@
 # Despliegue en AWS (EC2) con dominio y HTTPS
 
-Estado verificado el **2026-11-09** (con el segundo parcial, MongoDB Atlas, el acceso con el correo con cuentas recordadas, las invitaciones, los roles, «Mis diagramas» y las herramientas por clic). Sitio: **https://diagramador.dev**
+Estado verificado el **2026-11-09** (con MongoDB Atlas, el acceso con el correo con cuentas recordadas, las invitaciones, los roles, «Mis diagramas» y las herramientas por clic). Sitio: **https://diagramador.dev**
 
 ## 1. Resumen
 
@@ -100,7 +100,7 @@ El pull request 29 (el navegador recuerda hasta cinco cuentas, «Elige tu cuenta
 
 El pull request 27 (roles dueño, editor y lector; acceso general restringido o cualquiera con el enlace; lista «Mis diagramas»; nombre del diagrama en la barra superior) se fusionó con el commit `e490526` y se desplegó de madrugada, sin usuarios conectados (0 grupos `asgi:group:*` en Redis y 0 conexiones al puerto 8000). Se etiquetaron las imágenes `angular-app` y `django` como `antes-20261109` y el commit anterior (`433c563`) quedó en `~/deploy-prev-20261109.txt`. Se hizo `git pull --ff-only origin develop`, se reconstruyó `angular-app` (unos 3 minutos), se levantó con `up -d --no-deps` y se reinició `django`, que aplicó **`collab.0007_room_sharing`** (tablas `RoomMember` con roles y `RoomSettings` con el nombre y el acceso general; los invitados anteriores pasan a editores y los dueños quedan con `source=owner`). Después: `scripts/smoke-test.sh` «Todo en orden» (13 comprobaciones), `/api/rooms/`, `/api/rooms/<sala>/access/` y `/settings/` sin sesión responden 401 y el paquete `main-*.js` publicado contiene «Mis diagramas». Volver atrás: sección 4, con la etiqueta `antes-20261109` y `git checkout 433c563`; la migración 0007 solo agrega columnas y una tabla, así que el código anterior sigue funcionando con ella. Las salas creadas antes del control de acceso no tienen dueño: quien la abra primero queda como propietario.
 
-### Despliegue anterior (2026-11-04, segundo parcial)
+### Despliegue anterior (2026-11-04)
 
 Se desplegó `develop` en `ac1efb6` (la fusión del pull request 2) sin usuarios conectados. Antes se respaldaron las imágenes `django` y `angular-app` como `antes-20261104-1559` y el commit anterior (`6710b82`) en `~/respaldos-despliegue/head-antes-20261104-1559.txt`. `spring-backend` no cambió y no se tocó. Se hizo `git pull --ff-only origin develop`, se construyeron `django` (ahora con `pymongo` y `mongomock`) y `angular-app` con `docker-compose -f docker-compose.app.yml build <servicio>` y se reiniciaron uno a la vez con `up -d --no-deps`. Al arrancar, Django aplicó la migración `collab.0005_chatmessage_author_name` (una columna y un índice). Resultado: `scripts/smoke-test.sh` en orden; la ayuda respondió una pregunta real y rechazó una fuera de tema; `/api/chatbot/` (eliminado) responde 404. Ese mismo día, después, se activó MongoDB Atlas (sección 8; además se trajo el arreglo del PR 4 y se recreó `django` dos veces más). Para volver atrás: volver a etiquetar como `latest` las dos imágenes `antes-20261104-1559` (`docker tag`, como en «Volver atrás») y, en el servidor, `git checkout 6710b82` (el código de Django se monta desde esa carpeta).
 

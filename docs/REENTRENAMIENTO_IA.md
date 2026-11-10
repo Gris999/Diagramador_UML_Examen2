@@ -9,7 +9,7 @@
 
 ## 1. Objetivo y alcance
 
-El docente planteó la IA local como un extra **no obligatorio y valorable** (apuntes de clase). La interpretación del equipo, coincidente con la de otros grupos, es que se espera un modelo abierto **reentrenado por el propio equipo, desplegado y con la explicación de cómo se entrenó**. Este anexo documenta eso con evidencia reproducible. La plataforma sigue funcionando con Gemini por defecto; el modelo reentrenado es opcional y se activa por configuración.
+La IA local es un extra **no obligatorio y valorable**. El proyecto la entiende como un modelo abierto **reentrenado por el propio equipo, desplegado y con la explicación de cómo se entrenó**. Este anexo documenta eso con evidencia reproducible. La plataforma sigue funcionando con Gemini por defecto; el modelo reentrenado es opcional y se activa por configuración.
 
 ## 2. Cómo funciona el reentrenamiento
 
