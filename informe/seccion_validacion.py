@@ -131,7 +131,7 @@ def generar():
            "que fallaba antes (sección 2.5.5):\n",
            "| Hallazgo | Dirección | Qué se hizo |", "|---|---|---|",
            "| `POST /api/chatbot/` seguía publicado: pedía cambios a la IA sin turno ni topes de uso y la aplicación ya no lo usaba | Software sin documento | Se eliminó el endpoint y se agregó una prueba de que no existe |",
-           "| El diseño llamaba `conversation_messages` a la colección de mensajes y le daba campos (`id`, `actor_id`) que el código no tiene | Documento distinto del software | Se corrigió el diseño y la implementación (sección 2.4.5) comprueba los nombres de las colecciones y de sus campos |",
+           "| El diseño llamaba `conversation_messages` a la colección de mensajes y le daba campos (`id`, `actor_id`) que el código no tiene | Documento distinto del software | Se corrigió el diseño y la implementación (sección 2.4.7) comprueba los nombres de las colecciones y de sus campos |",
            "| El análisis de consistencia del modelo (CU9, camino A3) no tenía clase de diseño ni diagrama de secuencia | Software sin documento | Se agregó `UmlValidationService` y el escenario «analizar la consistencia del modelo» a COL-11 |",
            "| La ficha de CU1 decía que un código mal escrito «avisa y vuelve a la portada» y el software abría cualquier texto como sala (D-01) | Documento sin software | Se implementó la validación del código y se corrigió la ficha (A1 y A2) |",
            "| La ficha de CU2 prohíbe relaciones sin clase en un extremo y el software las dejaba colgadas y las exportaba (D-02, D-03) | Documento sin software | Se impidió en el lienzo y en la exportación |",

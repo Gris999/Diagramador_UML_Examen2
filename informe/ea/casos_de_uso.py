@@ -38,9 +38,9 @@ def _caso(m, c):
     return m.elem(c, "UseCase", nombre(c), REQ)
 
 
-def diagrama(m, id_, titulo, propios, relacionados=(), nuevos=None):
+def diagrama(m, id_, titulo, propios, relacionados=(), nuevos=None, marco=None):
     """`propios`: casos de uso del diagrama; `relacionados`: los de otros ciclos que se muestran por una relación (en gris).
-    `nuevos`: casos que se pintan de amarillo (por defecto, ninguno)."""
+    `nuevos`: casos que se pintan de amarillo (por defecto, ninguno). `marco`: nombre del paquete cuando el diagrama es la vista de un paquete."""
     nuevos = set() if nuevos is None else set(nuevos)  # ningún caso se destaca: los de otro ciclo se ven en gris
     mostrados = list(propios) + [c for c in relacionados if c not in propios]
     actores, secundarios = [], []
@@ -72,7 +72,8 @@ def diagrama(m, id_, titulo, propios, relacionados=(), nuevos=None):
         _actor(m, a)
     for c in mostrados:
         _caso(m, c)
-    m.elem("SYS", "Boundary", "Plataforma CASE colaborativa", REQ)
+    sys_ = f"SYS:{id_}" if marco else "SYS"
+    m.elem(sys_, "Boundary", marco or "Plataforma CASE colaborativa", REQ)
     ajenos = [c for c in mostrados if c not in propios]
     # Los casos relacionados van en la misma columna que los propios (uno junto al otro, unidos en vertical): así ninguna
     # línea hacia el actor secundario pasa por detrás de ellos.
@@ -86,7 +87,7 @@ def diagrama(m, id_, titulo, propios, relacionados=(), nuevos=None):
         pos[a] = (min(pos[a][0], x0 - 40 - nodos[a][0]), pos[a][1])
     for a in secundarios:
         pos[a] = (max(pos[a][0], x1 + 40), pos[a][1])
-    objetos = [("SYS", x0, y0, x1 - x0, y1 - y0)]
+    objetos = [(sys_, x0, y0, x1 - x0, y1 - y0)]
     for clave in nodos:
         if clave in ajenos:
             color = (GRIS_PARCIAL1,)

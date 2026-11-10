@@ -49,13 +49,24 @@ def generar():
     ids = _ids_de_pruebas()
     casos = P.casos_de_prueba()
     md = ["## 2.5 Flujo de trabajo: pruebas\n",
-          "El flujo de pruebas verifica que el sistema hace lo que dicen los casos de uso. Siguiendo el proceso, **el modelo de pruebas sale del modelo de casos de uso**: "
-          "cada camino de cada caso de uso (el básico, cada alterno, cada excepción y cada camino no permitido) tiene un caso de prueba con sus entradas, sus condiciones "
-          "y su resultado esperado, y cada caso se ejecuta con pruebas automáticas, con un procedimiento manual o con ambos. Esta sección se genera de un modelo que "
-          "comprueba, cada vez que se arma el informe, que no falta ningún camino, que ningún caso sobra y que cada prueba automática citada existe de verdad en el "
-          "repositorio.\n"]
+          "### 2.5.1 Reporte de prueba\n"]
+    for numero_ciclo, titulo, codigos in R.CICLOS:
+        md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
+        md += ["| CU | Criterios de aceptación | Datos de prueba | Procedimientos de prueba | Resultado esperado |", "|---|---|---|---|---|"]
+        for cu in codigos:
+            for c in P.casos_de_prueba(cu):
+                procedimientos = f"Pruebas automáticas ({c['nivel']}): {_rango_ids(c['auto'], ids)}." if c["auto"] else "Sin pruebas automáticas."
+                if c["manual"]:
+                    procedimientos += " Procedimiento manual (sección 2.5.3)."
+                md.append(f"| {P.id_caso(c)} | {_etiqueta(c['camino'])} | {_celda(c['entrada'])} | {procedimientos} | {_celda(c['esperado'])} |")
+        md.append("")
+    md += ["Los identificadores T-nnn son los del índice de pruebas automáticas (sección 2.5.7), con la pila, el archivo y el nombre de cada prueba.\n"]
 
-    md += ["### 2.5.1 Plan de prueba\n",
+    md += ["### 2.5.2 Plan de prueba\n",
+           f"**Cobertura.** Los {len(R.CASOS)} casos de uso tienen **{resumen['caminos']} caminos** (el básico, cada alterno, cada excepción y cada camino no permitido) y "
+           f"**{resumen['casos']} casos de prueba**: uno por camino. Todos tienen pruebas automáticas ({resumen['pruebas_citadas']} pruebas distintas, de las {resumen['pruebas_del_repositorio']} "
+           f"que hay en el repositorio) y {resumen['con_manual']} tienen además un procedimiento manual, porque el resultado depende de varias personas, del navegador real, de archivos que "
+           "se descargan o de la IA real. El informe comprueba, cada vez que se arma, que no falta ningún camino, que ningún caso sobra y que cada prueba automática citada existe de verdad.\n",
            "**Estrategia.** Las pruebas se escriben antes que el código y se ejecutan en cada cambio. Las críticas (XMI, colaboración y "
            "sincronización, permisos y roles, reconexión y recuperación de estado, generadores, transformaciones UML y persistencia sin conexión) tienen pruebas automáticas.\n",
            "| Nivel | Qué se verifica | Herramienta |", "|---|---|---|",
@@ -69,21 +80,6 @@ def generar():
            "**Entorno de las pruebas manuales.** La aplicación completa en un computador (Angular, Django con Daphne, PostgreSQL, Redis y el generador Spring) y el navegador integrado de la "
            "herramienta de desarrollo. Como las pestañas de un mismo navegador comparten el almacenamiento local, cada persona se creó fijando su nombre y su identificador antes de abrir su "
            "pestaña. La IA fue Google Gemini real.\n"]
-
-    md += ["### 2.5.2 Modelo de casos de prueba\n",
-           f"Los {len(R.CASOS)} casos de uso tienen **{resumen['caminos']} caminos** y **{resumen['casos']} casos de prueba**: uno por camino. Todos tienen pruebas automáticas "
-           f"({resumen['pruebas_citadas']} pruebas distintas, de las {resumen['pruebas_del_repositorio']} que hay en el repositorio) y {resumen['con_manual']} tienen además un procedimiento manual "
-           "porque el resultado depende de varias personas, del navegador real, de archivos que se descargan o de la IA real. En las tablas, la columna **Pruebas** da los "
-           "identificadores T-nnn del índice de la sección 2.5.7 (pila, archivo y nombre de cada prueba) y la columna **Manual** dice si hay procedimiento (sección 2.5.3). "
-           "Nivel: U = unidad, I = integración, S = sistema.\n"]
-    for numero_ciclo, titulo, codigos in R.CICLOS:
-        md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
-        for cu in codigos:
-            md += [f"**{cu}: {R.CASOS[cu]['nombre']}.**\n", "| Caso | Camino | Entradas y condiciones | Resultado esperado | Nivel | Pruebas | Manual |", "|---|---|---|---|---|---|---|"]
-            for c in P.casos_de_prueba(cu):
-                md.append(f"| {P.id_caso(c)} | {_etiqueta(c['camino'])} | {_celda(c['entrada'])} | {_celda(c['esperado'])} | {c['nivel'][0].upper()} | "
-                          f"{_rango_ids(c['auto'], ids)} | {'Sí' if c['manual'] else '—'} |")
-            md.append("")
 
     md += ["### 2.5.3 Procedimientos de prueba\n",
            f"Los procedimientos manuales se ejecutaron el {P.FECHA_EJECUCION}. El resultado es «pasó», o «pasó con observación» cuando algo del procedimiento no se pudo repetir o se notó algo "

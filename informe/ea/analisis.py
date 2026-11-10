@@ -318,15 +318,73 @@ def diagrama_colaboracion(m, col):
     m.diagrama(f"com-{col['id']}", f"{col['id']}: {col['nombre']}", "Collaboration", ruta, objetos, conectores)
 
 
+# ---- análisis de la arquitectura: identificar, relacionar y ver cada paquete -----------------------------------
+def _casos_del_paquete(p):
+    """Los casos de uso que realiza el paquete y los de sus paquetes de servicio."""
+    return list(p["casos"]) + [cu for q in A.PAQUETES if q["padre"] == p["id"] for cu in q["casos"]]
+
+
+def diagrama_identificar(m):
+    """Cada paquete con una nota que dice qué agrupa y por qué (el diagrama «identificar paquetes»)."""
+    ruta = f"{MODELO}|Paquetes del análisis"
+    objetos, conectores = [], []
+    y = 0
+    for p in A.PAQUETES:
+        clave = m.elem(f"idp:{p['id']}", "Package", p["nombre"], ruta, **({"est": "service package"} if p["padre"] else {}))
+        lineas = textwrap.wrap(p["por_que"], 62)
+        alto_nota = 24 + 16 * len(lineas)
+        alto = max(alto_nota, 80)
+        nota = m.elem(f"idp:nota:{p['id']}", "Note", "", ruta, notas=p["por_que"])
+        objetos += [(clave, 0, y + (alto - 80) // 2, 250, 80), (nota, 390, y + (alto - alto_nota) // 2, 470, alto_nota)]
+        conectores.append(dict(de=nota, a=clave, tipo="NoteLink"))
+        y += alto + 34
+    m.diagrama("an-identificar", "Identificar paquetes del análisis", "Package", ruta, objetos, conectores)
+
+
+def diagrama_relacion(m, id_):
+    """El paquete (y su paquete de servicio) unido a los casos de uso que realiza."""
+    ruta = f"{MODELO}|Paquetes del análisis"
+    raiz = _paquete(id_)
+    grupos = [(raiz, raiz["casos"])] + [(q, q["casos"]) for q in A.PAQUETES if q["padre"] == id_]
+    grupos = [(p, casos) for p, casos in grupos if casos]
+    objetos, conectores, y = [], [], 0
+    for p, casos in grupos:
+        clave = m.elem(f"rel:{p['id']}", "Package", p["nombre"], ruta, **({"est": "service package"} if p["padre"] else {}))
+        tam = {cu: tam_cu(f"{cu}: {R.CASOS[cu]['nombre']}") for cu in casos}
+        alto = sum(t[1] + 22 for t in tam.values()) - 22
+        yc = y
+        for cu in casos:
+            ck = m.elem(f"rel:{p['id']}:{cu}", "UseCase", f"{cu}: {R.CASOS[cu]['nombre']}", ruta)
+            objetos.append((ck, 440, yc, *tam[cu]))
+            conectores.append(dict(de=clave, a=ck, tipo="Association", arbol="H"))
+            yc += tam[cu][1] + 22
+        objetos.append((clave, 0, y + max(alto - 80, 0) // 2, 250, 80))
+        y += max(alto, 80) + 50
+    m.diagrama(f"an-relacion-{id_}", f"Paquete {raiz['nombre']} y sus casos de uso", "Use Case", ruta, objetos, conectores)
+
+
+def diagrama_vista(m, id_):
+    """La vista del paquete: sus casos de uso con los actores que los inician, dentro de un marco con su nombre."""
+    import casos_de_uso
+
+    raiz = _paquete(id_)
+    casos = sorted(set(_casos_del_paquete(raiz)), key=R.numero)
+    casos_de_uso.diagrama(m, f"an-vista-{id_}", f"Vista del paquete {raiz['nombre']}", casos, marco=f"Paquete {raiz['nombre']}")
+
+
 def construir(m, solo=None):
     """Agrega al modelo los diagramas del análisis. `solo`: lista de identificadores de colaboración (para probar)."""
     A.validar(R)
     if solo is None:
         diagrama_paquetes(m)
+        diagrama_identificar(m)
         diagrama_dependencias(m)
         for p in A.PAQUETES:
             if not p["padre"]:
                 diagrama_paquete(m, p["id"])
+                if _casos_del_paquete(p):
+                    diagrama_relacion(m, p["id"])
+                    diagrama_vista(m, p["id"])
     for col in A.COLABORACIONES:
         if solo is None or col["id"] in solo:
             diagrama_participantes(m, col)
