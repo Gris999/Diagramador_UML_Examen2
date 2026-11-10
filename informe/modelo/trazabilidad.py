@@ -112,27 +112,14 @@ C_APOYO = "Módulo de apoyo de un componente modelado (funciones sueltas, sin es
 C_GENERADOR = "Utilidad o configuración interna del generador Spring Boot"
 C_UI = "Componente de arranque o de presentación mínima, sin lógica de negocio"
 C_CLIENTE = "Cliente de un servidor modelado: abre la conexión y entrega el resultado"
-C_ACCESO = ("Control de acceso por correo (RA-07): se construyó el 8 y 9 de noviembre, después de congelar los diagramas (4 de noviembre), y no tiene "
-            "realización de análisis ni de diseño en Enterprise Architect; queda descrito en RA-07, en el manual y en el Anexo C (deuda de diseño)")
 C_ESTADO = ("Puerto y adaptadores del estado pasajero de la sala (la propuesta de la IA que espera permiso y el modelo de IA elegido): siguen el "
             "mismo patrón que el turno de la IA (TurnStore), ya modelado")
 
 # (sufijo de la ruta, clase o módulo, categoría). `validar()` exige que sean exactamente las clases del código que el diseño no modela.
 EXCLUIDAS = [
-    ("collab/auth.py", "<auth.py>", C_ACCESO),
-    ("collab/auth.py", "EmailSessionMiddleware", C_ACCESO),
-    ("collab/models.py", "RoomMember", C_ACCESO),
-    ("collab/models.py", "RoomSettings", C_ACCESO),
-    ("collab/rooms.py", "<rooms.py>", C_ACCESO),
-    ("collab/rooms.py", "SharingError", C_ACCESO),
-    ("uml_api/auth_views.py", "<auth_views.py>", C_ACCESO),
-    ("services/auth/auth.service.ts", "AuthService", C_ACCESO),
-    ("services/auth/room-access.service.ts", "RoomAccessService", C_ACCESO),
-    ("services/colaboration/invite.service.ts", "InviteService", C_ACCESO),
-    ("app/access-denied-page/access-denied-page.ts", "AccessDeniedPage", C_ACCESO),
-    ("app/login-page/login-page.ts", "LoginPage", C_ACCESO),
-    ("app/my-diagrams/my-diagrams.ts", "MyDiagrams", C_ACCESO),
-    ("app/room-title/room-title.ts", "RoomTitle", C_ACCESO),
+    ("collab/rooms.py", "SharingError", C_TIPO),
+    ("app/access-denied-page/access-denied-page.ts", "AccessDeniedPage", C_UI),
+    ("app/room-title/room-title.ts", "RoomTitle", C_UI),
     ("collab/consumers.py", "ValidationBudget", C_TIPO),
     ("collab/conversation.py", "<conversation.py>", C_APOYO),
     ("collab/ports.py", "RoomStateStore", C_ESTADO),
@@ -161,7 +148,6 @@ EXCLUIDAS = [
     ("services/exports/diagram-export.service.ts", "UmlRelationshipDTO", C_TIPO),
     ("services/exports/diagram-export.service.ts", "UmlExportDTO", C_TIPO),
     ("app/app.ts", "App", C_UI),
-    ("app/share-dialog/share-dialog.ts", "ShareDialog", C_UI),  # ventana «Compartir»: arma y copia los enlaces de la sala, sin lógica de negocio
     ("services/theme.service.ts", "ThemeService", C_UI),  # tema oscuro o claro de la interfaz
     ("services/diagram/tool.service.ts", "ToolService", C_UI),  # la herramienta elegida con un clic en la paleta: estado de la interfaz, sin lógica de negocio
     ("app/components/diagram/spinner/spinner.ts", "Spinner", C_UI),

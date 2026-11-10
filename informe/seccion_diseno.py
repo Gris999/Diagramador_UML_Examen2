@@ -178,7 +178,7 @@ def generar():
            _uml_respaldo("c4-contexto", "Diagrama de contexto del sistema"), _uml_respaldo("di-c4-contenedores", "Diagrama de contenedor"),
            _uml_respaldo("di-c4-componentes", "Diagrama de componentes (C4)"),
            "#### Diseño de los datos\n",
-           "Los datos relacionales (participantes, topes de uso, respaldo del diagrama) siguen en PostgreSQL. La conversación y la actividad se agregan y se consultan por "
+           "Los datos relacionales (participantes, topes de uso, respaldo del diagrama y, con el acceso por correo, la lista de personas de cada sala con su rol y el acceso general) siguen en PostgreSQL. La conversación y la actividad se agregan y se consultan por "
            "sala y por tiempo, con un campo `data` que cambia según el tipo: con C3 pasan a MongoDB detrás de los puertos, y PostgreSQL queda como adaptador de respaldo.\n",
            _uml_respaldo("dd-postgres", "Modelo de datos relacional (PostgreSQL)"), _tabla_datos(),
            _uml_respaldo("dd-mongo", "Colecciones de MongoDB (C3)"), _tabla_colecciones()]
