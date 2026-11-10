@@ -2,12 +2,12 @@
   @if (open()) {
     <section
       class="card flex h-[30rem] max-h-[calc(100vh-6rem)] w-80 max-w-full flex-col shadow-xl"
-      aria-label="Chat de la sala con la IA"
+      aria-label="Chat de la sala"
     >
       <header class="border-b border-line px-3 py-2">
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="text-sm font-semibold text-fg">Chat con la IA</h3>
+            <h3 class="text-sm font-semibold text-fg">Chat de la sala</h3>
             <p class="text-[10px] text-fg-muted">Lo ven todas las personas de la sala</p>
           </div>
           <button
@@ -48,13 +48,13 @@
       </header>
 
       <p class="border-b border-line px-3 py-1 text-[10px] text-fg-muted" data-testid="ia-permission-hint">
-        Pregunta, pide un cambio o di «revisa el diagrama». Antes de cambiar algo, la IA te pide permiso.
+        Habla con tu equipo con normalidad. Para pedirle algo a la IA empieza con su nombre: «{{ iaName }}, agrega una clase Cliente». Antes de cambiar algo, {{ iaName }} te pide permiso.
       </p>
 
       <div #messageList class="flex-1 space-y-2 overflow-y-auto px-3 py-2" data-testid="ia-chat-messages">
         @if (messages().length === 0 && !sending()) {
           <p class="text-xs text-fg-muted" data-testid="ia-chat-empty">
-            Prueba con: «¿Qué hizo Beto?», «Explícame este diagrama», «Agrega una clase Cliente con nombre y correo» o «Revisa el diagrama».
+            Escríbele a tu equipo, o pídele algo a {{ iaName }}: «{{ iaName }}, ¿qué hizo Beto?», «{{ iaName }}, explícame este diagrama», «{{ iaName }}, agrega una clase Cliente con nombre y correo» o «{{ iaName }}, revisa el diagrama».
           </p>
         }
         @for (message of messages(); track message.id) {
@@ -64,7 +64,7 @@
             [class.justify-end]="message.role === 'user' && message.author_name === myName()"
             data-testid="ia-chat-message"
           >
-            <span class="px-1 text-[10px] text-fg-muted" data-testid="ia-chat-author">{{ message.author_name || (message.role === 'ia' ? 'IA' : 'Alguien') }}</span>
+            <span class="px-1 text-[10px] text-fg-muted" data-testid="ia-chat-author">{{ message.role === 'ia' ? iaName + ' (IA)' : message.author_name || 'Alguien' }}</span>
             <p
               class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-xs"
               [class.bg-accent]="message.role === 'user' && message.author_name === myName()"
@@ -77,14 +77,16 @@
           </div>
         }
         @if (sending()) {
-          <p class="text-xs italic text-fg-muted" data-testid="ia-chat-thinking">La IA está pensando…</p>
+          <p class="text-xs italic text-fg-muted" data-testid="ia-chat-thinking">{{ iaName }} está pensando…</p>
+        } @else if (iaStatus().state === 'thinking') {
+          <p class="text-xs italic text-fg-muted" data-testid="ia-chat-busy">{{ iaName }} está atendiendo a {{ iaStatus().by }}…</p>
         }
       </div>
 
       @if (proposal(); as pending) {
         <div class="flex items-center gap-2 border-t border-line bg-accent-soft px-3 py-2" data-testid="ia-proposal">
           <p class="min-w-0 flex-1 text-[11px] text-fg">
-            {{ pending.destructive > 0 ? 'La IA quiere cambiar y eliminar cosas del diagrama.' : 'La IA espera tu permiso para cambiar el diagrama.' }}
+            {{ pending.destructive > 0 ? iaName + ' quiere cambiar y eliminar cosas del diagrama.' : iaName + ' espera tu permiso para cambiar el diagrama.' }}
           </p>
           <button
             type="button"
@@ -114,8 +116,8 @@
       <form class="flex gap-2 border-t border-line p-2" (submit)="$event.preventDefault(); send()">
         <textarea
           class="field h-14 min-w-0 flex-1 resize-none px-2 py-1 text-xs"
-          placeholder="Escribe tu pregunta o pedido…"
-          aria-label="Mensaje para la IA"
+          placeholder="Escribe a tu equipo, o «Uma, …» para pedirle algo a la IA"
+          aria-label="Mensaje para la sala"
           [maxLength]="maxChars"
           [value]="draft()"
           (input)="onDraftInput($event)"
@@ -125,7 +127,7 @@
         <button
           type="submit"
           class="btn btn-primary btn-sm self-end"
-          [disabled]="sending() || !historyReady() || draft().trim().length === 0"
+          [disabled]="!canSend()"
           data-testid="ia-chat-send"
         >
           Enviar
@@ -142,6 +144,9 @@
     (click)="toggle()"
   >
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4" aria-hidden="true"><path d="M12 2.5l1.9 5.1a2 2 0 0 0 1.2 1.2l5.1 1.9-5.1 1.9a2 2 0 0 0-1.2 1.2L12 18.9l-1.9-5.1a2 2 0 0 0-1.2-1.2L3.8 10.7l5.1-1.9a2 2 0 0 0 1.2-1.2L12 2.5zM19 15l.8 2.2a1 1 0 0 0 .6.6L22.6 19l-2.2.8a1 1 0 0 0-.6.6L19 22.6l-.8-2.2a1 1 0 0 0-.6-.6L15.4 19l2.2-.8a1 1 0 0 0 .6-.6L19 15z"/></svg>
-    Chat con la IA
+    Chat
+    @if (unread() > 0) {
+      <span class="ml-1 rounded-full bg-white px-1.5 text-[10px] font-semibold text-accent" data-testid="ia-chat-unread" [attr.aria-label]="unread() + ' mensajes nuevos'">{{ unread() }}</span>
+    }
   </button>
 </div>
