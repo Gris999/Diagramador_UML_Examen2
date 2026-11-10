@@ -56,6 +56,8 @@ class UnifiedChatProposalTests(UnifiedChatBase):
         self.assertNotIn("changes", response.data)
         self.assertEqual(response.data["proposal"]["lines"], ["Crear la clase Factura (atributos: total: float)"])
         self.assertEqual(response.data["proposal"]["destructive"], 0)
+        # La vista previa es exactamente el cambio que se aplicaría con el «sí», para dibujarlo sobre el diagrama sin tocarlo.
+        self.assertEqual(response.data["proposal"]["preview"], self.provider.change_result)
         self.assertIn("¿Lo aplico?", response.data["reply"])
         self.assertIn("Crear la clase Factura", response.data["reply"])
         self.assertEqual(len(self.provider.change_calls), 1)

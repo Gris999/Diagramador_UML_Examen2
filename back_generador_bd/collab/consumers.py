@@ -537,6 +537,10 @@ class CanvasConsumer(AsyncWebsocketConsumer):
             "event": event["event"],
         }, ensure_ascii=False))
 
+    async def chat(self, event):
+        """Aviso de que la conversación de la sala tiene un mensaje nuevo: el navegador vuelve a leerla."""
+        await self.send(text_data=json.dumps({"type": "chat", "message": event.get("message")}, ensure_ascii=False))
+
     async def force_disconnect(self, event):
         await self.send(text_data=json.dumps({
             "type": "removed",
