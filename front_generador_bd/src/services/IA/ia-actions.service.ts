@@ -46,6 +46,16 @@ export class IaActionsService {
     );
   }
 
+  /** Muestra sobre el diagrama, como vista previa, lo que la IA propone; no cambia nada hasta que la persona diga que sí. */
+  showPreview(changes: unknown): void {
+    this.diagram.showHologram(changes);
+  }
+
+  /** Quita la vista previa (la persona aplicó o descartó la propuesta). */
+  clearPreview(): void {
+    this.diagram.clearHologram();
+  }
+
   /**
    * Aplica una idea de la IA a nombre de quien la aplica. Primero la reserva en
    * el servidor (así nadie más la aplica a la vez); cuando el cambio llega al

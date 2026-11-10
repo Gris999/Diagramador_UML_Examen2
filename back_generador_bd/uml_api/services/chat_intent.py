@@ -61,6 +61,11 @@ _NO = re.compile(
 )
 
 
+# La IA de la sala se llama Uma (también se le dice «IA»): así se le habla en el chat.
+AI_NAME = "Uma"
+_AI_NAME = re.compile(r"^(?:uma|ia)\s+")
+
+
 def normalize(text) -> str:
     """Minúsculas, sin tildes ni signos, con espacios simples: así «¿Qué hizo Beto?» y «que hizo beto» se leen igual."""
     if not isinstance(text, str):
@@ -92,7 +97,8 @@ def classify(message, names=(), *, has_pending=False) -> dict:
     `names` son los nombres de las personas de la sala (y «IA»), para reconocer «¿qué hizo Beto?». `has_pending` dice si esa persona tiene una
     propuesta esperando permiso: solo entonces «sí» y «no» son respuestas a ella.
     """
-    normalized = normalize(message)
+    # «Uma, agrega una clase Cliente»: el nombre de la IA al principio no es parte del pedido.
+    normalized = _AI_NAME.sub("", normalize(message), count=1)
     words = normalized.split()
     result = {"intent": ASK, "person": None, "direct": False}
     if not normalized:

@@ -50,5 +50,15 @@ class ORMConversationStore(ConversationStore):
             )
         return [asked.id, answered.id]
 
+    def append_message(self, room, participant, mode, message):
+        return ChatMessage.objects.create(
+            room=room,
+            participant=participant,
+            author_name=participant.display_name,
+            role=ChatMessage.ROLE_USER,
+            mode=mode,
+            content=message,
+        ).id
+
     def discard_exchange(self, room, ids):
         ChatMessage.objects.filter(room=room, id__in=ids).delete()

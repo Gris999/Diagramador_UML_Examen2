@@ -15,7 +15,7 @@ from collab.stores import get_activity_store, get_conversation_store, get_rate_l
 from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider, provider_options
 from .services.change_guard import count_destructive, validate_changes
 from .services.change_summary import summarize_changes
-from .services.chat_intent import ASK, CHANGE, CONFIRM, DISCARD, HISTORY, REVIEW, classify
+from .services.chat_intent import AI_NAME, ASK, CHANGE, CONFIRM, DISCARD, HISTORY, REVIEW, classify
 from .services.ia_context import (
     MAX_EVENTS,
     MAX_HISTORY,
@@ -38,6 +38,8 @@ HISTORY_LINES = 12
 PROVIDER_CHANGES_PER_MINUTE = 6
 DEFAULT_REVIEW_MESSAGE = "Revisa el diagrama"
 MAX_REQUESTS_PER_MINUTE = 12
+# Mensajes entre personas (sin IA): no cuestan nada, pero el tope evita que alguien llene la conversación de la sala.
+MAX_SAYS_PER_MINUTE = 30
 # Topes de coste compartidos: un mismo participante, toda una sala y todo el
 # servicio. Los dos últimos no dependen de identificadores que el cliente elige.
 MAX_ROOM_REQUESTS_PER_MINUTE = 30
@@ -135,6 +137,17 @@ def _publish_activity(room, event):
             async_to_sync(layer.group_send)(group, message)
     except Exception as exc:
         logger.warning("No se pudo difundir la actividad de la IA (%s)", type(exc).__name__)
+
+
+def _publish_chat(room, message=None):
+    """Avisa a la sala en vivo que la conversación tiene algo nuevo (cada navegador la vuelve a leer); si el canal falla, el mensaje igual queda guardado."""
+    event = {"type": "chat", "message": message}
+    try:
+        layer = get_channel_layer()
+        for group in (room_group_name(room), viewers_group_name(room)):
+            async_to_sync(layer.group_send)(group, event)
+    except Exception as exc:
+        logger.warning("No se pudo difundir el mensaje del chat (%s)", type(exc).__name__)
 
 
 def _answer(provider, room, participant, body, message):
@@ -300,7 +313,9 @@ def _propose(provider, room, participant, body, message):
     return Response({
         "reply": reply,
         "intent": CHANGE,
-        "proposal": {"lines": lines, "destructive": destructive},
+        # `preview` es el mismo cambio que se aplicaría con el «sí»: el navegador de quien lo pidió lo dibuja como vista previa («holograma»)
+        # sobre el diagrama, sin tocarlo, hasta que diga que sí o que no.
+        "proposal": {"lines": lines, "destructive": destructive, "preview": changes},
     })
 
 
@@ -331,7 +346,7 @@ def _known_names(room, events):
     """Nombres que el chat reconoce en «¿qué hizo Beto?»: las personas de la sala, quienes aparecen en la actividad y la IA."""
     names = set(Participant.objects.filter(room=room).values_list("display_name", flat=True))
     names.update(event["actor_name"] for event in events if event.get("actor_name"))
-    names.add("IA")
+    names.update({"IA", AI_NAME})
     return names
 
 
@@ -401,7 +416,10 @@ def ia_chat(request, room):
             )
 
         try:
-            return MODE_HANDLERS[mode](get_ai_provider(_state_get(_provider_key(room))), room, participant, body, message)
+            response = MODE_HANDLERS[mode](get_ai_provider(_state_get(_provider_key(room))), room, participant, body, message)
+            # La pregunta y la respuesta ya están guardadas: las demás personas las ven sin recargar la página.
+            _publish_chat(room)
+            return response
         except AIProviderError as exc:
             logger.warning("La IA no pudo responder en la sala %s: %s", room, exc)
             return _ia_unavailable()
@@ -412,6 +430,36 @@ def ia_chat(request, room):
             return _ia_unavailable()
     finally:
         _release_turn(turnos, room, participant)
+
+
+@api_view(["POST"])
+def chat_say(request, room):
+    """Un mensaje de una persona para las demás: se guarda en la conversación de la sala y se reparte en vivo. No llama a la IA."""
+    participant = _participant_for(request, room)
+    if participant is None:
+        return _forbidden()
+
+    body = request.data if hasattr(request.data, "get") else {}
+    message = body.get("message")
+    if not isinstance(message, str) or not message.strip():
+        return _bad_request("El mensaje es requerido.")
+    message = message.strip()
+    if len(message) > MAX_MESSAGE_CHARS:
+        return _bad_request(f"El mensaje no puede superar {MAX_MESSAGE_CHARS} caracteres.")
+
+    try:
+        allowed = get_rate_limiter().allow(f"chat-say:{room}:{participant.id}", MAX_SAYS_PER_MINUTE, 60)
+    except Exception as exc:
+        logger.warning("No se pudo consultar el tope de mensajes del chat (%s)", type(exc).__name__)
+        allowed = True
+    if not allowed:
+        return Response({"error": "Demasiados mensajes seguidos. Espera un momento."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+    store = get_conversation_store()
+    message_id = store.append_message(room, participant, "chat", message)
+    stored = next((item for item in store.history(room, 5) if item["id"] == message_id), None)
+    _publish_chat(room, stored)
+    return Response({"message": stored}, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])

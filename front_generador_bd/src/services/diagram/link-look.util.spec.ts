@@ -227,6 +227,23 @@ describe('the anchor and the router for JointJS', () => {
 
     expect(route.length).toBe(2);
   });
+
+  it('the router draws a line the person moved by hand through its vertices, as they left it', () => {
+    const a = element(box(0, 0));
+    const b = element(box(500, 300));
+    const view: any = { model: link(a, b), sourceAnchor: { x: 180, y: 55 }, targetAnchor: { x: 500, y: 355 } };
+    const manual = [{ x: 210, y: 55 }, { x: 210, y: 420 }, { x: 470, y: 420 }, { x: 470, y: 355 }];
+
+    expect(umlRouter.call(view, manual)).toEqual(manual);
+  });
+
+  it('the router goes back to the automatic route when the vertices are removed', () => {
+    const a = element(box(0, 0));
+    const b = element(box(500, 300));
+    const view: any = { model: link(a, b), sourceAnchor: { x: 180, y: 55 }, targetAnchor: { x: 500, y: 355 } };
+
+    expect(umlRouter.call(view, []).length).toBe(2);
+  });
 });
 
 describe('multiplicity labels', () => {

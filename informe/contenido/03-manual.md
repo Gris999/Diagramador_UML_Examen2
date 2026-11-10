@@ -53,6 +53,7 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 - **Cambiar un nombre, un atributo o un método.** Haz doble clic sobre el texto, selecciona todo (Cmd+A o Ctrl+A), escribe el nuevo y pulsa Enter.
 - **Unir dos clases.** En la paleta haz clic en la relación que quieres (**Asociación**, **Herencia**, **Agregación**, **Composición** o **Dependencia**), luego haz clic en la clase de origen (queda resaltada) y después en la de destino; **Esc** cancela. También puedes hacer clic en una clase y arrastrar desde uno de los círculos de su borde hasta la otra clase; si sueltas sobre el lienzo vacío no queda ninguna relación. La línea sale por el lado que mira a la otra clase, solo con líneas horizontales y verticales, y se acomoda sola cada vez que mueves una clase; la multiplicidad queda a un lado de la línea, fuera de las clases. La paleta tiene además **Clase Asociativa**.
 - **Multiplicidad.** Haz doble clic sobre ella y escribe el valor, por ejemplo `*` o `0..1`. Cuando una asociación queda con «muchos» en los dos extremos, el editor la deja directa entre sus dos clases, con sus multiplicidades, y crea sola la clase asociativa (por ejemplo `Curso_Estudiante`) unida al medio de la línea con un conector punteado, sin multiplicidad. Si prefieres dibujarla tú, haz clic en **Clase Asociativa**, luego en tu clase y después en la línea de la asociación (en ese orden o al revés). Si borras la clase asociativa que el editor generó, la asociación queda sin ella y no se vuelve a crear.
+- **Mover una línea de relación.** Haz clic sobre ella: aparecen asas en sus tramos. Arrastra un tramo para llevarlo por donde quieras (por ejemplo, para que no pase encima de otra clase); doble clic sobre la línea, fuera de las multiplicidades, la devuelve al trazado automático. Mientras no la muevas a mano, la línea se acomoda sola cuando mueves las clases.
 - **Mover y ajustar.** Arrastra las clases; **Acercar**, **Alejar** y **Restablecer zoom** están arriba del lienzo. El primer botón de la barra superior oculta o muestra el panel de herramientas para dar más lugar al lienzo.
 - **Tema oscuro o claro.** La herramienta se ve en tema oscuro; el botón con un sol o una luna de la barra superior (y de la página principal) cambia al tema claro y se recuerda en tu navegador.
 - **Validar el modelo.** **Sugerencias del modelo** abre un panel; con **Analizar modelo** la herramienta muestra las relaciones válidas y los errores con una sugerencia.
@@ -83,16 +84,19 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 ## 3.5 La IA como integrante de la sala
 
 ![Chat con la IA](capturas/05-chat-ia-abierto.png)
-*Figura 3.6. El chat de la sala con la IA: lo ven todas las personas y dice qué IA responde.*
+*Figura 3.6. El chat de la sala: lo ven todas las personas y dice qué IA responde.*
 
-Pulsa **Chat con la IA** (abajo a la derecha). **La conversación es de toda la sala**: la ven y la alimentan todas las personas, y cada mensaje muestra quién lo escribió. La IA atiende **un pedido a la vez**; si está ocupada con otra persona, te lo dice y esperas a que termine. Arriba se lee qué IA responde y se puede elegir entre **Nube (Gemini)** y **Local**: el modelo es **uno solo para toda la sala**, el cambio queda en la actividad y «Local» aparece apagado si el servidor no tiene el modelo local. Es **un solo chat**: no hay que elegir un modo, la herramienta entiende lo que escribes.
+Pulsa **Chat** (abajo a la derecha). **Es el chat de toda la sala**: las personas se escriben entre sí y lo ven todas al instante, sin recargar la página, y cada mensaje muestra quién lo escribió; si llegan mensajes con el chat cerrado, el botón muestra un número. **La IA de la sala se llama Uma y solo responde cuando le hablas:** empieza el mensaje con su nombre («Uma, …» o «IA, …»). Lo que escribas sin su nombre es para tu equipo y Uma no se entera. Uma atiende **un pedido a la vez**; si está ocupada con otra persona, el chat dice a quién atiende. Arriba se lee qué IA responde y se puede elegir entre **Nube (Gemini)** y **Local**: el modelo es **uno solo para toda la sala** y el cambio queda en la actividad; **Local** solo se puede elegir si el servidor tiene el modelo local.
 
-| Lo que escribes | Qué hace la IA |
+| Lo que escribes | Qué pasa |
 |---|---|
-| Una pregunta («¿qué clases hay?», «explícame el diagrama») | Solo responde; no toca el diagrama |
-| Un pedido de cambio («agrega una clase Factura con total y fecha») | **Propone lo que haría y te pide permiso.** El diagrama no cambia hasta que pulses **Aplicar** (o escribas «sí»); **Descartar** (o «no») la cancela. Si escribes «directamente» lo aplica sin preguntar. Al aplicarse, la actividad dice «IA añadió la clase Factura (a pedido de Ana)» |
-| «Revisa el diagrama» | Revisa clases, atributos, métodos y relaciones y deja sus ideas en la **actividad** de toda la sala, cada una con un botón **Aplicar** |
-| «¿Qué hizo Bruno?» o «historial de Ana» | Responde con el registro de actividad de esa persona, incluido lo que hizo con la IA; sin nombre cuenta lo último que pasó en la sala |
+| Un mensaje para tu equipo («yo hago Libro, tú Autor») | Lo ven todas las personas al instante; Uma no interviene |
+| «Uma, ¿qué clases hay?», «Uma, explícame el diagrama» | Uma solo responde; no toca el diagrama |
+| «Uma, agrega una clase Factura con total y fecha» | **Uma propone lo que haría y te pide permiso**, y mientras tanto el cambio aparece sobre el diagrama como un **holograma** (ver abajo). El diagrama no cambia hasta que pulses **Aplicar** (o le digas «sí»); **Descartar** (o «no») la cancela. Si escribes «directamente» lo aplica sin preguntar. Al aplicarse, la actividad dice «IA añadió la clase Factura (a pedido de Ana)» |
+| «Uma, revisa el diagrama» | Revisa clases, atributos, métodos y relaciones y deja sus ideas en la **actividad** de toda la sala, cada una con un botón **Aplicar** |
+| «Uma, ¿qué hizo Bruno?» o «Uma, historial de Ana» | Responde con el registro de actividad de esa persona, incluido lo que hizo con la IA; sin nombre cuenta lo último que pasó en la sala |
+
+**El holograma.** Cuando Uma propone un cambio, lo dibuja sobre el diagrama sin tocarlo, solo en la pantalla de quien lo pidió: las clases nuevas aparecen a la derecha en trazo punteado morado, lo que se agrega a una clase existente aparece bajo ella en ámbar, lo que se eliminaría queda rodeado en rojo y las relaciones nuevas se dibujan unidas con su nombre. Al pulsar **Aplicar** el cambio se vuelve real y el holograma desaparece; **Descartar** lo quita sin cambiar nada.
 
 ![Respuesta de la IA](capturas/06-chat-ia-respuesta.png)
 *Figura 3.7. Respuesta a una pregunta: la IA usa el diagrama y la actividad de todos.*

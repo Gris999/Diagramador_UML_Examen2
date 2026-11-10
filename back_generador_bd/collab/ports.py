@@ -67,6 +67,10 @@ class ConversationStore(ABC):
         """Guarda juntas la pregunta de `participant` y la respuesta de la IA; devuelve los identificadores de los dos mensajes."""
 
     @abstractmethod
+    def append_message(self, room, participant, mode, message):
+        """Guarda un mensaje de `participant` dirigido a las personas de la sala (no a la IA); devuelve su identificador."""
+
+    @abstractmethod
     def discard_exchange(self, room, ids):
         """Deshace un `append_exchange` cuando lo que debía guardarse con él no se pudo guardar."""
 

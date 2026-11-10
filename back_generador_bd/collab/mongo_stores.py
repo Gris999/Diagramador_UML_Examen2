@@ -130,6 +130,11 @@ class MongoConversationStore(ConversationStore):
             raise
         return [asked["_id"], answered["_id"]]
 
+    def append_message(self, room, participant, mode, message):
+        document = self._document(room, participant, participant.display_name, "user", mode, message)
+        self.messages.insert_one(document)
+        return document["_id"]
+
     def discard_exchange(self, room, ids):
         self.messages.delete_many({"room": room, "_id": {"$in": list(ids)}})
 

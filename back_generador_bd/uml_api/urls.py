@@ -11,7 +11,7 @@ from .auth_views import (
     room_members_view,
     room_settings_view,
 )
-from .chat_views import chat_history, claim_suggestion, ia_chat, ia_provider_info, room_ia_provider
+from .chat_views import chat_history, chat_say, claim_suggestion, ia_chat, ia_provider_info, room_ia_provider
 from .help_views import ia_help
 from .views import (
     set_backupUML,
@@ -39,6 +39,7 @@ urlpatterns = [
     path("xmi/import/", import_xmi, name="xmi-import"),
     path("rooms/<str:room>/activity/", get_room_activity, name="room-activity"),
     path("rooms/<str:room>/chat/", chat_history, name="room-chat-history"),
+    path("rooms/<str:room>/chat/say/", chat_say, name="room-chat-say"),
     path("rooms/<str:room>/ia/chat/", ia_chat, name="room-ia-chat"),
     path(
         "rooms/<str:room>/activity/<int:event_id>/apply/<int:index>/",

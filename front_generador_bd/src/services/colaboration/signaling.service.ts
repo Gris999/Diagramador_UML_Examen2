@@ -21,6 +21,7 @@ type Msg =
   | { type: 'signal'; from: string; payload: any }
   | { type: 'broadcast'; from: string; payload: any }
   | { type: 'activity'; event: ActivityEvent }
+  | { type: 'chat'; message?: unknown }
   | { type: 'removed'; by: string }
   | { type: 'remove_rejected' };
 

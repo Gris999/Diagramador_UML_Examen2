@@ -364,12 +364,13 @@ class IaChatApiTests(ChatTestBase):
             {"text": "Cliente no tiene clave primaria", "prompt": "agrega el atributo id: int a Cliente"},
         )
 
+        # Además de la actividad, la sala se entera de que la conversación tiene mensajes nuevos (eso lo cubre test_chat_sala_api).
+        activity = [(group, message) for group, message in self.layer.sent if message["type"] == "activity"]
         self.assertEqual(
-            [group for group, _ in self.layer.sent],
+            [group for group, _ in activity],
             [f"canvas_{self.room}", f"canvas_{self.room}_viewers"],
         )
-        for _, message in self.layer.sent:
-            self.assertEqual(message["type"], "activity")
+        for _, message in activity:
             self.assertEqual(message["event"]["id"], event.id)
             self.assertEqual(message["event"]["actor_kind"], "ia")
 

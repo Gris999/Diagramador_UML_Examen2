@@ -134,3 +134,19 @@ class ClassifyAnswerTests(SimpleTestCase):
 
     def test_a_new_order_while_waiting_is_still_a_change(self):
         self.assertEqual(classify("agrega una clase Venta", NAMES, has_pending=True)["intent"], CHANGE)
+
+
+class AiNameTests(SimpleTestCase):
+    """La IA de la sala se llama Uma: el nombre al principio del mensaje no es parte del pedido."""
+
+    def test_an_order_addressed_to_the_ai_is_still_a_change(self):
+        for message in ("Uma, agrega una clase Cliente", "uma agrega una clase Cliente", "IA, crea la clase Pedido", "Uma por favor elimina Usuario"):
+            self.assertEqual(classify(message, NAMES)["intent"], CHANGE, message)
+
+    def test_a_review_and_a_yes_addressed_to_the_ai_are_understood(self):
+        self.assertEqual(classify("Uma, revisa el diagrama", NAMES)["intent"], REVIEW)
+        self.assertEqual(classify("Uma, sí", NAMES, has_pending=True)["intent"], CONFIRM)
+        self.assertEqual(classify("Uma no", NAMES, has_pending=True)["intent"], DISCARD)
+
+    def test_the_name_inside_a_sentence_is_not_stripped(self):
+        self.assertEqual(classify("¿Qué hizo Uma?", NAMES + ["Uma"])["intent"], HISTORY)

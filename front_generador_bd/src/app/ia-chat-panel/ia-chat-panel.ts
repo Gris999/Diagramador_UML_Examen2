@@ -1,11 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, computed, effect, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, OnInit, PLATFORM_ID, signal, untracked, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { IdentityService } from '../../services/colaboration/identity.service';
+import { P2PService } from '../../services/colaboration/p2p.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
-import { IaChatMessage, IaChatService, IaProposal, IaProviderInfo, iaErrorMessage } from '../../services/IA/ia-chat.service';
+import { IA_NAME, IaChatMessage, IaChatService, IaProposal, IaProviderInfo, iaErrorMessage, isAddressedToIa } from '../../services/IA/ia-chat.service';
 
 const MAX_MESSAGE_CHARS = 2000;
 
@@ -21,6 +22,7 @@ export class IaChatPanel implements OnInit {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly identity = inject(IdentityService);
   private readonly collab = inject(CollaborationService);
+  private readonly p2p = inject(P2PService);
 
   @ViewChild('messageList') messageList?: ElementRef<HTMLElement>;
 
@@ -40,11 +42,29 @@ export class IaChatPanel implements OnInit {
   readonly providerLabel = computed(() => this.providerInfo()?.label ?? '');
   readonly switching = signal(false);
 
+  /** Cómo se llama la IA en el chat: las personas le hablan empezando el mensaje con su nombre. */
+  readonly iaName = IA_NAME;
+  /** Estado de la IA en la sala (quién le pidió algo): se muestra aunque el pedido sea de otra persona. */
+  readonly iaStatus = this.collab.iaStatus;
+  /** Mensajes de la sala que llegaron con el chat cerrado. */
+  readonly unread = signal(0);
+
   private roomId: string | null = null;
   private historyLoaded = false;
   private wasThinking = false;
+  private lastChatTick = this.p2p.chatTick();
 
   constructor() {
+    // El servidor avisa cada vez que alguien escribe en la sala (o la IA contesta): se vuelve a leer la conversación sin que nadie recargue.
+    effect(() => {
+      const tick = this.p2p.chatTick();
+      if (tick === this.lastChatTick) return;
+      this.lastChatTick = tick;
+      untracked(() => {
+        if (this.open()) this.refreshHistory();
+        else this.unread.update(count => count + 1);
+      });
+    });
     // La conversación es de toda la sala: cuando la IA termina un pedido (de quien sea) se vuelve a leer lo que dijeron los demás.
     effect(() => {
       const thinking = this.collab.iaStatus().state === 'thinking';
@@ -68,6 +88,7 @@ export class IaChatPanel implements OnInit {
   toggle(): void {
     this.open.update(value => !value);
     if (this.open()) {
+      this.unread.set(0);
       this.loadProvider();
       this.loadHistory();
       this.scrollToEnd();
@@ -85,10 +106,23 @@ export class IaChatPanel implements OnInit {
     }
   }
 
-  /** Responde a la propuesta de la IA con los botones: es lo mismo que escribir «sí» o «no» (así queda en la conversación de la sala). */
+  /** Responde a la propuesta de la IA con los botones: es lo mismo que decirle «sí» o «no» a Uma (así queda en la conversación de la sala). */
   answerProposal(accept: boolean): void {
-    this.send(accept ? 'Sí, aplícalo' : 'No, descártalo');
+    this.send(accept ? 'Sí, aplícalo' : 'No, descártalo', true);
   }
+
+  /** ¿Este texto es para la IA? Si empieza con su nombre, o es un «sí» o «no» corto a una propuesta suya que espera permiso. */
+  forIa(text: string): boolean {
+    if (isAddressedToIa(text)) return true;
+    const words = text.trim().split(/\s+/).length;
+    return this.proposal() !== null && words <= 4 && /^(s[ií]|ok|dale|aplic[aá]lo|hazlo|adelante|no|descart[aá]lo|cancela)(?![a-záéíóúñ])/i.test(text.trim());
+  }
+
+  /** Se puede enviar: hay texto, el historial cargó y, si es para la IA, ella no está atendiendo a esta persona. */
+  readonly canSend = computed(() => {
+    const text = this.draft().trim();
+    return this.historyReady() && text.length > 0 && !(this.sending() && this.forIa(text));
+  });
 
   /** Cambia el modelo de IA de toda la sala (nube o local), si el servidor lo tiene disponible. */
   chooseProvider(id: string): void {
@@ -110,14 +144,23 @@ export class IaChatPanel implements OnInit {
     });
   }
 
-  /** Manda lo escrito (o `override`, que usan los botones de la propuesta). La IA decide si es pregunta, cambio, revisión o historial. */
-  send(override?: string): void {
+  /**
+   * Manda lo escrito (o `override`, que usan los botones de la propuesta). Si empieza con el nombre de la IA («Uma, …») se lo pide a ella y el servidor
+   * decide si es pregunta, cambio, revisión o historial; si no, es un mensaje para las demás personas y la IA no se entera.
+   */
+  send(override?: string, toIa?: boolean): void {
     const text = (override ?? this.draft()).trim();
-    if (!this.roomId || !text || this.sending() || !this.historyReady()) return;
+    if (!this.roomId || !text || !this.historyReady()) return;
     if (text.length > MAX_MESSAGE_CHARS) {
       this.error.set(`El mensaje no puede superar ${MAX_MESSAGE_CHARS} caracteres.`);
       return;
     }
+
+    if (!(toIa ?? this.forIa(text))) {
+      this.say(text, override === undefined);
+      return;
+    }
+    if (this.sending()) return;
 
     this.error.set('');
     this.sending.set(true);
@@ -127,9 +170,17 @@ export class IaChatPanel implements OnInit {
     this.actions.request(this.roomId, 'auto', text).subscribe({
       next: response => {
         this.append({ role: 'ia', content: response.reply, author_name: 'IA' });
+        // La pregunta y la respuesta ya están guardadas en el servidor: se reemplazan las copias locales por las de la sala.
+        this.refreshHistory();
         // Una propuesta nueva reemplaza a la anterior; «sí», «no» o un cambio directo la cierran. Una pregunta no la toca.
-        if (response.proposal) this.proposal.set(response.proposal);
-        else if (response.changes || response.intent === 'confirm' || response.intent === 'discard') this.proposal.set(null);
+        if (response.proposal) {
+          this.proposal.set(response.proposal);
+          // El cambio propuesto se dibuja sobre el diagrama («holograma») hasta que la persona diga que sí o que no.
+          this.actions.showPreview(response.proposal.preview);
+        } else if (response.changes || response.intent === 'confirm' || response.intent === 'discard') {
+          this.proposal.set(null);
+          this.actions.clearPreview();
+        }
         this.sending.set(false);
       },
       error: (failure: unknown) => {
@@ -137,6 +188,30 @@ export class IaChatPanel implements OnInit {
         this.sending.set(false);
       }
     });
+  }
+
+  /** Un mensaje para las demás personas: aparece enseguida y el servidor lo reparte en vivo a toda la sala. */
+  private say(text: string, clearDraft: boolean): void {
+    if (!this.roomId) return;
+    this.error.set('');
+    const localId = this.append({ role: 'user', content: text, author_name: this.myName() });
+    if (clearDraft) this.draft.set('');
+    this.chat.say(this.roomId, text).subscribe({
+      next: () => this.refreshHistory(),
+      error: (failure: unknown) => {
+        this.messages.update(current => current.filter(message => message.id !== localId));
+        if (clearDraft) this.draft.set(text);
+        this.error.set(this.sayErrorMessage(failure));
+      }
+    });
+  }
+
+  private sayErrorMessage(failure: unknown): string {
+    if (failure instanceof HttpErrorResponse) {
+      if (failure.status === 429) return 'Demasiados mensajes seguidos. Espera un momento.';
+      if (failure.status === 403) return 'Todavía no te identificaste en la sala. Recarga la página e inténtalo de nuevo.';
+    }
+    return 'No se pudo enviar el mensaje. Intenta de nuevo.';
   }
 
   /** Lee qué modelo usa la sala; se vuelve a leer al abrir el chat y cuando la IA termina un pedido, por si alguien lo cambió. */
@@ -171,18 +246,20 @@ export class IaChatPanel implements OnInit {
     this.chat.history(this.roomId).subscribe({
       next: history => {
         if (history.length === 0) return;
-        this.messages.set(history);
+        this.messages.set(this.withPending(history));
         this.scrollToEnd();
       },
       error: () => undefined
     });
   }
 
-  private append(message: { role: 'user' | 'ia'; content: string; author_name?: string }): void {
+  /** Agrega un mensaje local (todavía no guardado, con id negativo) y devuelve ese id. */
+  private append(message: { role: 'user' | 'ia'; content: string; author_name?: string }): number {
+    const localId = -(this.messages().length + 1 + Math.floor(Math.random() * 1_000_000));
     this.messages.update(current => [
       ...current,
       {
-        id: -(current.length + 1),
+        id: localId,
         role: message.role,
         author_name: message.author_name,
         content: message.content,
@@ -190,6 +267,15 @@ export class IaChatPanel implements OnInit {
       }
     ]);
     this.scrollToEnd();
+    return localId;
+  }
+
+  /** Lo de la sala más lo que esta persona acaba de escribir y el servidor todavía no devolvió. */
+  private withPending(history: IaChatMessage[]): IaChatMessage[] {
+    const pending = this.messages().filter(
+      local => local.id < 0 && !history.some(saved => saved.author_name === local.author_name && saved.content === local.content)
+    );
+    return [...history, ...pending];
   }
 
   private messageFor(failure: unknown): string {

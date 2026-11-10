@@ -920,6 +920,106 @@ describe('DiagramService read-only mode (follow view)', () => {
     expect(paper.translate).toHaveBeenCalledOnceWith(16 - 100 * scale, 16 - 50 * scale);
   });
 
+  describe('preview of what the AI proposes', () => {
+    function setup() {
+      const { service } = createService();
+      const viewport = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      (service as any).paper = { viewport };
+      (service as any).graph = { getCells: () => [] };
+      spyOn(service, 'exportToJson').and.returnValue({ classes: [{ id: 'c1', name: 'Cliente', attributes: [], methods: [], position: { x: 0, y: 0 }, size: { width: 100, height: 80 } }], relationships: [] } as any);
+      return { service, viewport };
+    }
+
+    it('draws the proposal inside the viewport and replaces the previous one, without touching the graph', () => {
+      const { service, viewport } = setup();
+
+      service.showHologram({ classes: [{ name: 'Factura' }] });
+      service.showHologram({ classes: [{ name: 'Pedido' }] });
+
+      expect(viewport.querySelectorAll('.hologram').length).toBe(1);
+      expect(viewport.textContent).toContain('Pedido');
+      expect(viewport.textContent).not.toContain('Factura');
+    });
+
+    it('draws nothing when the proposal has nothing to show, and removes it on request', () => {
+      const { service, viewport } = setup();
+
+      service.showHologram({});
+      expect(viewport.querySelectorAll('.hologram').length).toBe(0);
+
+      service.showHologram({ classes: [{ name: 'Factura' }] });
+      service.clearHologram();
+      expect(viewport.querySelectorAll('.hologram').length).toBe(0);
+    });
+
+    it('does nothing before the canvas exists', () => {
+      const { service } = createService();
+
+      expect(() => { service.showHologram({ classes: [{ name: 'A' }] }); service.clearHologram(); }).not.toThrow();
+    });
+  });
+
+  describe('moving a relationship by hand', () => {
+    function setup(vertices: any[], route: any[]) {
+      const { service } = createService();
+      const added: any[] = [];
+      const model = {
+        get: () => 'Relacion',
+        vertices: jasmine.createSpy('vertices').and.callFake((value?: any[]) => (value ? undefined : vertices)),
+      };
+      const linkView: any = { model, route, addTools: (tools: any) => added.push(tools), removeTools: jasmine.createSpy('removeTools') };
+      class ToolsView { constructor(public options: any) {} }
+      class Segments { constructor(public options: any) {} }
+      (service as any).joint = { dia: { ToolsView }, linkTools: { Segments } };
+      (service as any).paper = { removeTools: jasmine.createSpy('paperRemoveTools') };
+      return { service, model, linkView, added };
+    }
+
+    it('freezes the route the line has now as vertices and shows the handles of its segments', () => {
+      const { service, model, linkView, added } = setup([], [{ x: 10.4, y: 20.6 }, { x: 10.4, y: 90 }]);
+
+      (service as any).showLinkTools(linkView);
+
+      expect(model.vertices).toHaveBeenCalledWith([{ x: 10, y: 21 }, { x: 10, y: 90 }]);
+      expect(added.length).toBe(1);
+      expect(added[0].options.tools[0].options.redundancyRemoval).toBeTrue();
+    });
+
+    it('keeps the vertices a line already has and does not freeze anything else', () => {
+      const { service, model, linkView, added } = setup([{ x: 5, y: 5 }], [{ x: 99, y: 99 }]);
+
+      (service as any).showLinkTools(linkView);
+
+      expect(model.vertices).not.toHaveBeenCalledWith(jasmine.any(Array));
+      expect(added.length).toBe(1);
+    });
+
+    it('hides the handles of the previous line when another one is chosen', () => {
+      const { service, linkView } = setup([{ x: 5, y: 5 }], []);
+
+      (service as any).showLinkTools(linkView);
+
+      expect(((service as any).paper).removeTools).toHaveBeenCalled();
+    });
+
+    it('goes back to the automatic route when the vertices are removed', () => {
+      const { service, model, linkView } = setup([{ x: 5, y: 5 }, { x: 5, y: 50 }], []);
+
+      (service as any).resetLinkRoute(linkView);
+
+      expect(linkView.removeTools).toHaveBeenCalled();
+      expect(model.vertices).toHaveBeenCalledWith([]);
+    });
+
+    it('does nothing to a line that was already automatic', () => {
+      const { service, model, linkView } = setup([], []);
+
+      (service as any).resetLinkRoute(linkView);
+
+      expect(model.vertices).not.toHaveBeenCalledWith(jasmine.any(Array));
+    });
+  });
+
   it('never zooms in beyond real size and handles an empty diagram', () => {
     const { service } = createService();
     const paper = {

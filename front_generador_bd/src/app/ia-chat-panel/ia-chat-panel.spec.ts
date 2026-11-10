@@ -5,6 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { Observable, of, Subject, throwError } from 'rxjs';
 import { CollaborationService } from '../../services/colaboration/collaboration.service';
 import { IdentityService } from '../../services/colaboration/identity.service';
+import { P2PService } from '../../services/colaboration/p2p.service';
 import { IaActionsService } from '../../services/IA/ia-actions.service';
 import { IaChatMessage, IaChatMode, IaChatResponse, IaChatService, IaProviderInfo } from '../../services/IA/ia-chat.service';
 import { IaChatPanel } from './ia-chat-panel';
@@ -16,6 +17,10 @@ describe('IaChatPanel', () => {
   let setRoomProvider: jasmine.Spy<(room: string, provider: string) => Observable<IaProviderInfo>>;
   let request: jasmine.Spy<(room: string, mode: IaChatMode, message: string) => Observable<IaChatResponse>>;
   let iaStatus: ReturnType<typeof signal<{ state: 'thinking' | 'idle'; by: string }>>;
+  let say: jasmine.Spy<(room: string, message: string) => Observable<IaChatMessage | null>>;
+  let showPreview: jasmine.Spy<(changes: unknown) => void>;
+  let clearPreview: jasmine.Spy<() => void>;
+  let chatTick: ReturnType<typeof signal<number>>;
 
   function element(selector: string): HTMLElement | null {
     return (fixture.nativeElement as HTMLElement).querySelector(selector);
@@ -66,6 +71,10 @@ describe('IaChatPanel', () => {
     setRoomProvider = jasmine.createSpy('setRoomProvider').and.returnValue(of(CLOUD));
     request = jasmine.createSpy('request').and.returnValue(of({ reply: 'Respuesta de la IA' }));
     iaStatus = signal<{ state: 'thinking' | 'idle'; by: string }>({ state: 'idle', by: '' });
+    say = jasmine.createSpy('say').and.returnValue(of(null));
+    showPreview = jasmine.createSpy('showPreview');
+    clearPreview = jasmine.createSpy('clearPreview');
+    chatTick = signal(0);
 
     await TestBed.configureTestingModule({
       imports: [IaChatPanel],
@@ -73,10 +82,11 @@ describe('IaChatPanel', () => {
         provideZonelessChangeDetection(),
         { provide: PLATFORM_ID, useValue: 'browser' },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'sala-1' } } } },
-        { provide: IaChatService, useValue: { history, roomProvider, setRoomProvider } },
-        { provide: IaActionsService, useValue: { request } },
+        { provide: IaChatService, useValue: { history, roomProvider, setRoomProvider, say } },
+        { provide: IaActionsService, useValue: { request, showPreview, clearPreview } },
         { provide: IdentityService, useValue: { getIdentity: () => ({ token: 't', name: 'Ana' }) } },
-        { provide: CollaborationService, useValue: { iaStatus } }
+        { provide: CollaborationService, useValue: { iaStatus } },
+        { provide: P2PService, useValue: { chatTick } }
       ]
     }).compileComponents();
 
@@ -106,15 +116,15 @@ describe('IaChatPanel', () => {
 
   it('sends the question with the current diagram and shows the reply', async () => {
     await openChat();
-    await type('  ¿Qué hizo Beto?  ');
+    await type('  Uma, ¿qué hizo Beto?  ');
 
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(request).toHaveBeenCalledOnceWith('sala-1', 'auto', '¿Qué hizo Beto?');
-    expect(authorsAndTexts()).toEqual([['Ana', '¿Qué hizo Beto?'], ['IA', 'Respuesta de la IA']]);
+    expect(request).toHaveBeenCalledOnceWith('sala-1', 'auto', 'Uma, ¿qué hizo Beto?');
+    expect(authorsAndTexts()).toEqual([['Ana', 'Uma, ¿qué hizo Beto?'], ['Uma (IA)', 'Respuesta de la IA']]);
     expect((element('[data-testid="ia-chat-input"]') as HTMLTextAreaElement).value).toBe('');
   });
 
@@ -122,12 +132,12 @@ describe('IaChatPanel', () => {
     const pending = new Subject<IaChatResponse>();
     request.and.returnValue(pending);
     await openChat();
-    await type('primera');
+    await type('Uma, primera');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
     expect(element('[data-testid="ia-chat-thinking"]')).not.toBeNull();
-    await type('segunda');
+    await type('Uma, segunda');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     expect(request).toHaveBeenCalledTimes(1);
 
@@ -140,7 +150,7 @@ describe('IaChatPanel', () => {
   it('shows a clear message when the AI fails and keeps the chat usable', async () => {
     request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 502 })));
     await openChat();
-    await type('hola');
+    await type('Uma, hola');
 
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -155,13 +165,13 @@ describe('IaChatPanel', () => {
     await openChat();
 
     request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
-    await type('uno');
+    await type('Uma, uno');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('identificaste');
 
     request.and.returnValue(throwError(() => new HttpErrorResponse({ status: 429 })));
-    await type('dos');
+    await type('Uma, dos');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('Demasiadas preguntas');
@@ -179,7 +189,7 @@ describe('IaChatPanel', () => {
   it('sends everything as one kind of message and lets the server decide what it is', async () => {
     await openChat();
 
-    for (const text of ['agrega la clase Factura', 'revisa el diagrama', '¿Qué hizo Beto?']) {
+    for (const text of ['Uma, agrega la clase Factura', 'Uma, revisa el diagrama', 'Uma, ¿qué hizo Beto?']) {
       await type(text);
       (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -187,9 +197,9 @@ describe('IaChatPanel', () => {
     }
 
     expect(request.calls.allArgs()).toEqual([
-      ['sala-1', 'auto', 'agrega la clase Factura'],
-      ['sala-1', 'auto', 'revisa el diagrama'],
-      ['sala-1', 'auto', '¿Qué hizo Beto?']
+      ['sala-1', 'auto', 'Uma, agrega la clase Factura'],
+      ['sala-1', 'auto', 'Uma, revisa el diagrama'],
+      ['sala-1', 'auto', 'Uma, ¿qué hizo Beto?']
     ]);
   });
 
@@ -205,9 +215,9 @@ describe('IaChatPanel', () => {
     await openChat();
 
     const text = element('[data-testid="ia-chat-empty"]')!.textContent!;
-    expect(text).toContain('¿Qué hizo Beto?');
-    expect(text).toContain('Agrega una clase');
-    expect(text).toContain('Revisa el diagrama');
+    expect(text).toContain('Uma, ¿qué hizo Beto?');
+    expect(text).toContain('agrega una clase');
+    expect(text).toContain('revisa el diagrama');
   });
 
   describe('permission before changing the diagram', () => {
@@ -220,7 +230,7 @@ describe('IaChatPanel', () => {
     async function propose(): Promise<void> {
       request.and.returnValue(of(proposal));
       await openChat();
-      await type('agrega la clase Factura');
+      await type('Uma, agrega la clase Factura');
       (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
       fixture.detectChanges();
       await fixture.whenStable();
@@ -237,10 +247,57 @@ describe('IaChatPanel', () => {
       expect(request).toHaveBeenCalledTimes(1);
     });
 
+    it('draws what the AI proposes over the diagram as a preview while it waits for the permission', async () => {
+      const preview = { classes: [{ name: 'Factura' }] };
+      request.and.returnValue(of({ ...proposal, proposal: { ...proposal.proposal!, preview } }));
+      await openChat();
+      await type('Uma, agrega la clase Factura');
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(showPreview).toHaveBeenCalledOnceWith(preview);
+      expect(clearPreview).not.toHaveBeenCalled();
+    });
+
+    it('takes the preview away when the person applies the proposal', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Listo.', intent: 'confirm', changes: {} }));
+
+      click('ia-proposal-apply');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(clearPreview).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes the preview away when the person discards the proposal', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Descartado.', intent: 'discard' }));
+
+      click('ia-proposal-discard');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(clearPreview).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the preview when the person only asks something else in the meantime', async () => {
+      await propose();
+      request.and.returnValue(of({ reply: 'Hay dos clases.', intent: 'ask' }));
+      await type('Uma, ¿cuántas clases hay?');
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(clearPreview).not.toHaveBeenCalled();
+    });
+
     it('warns when what is proposed also deletes things', async () => {
       request.and.returnValue(of({ ...proposal, proposal: { lines: ['Eliminar la clase Pedido'], destructive: 1 } }));
       await openChat();
-      await type('elimina Pedido');
+      await type('Uma, elimina Pedido');
       (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
       fixture.detectChanges();
       await fixture.whenStable();
@@ -258,7 +315,7 @@ describe('IaChatPanel', () => {
       fixture.detectChanges();
 
       expect(request.calls.mostRecent().args).toEqual(['sala-1', 'auto', 'Sí, aplícalo']);
-      expect(authorsAndTexts().slice(-2)).toEqual([['Ana', 'Sí, aplícalo'], ['IA', 'Listo, apliqué el cambio en el diagrama.']]);
+      expect(authorsAndTexts().slice(-2)).toEqual([['Ana', 'Sí, aplícalo'], ['Uma (IA)', 'Listo, apliqué el cambio en el diagrama.']]);
       expect(element('[data-testid="ia-proposal"]')).toBeNull();
     });
 
@@ -277,7 +334,7 @@ describe('IaChatPanel', () => {
     it('keeps the buttons when the person asks something else in the meantime', async () => {
       await propose();
       request.and.returnValue(of({ reply: 'Hay dos clases.', intent: 'ask' }));
-      await type('¿Cuántas clases hay?');
+      await type('Uma, ¿cuántas clases hay?');
 
       (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -303,7 +360,7 @@ describe('IaChatPanel', () => {
     it('closes the proposal when the person asks to apply something directly', async () => {
       await propose();
       request.and.returnValue(of({ reply: 'Listo.', intent: 'change', changes: {} }));
-      await type('agrega Venta directamente');
+      await type('Uma, agrega Venta directamente');
 
       (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -316,7 +373,7 @@ describe('IaChatPanel', () => {
     it('does not show buttons for an ordinary answer', async () => {
       request.and.returnValue(of({ reply: 'Hay dos clases.', intent: 'ask' }));
       await openChat();
-      await type('¿Cuántas clases hay?');
+      await type('Uma, ¿cuántas clases hay?');
 
       (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -482,7 +539,7 @@ describe('IaChatPanel', () => {
     await openChat();
 
     const rows = elements('[data-testid="ia-chat-message"]');
-    expect(rows.map(row => row.querySelector('[data-testid="ia-chat-author"]')!.textContent!.trim())).toEqual(['Beto', 'IA', 'Ana']);
+    expect(rows.map(row => row.querySelector('[data-testid="ia-chat-author"]')!.textContent!.trim())).toEqual(['Beto', 'Uma (IA)', 'Ana']);
     expect(rows[0].classList).not.toContain('justify-end');
     expect(rows[2].classList).toContain('justify-end');
   });
@@ -503,7 +560,7 @@ describe('IaChatPanel', () => {
     fixture.detectChanges();
 
     expect(history).toHaveBeenCalledTimes(2);
-    expect(authorsAndTexts()).toEqual([['Beto', 'pregunta de Beto'], ['IA', 'respuesta para Beto']]);
+    expect(authorsAndTexts()).toEqual([['Beto', 'pregunta de Beto'], ['Uma (IA)', 'respuesta para Beto']]);
   });
 
   it('does not reload while the chat is closed', async () => {
@@ -518,7 +575,7 @@ describe('IaChatPanel', () => {
 
   it('keeps what is on screen when the reload brings nothing', async () => {
     await openChat();
-    await type('hola');
+    await type('Uma, hola');
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     await fixture.whenStable();
@@ -539,11 +596,136 @@ describe('IaChatPanel', () => {
       status: 409, error: { error: 'La IA está atendiendo a Beto. Espera a que termine.' }
     })));
     await openChat();
-    await type('hola');
+    await type('Uma, hola');
 
     (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
     expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('La IA está atendiendo a Beto');
+  });
+
+  describe('chat among the people of the room', () => {
+    async function sendText(text: string): Promise<void> {
+      await type(text);
+      (element('[data-testid="ia-chat-send"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    const STORED_HOLA: IaChatMessage = { id: 7, role: 'user', author_name: 'Ana', mode: undefined, content: 'hola equipo', created_at: 'x' };
+
+    it('sends a message that does not name the AI to the team and never to the AI', async () => {
+      await openChat();
+
+      await sendText('hola equipo');
+
+      expect(say).toHaveBeenCalledOnceWith('sala-1', 'hola equipo');
+      expect(request).not.toHaveBeenCalled();
+      expect(authorsAndTexts()).toEqual([['Ana', 'hola equipo']]);
+      expect((element('[data-testid="ia-chat-input"]') as HTMLTextAreaElement).value).toBe('');
+    });
+
+    it('replaces the local copy by the saved one so the message is not shown twice', async () => {
+      await openChat();
+      history.and.returnValue(of([STORED_HOLA]));
+
+      await sendText('hola equipo');
+
+      expect(authorsAndTexts()).toEqual([['Ana', 'hola equipo']]);
+    });
+
+    it('can still write to the team while the AI is working for this person', async () => {
+      request.and.returnValue(new Subject<IaChatResponse>());
+      await openChat();
+      await sendText('Uma, agrega la clase Factura');
+      expect(element('[data-testid="ia-chat-thinking"]')!.textContent).toContain('Uma está pensando');
+
+      await type('mientras tanto, yo hago Libro');
+
+      expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeFalse();
+      await type('Uma, otra cosa');
+      expect((element('[data-testid="ia-chat-send"]') as HTMLButtonElement).disabled).toBeTrue();
+    });
+
+    it('talks to the AI only when the message starts with its name', async () => {
+      await openChat();
+
+      for (const text of ['Uma, revisa el diagrama', '@uma agrega Cliente', 'IA, ¿qué hizo Beto?', 'uma: crea Pedido']) {
+        await sendText(text);
+      }
+      for (const text of ['pregúntale a Uma luego', 'umami', 'qué hacemos con la IA']) {
+        await sendText(text);
+      }
+
+      expect(request.calls.allArgs().map(args => args[2])).toEqual(['Uma, revisa el diagrama', '@uma agrega Cliente', 'IA, ¿qué hizo Beto?', 'uma: crea Pedido']);
+      expect(say.calls.allArgs().map(args => args[1])).toEqual(['pregúntale a Uma luego', 'umami', 'qué hacemos con la IA']);
+    });
+
+    it('takes a short yes or no as the answer to the AI only while a proposal waits', async () => {
+      await openChat();
+      await sendText('sí');
+      expect(say).toHaveBeenCalledOnceWith('sala-1', 'sí');
+      expect(request).not.toHaveBeenCalled();
+
+      request.and.returnValue(of({ reply: 'Esto es lo que haría', intent: 'change', proposal: { lines: ['Crear la clase Factura'], destructive: 0 } }));
+      await sendText('Uma, agrega la clase Factura');
+      request.and.returnValue(of({ reply: 'Listo.', intent: 'confirm', changes: {} }));
+      await sendText('sí');
+
+      expect(request.calls.mostRecent().args).toEqual(['sala-1', 'auto', 'sí']);
+      expect(say).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes the message back and says why when it could not be sent', async () => {
+      say.and.returnValue(throwError(() => new HttpErrorResponse({ status: 429 })));
+      await openChat();
+
+      await sendText('hola equipo');
+
+      expect(element('[data-testid="ia-chat-error"]')!.textContent).toContain('Demasiados mensajes');
+      expect(elements('[data-testid="ia-chat-message"]').length).toBe(0);
+      expect((element('[data-testid="ia-chat-input"]') as HTMLTextAreaElement).value).toBe('hola equipo');
+    });
+
+    it('shows what the others wrote as soon as the server announces it, without refreshing', async () => {
+      await openChat();
+      expect(history).toHaveBeenCalledTimes(1);
+      history.and.returnValue(of([{ id: 1, role: 'user', author_name: 'Beto', content: 'yo hago Libro', created_at: 'x' }]));
+
+      chatTick.set(1);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(history).toHaveBeenCalledTimes(2);
+      expect(authorsAndTexts()).toEqual([['Beto', 'yo hago Libro']]);
+    });
+
+    it('counts the new messages while the chat is closed and clears them when it opens', async () => {
+      chatTick.set(1);
+      fixture.detectChanges();
+      chatTick.set(2);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(history).not.toHaveBeenCalled();
+      expect(element('[data-testid="ia-chat-unread"]')!.textContent!.trim()).toBe('2');
+
+      await openChat();
+
+      expect(element('[data-testid="ia-chat-unread"]')).toBeNull();
+      expect(history).toHaveBeenCalledTimes(1);
+    });
+
+    it('says who the AI is serving when it works for another person', async () => {
+      await openChat();
+
+      iaStatus.set({ state: 'thinking', by: 'Beto' });
+      fixture.detectChanges();
+
+      expect(element('[data-testid="ia-chat-busy"]')!.textContent).toContain('Uma está atendiendo a Beto');
+    });
   });
 });

@@ -99,7 +99,7 @@ def build_chat_prompt(*, participant_name, uml, events, history, message) -> str
         for item in history
     ) or "(sin mensajes anteriores)"
 
-    return f"""Eres la IA de una sala colaborativa de modelado UML. Ayudas al equipo que edita el diagrama.
+    return f"""Eres Uma, la IA de una sala colaborativa de modelado UML. Ayudas al equipo que edita el diagrama.
 
 Reglas:
 - Responde en español, de forma breve y clara, en texto plano (sin Markdown: nada de asteriscos ni almohadillas).
@@ -128,7 +128,7 @@ MAX_SUGGESTIONS = 5
 
 def build_review_prompt(*, uml) -> str:
     """Prompt de la revisión del diagrama: la IA solo observa, no lo modifica."""
-    return f"""Eres la IA de una sala colaborativa de modelado UML. Revisa el diagrama: clases, atributos, métodos y relaciones.
+    return f"""Eres Uma, la IA de una sala colaborativa de modelado UML. Revisa el diagrama: clases, atributos, métodos y relaciones.
 Busca errores o mejoras de modelado: nombres inconsistentes, atributos faltantes (por ejemplo una clave), tipos incorrectos, relaciones o multiplicidades dudosas, clases sin relaciones.
 
 Reglas:
