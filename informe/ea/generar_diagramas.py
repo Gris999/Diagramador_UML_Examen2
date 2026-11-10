@@ -2,10 +2,12 @@
 
 Uso:  python3 informe/ea/generar_diagramas.py
 
-Necesita CrossOver con una botella «Enterprise Architect 17.2» donde esté instalado EA (ver `constructor.py`).
+Necesita CrossOver con una botella (por defecto «prueba-crossover», o la de la variable EA_BOTELLA) donde esté instalado EA (ver `constructor.py`).
+Las imágenes salen en `build/ea/`, o en la carpeta de la variable EA_DESTINO (para probar sin pisar las del informe).
 Además de las imágenes deja `build/ea/modelo.qea`, el modelo de EA con todos los elementos y diagramas.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -16,7 +18,7 @@ import constructor  # noqa: E402
 import etiquetas  # noqa: E402
 import especificaciones  # noqa: E402
 
-DESTINO = AQUI.parent / "build" / "ea"
+DESTINO = Path(os.environ.get("EA_DESTINO", AQUI.parent / "build" / "ea"))
 
 if __name__ == "__main__":
     # `--solo requisitos`: diagramas de casos de uso (modelo/requisitos.py). `--solo analisis`: diagramas del análisis

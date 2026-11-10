@@ -70,7 +70,7 @@ def paso1(modelo):
     return copia
 
 
-def medir(png, cuantos):
+def medir(png, cuantos, saturacion_minima=0.25):
     """[(x0, y0, x1, y1) en píxeles | None] de las `cuantos` etiquetas, por su tono (los bordes suavizados del texto conservan el tono)."""
     imagen = np.asarray(Image.open(png).convert("RGB")).astype(float)
     r, g, b = imagen[..., 0], imagen[..., 1], imagen[..., 2]
@@ -78,7 +78,7 @@ def medir(png, cuantos):
     delta = np.where(maximo == minimo, 1, maximo - minimo)
     tono = np.where(maximo == r, ((g - b) / delta) % 6, np.where(maximo == g, (b - r) / delta + 2, (r - g) / delta + 4)) * 60
     saturacion = np.where(maximo == 0, 0, (maximo - minimo) / np.where(maximo == 0, 1, maximo))
-    colorido = (saturacion > 0.25) & (maximo / 255 > 0.75)
+    colorido = (saturacion > saturacion_minima) & (maximo / 255 > 0.75)
     medidas = []
     for n in range(cuantos):
         cerca = np.abs(((tono - TONOS[n]) + 180) % 360 - 180) < TOLERANCIA_TONO
@@ -131,6 +131,11 @@ def paso2(modelo, carpeta_paso1):
             return K * x + bx, K * y + by
 
         medidas = medir(png, len(autos))
+        # Los diagramas C4 son de color azul, y el tono azul de la prueba (202°) confunde la etiqueta con las cajas: la medida sale del tamaño de todo el
+        # diagrama. Solo en ese caso se vuelve a medir pidiendo el color puro del texto (las cajas tienen un degradado menos saturado).
+        if any(c is not None and (c[2] - c[0] > 500 or c[3] - c[1] > 120) for c in medidas):
+            estrictas = medir(png, len(autos), 0.85)
+            medidas = [e if (c is not None and (c[2] - c[0] > 500 or c[3] - c[1] > 120)) else c for c, e in zip(medidas, estrictas)]
         objetos = {o["k"]: dict(o, sesgo={"Class": round(K * (ATAQUE_CLASE - o["h"] / 2)), "Actor": SESGO_ACTOR}.get(
             modelo["elementos"][o["k"]]["tipo"], 0)) for o in d["objetos"]}
         colocadas = []  # rectángulos (px) ya ocupados por otras etiquetas
@@ -162,6 +167,12 @@ def paso2(modelo, carpeta_paso1):
                     limite = borde_d
                 x = (borde_o + limite) / 2
                 y = px(0, centro_o[1])[1] + o["sesgo"] - 9 - alto_px / 2
+                deseado = (x, y)
+            elif c.get("arbol") == "V" and c.get("etiq_modo") == "destino":
+                # vertical con tronco compartido (varios destinos debajo de un mismo origen): sobre la bajada hacia su destino, del lado
+                # izquierdo, entre el tronco y el borde superior del destino; así las etiquetas de los hermanos no caen una sobre otra
+                x = px(centro_d[0], 0)[0] - 8 - ancho_px / 2
+                y = px(0, t["y"])[1] - K * TRONCO / 2
                 deseado = (x, y)
             elif c.get("arbol") == "V":
                 # vertical: al lado izquierdo de la línea, a mitad de camino entre los dos elementos

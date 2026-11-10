@@ -20,7 +20,8 @@ import time
 from pathlib import Path
 
 CX = "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin"
-BOTELLA = "Enterprise Architect 17.2"
+# La botella de CrossOver donde está instalado EA (se puede cambiar con la variable EA_BOTELLA).
+BOTELLA = os.environ.get("EA_BOTELLA", "prueba-crossover")
 DRIVE_C = Path.home() / "Library/Application Support/CrossOver/Bottles" / BOTELLA / "drive_c"
 EA_BASE = DRIVE_C / "Program Files/Sparx Systems/EA Trial/EABase.qea"
 CARPETA = DRIVE_C / "ea"
