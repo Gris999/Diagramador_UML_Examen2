@@ -429,7 +429,7 @@ caso("CU10", "B",
       b("uml_api/tests/test_xmi_layout.py", "XMILayoutTests.test_round_trip_preserves_class_position_and_size"),
       b("uml_api/tests/test_xmi_enterprise_architect.py", "EnterpriseArchitectXMITests.test_export_uses_uml_primitive_type_hrefs"),
       f("services/interop/xmi.service.spec.ts", "omits association-class connectors while preserving supported relationships")],
-     manual=["Exportar el XMI de un diagrama con clases y relaciones y abrirlo en Enterprise Architect 17.2: clases, atributos, relaciones y multiplicidades intactos (prueba del primer parcial, ver nota)."])
+     manual=["Exportar el XMI de un diagrama con clases y relaciones y abrirlo en Enterprise Architect 17.2: clases, atributos, relaciones y multiplicidades intactos (prueba física anterior, ver nota)."])
 caso("CU10", "A1",
      "Se elige «Importar XMI» y se sube un archivo exportado por Enterprise Architect.",
      "El servidor lo valida y lo convierte en un diagrama con sus clases, atributos, relaciones y multiplicidades (con o sin prefijo de espacio de nombres); el viaje ida y vuelta conserva el modelo.",
@@ -503,7 +503,7 @@ caso("CU12", "B",
       b("uml_api/tests/test_flutter_generator.py", "FlutterRecursiveRelationshipTests.test_recursive_many_to_many_as_the_editor_sends_it_has_no_repeated_fields"),
       b("uml_api/tests/test_flutter_generator.py", "FlutterRecursiveRelationshipTests.test_raw_recursive_many_to_many_has_no_repeated_fields"),
       b("uml_api/tests/test_flutter_generator.py", "AssistantSchemaGeneratorTests.test_main_exposes_assistant_entry_point")],
-     manual=["Generar el proyecto Flutter, abrirlo y ejecutarlo sin red: el CRUD funciona y los datos persisten (prueba física del primer parcial, ver nota)."])
+     manual=["Generar el proyecto Flutter, abrirlo y ejecutarlo sin red: el CRUD funciona y los datos persisten (prueba física anterior, ver nota)."])
 caso("CU12", "E1",
      "Se pide generar la aplicación con un diagrama sin clases.",
      "El servidor responde con un error de cliente y el navegador muestra «No se pudo generar la aplicación móvil…» sin descargar nada.",
@@ -726,11 +726,11 @@ EJECUCIONES = {
     ("CU8", "B"): ("pasó", "Con Gemini real y una imagen de dos clases (Libro y Autor): como el diagrama ya tenía elementos apareció el diálogo; con «Combinar con actual» se "
                            "agregaron Libro, Autor y su relación 1..* a 1, también en la vista del celular."),
     ("CU10", "B"): ("pasó con observación", "Desde la aplicación se exportó el XMI (con las clases y su tipo uml:Class) y se volvió a importar: el diagrama quedó idéntico. No se repitió la "
-                                            "prueba con Enterprise Architect 17.2, que es del primer parcial."),
+                                            "prueba con Enterprise Architect 17.2, que es una prueba física anterior."),
     ("CU10", "A2"): ("pasó", "El PNG exportado tiene fondo claro (RGB 248, 249, 250) y solo el diagrama."),
     ("CU11", "B"): ("pasó con observación", "Con el generador Spring en el puerto 7001, «Exportar a Backend» descargó un .zip de 17 KB. La compilación del proyecto generado la hace la "
                                             "prueba automática ProjectGeneratorCompileTest (no se repitió a mano)."),
-    ("CU12", "B"): ("pasó con observación", "«Exportar Flutter» descargó un .zip de 53 KB. No se repitió la ejecución de la aplicación sin red en un dispositivo (prueba del primer parcial)."),
+    ("CU12", "B"): ("pasó con observación", "«Exportar Flutter» descargó un .zip de 53 KB. No se repitió la ejecución de la aplicación sin red en un dispositivo (prueba física anterior)."),
     ("CU6", "B"): ("pasó", "Cada clase, renombre y relación hechos por una persona aparecieron al instante en «Actividad» de las demás, y al reabrir la sala el historial volvió."),
     ("CU9", "B"): ("pasó", "Con Gemini real: Ana preguntó qué clases había y qué había hecho; la IA contestó con el diagrama y la actividad y Beto vio la misma conversación con el autor de "
                            "cada mensaje. En modo «Revisar» publicó 3 ideas con su botón «Aplicar» en las dos pantallas; Beto aplicó la primera (la clase Factura no tenía "
@@ -784,7 +784,7 @@ DEFECTOS = [
          correccion="Cada vez que se abre el editor, la expulsión anterior deja de contar (el servicio de colaboración vive toda la sesión y la conservaba).",
          pruebas=[f("app/diagram/diagram.spec.ts", "does not treat a person expelled earlier as expelled again when they come back to the room"),
                   f("app/diagram/diagram.spec.ts", "still expels the person when the host removes them while they are in the new visit")]),
-    dict(id="D-06", cu="CU14", camino="B", como="Prueba física de C4 en el navegador: el asistente de ayuda no respondía.",
+    dict(id="D-06", cu="CU14", camino="B", como="Prueba física del asistente de ayuda en el navegador: no respondía.",
          efecto="El navegador bloqueaba el pedido: el servidor no incluía la cabecera propia X-Help-Token entre las que acepta (la respuesta previa daba 200 pero el pedido fallaba).",
          correccion="La cabecera se agregó a las permitidas y una prueba verifica la respuesta previa del navegador.",
          pruebas=[b("uml_api/tests/test_ia_help_api.py", "HelpCorsTests.test_the_browser_may_send_the_help_token_header_from_the_frontend_origin")]),
@@ -806,8 +806,8 @@ RESULTADOS = [
     ("Spring Boot (generador de backend)", "back_generator_uml/mvnw test", "12 pruebas: todas pasaron, incluida la compilación real de los proyectos generados (también con relaciones recursivas y repetidas) y la colección de Postman", "pasó"),
 ]
 PENDIENTES = [
-    "Probar la exportación XMI con Enterprise Architect 17.2 después de los cambios del segundo parcial (la prueba del primer parcial no se repitió).",
-    "Ejecutar sin red la aplicación Flutter generada en un dispositivo (prueba del primer parcial); en el simulador de iPhone se probó sin red el 2026-11-07 (crear registros, incluida una relación recursiva, y comprobarlos en la base local).",
+    "Probar la exportación XMI con Enterprise Architect 17.2 después de los últimos cambios (la prueba anterior no se repitió).",
+    "Ejecutar sin red la aplicación Flutter generada en un dispositivo (prueba física anterior); en el simulador de iPhone se probó sin red el 2026-11-07 (crear registros, incluida una relación recursiva, y comprobarlos en la base local).",
     "Ver una notificación en un teléfono físico: se vio una notificación real del sistema en un emulador de Android (Chrome) y en Chrome contra el sitio publicado (2026-11-07), y en el simulador de iPhone con la página agregada a Inicio contra el sitio publicado (2026-11-08: con la app abierta, en segundo plano y con el teléfono bloqueado); en una pestaña de Safari del iPhone no hay avisos y el simulador no imita la suspensión de iOS, así que un iPhone físico bloqueado mucho rato puede no recibirlos.",
     "Medir la velocidad y la calidad de la conversación de la IA local (Qwen2.5-1.5B) en un iPhone físico: se probó con el modelo real en un Mac y la descarga dentro de la app en un iPhone 17 Pro Max.",
     "Repetir la prueba de colaboración con tres personas en navegadores distintos sobre el servidor de AWS, que ya usa MongoDB Atlas (la prueba de punta a punta del 2026-11-04 la hizo una persona simulada dentro del servidor).",

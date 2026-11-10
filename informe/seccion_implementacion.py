@@ -33,7 +33,7 @@ def _raiz_de(ruta):
 def generar():
     resumen = I.validar()
     subs = I.subsistemas()
-    md = ["## 2.4 Implementación\n",
+    md = ["## 2.4 Flujo de trabajo: implementación\n",
           "El flujo de implementación convierte el diseño en código. Lo que se implementó está descrito aquí como el **modelo de implementación**: los subsistemas de implementación "
           "(la misma división que el diseño, en carpetas), los componentes (los archivos de código fuente que contienen las clases de diseño), los ejecutables asignados a los nodos, "
           "las tablas y colecciones donde se guardan los datos y el plan con que se integró el ciclo 4. Todo se genera del modelo de diseño y se comprueba contra el repositorio cada vez "
@@ -42,8 +42,7 @@ def generar():
     md += ["### 2.4.1 Alcance y estándares de código\n",
            f"El sistema implementado tiene **{resumen['subsistemas']} subsistemas de implementación**, **{resumen['componentes']} componentes** de código fuente y unas "
            f"**{miles(resumen['lineas'])} líneas** (sin contar las pruebas, que se describen en la sección 2.5), escritas en TypeScript (Angular 20 con JointJS), Python 3.12 (Django 5, "
-           "Django REST Framework y Channels) y Java 21 (Spring Boot 3.5). Los estándares que se siguieron están en `AGENTS.md`, el documento que le dice a las personas y a los "
-           "asistentes de IA cómo trabajar en el repositorio:\n"]
+           "Django REST Framework y Channels) y Java 21 (Spring Boot 3.5). Los estándares que se siguieron están en el archivo `AGENTS.md` del repositorio:\n"]
     md += [f"- {e}" for e in I.ESTANDARES]
     md.append("")
 
@@ -95,7 +94,7 @@ def generar():
     base = I.linea_base()
     md += ["### 2.4.6 Plan de integración\n",
            f"El sistema se integra por **construcciones**: cada una agrega una parte, se acepta con sus pruebas y queda en la rama de integración antes de empezar la siguiente. "
-           f"La línea base es el primer parcial, la etiqueta `{base['etiqueta']}` del repositorio (commit `{base['commit']}`, {base['fecha']}). Sobre ella el ciclo 4 se integró en cuatro "
+           f"La línea base es la etiqueta `{base['etiqueta']}` del repositorio (commit `{base['commit']}`, {base['fecha']}). Sobre ella el ciclo 4 se integró en cuatro "
            "construcciones, en este orden y por esta razón:\n",
            "| Orden | Construcción | Casos de uso | Subsistemas que toca | Por qué en ese orden |", "|---|---|---|---|---|"]
     cons = I.construcciones()
@@ -111,7 +110,7 @@ def generar():
         md += [f"| `{h}` | {f} | {m.replace('|', '/')} |" for h, f, m in c["commits"]]
         md.append("")
     md += ["Cada construcción se escribió con las pruebas primero: la prueba falla con el comportamiento nuevo, se escribe el código y la prueba pasa. Antes de cada commit una revisión "
-           "automática del código lo compara con las reglas de `AGENTS.md`. La sección 2.6 comprueba, además, que el código coincide con el diseño.\n"]
+           "automática del código lo compara con las reglas del proyecto (`AGENTS.md`). La sección 2.6 comprueba, además, que el código coincide con el diseño.\n"]
     return "\n".join(md)
 
 

@@ -2,7 +2,7 @@
 
 Sigue el capítulo 9 del libro: diseño de la arquitectura (nodos, capas, subsistemas con interfaces, clases activas y mecanismos genéricos), clases de diseño
 (con los nombres y operaciones del código, comprobados contra él), realización de cada caso de uso en el diseño (clases participantes y diagramas de
-secuencia por escenario) y el diseño de los cambios que se programan después (C1 a C4).
+secuencia por escenario).
 """
 
 from modelo import analisis as A
@@ -54,8 +54,7 @@ def _tabla_interfaces():
     filas = ["| Interfaz | La proporciona | La realizan | La usan | Operaciones | Para qué |", "|---|---|---|---|---|---|"]
     for i in D.INTERFACES:
         usan = ", ".join(D.NOMBRE_SUBSISTEMA[u] for u in sorted(usuarios[i["nombre"]])) or "—"
-        nueva = " (nueva)" if i.get("nuevo") else ""
-        filas.append(f"| **{i['nombre']}**{nueva} | {D.NOMBRE_SUBSISTEMA[i['sub']]} | {_clases(i['realiza'])} | {usan} | {', '.join(i['operaciones'])} | {i['motivo']} |")
+        filas.append(f"| **{i['nombre']}** | {D.NOMBRE_SUBSISTEMA[i['sub']]} | {_clases(i['realiza'])} | {usan} | {', '.join(i['operaciones'])} | {i['motivo']} |")
     return "\n".join(filas) + "\n"
 
 
@@ -74,8 +73,8 @@ def _tabla_mecanismos():
 
 def _tabla_datos():
     filas = []
-    for nombre, estado, cols in D.TABLAS:
-        filas += [f"**{nombre}** ({estado}).\n", "| Columna | Tipo | Nota |", "|---|---|---|"] + [f"| {c} | {t} | {k or '—'} |" for c, t, k in cols] + [""]
+    for nombre, _estado, cols in D.TABLAS:
+        filas += [f"**{nombre}**.\n", "| Columna | Tipo | Nota |", "|---|---|---|"] + [f"| {c} | {t} | {k or '—'} |" for c, t, k in cols] + [""]
     return "\n".join(filas)
 
 
@@ -87,19 +86,15 @@ def _tabla_colecciones():
 
 
 def _tabla_clases(sub):
-    filas = ["| Clase de diseño | Tipo | Archivo | Realiza (clase del análisis) | Estado |", "|---|---|---|---|---|"]
+    filas = ["| Clase de diseño | Tipo | Archivo | Realiza (clase del análisis) |", "|---|---|---|---|"]
     for o in D.objetos_de(sub):
         c = None if o["nuevo"] else D.C.buscar(o["archivo"], o["clase"])
         tipo = {"interface": "interfaz", "module": "módulo", "active": "clase activa", "entity": "modelo"}.get(o["est"], "clase")
         if c:
             tipo = f"{tipo} ({c['lenguaje']})"
         traza = ", ".join(A.CLASES[k]["nombre"] for k in D.analisis_de(o["clave"])) or "—"
-        filas.append(f"| **{o['rotulo']}** | {tipo} | `{o['archivo']}` | {traza} | {'nueva (' + _cambio(o['clave']) + ')' if o['nuevo'] else 'existe'} |")
+        filas.append(f"| **{o['rotulo']}** | {tipo} | `{o['archivo']}` | {traza} |")
     return "\n".join(filas) + "\n"
-
-
-def _cambio(clave):
-    return next((c["id"] for c in D.CAMBIOS if clave in c["nuevas"]), "C1 a C4")
 
 
 def _tabla_trazas():
@@ -110,41 +105,13 @@ def _tabla_trazas():
     return "\n".join(filas) + "\n"
 
 
-def _cambios():
-    md = []
-    for c in D.CAMBIOS:
-        md += [f"#### {c['id']}: {c['nombre']}\n",
-               f"**Casos de uso:** {', '.join(c['casos'])}. **Requisitos:** {c['rf']}.\n",
-               f"**Por qué.** {c['motivo']}\n",
-               "**Decisiones de diseño.**\n"] + [f"- {x}" for x in c["decisiones"]] + [""]
-        filas = ["| Clase de diseño | Archivo | Estado |", "|---|---|---|"]
-        filas += [f"| **{D.OBJETOS[k]['rotulo']}** | `{D.OBJETOS[k]['archivo']}` | nueva |" for k in c["nuevas"]]
-        filas += [f"| {D.OBJETOS[k]['rotulo']} | `{D.OBJETOS[k]['archivo']}` | cambia |" for k in c["cambian"]]
-        md += ["\n".join(filas) + "\n", "**Pruebas previstas** (se escriben antes del código).\n"] + [f"- {x}" for x in c["pruebas"]] + [""]
-    return md
-
-
-HALLAZGOS = [
-    ("«Generar modelo» y la voz llegaban a la IA por una ruta antigua", "`Diagram.generateFromPrompt` → `ChatbotService.generateDiagram` → `GenerateUMLView`: sin topes, sin contexto "
-     "de la sala, sin registro de actividad y sin conversación; CU7 dice que todo pedido pasa por el control de la IA", "C1: pasa por `IaActionsService.request`; la voz solo transcribe"),
-    ("El chat con la IA era privado", "`chat_history` y `_answer` filtran por participante; el docente pidió una sola instancia y una conversación de la sala", "C1"),
-    ("Dos pedidos a la IA podían correr a la vez en una sala", "`CollaborationService.activeIaRequests` solo muestra el estado; el servidor no serializa", "C1: `TurnStore`"),
-    ("La conversación y la actividad viven en tablas relacionales", "`ChatMessage` y `ActivityEvent` son documentos que solo se agregan, con `data` variable", "C3: puertos y adaptadores con MongoDB"),
-    ("La vista del celular no avisa", "`FollowView` solo muestra el diagrama", "C2"),
-    ("No hay un asistente que enseñe a usar la herramienta", "no existe ninguna clase para el caso de uso CU14", "C4"),
-    ("La interfaz web junta botones de varios subsistemas", "`Diagram` y `SidePanel` llaman a la IA, al intercambio y a la generación a la vez", "Se reconoce como carcasa del editor: depende de todos y nadie depende de ella"),
-    ("`views.py` reúne vistas de cuatro subsistemas", "respaldo, actividad, IA e intercambio en un solo módulo", "No se reorganiza antes de la entrega; el diseño las separa por función (deuda técnica documentada)"),
-]
-
-
 def generar():
     D.validar(analisis=A)
     D.validar_realizaciones(A)
-    md = ["## 2.3 Diseño\n",
+    md = ["## 2.3 Flujo de trabajo: diseño\n",
           "El diseño lleva el análisis a la realidad física: el lenguaje de programación, la red, los productos que se reutilizan y los requisitos no funcionales. "
           "Sus clases no son un dibujo aparte del código: cada clase y cada operación que aparece en este capítulo se comprueba contra el código fuente "
-          "(la herramienta que genera este informe lee las clases de Python, TypeScript y Java del repositorio) y, si no existe, el informe no se genera. "
-          "Lo único que no existe todavía son las clases de los cambios C1 a C4 (en amarillo en los diagramas), que se diseñaron aquí antes de programarse.\n",
+          "(la herramienta que genera este informe lee las clases de Python, TypeScript y Java del repositorio) y, si no existe, el informe no se genera.\n",
           f"El modelo de diseño tiene {len(D.SUBSISTEMAS)} subsistemas, {len(D.OBJETOS)} clases de diseño, {len(D.INTERFACES)} interfaces y "
           f"{sum(len(r['escenarios']) for r in R.REALIZACIONES)} diagramas de secuencia que realizan las {len(R.REALIZACIONES)} colaboraciones del análisis.\n"]
 
@@ -167,8 +134,8 @@ def generar():
            _uml_respaldo("di-subsistemas", "Subsistemas del diseño y sus dependencias"),
            "Software del sistema y capa intermedia:\n", _tabla_software(),
            "#### Interfaces entre subsistemas\n",
-           "Un subsistema que tiene una dependencia que apunta hacia él proporciona una interfaz (9.5.1.2.4). Las interfaces nuevas son los puertos de la arquitectura "
-           "hexagonal que el ingeniero nombró: las clases que los usan no saben si detrás hay PostgreSQL, MongoDB, Redis, Gemini u Ollama.\n",
+           "Un subsistema que tiene una dependencia que apunta hacia él proporciona una interfaz (9.5.1.2.4). Las interfaces son los puertos de la arquitectura "
+           "hexagonal: las clases que los usan no saben si detrás hay PostgreSQL, MongoDB, Redis, Gemini u Ollama.\n",
            _tabla_interfaces(),
            "#### Clases activas\n", _tabla_activas(),
            "#### Mecanismos genéricos de diseño\n",
@@ -178,10 +145,10 @@ def generar():
            _uml_respaldo("c4-contexto", "Diagrama de contexto del sistema"), _uml_respaldo("di-c4-contenedores", "Diagrama de contenedor"),
            _uml_respaldo("di-c4-componentes", "Diagrama de componentes (C4)"),
            "#### Diseño de los datos\n",
-           "Los datos relacionales (participantes, topes de uso, respaldo del diagrama y, con el acceso por correo, la lista de personas de cada sala con su rol y el acceso general) siguen en PostgreSQL. La conversación y la actividad se agregan y se consultan por "
-           "sala y por tiempo, con un campo `data` que cambia según el tipo: con C3 pasan a MongoDB detrás de los puertos, y PostgreSQL queda como adaptador de respaldo.\n",
+           "Los datos relacionales (participantes, topes de uso, respaldo del diagrama y, con el acceso por correo, la lista de personas de cada sala con su rol y el acceso general) están en PostgreSQL. La conversación y la actividad se agregan y se consultan por "
+           "sala y por tiempo, con un campo `data` que cambia según el tipo: están en MongoDB detrás de los puertos, y PostgreSQL queda como adaptador de respaldo.\n",
            _uml_respaldo("dd-postgres", "Modelo de datos relacional (PostgreSQL)"), _tabla_datos(),
-           _uml_respaldo("dd-mongo", "Colecciones de MongoDB (C3)"), _tabla_colecciones()]
+           _uml_respaldo("dd-mongo", "Colecciones de MongoDB"), _tabla_colecciones()]
 
     # ---- 2.3.2 clases de diseño
     md += ["### 2.3.2 Clases de diseño por subsistema\n",
@@ -209,16 +176,4 @@ def generar():
                 if r["implementacion"]:
                     md += ["Requisitos de implementación:\n"] + [f"- {x}" for x in r["implementacion"]] + [""]
 
-    # ---- 2.3.4 cambios
-    md += ["### 2.3.4 Diseño de los cambios de este parcial\n",
-           "Los cambios C1 a C4 se diseñan antes de programarse: aquí queda lo que se va a construir y cómo se va a probar, y el código se escribe para cumplirlo "
-           "(la prueba falla primero y después se programa).\n"] + _cambios()
-
-    # ---- 2.3.5 hallazgos
-    md += ["### 2.3.5 Lo que el cotejo entre el documento y el código encontró\n",
-           "Al verificar cada clase y cada mensaje contra el código, aparecieron diferencias entre lo que decían los casos de uso y lo que hacía el software. "
-           "Cada una se resolvió con un cambio de diseño o se documenta como deuda:\n",
-           "| Hallazgo | Evidencia | Qué se decidió |", "|---|---|---|"]
-    md += [f"| {h} | {e} | {d} |" for h, e, d in HALLAZGOS]
-    md.append("")
     return "\n".join(md)

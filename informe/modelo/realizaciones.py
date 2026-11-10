@@ -159,7 +159,7 @@ REALIZACIONES = [
     _r("COL-06",
        ["`LandinPage.unirseAlLienzo` abre el editor con el código; la identidad anónima sale de `IdentityService.getIdentity` (la misma de antes, guardada en el navegador) y "
         "`ActivityStore.identify` actualiza al mismo participante por su token. El diagrama llega como en COL-04; el historial de actividad lo pide `ActivityPanel.ngOnInit` a "
-        "`get_room_activity` y la conversación, `IaChatPanel.loadHistory` a `chat_history`, que con C1 devuelve la conversación de la sala por `ConversationStore.history`."],
+        "`get_room_activity` y la conversación, `IaChatPanel.loadHistory` a `chat_history`, que devuelve la conversación de la sala por `ConversationStore.history`."],
        [_e("a", "Reabrir la sala y recuperar el diagrama", [
            ("U", "LandinPage", "unirseAlLienzo", ""),
            ("LandinPage", "Diagram", "·router.navigate", "'/diagram', código"),
@@ -238,7 +238,7 @@ REALIZACIONES = [
             ("CollaborationService", "DiagramService", "loadFromJson", "changes, true"),
             ("DiagramService", "CollaborationService", "broadcast", "op{via_ia}"),
             ("IaActionsService", "CollaborationService", "finishIaRequest", "requestId")]),
-        _e("c", "Alterno: «Generar modelo» y la voz usan el mismo camino (C1)", [
+        _e("c", "Alterno: «Generar modelo» y la voz usan el mismo camino", [
             ("U", "SidePanel", "onGenerate", "prompt"),
             ("SidePanel", "IaActionsService", "request", "roomId, 'change', prompt"),
             ("U", "SidePanel", "toggleVoiceInput", ""),
@@ -369,7 +369,7 @@ REALIZACIONES = [
     _r("COL-17",
        ["`SidePanel.copyFollowLink` da el enlace de seguimiento; `FollowView.ngAfterViewInit` inicializa el diagrama en solo lectura y `SignalingService.connect` se conecta con "
         "`viewer`. `CanvasConsumer._connect_viewer` lo admite (hasta 10 por sala), sin entrar al orden de roles. El estado lo pide `_receive_from_viewer` al host con "
-        "`_ask_host_for_state`; si nadie contesta se usa el respaldo (COL-04). Con C2, `FollowView.enableNotifications` pide el permiso y `notifyNewActivity` avisa de cada evento nuevo."],
+        "`_ask_host_for_state`; si nadie contesta se usa el respaldo (COL-04). `FollowView.enableNotifications` pide el permiso y `notifyNewActivity` avisa de cada evento nuevo."],
        [_e("a", "Seguir la sala en solo lectura", [
            ("U", "FollowView", "ngAfterViewInit", ""),
            ("FollowView", "DiagramService", "initialize", "contenedor, roomId, {readOnly: true}"),
@@ -380,7 +380,7 @@ REALIZACIONES = [
            ("SignalingService", "CanvasConsumer", "_receive_from_viewer", "{t: request_full_state}"),
            ("CanvasConsumer", "CanvasConsumer", "_allow_viewer_state_request", ""),
            ("CanvasConsumer", "CanvasConsumer", "_ask_host_for_state", "")]),
-        _e("b", "Recibir avisos (C2)", [
+        _e("b", "Recibir avisos", [
             ("U", "FollowView", "enableNotifications", ""),
             ("FollowView", "NotificationService", "requestPermission", ""),
             ("FollowView", "P2PService", "liveActivityEvents", "efecto"),

@@ -18,7 +18,7 @@ import layout  # noqa: E402
 from especificaciones import GRIS_PARCIAL1, REQ, tam_actor, tam_cu  # noqa: E402
 from modelo import requisitos as R  # noqa: E402
 
-# Casos de uso nuevos del segundo parcial: amarillo suave, como la cabecera de las tablas del informe.
+# Casos de uso destacados (por defecto ninguno): amarillo suave, como la cabecera de las tablas del informe.
 NUEVO = dict(fondo="#FFF2CC", borde="#BF9000", texto="#000000")
 
 
@@ -40,8 +40,8 @@ def _caso(m, c):
 
 def diagrama(m, id_, titulo, propios, relacionados=(), nuevos=None):
     """`propios`: casos de uso del diagrama; `relacionados`: los de otros ciclos que se muestran por una relación (en gris).
-    `nuevos`: casos que se pintan de amarillo (por defecto, los del ciclo 4)."""
-    nuevos = set(R.casos_del_ciclo(4)) if nuevos is None else set(nuevos)
+    `nuevos`: casos que se pintan de amarillo (por defecto, ninguno)."""
+    nuevos = set() if nuevos is None else set(nuevos)  # ningún caso se destaca: los de otro ciclo se ven en gris
     mostrados = list(propios) + [c for c in relacionados if c not in propios]
     actores, secundarios = [], []
     for c in propios:

@@ -50,7 +50,7 @@ def _estereotipo(clave, rectangulo=False):
 
 
 def _nuevo(clave):
-    return A.CLASES[clave]["estado"].startswith("nuevo")
+    return False  # ninguna clase se destaca: el diagrama muestra el modelo de análisis tal como es
 
 
 # ---- paquetes -------------------------------------------------------------------------------------------

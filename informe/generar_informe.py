@@ -639,6 +639,25 @@ class Constructor:
         campo(p, r'TOC \o "1-3" \h \z \u', "Haz clic derecho y elige «Actualizar campo» para generar el índice.")
 
 
+# El documento se lee como el trabajo del equipo: no cuenta quién pidió qué ni qué parcial es, ni dice quién lo escribió. Esta revisión recorre todo el texto
+# (menos la carátula) y avisa de cada frase que lo haga, para que no se cuele otra al cambiar un texto.
+FRASES_QUE_NO_VAN = re.compile(
+    r"\b(docente|ingeniero|primer parcial|segundo parcial|este parcial|del parcial|de este parcial|DOC2P|REF1|REF2|Organiflow|Claude|Anthropic|PLAN_SEGUNDO)\b", re.I)
+
+
+def revisar_lenguaje(doc):
+    textos = [p.text for p in doc.paragraphs]
+    for tabla in doc.tables:
+        for fila in tabla.rows:
+            textos += [c.text for c in fila.cells]
+    # la carátula (hasta el título «Índice») lleva el nombre del docente y del parcial: es el dato del trabajo
+    inicio = next((i for i, x in enumerate(textos) if x.strip() == "Índice"), 0)
+    hallazgos = [(x.strip()[:140]) for x in textos[inicio:] if FRASES_QUE_NO_VAN.search(x)]
+    for x in dict.fromkeys(hallazgos):
+        print("FRASE QUE NO VA:", x)
+    print(f"Revisión del lenguaje: {len(set(hallazgos))} frases a revisar")
+
+
 def leer(ruta):
     return Path(ruta).read_text(encoding="utf-8")
 
@@ -671,7 +690,16 @@ def main():
     b.markdown(leer(contenido / "03-manual.md"))
 
     # Conclusión y bibliografía
-    b.markdown(leer(contenido / "03b-conclusion.md"))
+    # Las cifras de la conclusión salen del modelo y del repositorio, no se escriben a mano (así no quedan viejas).
+    from modelo import pruebas as P
+    from modelo import trazabilidad as T
+
+    cifras_t, cifras_p = T.validar()["verificacion"], P.validar()
+    conclusion = leer(contenido / "03b-conclusion.md")
+    for marca, valor in {"{{CLASES}}": cifras_t["clases"], "{{MENSAJES}}": cifras_t["mensajes"], "{{CAMINOS}}": cifras_p["caminos"],
+                         "{{PRUEBAS}}": cifras_p["pruebas_citadas"], "{{MANUALES}}": cifras_p["con_manual"]}.items():
+        conclusion = conclusion.replace(marca, str(valor))
+    b.markdown(conclusion)
     b.markdown(leer(contenido / "04-bibliografia.md"))
 
     # Anexos
@@ -684,6 +712,7 @@ def main():
     for titulo_anexo, ruta, letra in anexos:
         b.markdown(leer(ruta), prefijo=f"6.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
 
+    revisar_lenguaje(b.doc)
     BUILD.mkdir(exist_ok=True)
     salida = BUILD / "Informe.docx"
     b.doc.save(salida)

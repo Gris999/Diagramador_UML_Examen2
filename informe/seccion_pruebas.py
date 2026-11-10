@@ -48,7 +48,7 @@ def generar():
     resumen = P.validar()
     ids = _ids_de_pruebas()
     casos = P.casos_de_prueba()
-    md = ["## 2.5 Pruebas\n",
+    md = ["## 2.5 Flujo de trabajo: pruebas\n",
           "El flujo de pruebas verifica que el sistema hace lo que dicen los casos de uso. Siguiendo el proceso, **el modelo de pruebas sale del modelo de casos de uso**: "
           "cada camino de cada caso de uso (el básico, cada alterno, cada excepción y cada camino no permitido) tiene un caso de prueba con sus entradas, sus condiciones "
           "y su resultado esperado, y cada caso se ejecuta con pruebas automáticas, con un procedimiento manual o con ambos. Esta sección se genera de un modelo que "
@@ -56,7 +56,7 @@ def generar():
           "repositorio.\n"]
 
     md += ["### 2.5.1 Plan de prueba\n",
-           "**Estrategia.** Las pruebas se escriben antes que el código y se ejecutan en cada cambio. Las críticas que exige `AGENTS.md` (XMI, colaboración y "
+           "**Estrategia.** Las pruebas se escriben antes que el código y se ejecutan en cada cambio. Las críticas (XMI, colaboración y "
            "sincronización, permisos y roles, reconexión y recuperación de estado, generadores, transformaciones UML y persistencia sin conexión) tienen pruebas automáticas.\n",
            "| Nivel | Qué se verifica | Herramienta |", "|---|---|---|",
            "| Unidad | Servicios y componentes del navegador, utilidades puras, servicios y vistas de Django | Jasmine y Karma (Angular), `manage.py test` (Django), JUnit (Spring) |",
