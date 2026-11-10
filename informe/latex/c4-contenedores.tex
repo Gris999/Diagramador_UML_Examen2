@@ -1,0 +1,37 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{c4-estilos}
+\begin{document}
+\begin{tikzpicture}
+  \node[persona] (p) at (0, 4.6) {\elem{Participante}{[Persona]}{Edita el diagrama y conversa con la IA}};
+  \cabeza{p}
+
+  \node[contenedor, text width=3.9cm, minimum height=2.5cm] (web) at (0, 0) {\elem{Aplicación web}{[Contenedor: Angular 20 (SSR) + JointJS]}{Editor, chat con la IA, actividad, vista móvil, ayuda}};
+  \node[contenedor, text width=4.6cm, minimum height=2.7cm] (api) at (8.2, 0) {\elem{API y tiempo real}{[Contenedor: Django 5 + Channels + Daphne]}{REST, WebSocket, acceso por correo y roles, actividad, conversación, IA, XMI, Flutter}};
+  \node[contenedor, text width=3.9cm, minimum height=2.5cm] (gen) at (0,-4.9) {\elem{Generador de backend}{[Contenedor: Spring Boot 3.5 (Java 21)]}{Proyecto Spring + PostgreSQL y colección Postman}};
+  \node[basedatos, text width=3.3cm, minimum height=3.2cm] (pg) at (4.2,-6.6) {\elem{Datos relacionales}{[Base de datos: PostgreSQL]}{Participantes, roles y acceso de cada sala, topes de uso, respaldo del diagrama}};
+  \node[basedatos, text width=3.3cm, minimum height=3.2cm] (rd) at (8.2,-6.6) {\elem{Estado de salas}{[Base de datos: Redis 7]}{Canales, orden de conexión (host) y turno de la IA}};
+  \node[basedatos, text width=3.3cm, minimum height=3.2cm] (mg) at (12.2,-6.6) {\elem{Documentos}{[Base de datos: MongoDB (Atlas en producción)]}{Conversación con la IA y actividad (solo se agregan)}};
+  \node[externo, text width=3.7cm] (g) at (18.2, 3.4) {\elem{Google Gemini}{[Sistema externo]}{IA en la nube}};
+  \node[externo, text width=3.7cm] (o) at (18.2, 0) {\elem{Ollama}{[Sistema externo]}{IA local con modelo reentrenado}};
+  \node[externo, text width=3.7cm] (c) at (18.2,-3.4) {\elem{Resend (correo)}{[Sistema externo]}{Códigos de entrada e invitaciones}};
+
+  % límite del sistema (rodea todo lo que está dentro de la plataforma)
+  \begin{scope}[on background layer]
+    \node[limite, fit=(web)(api)(gen)(pg)(rd)(mg)] (lim) {};
+  \end{scope}
+  \node[anchor=north west, font=\sffamily\small\bfseries, text=black!70] at ([xshift=0.1cm,yshift=-0.05cm]lim.south west) {Plataforma CASE colaborativa \normalfont\scriptsize [Sistema de software]};
+
+  \draw[rel] (p) -- node[etq, anchor=west, pos=0.5, xshift=2pt] {Usa\\{[HTTPS]}} (web);
+  \draw[rel] (web) -- node[etq, pos=0.5] {Edición y chat\\{[REST + WebSocket]}} (api);
+  \draw[rel] (web) -- node[etq, anchor=west, pos=0.5, xshift=2pt] {Genera backend\\{[HTTPS]}} (gen);
+  \draw[rel] (api.south) -- ++(0,-1.0) -| (pg.north);
+  \draw[rel] (api) -- (rd);
+  \draw[rel] (api.south) -- ++(0,-1.0) -| (mg.north);
+  \node[etq, anchor=west] at ([xshift=3pt,yshift=1.0cm]pg.north) {Lee y escribe\\{[SQL]}};
+  \node[etq, anchor=west] at ([xshift=3pt,yshift=1.0cm]rd.north) {Presencia y turno\\{[RESP]}};
+  \node[etq, anchor=west] at ([xshift=3pt,yshift=1.0cm]mg.north) {Conversación y actividad\\{[MongoDB]}};
+  \draw[rel] (api) -- node[etq, pos=0.55] {Pide respuestas\\{[HTTPS]}} (g);
+  \draw[rel] (api) -- node[etq, pos=0.5] {Pide respuestas (opcional)\\{[HTTP]}} (o);
+  \draw[rel] (api) -- node[etq, pos=0.55] {Códigos e invitaciones\\{[SMTP]}} (c);
+\end{tikzpicture}
+\end{document}

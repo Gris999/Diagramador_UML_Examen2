@@ -1,0 +1,22 @@
+\documentclass[tikz,border=8pt]{standalone}
+\input{c4-estilos}
+\begin{document}
+\begin{tikzpicture}
+  % personas a la izquierda, el sistema en el centro y los sistemas externos a la derecha
+  \node[persona, text width=3.6cm] (p1) at (0, 3.2) {\elem{Diseñador}{[Persona]}{Crea la sala y expulsa a quien haga falta}};
+  \node[persona, text width=3.6cm] (p2) at (0,-3.2) {\elem{Colaborador}{[Persona]}{Diseña el diagrama de clases UML en equipo}};
+  \cabeza{p1} \cabeza{p2}
+  \node[sistema, text width=5.2cm, minimum height=3.0cm] (s) at (7.8, 0) {\elem{Plataforma CASE colaborativa}{[Sistema de software]}{Modelado UML 2.5, IA como integrante de la sala, acceso por correo, generación de código}};
+  \node[externo, text width=3.9cm] (g) at (16.4, 5.6) {\elem{Google Gemini}{[Sistema externo]}{IA en la nube}};
+  \node[externo, text width=3.9cm] (o) at (16.4, 1.9) {\elem{Ollama + modelo reentrenado}{[Sistema externo]}{IA local, sin internet}};
+  \node[externo, text width=3.9cm] (e) at (16.4,-1.9) {\elem{Enterprise Architect}{[Sistema externo]}{Herramienta CASE (intercambio XMI)}};
+  \node[externo, text width=3.9cm] (m) at (16.4,-5.6) {\elem{Resend (correo)}{[Sistema externo]}{Códigos de entrada e invitaciones por correo}};
+
+  \draw[rel] (p1) -- node[etq, pos=0.5] {Crea y gestiona la sala\\{[HTTPS / WebSocket]}} (s);
+  \draw[rel] (p2) -- node[etq, pos=0.5] {Edita y conversa con la IA\\{[HTTPS / WebSocket]}} (s);
+  \draw[rel] (s) -- node[etq, pos=0.55] {Pide respuestas\\{[HTTPS]}} (g);
+  \draw[rel] (s) -- node[etq, pos=0.55] {Pide respuestas (opcional)\\{[HTTP]}} (o);
+  \draw[rel] (s) -- node[etq, pos=0.55] {Importa y exporta modelos\\{[XMI]}} (e);
+  \draw[rel] (s) -- node[etq, pos=0.55] {Manda códigos e invitaciones\\{[SMTP]}} (m);
+\end{tikzpicture}
+\end{document}

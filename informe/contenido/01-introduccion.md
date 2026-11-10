@@ -112,7 +112,7 @@ El trabajo se hace en **iteraciones**: cada una recorre los cinco flujos de trab
 | Implementación | Subsistemas de implementación, componentes y plan de integración | 2.4 |
 | Pruebas | Casos de prueba por cada camino de cada caso de uso, procedimientos, defectos y evaluación | 2.5 |
 
-A ellos se suman la validación, la verificación y la auditoría (Anexo C), que comprueban que lo documentado y lo construido son lo mismo y que cada versión se puede rastrear. Todos los diagramas siguen la notación de UML 2.5.1 y están hechos en Enterprise Architect.
+A ellos se suman la validación, la verificación y la auditoría (Anexo C), que comprueban que lo documentado y lo construido son lo mismo y que cada versión se puede rastrear. Los diagramas siguen la notación de UML 2.5.1 y están hechos en Enterprise Architect; los del modelo C4 se dibujaron con TikZ (LaTeX).
 
 ## 1.5 UML 2.5 y del modelo de clases al modelo relacional y a Spring Boot
 

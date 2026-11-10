@@ -346,14 +346,19 @@ class Constructor:
     def diagrama_ea(self, fuente):
         """Imagen exportada de Enterprise Architect para el bloque, si la hay (`' ea:<id>` en la primera línea)."""
         marca = re.search(r"^' ea:(\S+)", fuente, re.M)
-        png = BUILD / "ea" / f"{marca.group(1)}.png" if marca else None
-        if not png or not png.exists():
+        if not marca:
+            return False
+        # Los diagramas C4 se dibujan con TikZ (`informe/latex/`, 200 dpi) y tienen prioridad sobre los de Enterprise Architect (96 dpi).
+        latex = BUILD / "latex" / f"{marca.group(1)}.png"
+        png, dpi = (latex, 200) if latex.exists() else (BUILD / "ea" / f"{marca.group(1)}.png", 96)
+        if not png.exists():
             return False
         self.diagramas += 1
-        self.diagramas_ea += 1
+        if dpi == 96:
+            self.diagramas_ea += 1
         with Image.open(png) as im:
             ancho_px = im.size[0]
-        self.imagen(png, pie=None, ancho_cm=min(ANCHO_UTIL_CM, max(6.0, ancho_px / 96 * 2.54)))
+        self.imagen(png, pie=None, ancho_cm=min(ANCHO_UTIL_CM, max(6.0, ancho_px / dpi * 2.54)))
         return True
 
     def plantuml(self, fuente):
@@ -708,8 +713,11 @@ def main():
     b.titulo("6. Anexos", 1, salto_pagina=True)
     anexos = [(seccion_anexo.TITULO_ESTANDARES, seccion_anexo.estandares),
               ("Anexo B. Reentrenamiento del modelo de IA", lambda: leer(DOCS / "REENTRENAMIENTO_IA.md")),
-              (seccion_anexo.TITULO_VALIDACION, seccion_anexo.validacion)]
+              (seccion_anexo.TITULO_VALIDACION, seccion_anexo.validacion),
+              (seccion_anexo.TITULO_HOJA, seccion_anexo.hoja)]
     for numero, (titulo_anexo, generar_anexo) in enumerate(anexos, 1):
+        if titulo_anexo == seccion_anexo.TITULO_HOJA:  # la hoja del examen empieza en una página nueva, con su foto
+            b.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         b.markdown(generar_anexo(), prefijo=f"6.{numero}", renumerar=True, titulo_h1=titulo_anexo)
 
     revisar_lenguaje(b.doc)
