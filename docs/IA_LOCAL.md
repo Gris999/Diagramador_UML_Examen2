@@ -93,3 +93,42 @@ Los 10 pedidos: crear una clase con atributos, crear dos clases con una relació
 - Las excepciones del proveedor nunca incluyen la URL con la clave de Gemini; el proveedor local no usa claves.
 - `GET /api/ia/provider/` solo devuelve el nombre del proveedor y el modelo, sin ningún dato sensible.
 - Con el modelo local, los pedidos y el diagrama **no salen del computador** (no van a internet).
+
+## Arranque local verificado para el parcial (2026-11-10)
+
+La IA local se usa desde **http://localhost:4200**, no desde el sitio de AWS.
+El 2026-11-10 se comprobó en el navegador: el selector mostraba
+«Local (qwen3.5:9b)» y «Uma, agrega una clase Producto con nombre y precio»
+produjo una propuesta real y su holograma, antes de pulsar Aplicar. No se
+instaló ni descargó otro modelo.
+
+Después de reiniciar la Mac, los procesos deben volver a iniciarse. Si los
+puertos están libres, usar las dependencias ya instaladas:
+
+```bash
+# Terminal 1: infraestructura existente (sin borrar volúmenes)
+docker desktop start
+docker start postgres_db redis_server
+ollama serve
+
+# Terminal 2: desde la raíz del repositorio, API nativa contra Docker local
+cd back_generador_bd
+POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5433 \
+REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
+AI_PROVIDER=ollama OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+OLLAMA_MODEL=qwen3.5:9b \
+.venv/bin/daphne -b 127.0.0.1 -p 8000 diagramador_uml.asgi:application
+
+# Terminal 3: desde la raíz del repositorio, interfaz local
+cd front_generador_bd
+npx ng serve --host 127.0.0.1 --port 4200
+```
+
+El servidor Ollama debe usar el modelo instalado; no ejecutar `ollama pull`
+antes de la exposición. La primera petición puede tardar más al cargarlo.
+En esta preparación se aplicaron únicamente las migraciones locales
+`collab.0006` y `collab.0007`, después de respaldar la base existente; no se
+modificó la configuración de producción ni el archivo `.env` local.
+Esta preparación arranca el editor y su IA; el generador Spring no se inició
+como parte de ella. Para demostrar las exportaciones completas se puede usar
+el sitio publicado, donde la comprobación de salud del generador pasó.
