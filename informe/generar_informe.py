@@ -46,7 +46,7 @@ REFERENCIAS = {
     "04-implementacion.md": "la sección 2.5", "05-pruebas.md": "la sección 2.6", "README.md": "la sección 2.1",
     "REQUIREMENTS.md": "la lista de requisitos", "PLAN_PUDS_IA_PARTICIPANTE.md": "el plan de trabajo PUDS",
     "DESPLIEGUE.md": "el Anexo C", "GAP_MATRIX.md": "la matriz de requisitos", "IA_LOCAL.md": "el Anexo A",
-    "ENTREGA.md": "el Anexo D", "DEMO.md": "el guion de la demostración", "PLAN_REENTRENAMIENTO_IA.md": "el Anexo B",
+    "ENTREGA.md": "la guía de entrega", "DEMO.md": "el guion de la demostración", "PLAN_REENTRENAMIENTO_IA.md": "el Anexo B",
     "AI_CONTEXT.md": "el contexto del proyecto",
 }
 FUENTE = "Arial"
@@ -205,8 +205,8 @@ class Constructor:
         if salto_pagina:
             self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         texto = re.sub(r"[`*]", "", limpiar(texto)).strip()
-        # Como en los informes modelo: 1., 2. y las secciones 2.1, 2.2, 2.3 a 2.5 (nivel 2) van en mayúsculas.
-        if (nivel == 1 and re.match(r"^(1\.|2\.)\s", texto)) or re.match(r"^2\.[12](\.\d+)*\s|^2\.[345]\s", texto):
+        # Como en los informes modelo: 1., 2. y las secciones 2.1 a 2.3 con sus subsecciones, y 2.4 y 2.5 (nivel 2), van en mayúsculas.
+        if (nivel == 1 and re.match(r"^(1\.|2\.)\s", texto)) or re.match(r"^2\.[123](\.\d+)*\s|^2\.[45]\s", texto):
             texto = texto.upper()
         encabezado = self.doc.add_heading(texto, level=min(nivel, 5))
         if nivel == 3 and re.match(r"^\d+[\)\.]\s", texto):
@@ -711,6 +711,10 @@ def main():
     ]
     for titulo_anexo, ruta, letra in anexos:
         b.markdown(leer(ruta), prefijo=f"6.{'ABCD'.index(letra) + 1}", renumerar=True, titulo_h1=titulo_anexo)
+    # Anexo D: el detalle del análisis y del diseño que el cuerpo del capítulo 2 no repite (se genera de los mismos modelos).
+    import seccion_anexo
+
+    b.markdown(seccion_anexo.generar(), prefijo="6.4", renumerar=True, titulo_h1=seccion_anexo.TITULO)
 
     revisar_lenguaje(b.doc)
     BUILD.mkdir(exist_ok=True)

@@ -81,7 +81,8 @@ def _ficha_clase(c):
 
 def generar():
     """Sección 2.2. Misma estructura que el documento de referencia: análisis de la arquitectura (identificar paquetes, relacionar paquetes y casos de uso,
-    vista del paquete), análisis de casos de uso (diagramas de comunicación), análisis de clases y análisis de paquetes."""
+    vista del paquete), análisis de casos de uso (diagramas de comunicación por ciclo de vida) y análisis de paquete. El resto del análisis (requisitos
+    especiales comunes, flujos de sucesos, clases participantes y fichas de las clases) está en el Anexo D (`generar_anexo`)."""
     A.validar(R)
     raices = [p for p in A.PAQUETES if not p["padre"]]
     con_casos = [p for p in raices if any(q["casos"] for q in [p] + [s for s in A.PAQUETES if s["padre"] == p["id"]])]
@@ -94,9 +95,27 @@ def generar():
     md += [_uml_respaldo(f"an-relacion-{p['id']}", f"Paquete {p['nombre']} y sus casos de uso") for p in con_casos]
     md += ["#### 2.2.1.3 Vista del paquete\n"]
     md += [_uml_respaldo(f"an-vista-{p['id']}", f"Vista del paquete {p['nombre']}") for p in con_casos]
-    md += ["#### 2.2.1.4 Requisitos especiales comunes\n",
-           "Los requisitos que atraviesan varias clases se identifican aquí para que las realizaciones y las clases los citen y el diseño los resuelva una sola vez.\n",
-           "| ID | Requisito especial | Qué exige |", "|---|---|---|"]
+
+    # ---- 2.2.2 análisis de casos de uso: un diagrama de comunicación por colaboración, agrupados por ciclo de vida
+    md += ["### 2.2.2 Análisis de casos de uso\n", "#### 2.2.2.1 Diagrama de comunicación\n"]
+    for numero_ciclo, titulo, codigos in R.CICLOS:
+        md.append(f"##### Ciclo de vida #{numero_ciclo}\n")
+        for cu in codigos:
+            for col in A.colaboraciones_de(cu):
+                md.append(_uml_respaldo(f"com-{col['id']}", f"{cu} - {col['nombre']}"))
+
+    # ---- 2.2.4 análisis de paquetes (la referencia numera este punto 2.2.4 y no tiene 2.2.3)
+    md += ["### 2.2.4 Análisis de paquetes\n", _uml_respaldo("an-dependencias", "Dependencias entre los paquetes del análisis")]
+    return "\n".join(md)
+
+
+def generar_anexo():
+    """Detalle del análisis para el Anexo D (títulos de nivel 2 y 3; el generador del informe los numera 6.4.n): requisitos especiales comunes,
+    flujos de sucesos con las clases participantes de cada realización, y fichas de las clases del análisis."""
+    A.validar(R)
+    md = ["## Análisis: requisitos especiales comunes\n",
+          "Los requisitos que atraviesan varias clases se identifican en el análisis para que las realizaciones y las clases los citen y el diseño los resuelva una sola vez.\n",
+          "| ID | Requisito especial | Qué exige |", "|---|---|---|"]
     md += [f"| {i} | {n} | {d} |" for i, n, d in A.ESPECIALES_COMUNES]
     md += ["",
            "Características de la persistencia (rango de tamaño, volumen, período, frecuencia de actualización y fiabilidad):\n",
@@ -104,18 +123,11 @@ def generar():
     md += [f"| {' | '.join(fila)} |" for fila in A.PERSISTENCIA]
     md.append("")
 
-    # ---- 2.2.2 análisis de casos de uso
-    md += ["### 2.2.2 Análisis de casos de uso\n", "#### 2.2.2.1 Diagramas de comunicación\n"]
-    for numero_ciclo, titulo, codigos in R.CICLOS:
-        md.append(f"##### Ciclo de vida #{numero_ciclo}\n")
-        for cu in codigos:
-            for col in A.colaboraciones_de(cu):
-                md += [f"**{col['id']}: {col['nombre']}.**\n", _uml_respaldo(f"com-{col['id']}", f"{col['id']}: {col['nombre']}")]
-    md += ["#### 2.2.2.2 Flujos de sucesos y clases participantes\n",
+    md += ["## Análisis: flujos de sucesos y clases participantes\n",
            "Cada caso de uso se realiza con una o más colaboraciones, una por cada flujo diferenciado. Todas empiezan con un mensaje de un actor a una clase de interfaz; "
            "los mensajes dicen para qué un objeto invoca a otro (no son operaciones) y los enlaces son instancias de las asociaciones del diagrama de clases participantes.\n"]
     for numero_ciclo, titulo, codigos in R.CICLOS:
-        md.append(f"##### Ciclo de vida #{numero_ciclo}\n")
+        md.append(f"### Ciclo de vida #{numero_ciclo}\n")
         for cu in codigos:
             md.append(f"**{cu}: {R.CASOS[cu]['nombre']}.**\n")
             for col in A.colaboraciones_de(cu):
@@ -131,20 +143,16 @@ def generar():
                 if col["especiales"]:
                     md += ["Requisitos especiales de la realización:\n"] + [f"- {e}" for e in col["especiales"]] + [""]
 
-    # ---- 2.2.3 análisis de clases
-    md += ["### 2.2.3 Análisis de clases\n",
+    md += ["## Análisis: clases del análisis por paquete\n",
            "Cada paquete se muestra con sus clases y atributos (que llevan tipos conceptuales, no de un lenguaje). Las responsabilidades de cada ficha son las de las colaboraciones, "
            "que se citan entre corchetes.\n"]
     for p in A.PAQUETES:
         if p["padre"]:
             continue
         servicios = [q for q in A.PAQUETES if q["padre"] == p["id"]]
-        md += [f"#### Paquete {p['nombre']}\n", _uml_respaldo(f"an-pkg-{p['id']}", f"Clases del análisis del paquete {p['nombre']}")]
+        md += [f"### Paquete {p['nombre']}\n", _uml_respaldo(f"an-pkg-{p['id']}", f"Clases del análisis del paquete {p['nombre']}")]
         md += [_ficha_clase(c) for c in A.clases_de_paquete(p["id"])]
         for q in servicios:
             md += [f"**Paquete de servicio {q['nombre']}.**\n"]
             md += [_ficha_clase(c) for c in A.clases_de_paquete(q["id"])]
-
-    # ---- 2.2.4 análisis de paquetes
-    md += ["### 2.2.4 Análisis de paquetes\n", _uml_respaldo("an-dependencias", "Dependencias entre los paquetes del análisis")]
     return "\n".join(md)

@@ -102,7 +102,7 @@ def generar():
         md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
         for codigo in codigos:
             c = R.CASOS[codigo]
-            md += [f"**{codigo}: {c['nombre']}.**\n", ficha(codigo)]
+            md += [f"**{codigo}: {c['nombre']}.**\n", _uml_respaldo(f"uc-{codigo}", f"{codigo}: {c['nombre']}"), ficha(codigo)]
 
     # 2.1.5 estructurar
     md += ["### 2.1.5 Estructurar el modelo de caso de uso\n"]

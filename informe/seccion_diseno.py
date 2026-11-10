@@ -107,69 +107,74 @@ def _tabla_trazas():
 
 def generar():
     """Sección 2.3. Misma estructura que el documento de referencia: diseño de la arquitectura (físico y lógico), diseño de datos y diseño de casos de uso
-    (diagramas de secuencia); lo demás del diseño va en subsecciones propias al final de cada punto."""
+    (diagramas de secuencia por ciclo de vida). El resto del diseño (nodos, subsistemas, mecanismos, C4, clases de diseño y detalle de las realizaciones)
+    está en el Anexo D (`generar_anexo`)."""
     D.validar(analisis=A)
     D.validar_realizaciones(A)
     md = ["## 2.3 Flujo de trabajo: diseño\n"]
 
     # ---- 2.3.1 arquitectura
     md += ["### 2.3.1 Diseño de la arquitectura\n",
-           "#### 2.3.1.1 Diseño físico (diagrama de despliegue)\n", _uml_respaldo("di-despliegue", "Diagrama de despliegue"),
-           "#### 2.3.1.2 Diseño lógico (diagrama de paquetes organizado en capas)\n", _uml_respaldo("di-capas", "Diseño en capas"),
-           "#### 2.3.1.3 Nodos y conexiones\n",
-           "La configuración física sigue el patrón de tres capas: los clientes (navegadores), la lógica de la aplicación (Django y Spring Boot) y los datos (PostgreSQL, Redis y MongoDB), "
-           "detrás de nginx con HTTPS. El tráfico de tiempo real usa WebSocket sobre el mismo puerto 443. El diagrama dibuja `mongo_db` como un contenedor del servidor, que es la opción "
-           "de diseño (se levanta con el perfil `mongo` de Docker Compose); en el servidor de AWS ese contenedor no corre, porque la actividad y la conversación se guardan en MongoDB Atlas, "
-           "un servicio gestionado en la nube al que solo puede entrar la IP del servidor.\n",
-           _tabla_nodos(), _tabla_conexiones(),
-           "#### 2.3.1.4 Subsistemas e interfaces\n",
-           "Los subsistemas de las dos capas superiores salen de los paquetes del análisis, con una traza a cada uno: un paquete de análisis, un subsistema de diseño. Se agrega la carcasa "
-           "del editor, que el análisis no tiene porque es de la tecnología: reúne los botones y paneles de los demás subsistemas en la interfaz de Angular; depende de todos y nadie "
-           "depende de ella. El software del sistema y la capa intermedia se tratan como subsistemas con interfaces explícitas, para poder cambiar de producto (por ejemplo, el proveedor "
-           "de IA o la base de datos de la conversación).\n",
-           _tabla_subsistemas(),
-           "Las dependencias entre subsistemas son las del análisis (sin ciclos), sin las que ya están implícitas por otra ruta:\n",
-           _uml_respaldo("di-subsistemas", "Subsistemas del diseño y sus dependencias"),
-           "Software del sistema y capa intermedia:\n", _tabla_software(),
-           "Un subsistema que tiene una dependencia que apunta hacia él proporciona una interfaz. Las interfaces son los puertos de la arquitectura hexagonal: las clases que los usan "
-           "no saben si detrás hay PostgreSQL, MongoDB, Redis, Gemini u Ollama.\n",
-           _tabla_interfaces(),
-           "#### 2.3.1.5 Clases activas y mecanismos genéricos\n", _tabla_activas(),
-           "Cada requisito especial común del análisis (sección 2.2.1) se resuelve una sola vez con un mecanismo, y las clases lo usan:\n", _tabla_mecanismos(),
-           "#### 2.3.1.6 Modelo C4\n",
-           _uml_respaldo("c4-contexto", "Diagrama de contexto del sistema"), _uml_respaldo("di-c4-contenedores", "Diagrama de contenedor"),
-           _uml_respaldo("di-c4-componentes", "Diagrama de componentes (C4)")]
+           "#### 2.3.1.1 Diseño físico\n", _uml_respaldo("di-despliegue", "Diagrama de despliegue"),
+           "#### 2.3.1.2 Diseño lógico\n", _uml_respaldo("di-capas", "Diseño en capas")]
 
     # ---- 2.3.2 datos
     md += ["### 2.3.2 Diseño de datos\n",
            _uml_respaldo("dd-postgres", "Modelo de datos relacional (PostgreSQL)"), _uml_respaldo("dd-mongo", "Colecciones de MongoDB")]
 
-    # ---- 2.3.3 diseño de casos de uso: diagramas de secuencia
+    # ---- 2.3.3 diseño de casos de uso: diagramas de secuencia por ciclo de vida
     md += ["### 2.3.3 Diseño de casos de uso\n"]
     for numero_ciclo, titulo, codigos in Q.CICLOS:
         md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
         for cu in codigos:
             for col in A.colaboraciones_de(cu):
                 r = next(x for x in R.REALIZACIONES if x["col"] == col["id"])
-                md.append(f"**{col['id']}: {col['nombre']}.**\n")
-                for e in r["escenarios"]:
-                    md += [f"Escenario {e['id']} — {e['nombre']}:\n", _uml_respaldo(f"sq-{col['id']}-{e['id']}", f"{col['id']} ({e['id']}): {e['nombre']}")]
+                md += [_uml_respaldo(f"sq-{col['id']}-{e['id']}", f"{cu} - {e['nombre']}") for e in r["escenarios"]]
+    return "\n".join(md)
 
-    # ---- 2.3.4 clases de diseño
-    md += ["### 2.3.4 Clases de diseño por subsistema\n",
+
+def generar_anexo():
+    """Detalle del diseño para el Anexo D (títulos de nivel 2 y 3; el generador del informe los numera 6.4.n): nodos y conexiones, subsistemas e
+    interfaces, clases activas y mecanismos, modelo C4, clases de diseño por subsistema y detalle de las realizaciones."""
+    D.validar(analisis=A)
+    D.validar_realizaciones(A)
+    md = ["## Diseño: nodos y conexiones\n",
+          "La configuración física sigue el patrón de tres capas: los clientes (navegadores), la lógica de la aplicación (Django y Spring Boot) y los datos (PostgreSQL, Redis y MongoDB), "
+          "detrás de nginx con HTTPS. El tráfico de tiempo real usa WebSocket sobre el mismo puerto 443. El diagrama dibuja `mongo_db` como un contenedor del servidor, que es la opción "
+          "de diseño (se levanta con el perfil `mongo` de Docker Compose); en el servidor de AWS ese contenedor no corre, porque la actividad y la conversación se guardan en MongoDB Atlas, "
+          "un servicio gestionado en la nube al que solo puede entrar la IP del servidor.\n",
+          _tabla_nodos(), _tabla_conexiones(),
+          "## Diseño: subsistemas e interfaces\n",
+          "Los subsistemas de las dos capas superiores salen de los paquetes del análisis, con una traza a cada uno: un paquete de análisis, un subsistema de diseño. Se agrega la carcasa "
+          "del editor, que el análisis no tiene porque es de la tecnología: reúne los botones y paneles de los demás subsistemas en la interfaz de Angular; depende de todos y nadie "
+          "depende de ella. El software del sistema y la capa intermedia se tratan como subsistemas con interfaces explícitas, para poder cambiar de producto (por ejemplo, el proveedor "
+          "de IA o la base de datos de la conversación).\n",
+          _tabla_subsistemas(),
+          "Las dependencias entre subsistemas son las del análisis (sin ciclos), sin las que ya están implícitas por otra ruta:\n",
+          _uml_respaldo("di-subsistemas", "Subsistemas del diseño y sus dependencias"),
+          "Software del sistema y capa intermedia:\n", _tabla_software(),
+          "Un subsistema que tiene una dependencia que apunta hacia él proporciona una interfaz. Las interfaces son los puertos de la arquitectura hexagonal: las clases que los usan "
+          "no saben si detrás hay PostgreSQL, MongoDB, Redis, Gemini u Ollama.\n",
+          _tabla_interfaces(),
+          "## Diseño: clases activas y mecanismos genéricos\n", _tabla_activas(),
+          "Cada requisito especial común del análisis (Anexo D, requisitos especiales comunes) se resuelve una sola vez con un mecanismo, y las clases lo usan:\n", _tabla_mecanismos(),
+          "## Diseño: modelo C4\n",
+          _uml_respaldo("c4-contexto", "Diagrama de contexto del sistema"), _uml_respaldo("di-c4-contenedores", "Diagrama de contenedor"),
+          _uml_respaldo("di-c4-componentes", "Diagrama de componentes (C4)")]
+
+    md += ["## Diseño: clases de diseño por subsistema\n",
            "Cada clase usa el lenguaje de programación y su visibilidad (`+` pública, `#` protegida, `-` privada); los atributos y las operaciones son los del código. "
            "Las asociaciones del diagrama son referencias reales: inyección en el constructor, atributo o importación. Cada clase y cada operación que aparece en este capítulo se "
            "comprueba contra el código fuente (la herramienta que genera este informe lee las clases de Python, TypeScript y Java del repositorio) y, si no existe, el informe no se genera.\n"]
     for s in D.SUBSISTEMAS:
-        md += [f"#### Subsistema {s['nombre']}\n", _uml_respaldo(f"dc-{s['id']}", f"Clases de diseño del subsistema {s['nombre']}"), _tabla_clases(s["id"])]
-    md += ["#### Traza del análisis al diseño\n", "Cada clase del análisis se realiza con una o más clases de diseño:\n", _tabla_trazas()]
+        md += [f"### Subsistema {s['nombre']}\n", _uml_respaldo(f"dc-{s['id']}", f"Clases de diseño del subsistema {s['nombre']}"), _tabla_clases(s["id"])]
+    md += ["### Traza del análisis al diseño\n", "Cada clase del análisis se realiza con una o más clases de diseño:\n", _tabla_trazas()]
 
-    # ---- 2.3.5 detalle de las realizaciones
-    md += ["### 2.3.5 Detalle de la realización de los casos de uso\n",
+    md += ["## Diseño: detalle de la realización de los casos de uso\n",
            "Cada realización del diseño traza a una realización del análisis, con su flujo de eventos, las clases participantes y los requisitos de implementación. Los mensajes de "
            "los diagramas de secuencia son llamadas a operaciones reales: el diagrama sirve para leer el código y el código para comprobar el diagrama.\n"]
     for numero_ciclo, titulo, codigos in Q.CICLOS:
-        md.append(f"#### Ciclo de vida #{numero_ciclo}\n")
+        md.append(f"### Ciclo de vida #{numero_ciclo}\n")
         for cu in codigos:
             md.append(f"**{cu}: {Q.CASOS[cu]['nombre']}.**\n")
             for col in A.colaboraciones_de(cu):
@@ -179,5 +184,4 @@ def generar():
                 md += ["Clases de diseño participantes:\n", _uml_respaldo(f"dp-{col['id']}", f"{col['id']}: clases de diseño participantes")]
                 if r["implementacion"]:
                     md += ["Requisitos de implementación:\n"] + [f"- {x}" for x in r["implementacion"]] + [""]
-
     return "\n".join(md)

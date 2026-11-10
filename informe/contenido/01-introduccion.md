@@ -79,7 +79,7 @@ En un **monolito** todo el sistema es una sola unidad que se construye, se despl
 
 ### 1.3.8 El modelo C4
 
-El **modelo C4** es una técnica para describir la arquitectura en cuatro niveles de detalle, de lo general a lo particular (Brown, s. f.): el **contexto** (el sistema como una caja negra, sus usuarios y los sistemas externos), los **contenedores** (las aplicaciones y almacenes que se ejecutan por separado), los **componentes** (las piezas internas de un contenedor) y el **código**. No reemplaza a UML: lo complementa, porque cada nivel puede detallarse con diagramas UML. En la sección 2.3.1 se presentan los cuatro niveles del proyecto.
+El **modelo C4** es una técnica para describir la arquitectura en cuatro niveles de detalle, de lo general a lo particular (Brown, s. f.): el **contexto** (el sistema como una caja negra, sus usuarios y los sistemas externos), los **contenedores** (las aplicaciones y almacenes que se ejecutan por separado), los **componentes** (las piezas internas de un contenedor) y el **código**. No reemplaza a UML: lo complementa, porque cada nivel puede detallarse con diagramas UML. En el Anexo D se presentan los niveles del proyecto.
 
 ## 1.4 Proceso Unificado de Desarrollo de Software (PUDS)
 
