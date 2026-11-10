@@ -389,7 +389,7 @@ REQUISITOS_ADICIONALES = [
      "Pruebas de CU5"),
     ("RA-05", "Despliegue seguro y reproducible",
      "Sitio en AWS con HTTPS, sin puertos internos expuestos, y con una prueba de humo.",
-     "Anexo C"),
+     "Prueba de humo (`scripts/smoke-test.sh`) y el documento de despliegue del repositorio"),
     ("RA-07", "Acceso con el correo, invitaciones, roles y «Mis diagramas»",
      "Se entra con el correo y un código de 6 dígitos, sin contraseña. Cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o "
      "cualquiera con el enlace como lector o editor) y aparece en la lista «Mis diagramas» de cada persona. El servidor lo exige en la API y en el "

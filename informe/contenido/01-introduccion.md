@@ -112,7 +112,7 @@ El trabajo se hace en **iteraciones**: cada una recorre los cinco flujos de trab
 | Implementación | Subsistemas de implementación, componentes y plan de integración | 2.4 |
 | Pruebas | Casos de prueba por cada camino de cada caso de uso, procedimientos, defectos y evaluación | 2.5 |
 
-A ellos se suman la validación, la verificación y la auditoría (Anexo G), que comprueban que lo documentado y lo construido son lo mismo y que cada versión se puede rastrear. Todos los diagramas siguen la notación de UML 2.5.1 y están hechos en Enterprise Architect.
+A ellos se suman la validación, la verificación y la auditoría (Anexo C), que comprueban que lo documentado y lo construido son lo mismo y que cada versión se puede rastrear. Todos los diagramas siguen la notación de UML 2.5.1 y están hechos en Enterprise Architect.
 
 ## 1.5 UML 2.5 y del modelo de clases al modelo relacional y a Spring Boot
 
@@ -164,6 +164,6 @@ Así se integra la IA al proceso de desarrollo, no solo al producto:
 
 - **Reglas para quien programa.** `AGENTS.md`, en la raíz del repositorio, le dice a las personas y a los asistentes de IA cómo trabajar: leer el código antes de cambiarlo, no duplicar lo que existe, no tocar los puertos, no guardar secretos, escribir pruebas de lo crítico y terminar solo cuando compila y pasa. Un asistente lo lee al empezar y lo sigue.
 - **Especificaciones escritas antes del código.** `docs/REQUIREMENTS.md` lista los requisitos, `docs/GAP_MATRIX.md` dice el estado de cada uno, y los planes de trabajo de `docs/` fijan el orden de trabajo, las decisiones y lo que queda fuera.
-- **El modelo manda.** El análisis y el diseño del capítulo 2 no son dibujos aparte: son modelos en código (`informe/modelo/`) que se comprueban contra el repositorio. Lo que el diseño dice de una clase, una operación o un mensaje de secuencia tiene que existir en el código, y lo que no existe obliga a corregir el modelo o el software (Anexo G). Donde faltaba algo, primero se diseñó y después se programó.
+- **El modelo manda.** El análisis y el diseño del capítulo 2 no son dibujos aparte: son modelos en código (`informe/modelo/`) que se comprueban contra el repositorio. Lo que el diseño dice de una clase, una operación o un mensaje de secuencia tiene que existir en el código, y lo que no existe obliga a corregir el modelo o el software (Anexo C). Donde faltaba algo, primero se diseñó y después se programó.
 - **Pruebas primero.** Cada cambio del ciclo 4 empezó con una prueba que fallaba, y cada defecto que encontró la verificación se reprodujo con una prueba roja antes de corregirlo (secciones 2.4 y 2.5).
 - **Revisión previa a cada commit.** Una revisión automática compara cada cambio con las reglas de `AGENTS.md` antes de aceptarlo.
