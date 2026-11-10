@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_ORIENT, WD_SECTION
+from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -628,9 +628,15 @@ class Constructor:
             u.font.size = Pt(8)
 
     def indice(self):
+        """Índice compacto: título «Índice» (un párrafo común, para que no se liste a sí mismo) y los títulos hasta el tercer nivel."""
         self.doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
+        titulo = self.doc.add_paragraph()
+        titulo.paragraph_format.space_after = Pt(10)
+        r = titulo.add_run("Índice")
+        r.bold = True
+        r.font.size = Pt(20)
         p = self.doc.add_paragraph()
-        campo(p, r'TOC \o "1-5" \h \z \u', "Haz clic derecho y elige «Actualizar campo» para generar el índice.")
+        campo(p, r'TOC \o "1-3" \h \z \u', "Haz clic derecho y elige «Actualizar campo» para generar el índice.")
 
 
 def leer(ruta):
@@ -647,17 +653,13 @@ def seccion_de(texto, desde, hasta=None):
 def main():
     sys.path.insert(0, str(INFORME))
     b = Constructor()
-    # Entran dos carátulas (dos copias), cada una con los códigos QR del repositorio y del sitio desplegado.
-    b.caratula()
-    # La segunda carátula empieza una sección nueva, para que tampoco lleve número de página.
-    segunda = b.doc.add_section(WD_SECTION.NEW_PAGE)
-    segunda.different_first_page_header_footer = True
+    # Una sola carátula, con los códigos QR del repositorio y del sitio desplegado (no lleva número de página).
     b.caratula()
     b.indice()
 
     contenido = INFORME / "contenido"
-    # Parte 0 y 1
-    b.markdown(leer(contenido / "00-introduccion.md"))
+    # Parte 1: fundamentación teórica. La justificación del stack (`contenido/00-introduccion.md`) no entra en este documento:
+    # el índice del informe empieza en la fundamentación teórica.
     b.markdown(leer(contenido / "01-introduccion.md"))
 
     # Parte 2: registro del proceso PUDS (estructura de los informes modelo)
