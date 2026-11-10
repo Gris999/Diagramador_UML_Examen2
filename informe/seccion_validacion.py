@@ -6,6 +6,7 @@ Todo se calcula del modelo y del repositorio al generar el informe y `trazabilid
 
 import subprocess
 
+from modelo import analisis as A
 from modelo import diseno as D
 from modelo import pruebas as P
 from modelo import realizaciones as RZ
@@ -104,7 +105,7 @@ def generar():
            f"| Clases de diseño | {ver['clases']} | Existe esa clase (o módulo) en ese archivo |",
            f"| Interfaces (puertos) | {ver['interfaces']} | Existe la interfaz y la realizan las clases que el diseño dice |",
            f"| Asociaciones entre clases | {ver['asociaciones']} | El código de la clase de origen nombra a la de destino (la inyecta, la importa o la crea) |",
-           f"| Realizaciones del diseño | {ver['realizaciones']} | Una por cada colaboración del análisis (18 colaboraciones realizan los 14 casos de uso) |",
+           f"| Realizaciones del diseño | {ver['realizaciones']} | Una por cada colaboración del análisis ({len(A.COLABORACIONES)} colaboraciones realizan los {len(R.CASOS)} casos de uso) |",
            f"| Diagramas de secuencia | {ver['escenarios']} | Cada uno es un escenario de una realización |",
            f"| Mensajes de secuencia | {ver['mensajes']} | Cada mensaje es una operación que existe en la clase que lo recibe ({ver['operaciones']} operaciones distintas; {ver['externos']} mensajes marcados como del navegador o de un producto externo no se comprueban) |",
            f"| Dependencias entre subsistemas | — | Las mismas que entre los paquetes del análisis, sin ciclos |", "",
