@@ -164,3 +164,17 @@ Por defecto la actividad y la conversación se guardan en PostgreSQL. Para guard
 3. Poner `ACTIVITY_STORE=mongo` y `CONVERSATION_STORE=mongo` y recrear `django` (`up -d --no-deps --force-recreate django`). Volver atrás es poner `postgres` en las dos variables.
 
 **Por qué el servidor usa Atlas y no este contenedor.** Medición en la EC2 de 2 GB (2026-11-04), con todos los servicios corriendo y sin MongoDB: 1.906 MB de memoria en total, de 690 a 817 MB usados, de 1.088 a 1.267 MB disponibles (la caché cuenta como disponible) y de 537 a 686 MB de swap en uso; los seis contenedores suman unos 150 MB. Con la caché de WiredTiger en 0,25 GB un contenedor cabría, pero la máquina ya usa swap; con Atlas solo cambia `MONGO_URL`. Para medir de nuevo: `docker stats --no-stream` y `free -m`. Las pruebas contra un MongoDB real se corren con `MONGO_TEST_URL` (ver `back_generador_bd/collab/tests/test_mongo_integration.py`).
+
+### Comprobación del 2026-11-10 antes del parcial
+
+Se volvió a verificar por SSH que producción sigue en `4cddf7e` y que los
+contenedores están activos. El código de aplicación de ese commit y `50b28ed`
+es idéntico; las diferencias posteriores son documentales. No se reconstruyó
+ni reinició producción. `scripts/smoke-test.sh` terminó con «Todo en orden».
+En una sala nueva de ensayo, «Uma, agrega una clase Cliente con nombre y correo»
+mostró una propuesta y el holograma; la clase solo se creó después de pulsar
+**Aplicar**, con la respuesta «Listo, apliqué el cambio en el diagrama».
+Se corrigieron las cuatro filas RF-42 a RF-45 de `GAP_MATRIX.md`, que todavía
+decían «not deployed yet» pese al despliegue ya registrado en este documento.
+La opción Local deshabilitada en el sitio público es esperada: ese servidor
+no ejecuta Ollama; para la demostración local se usa `http://localhost:4200`.
