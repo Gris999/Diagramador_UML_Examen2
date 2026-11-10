@@ -274,6 +274,30 @@ CLASES = {
                               [], ["Lo que se guardó antes se recupera aunque la sala haya quedado sin nadie."],
                               "existe", "diagram.ts ngAfterViewInit; collaboration.service.ts init; backup.service.ts getBackup; "
                                         "activity-panel.ts ngOnInit; ia-chat-panel.ts loadHistory"),
+    # -- acceso por correo, roles y «Mis diagramas» (8 y 9 de noviembre; RA-07)
+    "PantallaEntrada": _c("Pantalla de Entrada", "interfaz", "gestion",
+                          "La página donde la persona escribe su correo y el código de 6 dígitos que le llega; si ya entró antes, elige una de sus cuentas.",
+                          [("correo", "Texto"), ("código", "Seis dígitos"), ("cuentas recordadas", "Lista de Cuenta")],
+                          [], "existe", "app/login-page/login-page.ts; services/auth/auth.service.ts"),
+    "PantallaMisDiagramas": _c("Pantalla de Mis Diagramas", "interfaz", "gestion",
+                               "La lista de los diagramas de la persona (los suyos, a los que la invitaron y los que abrió por un enlace) y la ventana para compartir uno.",
+                               [("diagramas", "Lista de Acceso a la Sala"), ("diagrama elegido", "Acceso a la Sala")],
+                               [], "existe", "app/my-diagrams/my-diagrams.ts; app/share-dialog/share-dialog.ts; services/auth/room-access.service.ts"),
+    "ControlAcceso": _c("Control de Acceso", "control", "gestion",
+                        "Decide quién entra y con qué rol: manda el código por correo, lo comprueba, da la sesión y exige la lista de cada sala.",
+                        [], ["Un código sirve una sola vez, vale 10 minutos y se pide a lo sumo cada 30 segundos.",
+                             "El servidor lo exige en cada llamada de la API y en el WebSocket, no el navegador."],
+                        "existe", "uml_api/auth_views.py; collab/auth.py; collab/rooms.py"),
+    "Cuenta": _c("Cuenta", "entidad", "gestion",
+                 "El correo con el que una persona entra: no hay contraseña, solo un código por correo y una sesión firmada.",
+                 [("correo", "Texto"), ("nombre visible", "Texto sacado del correo"), ("sesión", "Firmada, vale 30 días desde la última vez")],
+                 [], "existe", "collab/auth.py (código y sesión); auth.service.ts (sesiones recordadas en el navegador)"),
+    "AccesoSala": _c("Acceso a la Sala", "entidad", "gestion",
+                     "Quién puede abrir una sala y como qué: sus personas con su rol (propietario, editor o lector), el acceso general y el nombre del diagrama.",
+                     [("persona", "Cuenta"), ("rol", "Propietario, editor o lector"), ("acceso general", "Restringido o cualquiera con el enlace"),
+                      ("nombre del diagrama", "Texto")],
+                     ["Una sala tiene un solo propietario.", "Quien llega por un enlace público tiene el rol del enlace mientras siga abierto."],
+                     "existe", "collab/models.py RoomMember y RoomSettings; collab/rooms.py"),
 }
 for _clave, _c_ in CLASES.items():
     _c_["clave"] = _clave
@@ -283,6 +307,13 @@ ESTEREOTIPO = {"interfaz": "boundary", "control": "control", "entidad": "entity"
 # ---- relaciones (asociaciones) entre clases del análisis ---------------------------------------------------
 # (origen, destino, nombre, multiplicidad en el origen, multiplicidad en el destino, tipo)  tipo: asoc | agr | comp
 RELACIONES = [
+    # acceso por correo
+    ("PantallaEntrada", "ControlAcceso", "pide entrar a", "1", "1", "asoc"),
+    ("ControlAcceso", "Cuenta", "da la sesión a", "1", "0..*", "asoc"),
+    ("ControlAcceso", "AccesoSala", "consulta y cambia", "1", "0..*", "asoc"),
+    ("ControlAcceso", "PantallaMisDiagramas", "le muestra", "1", "1", "asoc"),
+    ("AccesoSala", "Sala", "regula el acceso a", "0..1", "1", "asoc"),
+    ("AccesoSala", "Cuenta", "es de", "0..*", "1", "asoc"),
     # entidades
     ("Diagrama", "ClaseUML", "contiene", "1", "0..*", "comp"),
     ("Diagrama", "RelacionUML", "contiene", "1", "0..*", "comp"),
@@ -657,7 +688,24 @@ COLABORACIONES = [
           "pregunta por la **Interfaz del Servicio de IA**.",
           "Con la respuesta, el control la muestra en el panel, paso a paso; si la pregunta no trata de la herramienta, lo indica."],
          ["Solo responde sobre la herramienta.", "Tiene tope de uso y la conversación es personal, no de la sala."]),
+    _col("COL-19", "CU1", "Entrar con el correo y abrir mis diagramas",
+         {"U": A_COL},
+         [("U", "PantallaEntrada", "Escribir el correo y el código que llegó por correo"),
+          ("PantallaEntrada", "ControlAcceso", "Pedir el código y comprobarlo"),
+          ("ControlAcceso", "Cuenta", "Emitir el código, mandarlo por correo y abrir la sesión"),
+          ("ControlAcceso", "AccesoSala", "Comprobar si la persona está en la lista de la sala y con qué rol"),
+          ("ControlAcceso", "PantallaMisDiagramas", "Mostrar los diagramas de la persona"),
+          ("PantallaMisDiagramas", "ControlAcceso", "Pedir compartir un diagrama con otras personas y un rol"),
+          ("ControlAcceso", "AccesoSala", "Guardar las personas, sus roles y el acceso general")],
+         ["El Colaborador escribe su correo en la **Pantalla de Entrada**, que le pide al **Control de Acceso** un código de 6 dígitos; el control lo manda por "
+          "correo y, cuando la persona lo escribe, lo comprueba y le da una sesión (**Cuenta**).",
+          "Con la sesión, el control consulta en el **Acceso a la Sala** si la persona está en la lista de la sala y con qué rol (propietario, editor o lector), "
+          "y le muestra sus diagramas en la **Pantalla de Mis Diagramas**.",
+          "Desde esa pantalla la persona propietaria comparte un diagrama: agrega personas con un rol o abre el enlace; el control guarda la lista y el acceso general "
+          "en el **Acceso a la Sala**."],
+         ["Entrar con el correo es una condición de todos los casos de uso cuando el servidor la exige (RA-07): sin la lista de la sala no se abre la sala."]),
 ]
+
 ACTOR_EXTERNO = {"S": ("A3", "Servicio de IA")}  # instancia del actor secundario en las colaboraciones que lo usan
 
 # ---- requisitos especiales comunes (los identifica el arquitecto, 8.6.1.3) -----------------------------------
