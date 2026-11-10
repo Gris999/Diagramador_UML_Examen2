@@ -82,7 +82,7 @@ def _ficha_clase(c):
 def generar():
     """Sección 2.2. Misma estructura que el documento de referencia: análisis de la arquitectura (identificar paquetes, relacionar paquetes y casos de uso,
     vista del paquete), análisis de casos de uso (diagramas de comunicación por ciclo de vida) y análisis de paquete. El resto del análisis (requisitos
-    especiales comunes, flujos de sucesos, clases participantes y fichas de las clases) está en el Anexo D (`generar_anexo`)."""
+    especiales comunes, flujos de sucesos, clases participantes y fichas de las clases) está en el Anexo E (`generar_anexo`)."""
     A.validar(R)
     raices = [p for p in A.PAQUETES if not p["padre"]]
     con_casos = [p for p in raices if any(q["casos"] for q in [p] + [s for s in A.PAQUETES if s["padre"] == p["id"]])]
@@ -110,7 +110,7 @@ def generar():
 
 
 def generar_anexo():
-    """Detalle del análisis para el Anexo D (títulos de nivel 2 y 3; el generador del informe los numera 6.4.n): requisitos especiales comunes,
+    """Detalle del análisis para el Anexo E (títulos de nivel 2 y 3; el generador del informe los numera 6.5.n): requisitos especiales comunes,
     flujos de sucesos con las clases participantes de cada realización, y fichas de las clases del análisis."""
     A.validar(R)
     md = ["## Análisis: requisitos especiales comunes\n",
