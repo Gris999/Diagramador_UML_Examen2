@@ -31,6 +31,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 - Para renombrar una clase, un atributo o un método, haz doble clic sobre el texto, selecciona todo (Cmd+A o Ctrl+A), escribe el nombre nuevo y pulsa Enter.
 - Para unir dos clases, haz clic en la relación que quieres en la paleta («Asociación», «Herencia», «Agregación», «Composición» o «Dependencia»), luego haz clic en la clase de origen y después en la de destino; un aviso sobre el lienzo dice qué falta y con Esc se cancela. También se puede hacer clic en una clase y arrastrar desde un circulito de su borde hasta la otra clase. La línea sale sola por el lado que mira a la otra clase y se acomoda cada vez que mueves una clase; las multiplicidades quedan a un lado de la línea, sin quedar tapadas.
 - Para cambiar la multiplicidad, haz doble clic sobre ella y escribe el valor (por ejemplo «*»).
+- Para mover una línea de relación, haz clic sobre ella: aparecen asas en sus tramos. Arrastra un tramo para llevarlo por donde quieras (por ejemplo, para que no pase encima de otra clase). Con doble clic sobre la línea (fuera de las multiplicidades) vuelve a acomodarse sola. Si no la tocas, la línea se acomoda sola cuando mueves las clases.
 - Cuando una relación es de muchos a muchos, el editor crea sola la clase intermedia.
 - Arriba del lienzo están «Acercar», «Alejar» y «Restablecer zoom».
 - Todo lo que haces lo ven los demás al instante.
@@ -42,19 +43,20 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 - Imagen: en «Importaciones» → «Importar Imagen» elige la foto o captura de un diagrama de clases. Si el diagrama de la sala ya tiene elementos, la herramienta pregunta qué hacer con el resultado: «Reemplazar diagrama», «Combinar con actual» o «Cancelar».
 - Si un cambio de la IA va a eliminar elementos, la herramienta te pide confirmación antes de aplicarlo.
 
-## 5. Chat con la IA (la conversación es de toda la sala)
+## 5. Chat de la sala y la IA (Uma)
 
-- Pulsa «Chat con la IA» (abajo a la derecha). La conversación la ven y la alimentan todas las personas de la sala; cada mensaje muestra quién lo escribió.
-- La IA atiende un pedido a la vez. Si está ocupada con otra persona, te avisa y esperas a que termine.
-- Es un solo chat: escribes lo que quieras y la IA entiende qué es. No hay que elegir un modo.
-  - Una pregunta, por ejemplo «¿Cuántas clases hay?» o «Explícame este diagrama»: la IA solo responde. No toca el diagrama.
-  - Un pedido de cambio, por ejemplo «Agrega una clase Cliente con nombre y correo»: la IA propone lo que haría y te pide permiso. El diagrama no cambia hasta que pulses «Aplicar» (o escribas «sí»). «Descartar» (o «no») cancela la propuesta. Si escribes «directamente» (por ejemplo «agrega la clase Venta directamente») lo aplica sin preguntar. En la actividad figura como «IA, a pedido de» quien lo pidió.
-  - «Revisa el diagrama»: la IA revisa y deja sus ideas en «Actividad», cada una con un botón «Aplicar».
-  - «¿Qué hizo Beto?» o «historial de Ana»: responde con el registro de actividad de esa persona, incluido lo que hizo con la IA. Sin nombre («muéstrame el historial») cuenta lo último que pasó en la sala.
+- Pulsa «Chat» (abajo a la derecha). Es el chat de toda la sala: las personas se escriben entre sí y lo ven todas al instante, sin recargar la página. Cada mensaje muestra quién lo escribió. Si llegan mensajes con el chat cerrado, el botón «Chat» muestra un número.
+- La IA de la sala se llama **Uma**. Solo responde cuando le hablas: empieza el mensaje con su nombre («Uma, …» o «IA, …»). Lo que escribas sin su nombre es para tu equipo y Uma no se entera.
+- Uma atiende un pedido a la vez. Si está ocupada con otra persona, el chat dice a quién atiende y esperas a que termine.
+- Lo que le puedes decir a Uma, por ejemplo:
+  - Una pregunta, como «Uma, ¿cuántas clases hay?» o «Uma, explícame este diagrama»: solo responde. No toca el diagrama.
+  - Un pedido de cambio, como «Uma, agrega una clase Cliente con nombre y correo»: Uma propone lo que haría y te pide permiso. **Mientras esperas, el cambio aparece sobre el diagrama como un «holograma»**: lo nuevo en trazo punteado morado, lo que se agrega a una clase en ámbar bajo ella, y lo que se eliminaría rodeado en rojo. El diagrama no cambia hasta que pulses «Aplicar» (o le digas «sí»). «Descartar» (o «no») cancela la propuesta y quita el holograma. Si escribes «directamente» (por ejemplo «Uma, agrega la clase Venta directamente») lo aplica sin preguntar. En la actividad figura como «IA, a pedido de …».
+  - «Uma, revisa el diagrama»: Uma revisa y deja sus ideas en «Actividad», cada una con un botón «Aplicar».
+  - «Uma, ¿qué hizo Beto?» o «Uma, historial de Ana»: responde con el registro de actividad de esa persona, incluido lo que hizo con la IA. Sin nombre («Uma, muéstrame el historial») cuenta lo último que pasó en la sala.
 - Las ideas de una revisión tienen un botón «Aplicar». Quien lo pulsa aplica la idea a su nombre y queda marcada como aplicada para todos; nadie más puede aplicarla dos veces.
 - La IA nunca cambia el diagrama por su cuenta: solo cuando alguien se lo pide, y antes te pide permiso.
 - Arriba del chat se elige el modelo de la sala: «Nube (Gemini)» o «Local». Es uno solo para todos y el cambio queda en Actividad. «Local» solo se puede elegir si el servidor tiene el modelo local; si no, aparece apagado.
-- Hay un tope de preguntas por minuto. Si te pasas, espera un momento.
+- Hay un tope de pedidos a Uma por minuto, y otro de mensajes entre personas. Si te pasas, espera un momento.
 - El chat indica si la IA es la de la nube (Gemini) o una local.
 
 ## 6. Actividad de la sala

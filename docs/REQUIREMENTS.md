@@ -46,7 +46,7 @@ Requested by the instructor on 2026-10-13: the AI becomes one more member of the
 - **RF-23** — Each participant has a visible name and an anonymous identifier kept in their browser.
 - **RF-24** — The AI appears as a member in the participants panel.
 - **RF-25** — Each room has an activity log, visible to everyone, with author, type and summary of each meaningful action.
-- **RF-26** — Each room has one conversation with the AI, shared by everyone in the room; every message shows who wrote it. *(Changed on 2026-10-26 from an individual chat per person: the instructor asked for one model and one instance per room, with no private conversations.)*
+- **RF-26** — Each room has one conversation with the AI, shared by everyone in the room; every message shows who wrote it. *(Changed on 2026-10-26 from an individual chat per person: the instructor asked for one model and one instance per room, with no private conversations. Refined on 2026-11-10: the room chat is also where people talk to each other (RF-42), and the AI answers only when addressed by name (RF-43).)*
 - **RF-27** — The AI answers about any member's activity using the log.
 - **RF-28** — The AI changes the diagram only when a participant explicitly orders it; its ideas are shown as suggestions anyone can apply.
 - **RF-29** — AI changes are applied and propagated to everyone, labeled "IA, a pedido de X".
@@ -67,6 +67,15 @@ Requested by the team on 2026-11-08 and 2026-11-09 (invite by email like draw.io
 - **RF-39** — General access, as in Google Docs: *Restringido* (only the people on the list) or *Cualquiera con el enlace*, as reader or as editor. The link is offered only when the access is public. A person's effective role is the higher of their own role and the link role.
 - **RF-40** — «Mis diagramas»: the start page lists, for the email that signed in, the diagrams the person created, was invited to or opened through a public link, with name, role and last opened. The owner can rename (the name shows in the editor top bar) and delete; anyone else can remove it from their own list.
 - **RF-41** — A phone never opens the editor: it goes to the read-only follow view (RF-32).
+
+## Room chat and editor aids
+
+Requested by the team on 2026-11-10 after trying the tool with three people at once.
+
+- **RF-42** — The room chat is for the people of the room: a message written to the team is stored in the shared conversation and shown to everyone live, without reloading the page (a notice over the WebSocket tells each browser to re-read it; a closed chat shows a counter of new messages). Messages between people never reach the AI and are limited per person per minute.
+- **RF-43** — The AI of the room has a name, **Uma** (also answers to «IA»), and answers only when a message starts with it («Uma, agrega una clase Cliente»). A short yes or no is read as the answer to her proposal only while one is waiting.
+- **RF-44** — A change proposed by the AI is shown to the person who asked, over the diagram, as a preview («holograma»: dashed outlines for new classes, relationships and added members, red for what would be deleted) until they apply or discard it; the preview is never part of the diagram (not synchronized, saved or exported).
+- **RF-45** — A relationship line can be moved by hand: clicking it shows handles on its segments, dragging a segment moves it, and a double click on the line returns it to the automatic route. Moved routes are synchronized with the room.
 
 Additional non-functional requirements:
 
