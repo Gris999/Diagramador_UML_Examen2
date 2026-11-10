@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
 import { IdentityService } from '../colaboration/identity.service';
 import { HttpErrorResponse } from '@angular/common/http';
-import { iaErrorMessage, IaChatService } from './ia-chat.service';
+import { iaErrorMessage, IaChatService, isAddressedToIa } from './ia-chat.service';
 
 describe('IaChatService', () => {
   let service: IaChatService;
@@ -140,6 +140,19 @@ describe('IaChatService', () => {
     expect(release.request.headers.get('X-Participant-Token')).toBe(token);
     release.flush({});
   });
+
+  it('sends a message for the other people to the say endpoint with the participant token and returns the stored message', () => {
+    let stored: unknown;
+    service.say('sala 1', 'hola equipo').subscribe(message => (stored = message));
+
+    const request = http.expectOne(`${base}chat/say/`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ message: 'hola equipo' });
+    expect(request.request.headers.get('X-Participant-Token')).toBe(token);
+    request.flush({ message: { id: 5, role: 'user', author_name: 'Ana', content: 'hola equipo', created_at: 'x' } });
+
+    expect(stored).toEqual({ id: 5, role: 'user', author_name: 'Ana', content: 'hola equipo', created_at: 'x' });
+  });
 });
 
 
@@ -163,5 +176,19 @@ describe('iaErrorMessage', () => {
     expect(iaErrorMessage(new HttpErrorResponse({ status: 400, error: { error: 'El mensaje es requerido.' } }))).toBe('El mensaje es requerido.');
     expect(iaErrorMessage(new HttpErrorResponse({ status: 502 }))).toContain('La IA no pudo responder ahora');
     expect(iaErrorMessage(new Error('boom'))).toContain('La IA no pudo responder ahora');
+  });
+});
+
+describe('isAddressedToIa', () => {
+  it('is true when the message starts with the name of the AI, in any form people write it', () => {
+    for (const text of ['Uma, agrega una clase', 'uma agrega una clase', '@Uma revisa', '  UMA: crea Pedido', 'IA, ¿qué hizo Beto?', 'ia haz esto', 'Umá, hola']) {
+      expect(isAddressedToIa(text)).withContext(text).toBeTrue();
+    }
+  });
+
+  it('is false for a message between people, even if it mentions the AI later or only looks similar', () => {
+    for (const text of ['hola equipo', 'pregúntale a Uma luego', 'umami', 'iaaa', 'qué hacemos con la IA', '', '   ']) {
+      expect(isAddressedToIa(text)).withContext(text).toBeFalse();
+    }
   });
 });

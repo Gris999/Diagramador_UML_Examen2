@@ -20,6 +20,8 @@ export class P2PService {
   private localId = signal(''); // mi channel_name (lo asigna el servidor en presence)
   readonly participants = signal<CollaborationParticipant[]>([]);
   readonly liveActivityEvents = signal<ActivityEvent[]>([]);
+  /** Sube cada vez que el servidor avisa que la conversación de la sala tiene mensajes nuevos (el chat los vuelve a leer). */
+  readonly chatTick = signal(0);
   /** El host expulsó a esta conexión: la sala ya no le envía nada ni acepta lo que haga. */
   readonly removed = signal(false);
   readonly isHost = computed(() => this.participants().some(
@@ -95,6 +97,11 @@ export class P2PService {
 
     if (msg.type === 'removed') {
       this.removed.set(true);
+      return;
+    }
+
+    if (msg.type === 'chat') {
+      this.chatTick.update(count => count + 1);
       return;
     }
 

@@ -17,10 +17,25 @@ export type IaIntent = 'ask' | 'change' | 'review' | 'history' | 'confirm' | 'di
 // dejar a la sala viendo "pensando…" sin fin.
 const IA_REQUEST_TIMEOUT_MS = 110_000;
 
+/** La IA de la sala se llama Uma; también responde a «IA». */
+export const IA_NAME = 'Uma';
+
+/**
+ * El mensaje le habla a la IA cuando empieza con su nombre («Uma, agrega una clase Cliente», «@Uma revisa el diagrama», «IA, …»).
+ * Todo lo demás es de las personas entre sí y la IA no se entera.
+ */
+export function isAddressedToIa(text: string): boolean {
+  const plain = text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+  return /^\s*@?(uma|ia)(?![a-z0-9])/.test(plain);
+}
+
 export type IaChatMessage = {
   id: number;
   role: 'user' | 'ia';
-  /** Quién lo dijo: el nombre de la persona o «IA». La conversación es la de toda la sala. */
+  /** Quién lo dijo: el nombre de la persona o «IA» (que la interfaz muestra como Uma). La conversación es la de toda la sala. */
   author_name?: string;
   mode?: IaChatMode;
   content: string;
@@ -30,7 +45,7 @@ export type IaChatMessage = {
 export type IaSuggestion = { id: number; text: string; prompt: string };
 
 /** Lo que la IA haría, contado en líneas; espera el permiso de quien pidió el cambio. */
-export type IaProposal = { lines: string[]; destructive: number };
+export type IaProposal = { lines: string[]; destructive: number; /** El cambio completo, para dibujarlo como vista previa («holograma»). */ preview?: unknown };
 
 export type IaProviderOption = { id: string; label: string; available: boolean };
 
@@ -87,6 +102,13 @@ export class IaChatService {
         headers: this.headers()
       })
       .pipe(map(response => (Array.isArray(response?.messages) ? response.messages : [])));
+  }
+
+  /** Un mensaje para las demás personas de la sala (no llama a la IA); el servidor lo guarda y lo reparte en vivo. */
+  say(roomId: string, message: string): Observable<IaChatMessage | null> {
+    return this.http
+      .post<{ message: IaChatMessage | null }>(`${this.baseUrl(roomId)}chat/say/`, { message }, { headers: this.headers() })
+      .pipe(map(response => response?.message ?? null));
   }
 
   /** Qué IA responde (nube o modelo local) según el servidor. */
