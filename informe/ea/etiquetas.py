@@ -101,16 +101,24 @@ def modelo_marcador(d):
     return min(o["x"] for o in d["objetos"]), min(o["y"] for o in d["objetos"])
 
 
+HOLGURA = 9  # píxeles que se dejan entre una etiqueta y otra (la medida es del texto pintado, sin el aire de su rótulo)
+
+
 def _libre(colocadas, x, y, ancho, alto):
     """Sube (y) la etiqueta lo necesario para que no se encime con las ya colocadas."""
     subir = True
     while subir:
         subir = False
         for (a0, b0, a1, b1) in colocadas:
-            if x - ancho / 2 < a1 + 2 and x + ancho / 2 > a0 - 2 and y - alto / 2 < b1 + 2 and y + alto / 2 > b0 - 2:
-                y = b0 - 3 - alto / 2
+            if x - ancho / 2 < a1 + HOLGURA and x + ancho / 2 > a0 - HOLGURA and y - alto / 2 < b1 + HOLGURA and y + alto / 2 > b0 - HOLGURA:
+                y = b0 - HOLGURA - 1 - alto / 2
                 subir = True
     return y
+
+
+def _cruza(troncos, x, y, ancho, alto):
+    """¿La etiqueta (centro x, y) queda sobre el tramo vertical de algún conector con tronco? `troncos`: [(x, y_min, y_max)] en píxeles."""
+    return any(x - ancho / 2 - 4 <= xt <= x + ancho / 2 + 4 and y - alto / 2 <= y1 and y + alto / 2 >= y0 for xt, y0, y1 in troncos)
 
 
 def paso2(modelo, carpeta_paso1):
@@ -139,6 +147,14 @@ def paso2(modelo, carpeta_paso1):
         objetos = {o["k"]: dict(o, sesgo={"Class": round(K * (ATAQUE_CLASE - o["h"] / 2)), "Actor": SESGO_ACTOR}.get(
             modelo["elementos"][o["k"]]["tipo"], 0)) for o in d["objetos"]}
         colocadas = []  # rectángulos (px) ya ocupados por otras etiquetas
+        troncos = []    # tramos verticales (x, y_min, y_max en px) de los conectores con tronco: ninguna etiqueta debe quedar encima
+        for c in autos:
+            o, t = objetos[c["de"]], objetos[c["a"]]
+            if c.get("arbol") == "H" and abs((t["y"] + t["h"] / 2) - (o["y"] + o["h"] / 2)) > 12:
+                derecha_ = t["x"] + t["w"] / 2 > o["x"] + o["w"] / 2
+                borde_ = t["x"] if derecha_ else t["x"] + t["w"]
+                ys = sorted((px(0, o["y"] + o["h"] / 2)[1], px(0, t["y"] + t["h"] / 2)[1]))
+                troncos.append((px(borde_ + (-TRONCO if derecha_ else TRONCO), 0)[0], ys[0], ys[1]))
         for n, (c, caja) in enumerate(zip(autos, medidas)):
             cx, cy = c["etiq_auto"]
             c["etiq"] = f"{cx}:{cy}:0:0:-1"
@@ -155,7 +171,7 @@ def paso2(modelo, carpeta_paso1):
                 # con tronco: junto al tramo vertical, a la altura de la flecha de su destino, del lado del origen
                 borde = t["x"] if derecha else t["x"] + t["w"]
                 tronco = px(borde + (-TRONCO if derecha else TRONCO), 0)[0]
-                x = tronco - 14 - ancho_px / 2 if derecha else tronco + 14 + ancho_px / 2
+                x = tronco - 28 - ancho_px / 2 if derecha else tronco + 28 + ancho_px / 2
                 y = px(0, centro_d[1])[1] + t["sesgo"] - 9 - alto_px / 2
                 deseado = (x, y)
             elif c.get("arbol") == "H":
@@ -171,13 +187,17 @@ def paso2(modelo, carpeta_paso1):
             elif c.get("arbol") == "V" and c.get("etiq_modo") == "destino":
                 # vertical con tronco compartido (varios destinos debajo de un mismo origen): sobre la bajada hacia su destino, del lado
                 # izquierdo, entre el tronco y el borde superior del destino; así las etiquetas de los hermanos no caen una sobre otra
-                x = px(centro_d[0], 0)[0] - 8 - ancho_px / 2
+                x = px(centro_d[0], 0)[0] - 26 - ancho_px / 2
                 y = px(0, t["y"])[1] - K * TRONCO / 2
+                if _cruza(troncos, x, y, ancho_px, alto_px):
+                    x = px(centro_d[0], 0)[0] + 26 + ancho_px / 2
                 deseado = (x, y)
             elif c.get("arbol") == "V":
                 # vertical: al lado izquierdo de la línea, a mitad de camino entre los dos elementos
-                x = px(centro_o[0], 0)[0] - 8 - ancho_px / 2
+                x = px(centro_o[0], 0)[0] - 26 - ancho_px / 2
                 y = (px(0, centro_o[1])[1] + px(0, centro_d[1])[1]) / 2 + (o["sesgo"] + t["sesgo"]) / 2
+                if _cruza(troncos, x, y, ancho_px, alto_px):  # a la izquierda quedaría sobre el tramo vertical de otra línea: va a la derecha
+                    x = px(centro_o[0], 0)[0] + 26 + ancho_px / 2
                 deseado = (x, y)
             if deseado:
                 x, y = deseado

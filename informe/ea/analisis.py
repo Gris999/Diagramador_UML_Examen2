@@ -19,11 +19,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import layout  # noqa: E402
-from especificaciones import tam_actor, tam_cu  # noqa: E402
+from especificaciones import REQ, tam_actor, tam_cu  # noqa: E402
 from modelo import analisis as A  # noqa: E402
 from modelo import requisitos as R  # noqa: E402
 
 MODELO = "Modelo de análisis"
+# Cada tipo de clase del análisis con su color, como en el documento de referencia: interfaz celeste, control naranja y entidad amarillo pálido.
+COLORES = {"interfaz": dict(fondo="#C9F1F5", borde="#1F8E99", texto="#000000"),
+           "control": dict(fondo="#FFDDB8", borde="#C97B2A", texto="#000000"),
+           "entidad": dict(fondo="#F2F6C2", borde="#8E9A2B", texto="#000000")}
 ICONO = (110, 100)  # el ícono de EA sobresale de una caja de 80 de alto: con 100 las líneas entre elementos apilados se ven
 ANCHO_ETIQUETA = 30  # caracteres por renglón en las etiquetas de los mensajes
 NUEVO = dict(fondo="#FFF2CC", borde="#BF9000", texto="#000000")
@@ -258,7 +262,7 @@ def diagrama_participantes(m, col):
                 break
     aristas += enlaces_actor
     pos = layout.columnas(tam, cols, aristas, hueco_x=170, hueco_y=50, pares_juntos=(), arbol=True)
-    objetos = [(clave(k), *pos[k], *tam[k]) for k in tam]
+    objetos = [(clave(k), *pos[k], *tam[k], *((COLORES[A.CLASES[k]["est"]],) if k in objetos_cl else ())) for k in tam]
     columna = {k: i for i, c in enumerate(cols) for k in c}
     conectores = _conectores_asociaciones(m, f"re:{col['id']}", objetos_cl, columna)
     conectores += [dict(de=clave(a), a=clave(b), tipo="Association", arbol="H") for a, b in enlaces_actor]
@@ -314,8 +318,9 @@ def diagrama_colaboracion(m, col):
                 cn["de"], cn["a"] = clave(derecha), clave(izquierda)
         conectores.append(cn)
     pos = layout.columnas(tam, cols, aristas, hueco_x=230, hueco_y=60, pares_juntos=(), arbol=True)
-    objetos = [(clave(k), *pos[k], *tam[k]) for k in tam]
-    m.diagrama(f"com-{col['id']}", f"{col['id']}: {col['nombre']}", "Collaboration", ruta, objetos, conectores)
+    objetos = [(clave(k), *pos[k], *tam[k], *((COLORES[A.CLASES[k]["est"]],) if k in objetos_cl else ())) for k in tam]
+    # El título dice el caso de uso y el flujo que se realiza («sd CU1 - …»), no el código interno de la colaboración.
+    m.diagrama(f"com-{col['id']}", f"{col['cu']} - {col['nombre']}", "Collaboration", ruta, objetos, conectores)
 
 
 # ---- análisis de la arquitectura: identificar, relacionar y ver cada paquete -----------------------------------
@@ -364,12 +369,59 @@ def diagrama_relacion(m, id_):
 
 
 def diagrama_vista(m, id_):
-    """La vista del paquete: sus casos de uso con los actores que los inician, dentro de un marco con su nombre."""
+    """La vista del paquete: el paquete (con su solapa) contiene a los actores y a los casos de uso, unidos por sus asociaciones y relaciones."""
     import casos_de_uso
 
     raiz = _paquete(id_)
     casos = sorted(set(_casos_del_paquete(raiz)), key=R.numero)
-    casos_de_uso.diagrama(m, f"an-vista-{id_}", f"Vista del paquete {raiz['nombre']}", casos, marco=f"Paquete {raiz['nombre']}")
+    for origen, destino, _tipo, _ in R.RELACIONES:  # el caso que extiende queda debajo del extendido, para que la flecha no cruce otro caso
+        if origen in casos and destino in casos:
+            casos.remove(origen)
+            casos.insert(casos.index(destino) + 1, origen)
+    ruta = REQ  # el diagrama va en el mismo paquete que los actores y casos de uso: así EA no les escribe «(from …)» debajo
+    actores = sorted({a for c in casos for a in R.actores_dibujados(c) if a != "A3"})
+    externos = sorted({a for c in casos for a in R.CASOS[c]["actores"] if a == "A3"})
+    for a in actores + externos:
+        casos_de_uso._actor(m, a)
+    for c in casos:
+        casos_de_uso._caso(m, c)
+    tam_c = {c: tam_cu(casos_de_uso.nombre(c)) for c in casos}
+    tam_a = {a: tam_actor(R.NOMBRE_ACTOR[a]) for a in actores + externos}
+    x_actor, x_caso = 50, 50 + max([t[0] for t in tam_a.values()] + [90]) + 150
+    y, pos_c = 70, {}
+    for c in casos:
+        pos_c[c] = (x_caso, y)
+        y += tam_c[c][1] + 44
+    alto = y - 44 + 50
+    # cada actor a la altura media de los casos con los que se une; si quedan encimados se separan
+    pos_a, minimo = {}, -10**9
+    for a in actores:
+        unidos = [pos_c[c][1] + tam_c[c][1] / 2 for c in casos if a in R.actores_dibujados(c)]
+        centro = sum(unidos) / len(unidos)
+        arriba = max(int(centro - tam_a[a][1] / 2), minimo + 40)
+        pos_a[a] = (x_actor, arriba)
+        minimo = arriba + tam_a[a][1]
+    ancho = x_caso + max(t[0] for t in tam_c.values()) + 50
+    alto = max(alto, minimo + 40)
+    paquete = m.elem(f"vp:{id_}", "Package", raiz["nombre"], ruta)
+    objetos = [(paquete, 0, 0, ancho, alto)]
+    objetos += [(a, *pos_a[a], *tam_a[a]) for a in actores]
+    objetos += [(c, *pos_c[c], *tam_c[c]) for c in casos]
+    for a in externos:  # el servicio externo queda fuera del paquete
+        objetos.append((a, ancho + 120, alto // 2 - 45, *tam_a[a]))
+    conectores = []
+    for c in casos:
+        for a in R.actores_dibujados(c):
+            if a != "A3":
+                conectores.append(dict(de=a, a=c, tipo="Association"))
+        if "A3" in R.CASOS[c]["actores"]:
+            conectores.append(dict(de=c, a="A3", tipo="Association"))
+    for origen, destino, tipo, _ in R.RELACIONES:
+        if origen in casos and destino in casos:
+            conectores.append(dict(de=origen, a=destino, tipo="Dependency", est=tipo))
+    if "A1" in actores and "A2" in actores:
+        conectores.append(dict(de="A1", a="A2", tipo="Generalization"))
+    m.diagrama(f"an-vista-{id_}", f"Vista del paquete {raiz['nombre']}", "Use Case", ruta, objetos, conectores)  # líneas rectas, como en la referencia
 
 
 def construir(m, solo=None):

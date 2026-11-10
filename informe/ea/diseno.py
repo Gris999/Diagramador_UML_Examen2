@@ -69,6 +69,11 @@ def _rotulo_vida(vida, col_id):
     return D.OBJETOS[base]["rotulo"] + (" (otra pantalla)" if "#" in vida else "")
 
 
+def _cu_de(col):
+    """El caso de uso (o los casos de uso) que realiza la colaboración, para titular sus diagramas como «CU1 - …»."""
+    return next(c["cu"] for c in A.COLABORACIONES if c["id"] == col)
+
+
 def diagrama_secuencia(m, r, e):
     ruta = f"{MODELO}|Realizaciones del diseño|{r['col']}"
     prefijo = f"sq:{r['col']}-{e['id']}"
@@ -111,7 +116,7 @@ def diagrama_secuencia(m, r, e):
         w, h = tam[v]
         objetos.append((claves[v], int(xs[indice[v]] - w / 2), 0, w, h))
     conectores = [dict(de=claves[o], a=claves[d], tipo="Sequence", nombre=t, seq=n) for n, (o, d, t) in enumerate(mensajes, 1)]
-    m.diagrama(f"sq-{r['col']}-{e['id']}", f"{r['col']} ({e['id']}): {e['nombre']}", "Sequence", ruta, objetos, conectores)
+    m.diagrama(f"sq-{r['col']}-{e['id']}", f"{_cu_de(r['col'])} - {e['nombre']}", "Sequence", ruta, objetos, conectores)
 
 
 # ---- clases de diseño ------------------------------------------------------------------------------------------

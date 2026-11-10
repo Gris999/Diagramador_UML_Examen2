@@ -22,17 +22,17 @@ las define el libro. Así toda responsabilidad tiene una colaboración que la or
 PAQUETES = [
     dict(id="nucleo", nombre="Núcleo de la sala", tipo="paquete", capa="general", padre=None, casos=[],
          por_que="Reúne las clases de entidad que casi todos los demás paquetes necesitan (la sala, quien participa y lo que se registra de "
-                 "lo que hacen); se extraen a su propio paquete para que los demás dependan de él y no entre sí (8.6.1.1.1)."),
+                 "lo que hacen); se extraen a su propio paquete para que los demás dependan de él y no entre sí."),
     dict(id="edicion", nombre="Edición del diagrama", tipo="paquete", capa="general", padre=None, casos=["CU2", "CU3"],
          por_que="CU3 empieza donde termina CU2 («un actor edita el diagrama»): son casos de uso relacionados y se realizan con las mismas "
                  "clases (el lienzo, el diagrama y su sincronización)."),
     dict(id="actividad", nombre="Actividad del equipo", tipo="paquete", capa="aplicación", padre=None, casos=["CU6"],
          por_que="Aísla los cambios en lo que se muestra de la actividad de la sala."),
     dict(id="seguimiento", nombre="Seguimiento móvil", tipo="servicio", capa="aplicación", padre="actividad", casos=["CU13"],
-         por_que="Es un servicio opcional y de solo lectura: quien no lo necesita no pierde nada, y se entrega o se quita entero (8.4.4.1)."),
+         por_que="Es un servicio opcional y de solo lectura: quien no lo necesita no pierde nada, y se entrega o se quita entero."),
     dict(id="ia", nombre="Asistencia inteligente", tipo="paquete", capa="aplicación", padre=None, casos=["CU7", "CU8", "CU9"],
          por_que="CU9 es extendido por CU7 (aplicar una idea ejecuta un cambio) y los tres usan el servicio de IA: se agrupan por la "
-                 "relación de extensión entre ellos (8.6.1.1)."),
+                 "relación de extensión entre ellos."),
     dict(id="ayuda", nombre="Asistente de ayuda", tipo="servicio", capa="aplicación", padre="ia", casos=["CU14"],
          por_que="Es un servicio opcional que solo contesta dudas de uso, con su propio conocimiento y sin tocar el diagrama."),
     dict(id="intercambio", nombre="Intercambio y generación", tipo="paquete", capa="aplicación", padre=None, casos=["CU10", "CU11", "CU12"],
