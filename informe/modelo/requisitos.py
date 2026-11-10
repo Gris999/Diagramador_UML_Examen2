@@ -394,10 +394,11 @@ REQUISITOS_ADICIONALES = [
      "Se entra con el correo y un código de 6 dígitos, sin contraseña. Cada diagrama tiene dueño, editores y lectores, un acceso general (restringido o "
      "cualquiera con el enlace como lector o editor) y aparece en la lista «Mis diagramas» de cada persona. El servidor lo exige en la API y en el "
      "WebSocket; el celular solo ve. Es transversal: condiciona todos los casos de uso, por eso no es un caso propio. Se construyó el 8 y 9 de noviembre, "
-     "después de congelar los diagramas (4 de noviembre): no tiene realización de análisis ni de diseño en Enterprise Architect (deuda de diseño; ver 2.6).",
+     "después de los primeros diagramas, y se modeló después: tiene su colaboración de análisis (COL-19) y su realización de diseño, con las clases "
+     "`LoginPage`, `AuthService`, `auth`, `rooms`, `MyDiagrams` y `ShareDialog` (secciones 2.2 y 2.3).",
      "Pruebas de acceso, roles y WebSocket (`collab/tests/test_auth.py`, `test_room_access.py`, `test_auth_websocket.py`, `uml_api/tests/test_auth_api.py`) y de la interfaz (`auth.service.spec.ts`, `room.guards.spec.ts`, `my-diagrams.spec.ts`, `share-dialog.spec.ts`)"),
     ("RA-06", "Bases de datos adecuadas a cada dato",
-     "PostgreSQL guarda lo relacional (participantes, topes de uso, respaldo del diagrama); MongoDB, la conversación y la actividad, que son "
+     "PostgreSQL guarda lo relacional (participantes, topes de uso, respaldo del diagrama, personas y acceso de cada sala); MongoDB, la conversación y la actividad, que son "
      "documentos que solo se agregan; Redis, el estado efímero de la sala (quién está y en qué orden).",
      "Diseño de datos y pruebas de las tres capas"),
 ]

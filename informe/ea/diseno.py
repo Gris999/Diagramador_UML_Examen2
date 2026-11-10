@@ -327,20 +327,31 @@ def diagrama_despliegue(m):
     art("dp:SP", "spring_backend :7001", "dp:DK")
     art("dp:PG", "postgres_db :5432", "dp:DK", "database")
     art("dp:RD", "redis_server :6379", "dp:DK", "database")
-    art("dp:MG", "mongo_db :27017 (C3)", "dp:DK", "database")
+    art("dp:MG", "mongo_db :27017 (opcional, perfil «mongo»)", "dp:DK", "database")
     nodo("dp:G", "Google Gemini API (nube, HTTPS)", "")
+    nodo("dp:AT", "MongoDB Atlas (nube, producción)\nmongodb+srv", "")
+    nodo("dp:RS", "Resend (correo)\nSMTP :587", "")
     nodo("dp:MAC", "Equipo con Apple Silicon", "device")
     art("dp:OL", "Ollama + modelo reentrenado :11434", "dp:MAC")
     objetos = [("dp:N", 0, 160, 150, 100), ("dp:A", 10, 195, 125, 50), ("dp:M", 0, 330, 150, 100), ("dp:V", 10, 365, 125, 50),
                ("dp:EC2", 230, 0, 690, 560), ("dp:NG", 245, 190, 215, 110), ("dp:DK", 480, 30, 420, 510),
                ("dp:DJ", 495, 75, 175, 60), ("dp:FE", 495, 190, 175, 60), ("dp:SP", 495, 305, 175, 60),
                ("dp:PG", 720, 230, 165, 60), ("dp:RD", 720, 330, 165, 60), ("dp:MG", 720, 430, 165, 60),
-               ("dp:G", 495, -160, 175, 70), ("dp:MAC", 1010, 20, 190, 130), ("dp:OL", 1020, 60, 165, 70)]
+               ("dp:G", 495, -160, 175, 70), ("dp:MAC", 1010, 20, 190, 130), ("dp:OL", 1020, 60, 165, 70),
+               ("dp:AT", 1010, 250, 190, 80), ("dp:RS", 1010, 380, 190, 80)]
     conectores = [dict(de="dp:N", a="dp:NG", nombre="HTTPS / WSS :443", arbol="H"), dict(de="dp:M", a="dp:NG", nombre="HTTPS / WSS :443", arbol="H"),
                   dict(de="dp:NG", a="dp:FE", arbol="H"), dict(de="dp:NG", a="dp:DJ", arbol="H"), dict(de="dp:NG", a="dp:SP", arbol="H"),
                   dict(de="dp:DJ", a="dp:PG", arbol="H"), dict(de="dp:DJ", a="dp:RD", arbol="H"), dict(de="dp:DJ", a="dp:MG", arbol="H"),
-                  dict(de="dp:DJ", a="dp:G", arbol="V"), dict(de="dp:DJ", a="dp:OL", tipo="Dependency", nombre="HTTP (opcional)", arbol="H")]
+                  dict(de="dp:DJ", a="dp:G", arbol="V"), dict(de="dp:DJ", a="dp:OL", tipo="Dependency", nombre="HTTP (opcional)", arbol="H"),
+                  dict(de="dp:DJ", a="dp:AT", arbol="H"), dict(de="dp:DJ", a="dp:RS", arbol="H")]
     m.diagrama("di-despliegue", "Diagrama de despliegue", "Deployment", ruta, objetos, conectores)
+
+
+def auto(c, modo=None):
+    """Etiqueta de un conector ubicada por la medición de dos pasadas de `etiquetas.py` (junto a la flecha de su destino). `modo="destino"`:
+    varios destinos bajo un mismo origen (tronco compartido): cada etiqueta va sobre la bajada hacia su destino."""
+    lineas = c["nombre"].split("\n")
+    return c | dict(etiq_auto=(int(6 * max(len(x) for x in lineas)), 14 * len(lineas))) | ({"etiq_modo": modo} if modo else {})
 
 
 def diagrama_c4_contenedores(m):
@@ -348,25 +359,27 @@ def diagrama_c4_contenedores(m):
     p = _c4(m, "c4k:p", "persona", "Participante", "Persona", "Edita el diagrama y conversa con la IA", ruta)
     m.elem("c4k:limite", "Boundary", "Plataforma CASE colaborativa", ruta)
     web = _c4(m, "c4k:web", "contenedor", "Aplicación web", "Contenedor", "Editor, chat con la IA, actividad, vista móvil, ayuda", ruta, "Angular 20 (SSR) + JointJS")
-    api = _c4(m, "c4k:api", "contenedor", "API y tiempo real", "Contenedor", "REST, WebSocket, actividad, conversación, proveedores de IA, XMI, Flutter", ruta,
+    api = _c4(m, "c4k:api", "contenedor", "API y tiempo real", "Contenedor", "REST, WebSocket, acceso por correo y roles, actividad, conversación, IA, XMI, Flutter", ruta,
               "Django 5 + Channels + Daphne")
     gen = _c4(m, "c4k:gen", "contenedor", "Generador de backend", "Contenedor", "Proyecto Spring + PostgreSQL y colección Postman", ruta, "Spring Boot 3.5 (Java 21)")
-    pg = _c4(m, "c4k:pg", "contenedor", "Datos relacionales", "Base de datos", "Participantes, topes de uso, respaldo del diagrama", ruta, "PostgreSQL")
+    pg = _c4(m, "c4k:pg", "contenedor", "Datos relacionales", "Base de datos", "Participantes, roles y acceso de cada sala, topes de uso, respaldo del diagrama", ruta, "PostgreSQL")
     rd = _c4(m, "c4k:redis", "contenedor", "Estado de salas", "Base de datos", "Canales, orden de conexión (host) y turno de la IA", ruta, "Redis 7")
-    mg = _c4(m, "c4k:mongo", "contenedor", "Documentos", "Base de datos", "Conversación con la IA y actividad (solo se agregan)", ruta, "MongoDB 7")
+    mg = _c4(m, "c4k:mongo", "contenedor", "Documentos", "Base de datos", "Conversación con la IA y actividad (solo se agregan)", ruta, "MongoDB (Atlas en producción)")
     g = _c4(m, "c4k:gemini", "externo", "Google Gemini", "Sistema externo", "IA en la nube", ruta)
     o = _c4(m, "c4k:ollama", "externo", "Ollama", "Sistema externo", "IA local con modelo reentrenado", ruta)
+    correo = _c4(m, "c4k:correo", "externo", "Resend (correo)", "Sistema externo", "Códigos de entrada e invitaciones", ruta)
     objetos = [_caja(p, "persona", 75, 0, 200, 150), ("c4k:limite", 0, 190, 1450, 600),
                _caja(web, "contenedor", 40, 280, 270, 150), _caja(api, "contenedor", 530, 280, 300, 160), _caja(gen, "contenedor", 40, 570, 270, 150),
                _caja(pg, "contenedor", 480, 600, 250, 150), _caja(rd, "contenedor", 790, 600, 250, 150), _caja(mg, "contenedor", 1100, 600, 250, 150),
-               _caja(g, "externo", 1630, 215, 250, 120), _caja(o, "externo", 1630, 385, 250, 120)]
-    from especificaciones import etiqueta_tronco
-    centro_api = 360
-    conectores = [_rel(p, web, "Usa", "HTTPS") | {"arbol": "V"}, _rel(web, api, "Edición y chat", "REST + WebSocket") | {"arbol": "H"},
-                  _rel(web, gen, "Genera backend", "HTTPS") | {"arbol": "V"}, _rel(api, pg, "Lee y escribe", "SQL") | {"arbol": "V"},
-                  _rel(api, rd, "Presencia y turno", "RESP") | {"arbol": "V"}, _rel(api, mg, "Conversación y actividad", "MongoDB") | {"arbol": "V"},
-                  _rel(api, g, "Pide respuestas", "HTTPS") | {"arbol": "H", "etiq": etiqueta_tronco(275 - centro_api, ["Pide respuestas", "[HTTPS]"])},
-                  _rel(api, o, "Pide respuestas (opcional)", "HTTP") | {"arbol": "H", "etiq": etiqueta_tronco(445 - centro_api, ["Pide respuestas (opcional)", "[HTTP]"])}]
+               _caja(g, "externo", 1630, 215, 250, 120), _caja(o, "externo", 1630, 385, 250, 120), _caja(correo, "externo", 1630, 555, 250, 120)]
+    conectores = [_rel(p, web, "Usa", "HTTPS") | {"arbol": "V"}, auto(_rel(web, api, "Edición y chat", "REST + WebSocket") | {"arbol": "H"}),
+                  _rel(web, gen, "Genera backend", "HTTPS") | {"arbol": "V"},
+                  auto(_rel(api, pg, "Lee y escribe", "SQL") | {"arbol": "V"}, "destino"),
+                  auto(_rel(api, rd, "Presencia y turno", "RESP") | {"arbol": "V"}, "destino"),
+                  auto(_rel(api, mg, "Conversación y actividad", "MongoDB") | {"arbol": "V"}, "destino"),
+                  auto(_rel(api, g, "Pide respuestas", "HTTPS") | {"arbol": "H"}),
+                  auto(_rel(api, o, "Pide respuestas (opcional)", "HTTP") | {"arbol": "H"}),
+                  auto(_rel(api, correo, "Códigos e invitaciones", "SMTP") | {"arbol": "H"})]
     m.diagrama("di-c4-contenedores", "Diagrama de contenedor", "Component", ruta, objetos, conectores)
 
 
@@ -377,6 +390,7 @@ def diagrama_c4_componentes(m):
     rd = _c4(m, "c4m:redis", "contenedor", "Redis", "Base de datos", "", ruta)
     mg = _c4(m, "c4m:mongo", "contenedor", "MongoDB", "Base de datos", "", ruta)
     prov = _c4(m, "c4m:prov", "externo", "Gemini / Ollama", "Sistema externo", "Proveedores de IA", ruta)
+    correo = _c4(m, "c4m:correo", "externo", "Resend (correo)", "Sistema externo", "Códigos e invitaciones", ruta)
     m.elem("c4m:limite", "Boundary", "API y tiempo real (Django)", ruta)
     canvas = _c4(m, "c4m:canvas", "componente", "CanvasConsumer", "Componente", "Relé de operaciones, presencia, roles y observadores", ruta, "Channels")
     stores = _c4(m, "c4m:stores", "componente", "Puertos de actividad y conversación", "Componente", "ActivityStore, ConversationStore y TurnStore; adaptadores PostgreSQL, "
@@ -386,16 +400,25 @@ def diagrama_c4_componentes(m):
     provider = _c4(m, "c4m:provider", "componente", "Proveedores de IA", "Componente", "Puerto AIProvider con Gemini y Ollama", ruta, "uml_api")
     ayuda = _c4(m, "c4m:ayuda", "componente", "Asistente de ayuda", "Componente", "Responde dudas de uso con el manual; tope por persona", ruta, "DRF (C4)")
     xmi = _c4(m, "c4m:xmi", "componente", "XMI y generador Flutter", "Componente", "Intercambio con Enterprise Architect y proyecto móvil", ruta, "uml_api")
-    objetos = [("c4m:limite", 0, 0, 1500, 480), _caja(web, "contenedor", 540, -250, 270, 150),
+    acceso = _c4(m, "c4m:acceso", "componente", "Acceso y roles", "Componente", "Código por correo, sesión firmada, lista de cada sala y rol de cada conexión",
+                 ruta, "uml_api + collab")
+    # Columnas a 380 unidades; la fila de arriba cuelga de un tronco del contenedor web y la de abajo no cruza ninguna caja: los sistemas externos
+    # y las bases de datos quedan en línea recta con el componente que las usa.
+    objetos = [("c4m:limite", 0, -70, 1880, 550), _caja(web, "contenedor", 990, -330, 270, 150),
                _caja(canvas, "componente", 30, 50, 290, 150), _caja(chat, "componente", 410, 50, 290, 150), _caja(guard, "componente", 790, 50, 290, 150),
-               _caja(xmi, "componente", 1170, 50, 290, 150), _caja(stores, "componente", 30, 290, 290, 140), _caja(provider, "componente", 790, 290, 290, 140),
-               _caja(ayuda, "componente", 1170, 290, 290, 140), _caja(rd, "contenedor", -330, 70, 230, 110), _caja(pg, "contenedor", 410, 590, 290, 110),
-               _caja(mg, "contenedor", 30, 590, 290, 110), _caja(prov, "externo", 1570, 305, 230, 110)]
-    conectores = [_rel(web, canvas, "Operaciones", "WebSocket") | {"arbol": "V"}, _rel(web, chat, "Pedidos", "REST") | {"arbol": "V"},
-                  _rel(web, xmi, "Importa y exporta", "REST") | {"arbol": "V"}, _rel(canvas, stores, "Registra") | {"arbol": "V"},
-                  _rel(canvas, rd, "Roles") | {"arbol": "H"}, _rel(stores, mg, "Guarda") | {"arbol": "V"}, _rel(chat, guard, "Valida") | {"arbol": "H"},
-                  _rel(chat, provider, "Pide") | {"arbol": "H"}, _rel(provider, prov, "Pide respuestas", "HTTP") | {"arbol": "H"},
-                  _rel(chat, pg, "Cupos") | {"arbol": "V"}, _rel(ayuda, provider, "Pide") | {"arbol": "V"}]
+               _caja(xmi, "componente", 1170, 50, 290, 150), _caja(acceso, "componente", 1550, 50, 290, 150),
+               _caja(stores, "componente", 30, 290, 290, 140), _caja(provider, "componente", 790, 290, 290, 140),
+               _caja(ayuda, "componente", 1170, 290, 290, 140),
+               _caja(rd, "contenedor", -330, 70, 230, 110), _caja(mg, "contenedor", 30, 620, 290, 110), _caja(prov, "externo", 790, 620, 290, 110),
+               _caja(pg, "contenedor", 1550, 620, 290, 110), _caja(correo, "externo", 2040, 70, 230, 110)]
+    conectores = [auto(_rel(web, canvas, "Operaciones", "WebSocket") | {"arbol": "V"}, "destino"), auto(_rel(web, chat, "Pedidos", "REST") | {"arbol": "V"}, "destino"),
+                  auto(_rel(web, xmi, "Importa y exporta", "REST") | {"arbol": "V"}, "destino"),
+                  auto(_rel(web, acceso, "Entra y comparte", "REST") | {"arbol": "V"}, "destino"),
+                  _rel(canvas, stores, "Registra") | {"arbol": "V"}, _rel(canvas, rd, "Roles") | {"arbol": "H"}, _rel(stores, mg, "Guarda") | {"arbol": "V"},
+                  auto(_rel(chat, guard, "Valida") | {"arbol": "H"}), auto(_rel(chat, provider, "Pide") | {"arbol": "H"}),
+                  _rel(provider, prov, "Pide respuestas", "HTTP") | {"arbol": "V"}, auto(_rel(chat, pg, "Cupos") | {"arbol": "V"}, "destino"),
+                  auto(_rel(ayuda, provider, "Pide") | {"arbol": "H"}), _rel(acceso, pg, "Lista de cada sala") | {"arbol": "V"},
+                  auto(_rel(acceso, correo, "Códigos e invitaciones", "SMTP") | {"arbol": "H"})]
     m.diagrama("di-c4-componentes", "Diagrama de componentes (C4)", "Component", ruta, objetos, conectores)
 
 
@@ -406,10 +429,12 @@ def diagrama_datos_postgres(m):
     for nombre, estado, cols in D.TABLAS:
         m.elem(f"dd:{nombre}", "Class", nombre, ruta, est="table", attrs=[(c, t, "PK" if "PK" in k else "FK" if "FK" in k else "", "Public") for c, t, k in cols])
         tam[nombre] = (270, 40 + 17 * len(cols))
-        nuevos[nombre] = estado.startswith("cambia")
+        nuevos[nombre] = estado.startswith(("cambia", "nuevo"))
     objetos = [("dd:collab_participant", 330, 150, *tam["collab_participant"]), ("dd:collab_activityevent", 0, 0, *tam["collab_activityevent"]),
                ("dd:collab_chatmessage", 690, 0, *tam["collab_chatmessage"], *((NUEVO,) if nuevos["collab_chatmessage"] else ())),
-               ("dd:collab_iaattempt", 690, 300, *tam["collab_iaattempt"]), ("dd:uml_api_backupuml", 0, 340, *tam["uml_api_backupuml"])]
+               ("dd:collab_iaattempt", 690, 300, *tam["collab_iaattempt"]), ("dd:uml_api_backupuml", 0, 340, *tam["uml_api_backupuml"]),
+               ("dd:collab_roommember", 1050, 0, *tam["collab_roommember"], *((NUEVO,) if nuevos["collab_roommember"] else ())),
+               ("dd:collab_roomsettings", 1050, 300, *tam["collab_roomsettings"], *((NUEVO,) if nuevos["collab_roomsettings"] else ()))]
     conectores = [dict(de=f"dd:{n}", a="dd:collab_participant", tipo="Association", cd="0..*", ca="1", dir="Source -> Destination", arbol="H")
                   for n in ("collab_activityevent", "collab_chatmessage", "collab_iaattempt")]
     m.diagrama("dd-postgres", "Modelo de datos relacional (PostgreSQL)", "Class", ruta, objetos, conectores)

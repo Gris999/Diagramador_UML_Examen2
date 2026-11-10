@@ -591,14 +591,16 @@ def diagrama_c4_contexto(m):
     p1 = _c4(m, "c4c:disenador", "persona", "Diseñador", "Persona", "Crea la sala y expulsa a quien haga falta", ruta)
     p2 = _c4(m, "c4c:colaborador", "persona", "Colaborador", "Persona", "Diseña el diagrama de clases UML en equipo", ruta)
     s = _c4(m, "c4c:sistema", "sistema", "Plataforma CASE colaborativa", "Sistema de software",
-            "Modelado UML 2.5, IA como integrante de la sala, generación de código", ruta)
+            "Modelado UML 2.5, IA como integrante de la sala, acceso por correo, generación de código", ruta)
     g = _c4(m, "c4c:gemini", "externo", "Google Gemini", "Sistema externo", "IA en la nube", ruta)
     o = _c4(m, "c4c:ollama", "externo", "Ollama + modelo reentrenado", "Sistema externo", "IA local, sin internet", ruta)
     ea = _c4(m, "c4c:ea", "externo", "Enterprise Architect", "Sistema externo", "Herramienta CASE (intercambio XMI)", ruta)
-    # Las dos personas a la izquierda y los tres sistemas externos a la derecha, a 500 coordenadas del sistema.
+    correo = _c4(m, "c4c:correo", "externo", "Resend (correo)", "Sistema externo", "Códigos de entrada e invitaciones por correo", ruta)
+    # Las dos personas a la izquierda y los cuatro sistemas externos a la derecha, a 500 coordenadas del sistema.
     objetos = [_caja(p1, "persona", 0, -140, 220, 150), _caja(p2, "persona", 0, 140, 220, 150),
                _caja(s, "sistema", 720, 0, 280, 150),
-               _caja(g, "externo", 1500, -190, 250, 120), _caja(o, "externo", 1500, 15, 250, 120), _caja(ea, "externo", 1500, 220, 250, 120)]
+               _caja(g, "externo", 1500, -190, 250, 120), _caja(o, "externo", 1500, 15, 250, 120), _caja(ea, "externo", 1500, 220, 250, 120),
+               _caja(correo, "externo", 1500, 425, 250, 120)]
     centro = 75
     def rel(de, a, texto, tecnologia, y_de, y_a):
         lineas = [texto, f"[{tecnologia}]"]
@@ -606,7 +608,8 @@ def diagrama_c4_contexto(m):
     conectores = [_rel(p1, s, "Crea y gestiona la sala", "HTTPS / WebSocket") | {"arbol": "H"},
                   _rel(p2, s, "Edita y conversa con la IA", "HTTPS / WebSocket") | {"arbol": "H"},
                   rel(s, g, "Pide respuestas", "HTTPS", centro, -130), rel(s, o, "Pide respuestas (opcional)", "HTTP", centro, 75),
-                  rel(s, ea, "Importa y exporta modelos", "XMI", centro, 280)]
+                  rel(s, ea, "Importa y exporta modelos", "XMI", centro, 280),
+                  rel(s, correo, "Manda códigos e invitaciones", "SMTP", centro, 485)]
     m.diagrama("c4-contexto", "Diagrama de contexto del sistema", "Component", ruta, objetos, conectores)
 
 
