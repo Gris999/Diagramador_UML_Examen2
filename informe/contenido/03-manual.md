@@ -67,7 +67,7 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 
 - **Texto.** En **Generar modelo** escribe lo que quieres («Agrega una clase Factura con total y fecha») y pulsa **Generar**. La IA agrega lo pedido sin duplicar ni mover lo que ya existe, y todos lo ven. Mientras trabaja, las demás personas leen «Pensando (a pedido de…)».
 - **Voz.** Pulsa el micrófono, di la instrucción y vuelve a pulsarlo para terminar: la voz se convierte en texto y se aplica igual que si la hubieras escrito. Funciona solo en Chrome con conexión segura (HTTPS).
-- **Imagen.** En **Importaciones** → **Importar Imagen** elige la foto o captura de un diagrama de clases. Si el diagrama ya tiene elementos, la herramienta pregunta si quieres **Reemplazar diagrama**, **Combinar con actual** o **Cancelar**.
+- **Imagen y foto.** En **Importaciones** → **Importar Imagen** elige la foto o captura de un diagrama de clases, o pulsa **Tomar foto** para fotografiar un diagrama de clases con la cámara (la del equipo o la del celular): ves la foto, puedes repetirla y, al usarla, la IA la convierte en un diagrama que sigues editando con tus órdenes a la IA. Si el diagrama ya tiene elementos, la herramienta pregunta si quieres **Reemplazar diagrama**, **Combinar con actual** o **Cancelar**.
 - Si lo que pides **elimina** elementos, la herramienta te pide confirmación antes de aplicarlo.
 
 ## 3.4 Trabajar en equipo
@@ -147,7 +147,7 @@ El botón **Ayuda** está en la página principal y dentro de la sala (en la bar
 | No llega el código ni la invitación | Mira el correo no deseado y espera unos minutos (algunos buzones de universidad demoran); pide otro código con **Pedir otro código** (hay un tiempo de espera entre pedidos). |
 | «El código no es válido» (instalación sin acceso por correo) | Pide el código a quien creó la sala: se copia en **Compartir** → **Copiar código de sala**. |
 | «Demasiadas preguntas seguidas» | La IA y la ayuda tienen un tope de uso por persona, sala y servicio; espera un minuto. |
-| «La IA está atendiendo a…» | La IA atiende a una persona a la vez; espera a que termine y vuelve a enviar. |
+| «La IA está atendiendo a…» | Hay varias personas pidiéndole algo a la IA a la vez y la fila pasó de unos 80 segundos; vuelve a enviar en un momento. Normalmente tu pedido espera su turno y se contesta solo. |
 | «La IA no pudo responder ahora» | El diagrama no se modificó ni se guardó nada a medias; reintenta o sigue editando a mano. |
 | «No se pudo generar el backend» o «…la aplicación móvil» | El generador no respondió; reintenta en unos momentos o revisa que el diagrama tenga clases. |
 | Me expulsaron | Vuelve a entrar desde **Mis diagramas** (o con el enlace): entrarás como participante nuevo. |

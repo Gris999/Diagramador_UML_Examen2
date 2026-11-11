@@ -16,11 +16,12 @@ import { IaActionsService } from '../../services/IA/ia-actions.service';
 import { iaErrorMessage } from '../../services/IA/ia-chat.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
 import { ToolService, ToolType } from '../../services/diagram/tool.service';
+import { CameraCapture } from '../components/camera-capture/camera-capture';
 
 
 @Component({
   selector: 'app-side-panel',
-  imports: [CommonModule, DragDropModule, FormsModule, Spinner],
+  imports: [CommonModule, DragDropModule, FormsModule, Spinner, CameraCapture],
   templateUrl: './side-panel.html',
   styleUrl: './side-panel.css'
 })
@@ -47,6 +48,8 @@ export class SidePanel {
   roomId: string | null = null;
   recognizing = signal<boolean>(false);
   imageImportDialogOpen = signal<boolean>(false);
+  /** El cuadro para tomar una foto del diagrama con la cámara. */
+  cameraOpen = signal<boolean>(false);
   appNameDialogOpen = signal<boolean>(false);
   appNameDraft = signal<string>('');
   private pendingExport: 'flutter' | 'all' | null = null;
@@ -288,11 +291,20 @@ export class SidePanel {
   }
 
   onImportImage(event: Event) {
-    this.umlImageService.loading.set(true);
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
 
-    const file = input.files[0];
+    this.importImageFile(input.files[0], () => { input.value = ''; });
+  }
+
+  /** La foto tomada con la cámara se importa igual que una imagen elegida: la IA la convierte en un diagrama. */
+  onPhotoTaken(file: File) {
+    this.importImageFile(file);
+  }
+
+  /** Convierte una imagen (elegida o tomada con la cámara) en un diagrama con la IA; `reset` deja libre el campo de archivo. */
+  private importImageFile(file: File, reset: () => void = () => {}) {
+    this.umlImageService.loading.set(true);
     this.analyzingModel.set(true);
 
     this.umlImageService.analyzeImage(file).subscribe({
@@ -311,13 +323,13 @@ export class SidePanel {
           );
           this.analyzingModel.set(false);
           this.umlImageService.loading.set(false);
-          input.value = '';
+          reset();
           return;
         }
 
         this.analyzingModel.set(false);
         this.umlImageService.loading.set(false);
-        input.value = '';
+        reset();
 
         if (this.diagramService.hasDiagramElements()) {
           this.pendingImageImport = umlJson;
@@ -331,6 +343,7 @@ export class SidePanel {
         console.error('❌ Error al analizar imagen UML:', err);
         this.analyzingModel.set(false);
         this.umlImageService.loading.set(false);
+        reset();
       }
     });
   }

@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -45,9 +46,13 @@ MAX_SAYS_PER_MINUTE = 30
 MAX_ROOM_REQUESTS_PER_MINUTE = 30
 MAX_GLOBAL_REQUESTS_PER_MINUTE = 60
 ATTEMPT_RETENTION = timedelta(hours=1)
-# La IA atiende un pedido a la vez por sala: el turno vence solo a los 130 s, un poco más que lo que espera el navegador (110 s), para que si
+# La IA atiende un pedido a la vez por sala, en orden de llegada, y los demás esperan en fila: el turno vence solo a los 130 s, un poco más que lo que espera el navegador (110 s), para que si
 # quien pidió se desconecta la sala no quede esperando para siempre.
 TURN_TTL_SECONDS = 130
+# Cuánto espera un pedido su turno cuando la IA está atendiendo a otras personas. Con lo que tarda en contestar (hasta 110 s en el navegador) no
+# puede ser mucho: pasado este tiempo se le avisa que hay fila y que vuelva a intentarlo.
+TURN_WAIT_SECONDS = 80
+TURN_POLL_SECONDS = 0.3
 
 
 def _participant_for(request, room):
@@ -101,22 +106,42 @@ def _ia_unavailable():
 
 
 def _take_turn(room, participant):
-    """Toma el turno de la sala. Devuelve `(turnos, respuesta)`: `respuesta` es el 409 si la IA está atendiendo a otra persona.
+    """Espera el turno de la sala y lo toma. Devuelve `(turnos, respuesta)`: `respuesta` es el 409 si el turno no llegó a tiempo.
+
+    La IA atiende a varias personas a la vez: si está ocupada con otra, el pedido se anota en la fila de la sala y se atiende cuando le toca, en el orden
+    en que llegaron, sin que la persona tenga que volver a pedirlo. Solo si esperó `TURN_WAIT_SECONDS` sin que le llegara el turno se le dice que hay mucha fila.
 
     Si Redis falla la sala sigue funcionando sin turno (se registra el fallo): los topes de uso siguen protegiendo el costo.
     """
     turnos = get_turn_store()
+    holder = "otra persona"
     try:
-        taken, holder = turnos.take(room, participant.id, participant.display_name, TURN_TTL_SECONDS)
+        deadline = time.monotonic() + TURN_WAIT_SECONDS
+        # Anotarse siempre primero, aunque la IA esté libre: así nadie se cuela por delante de quien ya esperaba.
+        turnos.line_up(room, participant.id, participant.display_name, TURN_WAIT_SECONDS + TURN_TTL_SECONDS)
+        try:
+            while True:
+                place = turnos.place_in_line(room, participant.id)
+                if place is None:  # la anotación venció o se perdió: se vuelve a anotar al final
+                    turnos.line_up(room, participant.id, participant.display_name, TURN_WAIT_SECONDS + TURN_TTL_SECONDS)
+                elif place == 0:
+                    taken, holder = turnos.take(room, participant.id, participant.display_name, TURN_TTL_SECONDS)
+                    if taken:
+                        return turnos, None
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(TURN_POLL_SECONDS)
+            waiting = [name for name in turnos.waiting(room) if name != participant.display_name]
+        finally:
+            turnos.leave_line(room, participant.id)
     except Exception as exc:
         logger.warning("No se pudo tomar el turno de la IA en la sala %s (%s)", room, type(exc).__name__)
         return None, None
-    if not taken:
-        return None, Response(
-            {"error": f"La IA está atendiendo a {holder}. Espera a que termine."},
-            status=status.HTTP_409_CONFLICT,
-        )
-    return turnos, None
+    queue = f" y hay {len(waiting)} esperando" if waiting else ""
+    return None, Response(
+        {"error": f"La IA está atendiendo a {holder}{queue}. Vuelve a intentarlo en un momento."},
+        status=status.HTTP_409_CONFLICT,
+    )
 
 
 def _release_turn(turnos, room, participant):

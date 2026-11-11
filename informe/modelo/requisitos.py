@@ -80,7 +80,7 @@ CASOS = {
         pantalla="01-inicio.png"),
     "CU2": dict(
         nombre="Modelar el diagrama de clases UML", actores=["A1", "A2"], ciclo=1, origen="Primer parcial",
-        prioridad="crítico", riesgo="crítico", estado="validado", rf=["RF-01", "RF-02"],
+        prioridad="crítico", riesgo="crítico", estado="validado", rf=["RF-01", "RF-02", "RF-46"],
         motivo="Fija el modelo del diagrama (grafo de JointJS) del que cuelgan la colaboración, la IA, el intercambio y los generadores.",
         proposito="Dibujar y editar el diagrama de clases: clases, atributos, métodos, relaciones y multiplicidades.",
         precondicion="El actor está en una sala (CU1).",
@@ -193,11 +193,11 @@ CASOS = {
         pantalla="02-generar-modelo.png"),
     "CU8": dict(
         nombre="Crear el modelo desde una imagen", actores=["A1", "A2", "A3"], ciclo=2, origen="Primer parcial",
-        prioridad="importante", riesgo="significativo", estado="validado", rf=["RF-04"],
+        prioridad="importante", riesgo="significativo", estado="validado", rf=["RF-04", "RF-47"],
         motivo="Aprovecha diagramas dibujados a mano o impresos y acorta el arranque de un proyecto.",
         proposito="Obtener un diagrama de clases a partir de la foto o captura de uno existente.",
         precondicion="El actor está en una sala (CU1) y tiene la imagen.",
-        flujo=["El actor elige «Importar Imagen» y sube la imagen.",
+        flujo=["El actor elige «Importar Imagen» y sube la imagen, o elige «Tomar foto» y fotografía el diagrama con la cámara.",
                "El sistema envía la imagen al servicio de IA con capacidad de visión.",
                "El servicio devuelve las clases, atributos, métodos y relaciones que reconoce.",
                "El sistema muestra el modelo reconocido.",
@@ -281,7 +281,7 @@ CASOS = {
         pantalla="03-editor.png"),
     "CU9": dict(
         nombre="Consultar a la IA", actores=["A1", "A2", "A3"], ciclo=4, origen="Primer parcial (analizar y validar), ampliado",
-        prioridad="importante", riesgo="significativo", estado="aprobado", rf=["RF-24", "RF-26", "RF-27", "RF-30"],
+        prioridad="importante", riesgo="significativo", estado="aprobado", rf=["RF-24", "RF-26", "RF-27", "RF-30", "RF-48"],
         motivo="Es la forma de usar a la IA como asesora del equipo: conoce el diagrama y lo que hizo cada persona.",
         proposito="Obtener la opinión de la IA sobre el diagrama o sobre lo que hizo el equipo, sin modificar nada: preguntar, pedir una revisión con "
                   "ideas que cualquiera puede aplicar, o validar la consistencia del modelo.",
@@ -301,7 +301,7 @@ CASOS = {
         excepciones=["Si el servicio de IA falla, el sistema muestra un mensaje claro y no guarda nada.",
                      "Si se supera el tope de pedidos, el sistema pide esperar un momento.",
                      "Si la respuesta de una revisión no tiene el formato esperado, se muestra como texto y sin botones."],
-        especiales=["Hay una sola instancia de IA para toda la sala: atiende un pedido a la vez y su conversación es la de todos (RA-02).",
+        especiales=["Hay una sola instancia de IA para toda la sala: atiende los pedidos de todas las personas en una fila, de a uno y en orden de llegada, y su conversación es la de todos (RA-02).",
                     "El estado «Pensando (a pedido de X)» se comparte con la sala."],
         no_permitido=["Que una revisión cambie el diagrama sin que alguien pulse «Aplicar»."],
         pantalla="07-revision-ideas.png"),
