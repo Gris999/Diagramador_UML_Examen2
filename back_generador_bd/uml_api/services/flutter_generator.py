@@ -4,10 +4,12 @@ from pathlib import Path
 import unicodedata
 
 from . import app_icon
+from .uml_kinds import code_entities
 
 
 class FlutterCRUDGenerator:
     def __init__(self, uml_json):
+        uml_json = code_entities(uml_json)  # las interfaces y las enumeraciones no son entidades de la app
         self.uml_json = uml_json
         self.classes, self.relationships = self._expand_recursive_many_to_many(
             uml_json.get('classes', []), uml_json.get('relationships', [])

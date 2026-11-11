@@ -1,17 +1,24 @@
+import type { ClassKind, Visibility } from '../services/diagram/uml-notation.util';
+
 export interface Attribute {
   name: string;
   type: string;
+  /** Visibilidad UML: + pública, - privada, # protegida, ~ de paquete. */
+  visibility?: Visibility;
 }
 
 export interface Method {
   name: string;
   parameters?: string;
   returnType?: string;
+  visibility?: Visibility;
 }
 
 export interface UmlClass {
   id?: string;
   name: string;
+  /** Clase común (por defecto), clase abstracta, interfaz o enumeración. */
+  kind?: ClassKind;
   attributes: Attribute[];
   methods: Method[];
   position: { x: number; y: number };

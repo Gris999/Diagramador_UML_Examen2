@@ -48,6 +48,42 @@
         <span>Clase UML</span>
       </div>
 
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'abstract-class' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'abstract-class'" [attr.aria-pressed]="tools.armed() === 'abstract-class'"
+           data-testid="tool-abstract-class" (click)="selectTool('abstract-class', $event)" (keydown.enter)="selectTool('abstract-class')" (keydown.space)="selectTool('abstract-class'); $event.preventDefault()">
+        <span class="inline-flex shrink-0 justify-center" style="width:76px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               class="h-6 w-6 text-fg" aria-hidden="true">
+            <rect x="4" y="3.5" width="16" height="17" rx="1.5" stroke-dasharray="3 2" /><path d="M4 9h16" /><path d="M4 14.5h16" />
+          </svg>
+        </span>
+        <span>Clase abstracta</span>
+      </div>
+
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'interface' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'interface'" [attr.aria-pressed]="tools.armed() === 'interface'"
+           data-testid="tool-interface" (click)="selectTool('interface', $event)" (keydown.enter)="selectTool('interface')" (keydown.space)="selectTool('interface'); $event.preventDefault()">
+        <span class="inline-flex shrink-0 justify-center" style="width:76px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               class="h-6 w-6 text-fg" aria-hidden="true">
+            <rect x="4" y="3.5" width="16" height="17" rx="1.5" /><path d="M4 9h16" /><circle cx="12" cy="14.5" r="2" />
+          </svg>
+        </span>
+        <span>Interfaz</span>
+      </div>
+
+      <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'enumeration' }" (cdkDragEnded)="onDragEnded($event)"
+           role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'enumeration'" [attr.aria-pressed]="tools.armed() === 'enumeration'"
+           data-testid="tool-enumeration" (click)="selectTool('enumeration', $event)" (keydown.enter)="selectTool('enumeration')" (keydown.space)="selectTool('enumeration'); $event.preventDefault()">
+        <span class="inline-flex shrink-0 justify-center" style="width:76px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               class="h-6 w-6 text-fg" aria-hidden="true">
+            <rect x="4" y="3.5" width="16" height="17" rx="1.5" /><path d="M4 9h16" /><path d="M8 13h8" /><path d="M8 16.5h8" />
+          </svg>
+        </span>
+        <span>Enumeración</span>
+      </div>
+
       <div class="palette-item palette-tile" cdkDrag [cdkDragData]="{ type: 'association' }" (cdkDragEnded)="onDragEnded($event)"
            role="button" tabindex="0" [class.palette-armed]="tools.armed() === 'association'" [attr.aria-pressed]="tools.armed() === 'association'"
            data-testid="tool-association" (click)="selectTool('association', $event)" (keydown.enter)="selectTool('association')" (keydown.space)="selectTool('association'); $event.preventDefault()">

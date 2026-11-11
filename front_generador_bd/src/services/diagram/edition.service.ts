@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { CollaborationService } from '../colaboration/collaboration.service';
 import { DiagramExportService } from '../exports/diagram-export.service';
 import { UmlValidationService } from '../colaboration/uml-validation.service';
+import { stereotypeOf } from './uml-notation.util';
 
 
 
@@ -10,6 +11,7 @@ import { UmlValidationService } from '../colaboration/uml-validation.service';
 export class EditionService {
   readonly MIN_W = 180;
   readonly NAME_H = 30;
+  readonly NAME_H_STEREOTYPE = 48;
   readonly MIN_ATTRS_H = 40;
   readonly MIN_METHS_H = 40;
   readonly PAD_V = 10;
@@ -32,7 +34,8 @@ export class EditionService {
       methods: '.uml-class-methods-text'
     };
     const selector = MAP[field];
-    const currentValue = model.attr(`${selector}/text`) || '';
+    // El nombre se edita sin el estereotipo que se dibuja sobre él («interface»).
+    const currentValue = field === 'name' ? (model.get('name') || '') : (model.attr(`${selector}/text`) || '');
 
     const paperRect = paper.el.getBoundingClientRect();
     const bbox = model.getBBox();
@@ -70,8 +73,9 @@ export class EditionService {
       if (save) {
         const raw = (editor as HTMLInputElement | HTMLTextAreaElement).value;
         const newValue = field === 'name' ? raw.trim() : raw.replace(/\r?\n/g, '\n');
-        model.attr(`${selector}/text`, newValue);
+        if (field !== 'name') model.attr(`${selector}/text`, newValue);
         model.set(field, newValue);
+        if (field === 'name') model.updateRectangles?.();
         collab?.broadcast({ t: 'edit_text', id: model.id, field, value: newValue });
         this.scheduleAutoResize(model, paper);
       }
@@ -218,7 +222,8 @@ export class EditionService {
       this.getTextWidth(model, paper, '.uml-class-methods-text')
     );
     const width = Math.max(currentWidth, Math.ceil(contentWidth + 20));
-    const nameH  = this.NAME_H;
+    // Con estereotipo («interface», «enumeration») el nombre ocupa dos líneas.
+    const nameH  = stereotypeOf(model.get('kind')) ? this.NAME_H_STEREOTYPE : this.NAME_H;
 
     const attrsHText = this.getTextBBox(model, paper, '.uml-class-attrs-text');
     const methsHText = this.getTextBBox(model, paper, '.uml-class-methods-text');

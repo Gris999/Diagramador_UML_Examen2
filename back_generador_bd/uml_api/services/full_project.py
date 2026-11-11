@@ -14,6 +14,7 @@ import requests
 from django.conf import settings
 
 from .flutter_generator import FlutterCRUDGenerator
+from .uml_kinds import code_entities
 
 
 class SpringUnavailable(Exception):
@@ -88,6 +89,7 @@ Para usar la voz sin internet, descarga el dictado en español en el teléfono
 def build_full_project_zip(uml_json, spring_fetch):
     """Devuelve (bytes del ZIP, nombre de archivo). `spring_fetch(payload)` devuelve el ZIP del backend o lanza
     SpringUnavailable."""
+    uml_json = code_entities(uml_json)  # las interfaces y las enumeraciones no son tablas ni entidades
     app_name = " ".join(str(uml_json.get("appName") or uml_json.get("projectName") or "").split())[:40]
     app_name = app_name or FlutterCRUDGenerator.DEFAULT_APP_NAME
     sql_script = str(uml_json.get("sqlScript") or "").strip()

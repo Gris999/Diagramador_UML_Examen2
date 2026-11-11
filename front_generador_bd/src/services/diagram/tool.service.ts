@@ -1,10 +1,13 @@
 import { Injectable, computed, signal } from '@angular/core';
 
-/** Lo que se puede colocar con la paleta: una clase o uno de los tipos de relación. */
-export type ToolType = 'class' | 'association' | 'generalization' | 'aggregation' | 'composition' | 'dependency' | 'association-class';
+/** Lo que se puede colocar con la paleta: una clase (común, abstracta, interfaz o enumeración) o uno de los tipos de relación. */
+export type ToolType = 'class' | 'abstract-class' | 'interface' | 'enumeration' | 'association' | 'generalization' | 'aggregation' | 'composition' | 'dependency' | 'association-class';
 
 export const TOOL_NAMES: Record<ToolType, string> = {
   class: 'la clase',
+  'abstract-class': 'la clase abstracta',
+  interface: 'la interfaz',
+  enumeration: 'la enumeración',
   association: 'la asociación',
   generalization: 'la herencia',
   aggregation: 'la agregación',
@@ -12,6 +15,10 @@ export const TOOL_NAMES: Record<ToolType, string> = {
   dependency: 'la dependencia',
   'association-class': 'la clase asociativa'
 };
+
+/** Las herramientas que colocan una clase en el lienzo (el resto son relaciones). */
+export const isClassTool = (tool: ToolType): tool is 'class' | 'abstract-class' | 'interface' | 'enumeration' =>
+  tool === 'class' || tool === 'abstract-class' || tool === 'interface' || tool === 'enumeration';
 
 export const isToolType = (value: unknown): value is ToolType => typeof value === 'string' && value in TOOL_NAMES;
 
@@ -31,7 +38,7 @@ export class ToolService {
     const tool = this.armed();
     if (!tool) return '';
     const cancel = ' · Esc para cancelar';
-    if (tool === 'class') return `Haz clic en el lienzo donde quieras la clase${cancel}`;
+    if (isClassTool(tool)) return `Haz clic en el lienzo donde quieras ${TOOL_NAMES[tool]}${cancel}`;
     if (tool === 'association-class') {
       return (this.chosen() === 0 ? 'Haz clic en una clase o en la línea de la asociación' : 'Ahora haz clic en la otra: la clase o la línea') + cancel;
     }

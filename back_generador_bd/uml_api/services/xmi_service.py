@@ -4,6 +4,8 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 from xml.etree import ElementTree as ET
 
+from .uml_kinds import VISIBILITY_FROM_XMI, VISIBILITY_TO_XMI, kind_of
+
 
 XMI_NS = "http://schema.omg.org/spec/XMI/2.1"
 UML_NS = "http://www.eclipse.org/uml2/5.0.0/UML"
@@ -333,6 +335,28 @@ def _read_multiplicity(end: ET.Element) -> str:
     return f"{lower}..{upper}"
 
 
+XMI_TYPE_OF_KIND = {
+    "class": "uml:Class",
+    "abstract": "uml:Class",
+    "interface": "uml:Interface",
+    "enumeration": "uml:Enumeration",
+}
+
+
+def _set_visibility(element: ET.Element, member: dict[str, Any]) -> None:
+    """Escribe la visibilidad UML (`public`, `private`, `protected`, `package`) del atributo o método, si la tiene."""
+    visibility = VISIBILITY_TO_XMI.get(member.get("visibility"))
+
+    if visibility:
+        element.set("visibility", visibility)
+
+
+def _visibility_of(element: ET.Element) -> dict[str, str]:
+    sign = VISIBILITY_FROM_XMI.get(element.attrib.get("visibility", ""))
+
+    return {"visibility": sign} if sign else {}
+
+
 def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
     """
     Convert the internal CASE UML JSON format into UML/XMI 2.1 XML.
@@ -364,11 +388,13 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
             or _new_id(f"class-{class_index}")
         )
 
+        kind = kind_of(uml_class)
+
         class_element = ET.SubElement(
             model,
             "packagedElement",
             {
-                _xmi_attr("type"): "uml:Class",
+                _xmi_attr("type"): XMI_TYPE_OF_KIND[kind],
                 _xmi_attr("id"): class_id,
                 "name": str(
                     uml_class.get("name")
@@ -376,6 +402,9 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                 ),
             },
         )
+
+        if kind == "abstract":
+            class_element.set("isAbstract", "true")
 
         class_elements[class_id] = class_element
 
@@ -394,6 +423,21 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
         for attribute_index, attribute in enumerate(
             uml_class.get("attributes", [])
         ):
+            if kind == "enumeration":
+                # Las literales de una enumeración no tienen tipo ni visibilidad.
+                ET.SubElement(
+                    class_element,
+                    "ownedLiteral",
+                    {
+                        _xmi_attr("type"): "uml:EnumerationLiteral",
+                        _xmi_attr("id"): _new_id(
+                            f"{class_id}-literal-{attribute_index}"
+                        ),
+                        "name": str(attribute.get("name", "")),
+                    },
+                )
+                continue
+
             attribute_element = ET.SubElement(
                 class_element,
                 "ownedAttribute",
@@ -405,6 +449,8 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                     "name": str(attribute.get("name", "")),
                 },
             )
+
+            _set_visibility(attribute_element, attribute)
 
             _append_uml_type(
                 attribute_element,
@@ -425,6 +471,8 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                     "name": str(method.get("name", "")),
                 },
             )
+
+            _set_visibility(operation, method)
 
             for parameter_index, (
                 parameter_name,
@@ -702,7 +750,15 @@ def _parse_class(
     for child in class_element:
         child_name = _local_name(child.tag)
 
-        if child_name == "ownedAttribute":
+        if child_name == "ownedLiteral":
+            attributes.append(
+                {
+                    "name": child.attrib.get("name", ""),
+                    "type": "",
+                }
+            )
+
+        elif child_name == "ownedAttribute":
             if child.attrib.get("association"):
                 continue
 
@@ -710,6 +766,7 @@ def _parse_class(
                 {
                     "name": child.attrib.get("name", ""),
                     "type": _read_attribute_type(child),
+                    **_visibility_of(child),
                 }
             )
 
@@ -753,24 +810,47 @@ def _parse_class(
                     "name": child.attrib.get("name", ""),
                     "parameters": ", ".join(parameters),
                     "returnType": return_type,
+                    **_visibility_of(child),
                 }
             )
+
+    kind = _read_kind(class_element)
 
     return {
         "id": class_id,
         "name": class_element.attrib.get("name", ""),
+        **({"kind": kind} if kind != "class" else {}),
         "attributes": attributes,
         "methods": methods,
     }
+
+
+def _read_kind(class_element: ET.Element) -> str:
+    """El tipo de clase UML 2.5 de un elemento: clase, clase abstracta (`isAbstract`), interfaz o enumeración."""
+    type_name = _uml_type_name(class_element) if _local_name(class_element.tag) == "packagedElement" else _local_name(class_element.tag)
+
+    if type_name == "Interface":
+        return "interface"
+
+    if type_name == "Enumeration":
+        return "enumeration"
+
+    if class_element.attrib.get("isAbstract", "").lower() == "true":
+        return "abstract"
+
+    return "class"
+
+
+CLASS_TYPE_NAMES = ("Class", "Interface", "Enumeration")
 
 
 def _is_class_element(element: ET.Element) -> bool:
     local_name = _local_name(element.tag)
 
     if local_name == "packagedElement":
-        return _uml_type_name(element) == "Class"
+        return _uml_type_name(element) in CLASS_TYPE_NAMES
 
-    return local_name == "Class"
+    return local_name in CLASS_TYPE_NAMES
 
 
 def _layout_number(value: str | None) -> int | float | None:
