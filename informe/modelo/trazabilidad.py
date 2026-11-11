@@ -72,7 +72,7 @@ RF_POR_REQUISITO_ADICIONAL = {
 
 
 RF_GLOSA = {
-    "RF-01": "Modelado UML 2.5 de clases y datos", "RF-02": "Crear y editar diagramas a mano", "RF-03": "Crear o modificar el UML con texto",
+    "RF-01": "Modelado UML 2.5 de clases y datos", "RF-46": "Clase abstracta, interfaz, enumeración y visibilidad de UML 2.5", "RF-47": "Tomar una foto del diagrama con la cámara", "RF-48": "La IA atiende a varias personas a la vez, en fila", "RF-02": "Crear y editar diagramas a mano", "RF-03": "Crear o modificar el UML con texto",
     "RF-04": "Crear o modificar el UML con una imagen o foto", "RF-05": "Crear o modificar el UML con voz", "RF-06": "Sesiones colaborativas de 2 o 3 personas",
     "RF-07": "Distinguir host y participantes", "RF-08": "Sincronización entre las pantallas", "RF-09": "Permisos verificados en el servidor",
     "RF-10": "Reconexión", "RF-11": "Recuperación del estado", "RF-12": "La primera conexión de la sala es el host", "RF-13": "Host y participantes editan por igual",
@@ -151,7 +151,11 @@ EXCLUIDAS = [
     ("services/exports/diagram-export.service.ts", "UmlExportDTO", C_TIPO),
     ("app/app.ts", "App", C_UI),
     ("services/theme.service.ts", "ThemeService", C_UI),  # tema oscuro o claro de la interfaz
-    ("services/diagram/tool.service.ts", "ToolService", C_UI),  # la herramienta elegida con un clic en la paleta: estado de la interfaz, sin lógica de negocio
+    ("services/diagram/tool.service.ts", "ToolService", C_UI),
+    ("app/components/camera-capture/camera-capture.ts", "CameraCapture", C_UI),  # el cuadro para fotografiar el diagrama: muestra la cámara y entrega la foto a «Importar imagen»
+    ("uml_api/services/uml_kinds.py", "<uml_kinds.py>", C_APOYO),
+    ("services/diagram/uml-notation.util.ts", "AttributeData", C_TIPO),
+    ("services/diagram/uml-notation.util.ts", "MethodData", C_TIPO),  # la herramienta elegida con un clic en la paleta: estado de la interfaz, sin lógica de negocio
     ("app/components/diagram/spinner/spinner.ts", "Spinner", C_UI),
     ("BackGeneratorUmlApplication.java", "BackGeneratorUmlApplication", C_GENERADOR),
     ("configuration/MustacheConfig.java", "MustacheConfig", C_GENERADOR),

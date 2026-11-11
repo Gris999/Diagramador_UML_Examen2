@@ -21,12 +21,20 @@ class InMemoryTurnStore(TurnStore):
     """Turno en la memoria del proceso: sirve para las pruebas y para un solo proceso; con varios procesos hace falta Redis."""
 
     _turns = {}
+    _lines = {}
     _lock = threading.Lock()
 
     @classmethod
     def reset(cls):
         with cls._lock:
             cls._turns.clear()
+            cls._lines.clear()
+
+    def _live_line(self, room):
+        now = time.monotonic()
+        line = [entry for entry in self._lines.get(room, []) if entry["expires"] > now]
+        self._lines[room] = line
+        return line
 
     def _live(self, room):
         turn = self._turns.get(room)
@@ -53,6 +61,27 @@ class InMemoryTurnStore(TurnStore):
         with self._lock:
             turn = self._live(room)
             return turn["name"] if turn else None
+
+    def line_up(self, room, holder_id, holder_name, ttl_seconds):
+        with self._lock:
+            line = self._live_line(room)
+            if not any(entry["id"] == holder_id for entry in line):
+                line.append({"id": holder_id, "name": holder_name, "expires": time.monotonic() + ttl_seconds})
+
+    def leave_line(self, room, holder_id):
+        with self._lock:
+            self._lines[room] = [entry for entry in self._live_line(room) if entry["id"] != holder_id]
+
+    def place_in_line(self, room, holder_id):
+        with self._lock:
+            for place, entry in enumerate(self._live_line(room)):
+                if entry["id"] == holder_id:
+                    return place
+            return None
+
+    def waiting(self, room):
+        with self._lock:
+            return [entry["name"] for entry in self._live_line(room)]
 
 
 class RedisTurnStore(TurnStore):
@@ -82,3 +111,38 @@ class RedisTurnStore(TurnStore):
     def current(self, room):
         value = self.client.get(self._key(room))
         return None if value is None else self._holder_name(value)
+
+    # La fila de espera es un conjunto ordenado por la hora de llegada: `id|nombre` con la hora como puntaje.
+    @staticmethod
+    def _line_key(room):
+        return f"ia-line:{room}"
+
+    @staticmethod
+    def _text(value):
+        return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+
+    def _line(self, room):
+        return [self._text(member) for member in self.client.zrange(self._line_key(room), 0, -1)]
+
+    def line_up(self, room, holder_id, holder_name, ttl_seconds):
+        key = self._line_key(room)
+        now = time.time()
+        self.client.zremrangebyscore(key, "-inf", now - ttl_seconds)
+        if not any(member.startswith(f"{holder_id}|") for member in self._line(room)):
+            self.client.zadd(key, {f"{holder_id}|{holder_name}": now})
+        self.client.expire(key, ttl_seconds)
+
+    def leave_line(self, room, holder_id):
+        key = self._line_key(room)
+        for member in self._line(room):
+            if member.startswith(f"{holder_id}|"):
+                self.client.zrem(key, member)
+
+    def place_in_line(self, room, holder_id):
+        for place, member in enumerate(self._line(room)):
+            if member.startswith(f"{holder_id}|"):
+                return place
+        return None
+
+    def waiting(self, room):
+        return [self._holder_name(member) for member in self._line(room)]

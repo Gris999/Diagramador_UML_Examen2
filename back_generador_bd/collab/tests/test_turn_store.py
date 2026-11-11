@@ -52,6 +52,43 @@ class TurnStoreContract:
 
         self.assertEqual(store.current("sala-a"), "Ana")
 
+    def test_the_line_keeps_the_order_of_arrival(self):
+        store = self.make_store()
+
+        store.line_up("sala-a", 1, "Ana", 100)
+        store.line_up("sala-a", 2, "Beto", 100)
+        store.line_up("sala-a", 3, "Carla", 100)
+
+        self.assertEqual([store.place_in_line("sala-a", n) for n in (1, 2, 3)], [0, 1, 2])
+        self.assertEqual(store.waiting("sala-a"), ["Ana", "Beto", "Carla"])
+
+    def test_lining_up_twice_keeps_the_place(self):
+        store = self.make_store()
+        store.line_up("sala-a", 1, "Ana", 100)
+        store.line_up("sala-a", 2, "Beto", 100)
+
+        store.line_up("sala-a", 1, "Ana", 100)
+
+        self.assertEqual(store.place_in_line("sala-a", 1), 0)
+        self.assertEqual(store.waiting("sala-a"), ["Ana", "Beto"])
+
+    def test_leaving_the_line_moves_the_others_up(self):
+        store = self.make_store()
+        store.line_up("sala-a", 1, "Ana", 100)
+        store.line_up("sala-a", 2, "Beto", 100)
+
+        store.leave_line("sala-a", 1)
+
+        self.assertIsNone(store.place_in_line("sala-a", 1))
+        self.assertEqual(store.place_in_line("sala-a", 2), 0)
+
+    def test_each_room_has_its_own_line(self):
+        store = self.make_store()
+        store.line_up("sala-a", 1, "Ana", 100)
+
+        self.assertEqual(store.waiting("sala-b"), [])
+        self.assertIsNone(store.place_in_line("sala-b", 1))
+
 
 class InMemoryTurnStoreTests(TurnStoreContract, SimpleTestCase):
     def setUp(self):
@@ -59,6 +96,14 @@ class InMemoryTurnStoreTests(TurnStoreContract, SimpleTestCase):
 
     def make_store(self):
         return InMemoryTurnStore()
+
+    def test_a_place_in_the_line_expires_by_itself(self):
+        store = self.make_store()
+        with mock.patch("collab.turn.time.monotonic", return_value=1000.0):
+            store.line_up("sala-a", 1, "Ana", 90)
+        with mock.patch("collab.turn.time.monotonic", return_value=1091.0):
+            self.assertEqual(store.waiting("sala-a"), [])
+            self.assertIsNone(store.place_in_line("sala-a", 1))
 
     def test_the_turn_expires_by_itself(self):
         store = self.make_store()
@@ -83,6 +128,25 @@ class FakeRedis:
 
     def get(self, key):
         return self.values.get(key)
+
+    # Conjunto ordenado (la fila de espera): miembro -> puntaje.
+    def zadd(self, key, mapping):
+        self.values.setdefault(key, {}).update(mapping)
+
+    def zrange(self, key, start, stop):
+        members = self.values.get(key, {})
+        return [member.encode() for member, _ in sorted(members.items(), key=lambda item: item[1])]
+
+    def zrem(self, key, member):
+        self.values.get(key, {}).pop(member, None)
+
+    def zremrangebyscore(self, key, low, high):
+        members = self.values.get(key, {})
+        for member in [m for m, score in members.items() if score <= high]:
+            del members[member]
+
+    def expire(self, key, seconds):
+        return True
 
     def eval(self, script, numkeys, key, holder):
         value = self.values.get(key)

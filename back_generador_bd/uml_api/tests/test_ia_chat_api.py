@@ -1008,10 +1008,11 @@ class ShareTurnTests(ChatTestBase):
     def hold_turn(self, participant, room=None):
         return get_turn_store().take(room or self.room, participant.id, participant.display_name, 130)
 
-    def test_a_request_while_the_ai_is_busy_is_refused_with_who_is_being_served(self):
+    def test_a_request_that_waits_too_long_for_its_turn_is_refused_with_who_is_being_served(self):
         self.hold_turn(self.beto)
 
-        response = self.ask(self.ana, "¿hay algo?")
+        with mock.patch("uml_api.chat_views.TURN_WAIT_SECONDS", 0):
+            response = self.ask(self.ana, "¿hay algo?")
 
         self.assertEqual(response.status_code, 409)
         self.assertIn("Beto", response.data["error"])
@@ -1021,7 +1022,8 @@ class ShareTurnTests(ChatTestBase):
     def test_a_refused_request_does_not_spend_the_budget(self):
         self.hold_turn(self.beto)
 
-        self.ask(self.ana, "¿hay algo?")
+        with mock.patch("uml_api.chat_views.TURN_WAIT_SECONDS", 0):
+            self.ask(self.ana, "¿hay algo?")
 
         self.assertEqual(IaAttempt.objects.count(), 0)
 
@@ -1048,6 +1050,60 @@ class ShareTurnTests(ChatTestBase):
         self.ask(self.ana, "agrega Factura", mode="change", uml={"classes": []})
 
         self.assertIsNone(get_turn_store().current(self.room))
+
+    def test_a_request_that_arrives_while_the_ai_is_busy_waits_its_turn_and_is_answered(self):
+        """La IA atiende a varias personas a la vez: el pedido no se rechaza, queda en la fila y se atiende cuando termina el anterior."""
+        self.hold_turn(self.beto)
+        waits = []
+
+        def the_ai_finishes_with_beto(_seconds):
+            waits.append(get_turn_store().waiting(self.room))
+            get_turn_store().release(self.room, self.beto.id)
+
+        with mock.patch("uml_api.chat_views.time.sleep", side_effect=the_ai_finishes_with_beto):
+            response = self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(waits, [["Ana"]])
+        self.assertEqual(len(self.provider.prompts), 1)
+        self.assertIsNone(get_turn_store().current(self.room))
+        self.assertEqual(get_turn_store().waiting(self.room), [])
+
+    def test_whoever_arrived_first_is_attended_first(self):
+        """Quien llegó antes pasa primero: otra persona que llega después no se cuela aunque el turno quede libre."""
+        self.carla = Participant.objects.create(room=self.room, token=uuid.uuid4(), display_name="Carla")
+        store = get_turn_store()
+        self.hold_turn(self.beto)
+        store.line_up(self.room, self.carla.id, self.carla.display_name, 200)  # Carla ya esperaba cuando llegó Ana
+        clock = iter(range(0, 1000))
+
+        def the_ai_finishes_with_beto(_seconds):
+            store.release(self.room, self.beto.id)
+
+        with mock.patch("uml_api.chat_views.time.sleep", side_effect=the_ai_finishes_with_beto), \
+                mock.patch("uml_api.chat_views.time.monotonic", side_effect=lambda: next(clock)), \
+                mock.patch("uml_api.chat_views.TURN_WAIT_SECONDS", 5):
+            response = self.ask(self.ana, "¿hay algo?")
+
+        # Carla está primero en la fila y no pidió nada en este momento: Ana espera detrás de ella y se le avisa cuando se acaba el tiempo.
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("1 esperando", response.data["error"])
+        self.assertEqual(self.provider.prompts, [])
+
+    def test_a_request_that_gives_up_leaves_the_line(self):
+        self.hold_turn(self.beto)
+
+        with mock.patch("uml_api.chat_views.TURN_WAIT_SECONDS", 0):
+            self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(get_turn_store().waiting(self.room), [])
+
+    def test_two_requests_in_a_row_from_different_people_are_both_answered(self):
+        self.assertEqual(self.ask(self.ana, "primero").status_code, 200)
+        self.assertEqual(self.ask(self.beto, "segundo").status_code, 200)
+
+        self.assertEqual(len(self.provider.prompts), 2)
+        self.assertEqual(get_turn_store().waiting(self.room), [])
 
     def test_rooms_do_not_wait_for_each_other(self):
         self.hold_turn(self.beto)

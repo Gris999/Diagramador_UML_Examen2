@@ -42,6 +42,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 - «Generar modelo»: escribe en «Describe tu modelo aquí...» lo que quieres (por ejemplo «Agrega una clase Factura con total y fecha») y pulsa «Generar». La IA agrega lo pedido sin duplicar ni mover lo que ya existe, y todos lo ven.
 - Voz: pulsa el micrófono, di la instrucción y vuelve a pulsarlo (⏹️) para terminar. La voz se convierte en texto y esa instrucción se aplica igual que si la hubieras escrito en «Generar modelo». El micrófono funciona solo en Chrome con conexión segura (HTTPS).
+- Foto: en «Importaciones» → «Tomar foto» fotografía un diagrama de clases con la cámara (la del equipo o la del celular): puedes ver la foto, repetirla y usarla; la IA la convierte en un diagrama que puedes seguir editando.
 - Imagen: en «Importaciones» → «Importar Imagen» elige la foto o captura de un diagrama de clases. Si el diagrama de la sala ya tiene elementos, la herramienta pregunta qué hacer con el resultado: «Reemplazar diagrama», «Combinar con actual» o «Cancelar».
 - Si un cambio de la IA va a eliminar elementos, la herramienta te pide confirmación antes de aplicarlo.
 
@@ -49,7 +50,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 - Pulsa «Chat» (abajo a la derecha). Es el chat de toda la sala: las personas se escriben entre sí y lo ven todas al instante, sin recargar la página. Cada mensaje muestra quién lo escribió. Si llegan mensajes con el chat cerrado, el botón «Chat» muestra un número.
 - La IA de la sala se llama **Uma**. Solo responde cuando le hablas: empieza el mensaje con su nombre («Uma, …» o «IA, …»). Lo que escribas sin su nombre es para tu equipo y Uma no se entera.
-- Uma atiende un pedido a la vez. Si está ocupada con otra persona, el chat dice a quién atiende y esperas a que termine.
+- Uma atiende a varias personas a la vez: si está ocupada con otra, tu pedido entra en la fila de la sala y ella lo contesta cuando le toca, en orden de llegada. No hace falta volver a pedirlo.
 - Lo que le puedes decir a Uma, por ejemplo:
   - Una pregunta, como «Uma, ¿cuántas clases hay?» o «Uma, explícame este diagrama»: solo responde. No toca el diagrama.
   - Un pedido de cambio, como «Uma, agrega una clase Cliente con nombre y correo»: Uma propone lo que haría y te pide permiso. **Mientras esperas, el cambio aparece sobre el diagrama como un «holograma»**: lo nuevo en trazo punteado morado, lo que se agrega a una clase en ámbar bajo ella, y lo que se eliminaría rodeado en rojo. El diagrama no cambia hasta que pulses «Aplicar» (o le digas «sí»). «Descartar» (o «no») cancela la propuesta y quita el holograma. Si escribes «directamente» (por ejemplo «Uma, agrega la clase Venta directamente») lo aplica sin preguntar. En la actividad figura como «IA, a pedido de …».
@@ -95,7 +96,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 ## 11. Problemas frecuentes
 
 - «La IA no pudo responder ahora»: reintenta en unos segundos; el diagrama no se pierde ni cambia.
-- «La IA está atendiendo a otra persona»: espera a que termine y vuelve a enviar.
+- «La IA está atendiendo a otra persona»: la fila de la IA pasó de unos 80 segundos; vuelve a enviar en un momento.
 - «Todavía no te identificaste en la sala»: recarga la página.
 - El micrófono no responde: usa Chrome y una conexión segura (HTTPS), o escribe el texto.
 - Una sala que se comporta raro: crea una sala nueva con «Crear Nuevo Lienzo»; lo que se hizo queda respaldado en el servidor.

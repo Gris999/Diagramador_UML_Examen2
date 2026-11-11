@@ -396,6 +396,50 @@ describe('SidePanel image import choices', () => {
     expect(imageService.loading()).toBeFalse();
   });
 
+  describe('Tomar foto con la cámara', () => {
+    it('has a button in the imports that opens the camera dialog', () => {
+      component.showActionsImports = true;
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-testid="take-photo"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(component.cameraOpen()).toBeTrue();
+      expect(fixture.nativeElement.querySelector('app-camera-capture')).not.toBeNull();
+    });
+
+    it('sends the photo through the same image import as a chosen picture, and the diagram can be edited afterwards', () => {
+      diagramClasses = [];
+      imageService.analyzeImage.and.returnValue(of({ uml_json: generatedUml }));
+      const photo = new File(['foto'], 'foto-diagrama.jpg', { type: 'image/jpeg' });
+
+      component.onPhotoTaken(photo);
+
+      expect(imageService.analyzeImage).toHaveBeenCalledOnceWith(photo);
+      expect(diagramService.loadFromJson).toHaveBeenCalledOnceWith(generatedUml);
+      expect(component.analyzingModel()).toBeFalse();
+    });
+
+    it('asks to replace or merge when the diagram already has elements, like with a chosen picture', () => {
+      imageService.analyzeImage.and.returnValue(of({ uml_json: generatedUml }));
+
+      component.onPhotoTaken(new File(['foto'], 'foto-diagrama.jpg', { type: 'image/jpeg' }));
+
+      expect(component.imageImportDialogOpen()).toBeTrue();
+      expect(diagramService.loadFromJson).not.toHaveBeenCalled();
+    });
+
+    it('closes the camera dialog when the person leaves it', () => {
+      component.cameraOpen.set(true);
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-testid="camera-cancel"]') as HTMLButtonElement)?.click();
+      fixture.detectChanges();
+
+      expect(component.cameraOpen()).toBeFalse();
+    });
+  });
+
   describe('Generar modelo (C1): la instrucción pasa por el control de la IA de la sala', () => {
     it('sends the instruction to the AI as a change request for this room and clears the box when it works', () => {
       component.prompt = '  agrega la clase Factura  ';

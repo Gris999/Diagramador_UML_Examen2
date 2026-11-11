@@ -199,6 +199,15 @@
 
       <!-- Input real -->
       <input type="file" id="imagenImport" accept="image/*" class="hidden" (change)="onImportImage($event)" />
+
+      <!-- Foto con la cámara -->
+      <button type="button" class="btn btn-secondary btn-block justify-start" data-testid="take-photo" (click)="cameraOpen.set(true)">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 text-accent-text" aria-hidden="true">
+          <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.4" />
+        </svg>
+        <span>Tomar foto</span>
+      </button>
     </div>
     }
   </div>
@@ -423,6 +432,10 @@
     </div>
   </div>
 </div>
+}
+
+@if (cameraOpen()) {
+<app-camera-capture (captured)="onPhotoTaken($event)" (closed)="cameraOpen.set(false)" />
 }
 
 @if (imageImportDialogOpen()) {
