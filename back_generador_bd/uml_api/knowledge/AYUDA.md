@@ -27,6 +27,8 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 ## 3. Dibujar el diagrama a mano
 
 - En «Herramientas UML» → «Paleta de elementos» están «Clase UML», «Asociación», «Herencia», «Agregación», «Composición», «Dependencia» y «Clase Asociativa».
+- Además de «Clase UML», la paleta tiene «Clase abstracta» (nombre en cursiva), «Interfaz» (estereotipo «interface») y «Enumeración» (estereotipo «enumeration», un valor por línea). Se colocan igual que una clase. Las interfaces y las enumeraciones no se convierten en tablas ni en pantallas al generar el código.
+- Para indicar la visibilidad de un atributo o método, escribe al comienzo `+` (pública), `-` (privada), `#` (protegida) o `~` (de paquete), por ejemplo «- saldo: double».
 - Para agregar una clase, haz clic en «Clase UML» (queda marcada) y luego haz clic en el lugar del lienzo donde la quieras: aparece ahí. No hace falta mantener presionado ni arrastrar, aunque arrastrarla también funciona. Con Esc se cancela.
 - Para renombrar una clase, un atributo o un método, haz doble clic sobre el texto, selecciona todo (Cmd+A o Ctrl+A), escribe el nombre nuevo y pulsa Enter.
 - Para unir dos clases, haz clic en la relación que quieres en la paleta («Asociación», «Herencia», «Agregación», «Composición» o «Dependencia»), luego haz clic en la clase de origen y después en la de destino; un aviso sobre el lienzo dice qué falta y con Esc se cancela. También se puede hacer clic en una clase y arrastrar desde un circulito de su borde hasta la otra clase. La línea sale sola por el lado que mira a la otra clase y se acomoda cada vez que mueves una clase; las multiplicidades quedan a un lado de la línea, sin quedar tapadas.

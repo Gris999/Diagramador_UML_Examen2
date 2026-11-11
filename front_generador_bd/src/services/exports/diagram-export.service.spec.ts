@@ -27,6 +27,11 @@ describe('DiagramExportService', () => {
 
   const graphOf = (...cells: unknown[]) => ({ getCells: () => cells });
 
+  function classOf(id: string, fields: Record<string, unknown>) {
+    const state: Record<string, unknown> = { name: id, attributes: '', methods: '', ...fields };
+    return { id, isElement: () => true, isLink: () => false, get: (key: string) => state[key], position: () => ({ x: 0, y: 0 }), size: () => ({ width: 100, height: 60 }) };
+  }
+
   it('exports the classes and the relationships that join two of them', () => {
     const dto = service.export(graphOf(element('A'), element('B'), link('l1', 'A', 'B')));
 
@@ -50,5 +55,44 @@ describe('DiagramExportService', () => {
     const dto = service.export(graphOf(element('A'), element('B'), link('l1', 'A', 'B'), link('suelta', 'A', undefined)));
 
     expect(dto.relationships.map(r => r.id)).toEqual(['l1']);
+  });
+
+  describe('UML 2.5 notation', () => {
+    it('reads the visibility of each attribute and method from its line', () => {
+      const dto = service.export(graphOf(classOf('A', { attributes: '- saldo: double\n# nombre: string\nid: int', methods: '+ pagar(monto: double): bool;\ncrear();' })));
+
+      expect(dto.classes[0].attributes).toEqual([
+        { name: 'saldo', type: 'double', visibility: '-' },
+        { name: 'nombre', type: 'string', visibility: '#' },
+        { name: 'id', type: 'int' }
+      ]);
+      expect(dto.classes[0].methods).toEqual([
+        { name: 'pagar', parameters: 'monto: double', returnType: 'bool', visibility: '+' },
+        { name: 'crear', parameters: '', returnType: '' }
+      ]);
+    });
+
+    it('only sends the kind when the class is not a plain class', () => {
+      const dto = service.export(graphOf(classOf('A', {}), classOf('B', { kind: 'class' }), classOf('C', { kind: 'abstract' }), classOf('D', { kind: 'interface' }), classOf('E', { kind: 'enumeration' })));
+
+      expect(dto.classes.map(c => c.kind)).toEqual([undefined, undefined, 'abstract', 'interface', 'enumeration']);
+    });
+
+    it('leaves interfaces and enumerations out of what the code generators receive, with the relationships that touch them', () => {
+      const dto = service.export(graphOf(
+        classOf('Cliente', {}), classOf('Base', { kind: 'abstract' }), classOf('Pagable', { kind: 'interface' }), classOf('Estado', { kind: 'enumeration' }),
+        link('l1', 'Cliente', 'Base'), link('l2', 'Cliente', 'Pagable'), link('l3', 'Cliente', 'Estado')));
+
+      const forCode = service.forCode(dto);
+
+      expect(forCode.classes.map(c => c.id)).toEqual(['Cliente', 'Base']);
+      expect(forCode.relationships.map(r => r.id)).toEqual(['l1']);
+    });
+
+    it('returns the same diagram when everything is a class that can be generated', () => {
+      const dto = service.export(graphOf(classOf('A', {}), classOf('B', { kind: 'abstract' }), link('l1', 'A', 'B')));
+
+      expect(service.forCode(dto)).toBe(dto);
+    });
   });
 });

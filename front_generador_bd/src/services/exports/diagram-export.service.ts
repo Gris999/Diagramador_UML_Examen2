@@ -1,10 +1,13 @@
 import { Injectable } from '@angular/core';
+import { ClassKind, Visibility, isCodeEntity, kindOf, parseAttributeLine, parseMethodLine } from '../diagram/uml-notation.util';
 
 export interface UmlClassDTO {
   id: string;
   name: string;
-  attributes: { name: string; type: string }[];
-  methods: { name: string; parameters?: string; returnType?: string }[];
+  /** Solo viaja cuando no es una clase común: «abstract», «interface» o «enumeration». */
+  kind?: ClassKind;
+  attributes: { name: string; type: string; visibility?: Visibility }[];
+  methods: { name: string; parameters?: string; returnType?: string; visibility?: Visibility }[];
   position: { x: number; y: number };
   size: { width: number; height: number };
   // true = entidad intermedia generada automáticamente para una asociación M:N.
@@ -64,9 +67,12 @@ export class DiagramExportService {
           ? rawMeths
           : this.parseMethodsFromText(rawMeths);
 
+        const kind = kindOf(cell.get('kind'));
+
         classes.push({
           id: cell.id,
           name: cell.get('name'),
+          ...(kind !== 'class' ? { kind } : {}),
           attributes,
           methods,
           position: cell.position(),  // 👈 posición
@@ -97,26 +103,26 @@ export class DiagramExportService {
 
   // ========= Helpers privados =========
 
-  private parseAttributesFromText(text: string): { name: string; type: string }[] {
+  private parseAttributesFromText(text: string): { name: string; type: string; visibility?: Visibility }[] {
     if (!text) return [];
-    return text.split('\n').map(line => {
-      const [name, type] = line.split(':').map(s => s.trim());
-      return { name: name || '', type: type || '' };
-    });
+    return text.split('\n').map(line => parseAttributeLine(line));
   }
 
-  private parseMethodsFromText(text: string): { name: string; parameters?: string; returnType?: string }[] {
+  private parseMethodsFromText(text: string): { name: string; parameters?: string; returnType?: string; visibility?: Visibility }[] {
     if (!text) return [];
-    return text.split('\n').map(line => {
-      const match = line.match(/^(\w+)\(([^)]*)\)(?::\s*(\w+))?/);
-      if (match) {
-        return {
-          name: match[1],
-          parameters: match[2] || '',
-          returnType: match[3] || ''
-        };
-      }
-      return { name: line.trim() };
-    });
+    return text.split('\n').map(line => parseMethodLine(line));
+  }
+
+  /**
+   * El diagrama tal como lo necesitan los generadores de código (SQL, Spring Boot, Flutter): las interfaces y las enumeraciones no son
+   * tablas ni entidades, así que se quitan junto con las relaciones que las tocan. Las clases abstractas sí se generan.
+   */
+  forCode(dto: UmlExportDTO): UmlExportDTO {
+    const dropped = new Set(dto.classes.filter(c => !isCodeEntity(c.kind)).map(c => c.id));
+    if (dropped.size === 0) return dto;
+    return {
+      classes: dto.classes.filter(c => !dropped.has(c.id)),
+      relationships: dto.relationships.filter(r => !dropped.has(r.sourceId) && !dropped.has(r.targetId))
+    };
   }
 }

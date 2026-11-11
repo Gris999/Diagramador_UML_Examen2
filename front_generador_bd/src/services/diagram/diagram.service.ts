@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { UmlClass } from '../../models/uml-class.model';
+import { attributesToText, keepVisibility, kindOf, methodsToText, nameDisplay, parseAttributeLine, parseMethodLine, visibilityPrefix } from './uml-notation.util';
 import { EditionService } from './edition.service';
 import { v4 as uuid } from 'uuid';
 import { CollaborationService } from '../colaboration/collaboration.service';
@@ -663,6 +664,7 @@ export class DiagramService {
       name: cell.get('name'),
       position: { x: cell.position().x + 30, y: cell.position().y + 30 }, // desplazada
       size: cell.size(),
+      kind: kindOf(cell.get('kind')),
       attributes: cell.get('attributes'),
       methods: cell.get('methods'),
     };
@@ -761,21 +763,14 @@ export class DiagramService {
       // 👇 Forzar la creación del namespace custom
       this.createUmlNamespace();
       // 🔹 Normalizar atributos/métodos a texto multilinea
-      const attributesText = Array.isArray(classModel.attributes)
-        ? classModel.attributes.map(a => `${a.name}: ${a.type}`).join('\n')
-        : (classModel.attributes || '');
-      const methodsText = Array.isArray(classModel.methods)
-        ? classModel.methods.map(m => {
-          const params = m.parameters ? `(${m.parameters})` : '()';
-          const ret = m.returnType ? `: ${m.returnType}` : '';
-          return `${m.name}${params}${ret};`;
-        }).join('\n')
-        : (classModel.methods || '');
+      const attributesText = attributesToText(classModel.attributes);
+      const methodsText = methodsToText(classModel.methods);
       // 👇 Usar la clase custom
       const umlClass = new this.joint.shapes.custom.UMLClass({
         position: classModel.position,
         size: classModel.size || { width: 180, height: 110 },
         name: classModel.name || 'Entidad',
+        kind: kindOf(classModel.kind),
         attributes: attributesText,
         methods: methodsText,
       });
@@ -813,6 +808,7 @@ export class DiagramService {
           id: umlClass.id,
           payload: {
             name: classModel.name,
+            ...(kindOf(classModel.kind) !== 'class' ? { kind: kindOf(classModel.kind) } : {}),
             position: classModel.position,
             size: classModel.size,
             attributes: classModel.attributes,
@@ -852,6 +848,7 @@ export class DiagramService {
     this.joint.shapes.custom.UMLClass = this.joint.dia.Element.define('custom.UMLClass', {
       size: { width: 180, height: 110 },
       name: 'Entidad',
+      kind: 'class',
       attributes: '',
       methods: '',
       attrs: {
@@ -927,13 +924,14 @@ export class DiagramService {
     // Sync textos → attrs
     this.joint.shapes.custom.UMLClass.prototype.updateRectangles = function () {
       this.attr({
-        '.uml-class-name-text': { text: this.get('name') || '' },
+        // El estereotipo («interface», «enumeration») va sobre el nombre; la clase abstracta lleva el nombre en cursiva (UML 2.5).
+        '.uml-class-name-text': { text: nameDisplay(this.get('name') || '', this.get('kind')), fontStyle: kindOf(this.get('kind')) === 'abstract' ? 'italic' : 'normal' },
         '.uml-class-attrs-text': { text: this.get('attributes') || '' },
         '.uml-class-methods-text': { text: this.get('methods') || '' },
       });
     };
     this.joint.shapes.custom.UMLClass.prototype.initialize = function () {
-      this.on('change:name change:attributes change:methods', this.updateRectangles, this);
+      this.on('change:name change:kind change:attributes change:methods', this.updateRectangles, this);
       this.updateRectangles();
       this.constructor.__super__.initialize.apply(this, arguments);
     };
@@ -1036,23 +1034,15 @@ export class DiagramService {
         }
 
         if (cls.attributes !== undefined) {
-          const attributesText = Array.isArray(cls.attributes)
-            ? cls.attributes.map((attribute: any) =>
-              `${attribute.name}: ${attribute.type}`
-            ).join('\n')
-            : (cls.attributes || '');
-          updateField('attributes', attributesText);
+          updateField('attributes', attributesToText(keepVisibility(cls.attributes, existing.get('attributes'), parseAttributeLine)));
         }
 
         if (cls.methods !== undefined) {
-          const methodsText = Array.isArray(cls.methods)
-            ? cls.methods.map((method: any) => {
-              const params = method.parameters ? `(${method.parameters})` : '()';
-              const returnType = method.returnType ? `: ${method.returnType}` : '';
-              return `${method.name}${params}${returnType};`;
-            }).join('\n')
-            : (cls.methods || '');
-          updateField('methods', methodsText);
+          updateField('methods', methodsToText(keepVisibility(cls.methods, existing.get('methods'), parseMethodLine)));
+        }
+
+        if (cls.kind !== undefined) {
+          existing.set('kind', kindOf(cls.kind));
         }
 
         // Restaurar posición/tamaño si vino del storage.
@@ -1085,6 +1075,7 @@ export class DiagramService {
         const newCls = this.createUmlClass({
           id: cls.id,
           name: cls.name,
+          kind: kindOf(cls.kind),
           position: cls.position || defaultPosition,
           size: cls.size || { width: 180, height: 110 },
           attributes: cls.attributes || [],
@@ -1221,7 +1212,7 @@ export class DiagramService {
               .map((attr: any) => attr.name);
 
             const newAttributes = attrLines.filter((line: string) => {
-              const attrName = line.split(':')[0]?.trim();
+              const attrName = parseAttributeLine(line).name;
               const shouldDelete = attributesToDelete.includes(attrName);
               if (shouldDelete) {
                 console.log(`🗑️ Eliminando atributo "${attrName}" de "${cls.name}"`);
@@ -1543,21 +1534,21 @@ export class DiagramService {
     const used = new Set<any>();
 
     const finalLines = canvasLines.map((line) => {
-      const canvasName = line.split(':')[0]?.trim();
+      const canvasName = parseAttributeLine(line).name;
       const editedAttribute = remaining.find((attribute: any) =>
         !used.has(attribute) && attributeKey(attribute) === canvasName
       );
 
       if (!editedAttribute) return line;
       used.add(editedAttribute);
-      return `${editedAttribute.name}: ${editedAttribute.type || ''}`.trimEnd();
+      return `${visibilityPrefix(editedAttribute.visibility ?? parseAttributeLine(line).visibility)}${editedAttribute.name}: ${editedAttribute.type || ''}`.trimEnd();
     });
 
     remaining.forEach((attribute: any) => {
       if (!used.has(attribute) && !canvasLines.some((line) =>
-        line.split(':')[0]?.trim() === attribute.name
+        parseAttributeLine(line).name === attribute.name
       )) {
-        finalLines.push(`${attribute.name}: ${attribute.type || ''}`.trimEnd());
+        finalLines.push(`${visibilityPrefix(attribute.visibility)}${attribute.name}: ${attribute.type || ''}`.trimEnd());
       }
     });
 
@@ -1583,26 +1574,26 @@ export class DiagramService {
       originalNamesById.get(method?.id) || method?.name;
     const remaining = [...editedArray].filter((method: any) => method?.name);
     const used = new Set<any>();
-    const toLine = (method: any) => {
+    const toLine = (method: any, visibility?: any) => {
       const params = method.parameters ? `(${method.parameters})` : '()';
       const returnType = method.returnType ? `: ${method.returnType}` : '';
-      return `${method.name}${params}${returnType};`;
+      return `${visibilityPrefix(method.visibility ?? visibility)}${method.name}${params}${returnType};`;
     };
 
     const finalLines = canvasLines.map((line) => {
-      const canvasName = line.split('(')[0]?.trim();
+      const canvasName = parseMethodLine(line).name;
       const editedMethod = remaining.find((method: any) =>
         !used.has(method) && methodKey(method) === canvasName
       );
 
       if (!editedMethod) return line;
       used.add(editedMethod);
-      return toLine(editedMethod);
+      return toLine(editedMethod, parseMethodLine(line).visibility);
     });
 
     remaining.forEach((method: any) => {
       if (!used.has(method) && !canvasLines.some((line) =>
-        line.split('(')[0]?.trim() === method.name
+        parseMethodLine(line).name === method.name
       )) {
         finalLines.push(toLine(method));
       }
@@ -1882,7 +1873,7 @@ export class DiagramService {
    */
   exportForGenerators() {
     if (!this.graph) return null;
-    const dto = this.exportService.export(this.graph);
+    const dto = this.exportService.forCode(this.exportService.export(this.graph));
     return resolveAssociationClassesForGenerators(dto);
   }
   // Guarda el estado actual del diagrama en localStorage y agenda el respaldo remoto

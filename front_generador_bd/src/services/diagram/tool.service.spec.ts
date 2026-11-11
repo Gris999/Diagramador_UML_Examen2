@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TOOL_NAMES, ToolService, isToolType } from './tool.service';
+import { TOOL_NAMES, ToolService, isClassTool, isToolType } from './tool.service';
 
 describe('ToolService', () => {
   let tools: ToolService;
@@ -75,5 +75,15 @@ describe('ToolService', () => {
     for (const name of Object.keys(TOOL_NAMES)) expect(isToolType(name)).toBeTrue();
     expect(isToolType('circulo')).toBeFalse();
     expect(isToolType(undefined)).toBeFalse();
+  });
+
+  it('the abstract class, the interface and the enumeration are placed on the canvas with one click, like a class', () => {
+    for (const tool of ['abstract-class', 'interface', 'enumeration'] as const) {
+      expect(isToolType(tool)).toBeTrue();
+      expect(isClassTool(tool)).toBeTrue();
+      tools.arm(tool);
+      expect(tools.hint()).toContain(`Haz clic en el lienzo donde quieras ${TOOL_NAMES[tool]}`);
+    }
+    expect(isClassTool('association')).toBeFalse();
   });
 });

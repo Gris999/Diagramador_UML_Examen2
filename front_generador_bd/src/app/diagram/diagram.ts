@@ -5,7 +5,8 @@ import { SidePanel } from "../side-panel/side-panel";
 import { DiagramService } from '../../services/diagram/diagram.service';
 import { FallbackService } from '../../services/diagram/fallback.service';
 import { RelationshipService } from '../../services/diagram/relationship.service';
-import { ToolService, ToolType, isToolType } from '../../services/diagram/tool.service';
+import { ToolService, ToolType, isClassTool, isToolType } from '../../services/diagram/tool.service';
+import { ClassKind } from '../../services/diagram/uml-notation.util';
 import { UmlClass, Attribute, Method } from '../../models/uml-class.model';
 import { DiagramExportService } from '../../services/exports/diagram-export.service';
 import { BackendGeneratorService } from '../../services/exports/backend-generator.service';
@@ -29,6 +30,22 @@ type TopMenu = 'activity' | 'participants';
 
 /** Tamaño de una clase nueva. */
 const ENTITY_SIZE = { width: 180, height: 110 };
+
+/** El tipo de clase que coloca cada herramienta de clase de la paleta. */
+const KIND_OF_TOOL: Record<'class' | 'abstract-class' | 'interface' | 'enumeration', ClassKind> = {
+  class: 'class',
+  'abstract-class': 'abstract',
+  interface: 'interface',
+  enumeration: 'enumeration'
+};
+
+/** Lo que trae una clase nueva de cada tipo: nombre y miembros de ejemplo (con la visibilidad UML) para editar. */
+const NEW_CLASS_BY_KIND: Record<ClassKind, { name: string; attributes: UmlClass['attributes']; methods: UmlClass['methods'] }> = {
+  class: { name: 'Entidad', attributes: [{ name: 'id', type: 'int' }, { name: 'nombre', type: 'string' }], methods: [{ name: 'crear' }, { name: 'eliminar' }] },
+  abstract: { name: 'EntidadAbstracta', attributes: [{ name: 'id', type: 'int', visibility: '-' }], methods: [{ name: 'operacion', visibility: '+' }] },
+  interface: { name: 'Interfaz', attributes: [], methods: [{ name: 'operacion', visibility: '+' }] },
+  enumeration: { name: 'Enumeracion', attributes: [{ name: 'VALOR1', type: '' }, { name: 'VALOR2', type: '' }], methods: [] }
+};
 
 @Component({
   selector: 'app-diagram',
@@ -123,11 +140,11 @@ export class Diagram implements AfterViewInit, OnDestroy {
       this.tools.clear();
       return;
     }
-    if (tool === 'class') {
+    if (isClassTool(tool)) {
       container.style.cursor = 'crosshair';
       const placeHere = (_event: unknown, x: number, y: number) => {
         this.ngZone.run(() => {
-          this.createEntityAt({ x: Math.max(0, Math.round((x - ENTITY_SIZE.width / 2) / 10) * 10), y: Math.max(0, Math.round((y - ENTITY_SIZE.height / 2) / 10) * 10) });
+          this.createEntityAt({ x: Math.max(0, Math.round((x - ENTITY_SIZE.width / 2) / 10) * 10), y: Math.max(0, Math.round((y - ENTITY_SIZE.height / 2) / 10) * 10) }, KIND_OF_TOOL[tool]);
           this.tools.clear();
         });
       };
@@ -335,23 +352,25 @@ export class Diagram implements AfterViewInit, OnDestroy {
 
 
   /** Pone una clase nueva (con sus atributos y métodos de ejemplo) con su esquina superior izquierda en `pos`. */
-  private createEntityAt(pos: { x: number; y: number }): void {
+  private createEntityAt(pos: { x: number; y: number }, kind: ClassKind = 'class'): void {
+    const model = NEW_CLASS_BY_KIND[kind];
     try {
       this.diagramService.createUmlClass({
-        name: 'Entidad',
+        name: model.name,
+        ...(kind !== 'class' ? { kind } : {}),
         position: pos,
         size: { ...ENTITY_SIZE },
-        attributes: [{ name: 'id', type: 'int' }, { name: 'nombre', type: 'string' }],
-        methods: [{ name: 'crear' }, { name: 'eliminar' }]
+        attributes: model.attributes,
+        methods: model.methods
       } as UmlClass);
     } catch (error) {
       console.error('Error al crear el elemento:', error);
       // Si falla, usamos el fallback HTML
       this.fallbackService.createFallbackElement(this.paperContainer.nativeElement, {
-        name: 'Entidad',
+        name: model.name,
         position: pos,
-        attributes: [{ name: 'id', type: 'int' }, { name: 'nombre', type: 'string' }],
-        methods: [{ name: 'crear' }, { name: 'eliminar' }]
+        attributes: model.attributes,
+        methods: model.methods
       } as UmlClass);
     }
   }
@@ -368,11 +387,11 @@ export class Diagram implements AfterViewInit, OnDestroy {
 
       console.log('Elemento arrastrado:', type, 'Posición:', pos);
 
-      if (type === 'class') {
-        this.createEntityAt(pos);
+      if (isToolType(type) && isClassTool(type)) {
+        this.createEntityAt(pos, KIND_OF_TOOL[type]);
       }
 
-      if (isToolType(type) && type !== 'class') {
+      if (isToolType(type) && !isClassTool(type)) {
         // Arrastrar una relación al lienzo equivale a elegirla con un clic: después se hace clic en las clases.
         this.tools.arm(type);
         console.log(`Modo de creación de relación activado: ${type}`);

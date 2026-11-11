@@ -76,6 +76,7 @@ Requested by the team on 2026-11-10 after trying the tool with three people at o
 - **RF-43** — The AI of the room has a name, **Uma** (also answers to «IA»), and answers only when a message starts with it («Uma, agrega una clase Cliente»). A short yes or no is read as the answer to her proposal only while one is waiting.
 - **RF-44** — A change proposed by the AI is shown to the person who asked, over the diagram, as a preview («holograma»: dashed outlines for new classes, relationships and added members, red for what would be deleted) until they apply or discard it; the preview is never part of the diagram (not synchronized, saved or exported).
 - **RF-45** — A relationship line can be moved by hand: clicking it shows handles on its segments, dragging a segment moves it, and a double click on the line returns it to the automatic route. Moved routes are synchronized with the room.
+- **RF-46** — A class has one of four kinds from UML 2.5: class, abstract class (name in italics), interface (`«interface»`) or enumeration (`«enumeration»`, one value per line), chosen from the palette; and each attribute or method can carry its visibility (`+` public, `-` private, `#` protected, `~` package) written at the start of its line. The kind and the visibility are saved, shared in the room, exported to XMI (`isAbstract`, `uml:Interface`, `uml:Enumeration` with literals, `visibility`) and read back from XMI; interfaces and enumerations are not turned into tables, entities or screens by the code generators.
 
 Additional non-functional requirements:
 
