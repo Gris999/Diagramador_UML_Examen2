@@ -174,3 +174,172 @@ describe('SignalingService connection lifecycle', () => {
     });
   });
 });
+
+
+describe('SignalingService: the phone (viewer) reconnects by itself', () => {
+  let realWebSocket: any;
+  let sockets: any[];
+
+  class FakeWebSocket {
+    readyState = 0;
+    onopen: (() => void) | null = null;
+    onmessage: ((ev: any) => void) | null = null;
+    onclose: ((event?: { code?: number }) => void) | null = null;
+    closeSpy = jasmine.createSpy('close');
+    send = jasmine.createSpy('send');
+    constructor(public url: string) {
+      sockets.push(this);
+    }
+    close() {
+      this.readyState = 3;
+      this.closeSpy();
+    }
+  }
+
+  const identity = { getIdentity: () => ({ token: 't', name: 'Ana' }) } as any;
+
+  beforeEach(() => {
+    jasmine.clock().install();
+    sockets = [];
+    realWebSocket = (window as any).WebSocket;
+    (window as any).WebSocket = FakeWebSocket;
+    (window as any).WebSocket.CLOSED = 3;
+  });
+
+  afterEach(() => {
+    jasmine.clock().uninstall();
+    (window as any).WebSocket = realWebSocket;
+  });
+
+  it('reopens the connection after the system cuts it, waiting 1, 2 and 4 seconds', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala', true);
+
+    sockets[0].onclose({ code: 1006 });
+    jasmine.clock().tick(999);
+    expect(sockets.length).toBe(1);
+    jasmine.clock().tick(1);
+    expect(sockets.length).toBe(2);
+    expect(sockets[1].url).toContain('mode=viewer');
+
+    sockets[1].onclose({ code: 1006 });
+    jasmine.clock().tick(2000);
+    expect(sockets.length).toBe(3);
+
+    sockets[2].onclose({ code: 1006 });
+    jasmine.clock().tick(3999);
+    expect(sockets.length).toBe(3);
+    jasmine.clock().tick(1);
+    expect(sockets.length).toBe(4);
+  });
+
+  it('starts again from one second after a connection that worked', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala', true);
+    sockets[0].onclose({ code: 1006 });
+    jasmine.clock().tick(1000);
+    sockets[1].onclose({ code: 1006 });
+    jasmine.clock().tick(2000);
+
+    sockets[2].onopen!();
+    sockets[2].onclose({ code: 1006 });
+    jasmine.clock().tick(1000);
+
+    expect(sockets.length).toBe(4);
+  });
+
+  it('tells the app it is back only on the second opening, not on the first', () => {
+    const service = new SignalingService(identity);
+    const back = jasmine.createSpy('onReconnect');
+    service.onReconnect = back;
+    service.connect('sala', true);
+
+    sockets[0].onopen!();
+    expect(back).not.toHaveBeenCalled();
+
+    sockets[0].onclose({ code: 1006 });
+    jasmine.clock().tick(1000);
+    sockets[1].onopen!();
+
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it('never sends an identity as a viewer, even when it reconnects', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala', true);
+    sockets[0].onclose({ code: 1006 });
+    jasmine.clock().tick(1000);
+
+    sockets[1].onopen!();
+
+    expect(sockets[1].send).not.toHaveBeenCalled();
+  });
+
+  it('does not retry when the server says not to: session expired, no access or room full', () => {
+    for (const code of [4401, 4403, 4009]) {
+      sockets = [];
+      const service = new SignalingService(identity, { token: () => 'x', expire: () => undefined, notInvited: () => undefined } as any);
+      service.connect('sala', true);
+
+      sockets[0].onclose({ code });
+      jasmine.clock().tick(20000);
+
+      expect(sockets.length).withContext(`código ${code}`).toBe(1);
+    }
+  });
+
+  it('does not retry after leaving the room, even with a retry already waiting', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala', true);
+    sockets[0].onclose({ code: 1006 });
+
+    service.close();
+    jasmine.clock().tick(20000);
+
+    expect(sockets.length).toBe(1);
+  });
+
+  it('does not retry for a person who edits: only the phone reconnects on its own', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala');
+
+    sockets[0].onclose({ code: 1006 });
+    jasmine.clock().tick(20000);
+
+    expect(sockets.length).toBe(1);
+  });
+
+  it('opens a new connection right away when the person comes back to the app, dropping the old one', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala', true);
+    sockets[0].readyState = 1; // abierta, pero el sistema pudo dejarla muerta sin avisar
+
+    service.reconnectViewerNow();
+
+    expect(sockets[0].closeSpy).toHaveBeenCalled();
+    expect(sockets.length).toBe(2);
+    expect(sockets[1].url).toContain('mode=viewer');
+  });
+
+  it('an old connection that closes after being replaced does not schedule another retry', () => {
+    const service = new SignalingService(identity);
+    service.connect('sala', true);
+    const old = sockets[0];
+    service.reconnectViewerNow();
+
+    old.onclose?.({ code: 1006 });
+    jasmine.clock().tick(20000);
+
+    expect(sockets.length).toBe(2);
+  });
+
+  it('reconnectViewerNow does nothing for an editor or before connecting', () => {
+    const service = new SignalingService(identity);
+    service.reconnectViewerNow();
+    service.connect('sala');
+    service.reconnectViewerNow();
+
+    expect(sockets.length).toBe(1);
+  });
+});
+

@@ -21,6 +21,8 @@ import { DiagramService } from '../../services/diagram/diagram.service';
 import { ActivityPanel } from '../activity-panel/activity-panel';
 
 const FIT_DEBOUNCE_MS = 150;
+/** Si la persona estuvo fuera de la app más que esto, al volver se recarga la pantalla: el sistema pudo cortar la conexión y dejar el diagrama y la actividad viejos. */
+const RELOAD_AFTER_AWAY_MS = 15_000;
 
 /** iPhone, iPod o iPad (el iPad moderno se presenta como un Mac, pero con pantalla táctil). */
 export function isIosDevice(userAgent: string, maxTouchPoints: number): boolean {
@@ -71,6 +73,12 @@ export class FollowView implements AfterViewInit, OnDestroy {
 
   private fitTimer?: ReturnType<typeof setTimeout>;
   private readonly onResize = () => this.scheduleFit();
+  private hiddenAt = 0;
+  private readonly onVisibility = () => this.handleVisibility(document.visibilityState === 'visible');
+  private readonly onPageShow = (event: PageTransitionEvent) => {
+    // Volver desde el historial (la página guardada en memoria): sin conexión viva y con datos viejos.
+    if (event.persisted) this.reloadPage();
+  };
 
   constructor() {
     this.lastSeenEventId = this.newestId(this.p2p.liveActivityEvents());
@@ -100,13 +108,36 @@ export class FollowView implements AfterViewInit, OnDestroy {
       this.scheduleFit();
     });
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('pageshow', this.onPageShow);
     this.scheduleFit();
+  }
+
+  /**
+   * El celular corta la conexión en vivo cuando se bloquea la pantalla o la app pasa a segundo plano. Al volver: si fue un momento, se reabre la conexión
+   * y se pide de nuevo el diagrama; si fue un rato, se recarga la pantalla (trae el diagrama y la actividad al día).
+   */
+  handleVisibility(visible: boolean): void {
+    if (!visible) {
+      this.hiddenAt = Date.now();
+      return;
+    }
+    const away = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
+    this.hiddenAt = 0;
+    if (away > RELOAD_AFTER_AWAY_MS) this.reloadPage();
+    else this.p2p.reconnectViewerNow();
+  }
+
+  reloadPage(): void {
+    window.location.reload();
   }
 
   ngOnDestroy(): void {
     clearTimeout(this.fitTimer);
     if (isPlatformBrowser(this.platformId)) {
       window.removeEventListener('resize', this.onResize);
+      document.removeEventListener('visibilitychange', this.onVisibility);
+      window.removeEventListener('pageshow', this.onPageShow);
     }
     if (this.roomId) this.diagram.leaveRoom(this.roomId);
   }

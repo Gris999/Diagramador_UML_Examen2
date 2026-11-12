@@ -30,6 +30,15 @@ export class SignalingService {
   private socket!: WebSocket;
   private _roomId!: string;
   public onMessage?: (msg: Msg) => void;
+  /** Un observador (el celular) volvió a conectarse después de perder la conexión: hay que pedir de nuevo el estado de la sala. */
+  public onReconnect?: () => void;
+
+  private viewer = false;
+  /** Se cerró a propósito (`close()` o al cambiar de sala): no se reintenta. */
+  private closedByUs = false;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private reconnectAttempts = 0;
+  private connectedBefore = false;
 
   /** `auth` es opcional para quien arma el servicio a mano (pruebas): sin él se lee la sesión guardada en el navegador. */
   constructor(private readonly identity: IdentityService, private readonly auth?: AuthService) {}
@@ -44,6 +53,9 @@ export class SignalingService {
       this.socket.close();
     }
     this._roomId = roomId;
+    this.viewer = viewer;
+    this.closedByUs = false;
+    clearTimeout(this.reconnectTimer);
 
     // Detecta ws:// o wss:// correctamente
     //const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -78,8 +90,14 @@ export class SignalingService {
 
     socket.onopen = () => {
       console.log('[Signaling] Connected to', wsUrl);
+      this.reconnectAttempts = 0;
+      const reconnected = this.connectedBefore;
+      this.connectedBefore = true;
       // Quien solo observa no se identifica ni pide nombre.
-      if (viewer) return;
+      if (viewer) {
+        if (reconnected) this.onReconnect?.();
+        return;
+      }
       const identity = this.identity.getIdentity();
       socket.send(JSON.stringify({ type: 'hello', ...identity }));
     };
@@ -97,7 +115,32 @@ export class SignalingService {
       if (event?.code === 4401) this.auth?.expire();
       // 4403: la sesión vale pero ese correo no está en la lista de la sala.
       if (event?.code === 4403) this.auth?.notInvited(roomId);
+      if (socket === this.socket && viewer && !this.closedByUs && !SignalingService.NO_RETRY_CODES.includes(event?.code ?? 0)) this.scheduleReconnect();
     };
+  }
+
+  /** Códigos con los que el servidor dice «no vuelvas a intentarlo»: sesión vencida, sin acceso a la sala o sala llena de observadores. */
+  private static readonly NO_RETRY_CODES = [4401, 4403, 4009];
+
+  /**
+   * El celular pierde la conexión en vivo cada vez que se bloquea la pantalla o la app pasa a segundo plano (el sistema la corta), y antes se quedaba
+   * sin recibir nada hasta recargar la página. Ahora la reabre sola, con una espera que crece (1, 2, 4… hasta 8 s). Solo para el observador: quien
+   * edita entra a la sala con su identidad y su orden de roles, y una reconexión automática ahí no es inocua.
+   */
+  private scheduleReconnect(): void {
+    clearTimeout(this.reconnectTimer);
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 8000);
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      if (!this.closedByUs && this._roomId) this.connect(this._roomId, this.viewer);
+    }, delay);
+  }
+
+  /** Vuelve a abrir la conexión del observador ya mismo (la persona regresó a la app): descarta la anterior, que puede estar muerta sin que el sistema lo avise. */
+  reconnectViewerNow(): void {
+    if (!this.viewer || this.closedByUs || !this._roomId) return;
+    this.reconnectAttempts = 0;
+    this.connect(this._roomId, true);
   }
 
   sendSignal(to: string, payload: any) {
@@ -113,6 +156,9 @@ export class SignalingService {
   }
 
   close() {
+    this.closedByUs = true;
+    clearTimeout(this.reconnectTimer);
+    this.connectedBefore = false;
     this.socket?.close();
   }
 }

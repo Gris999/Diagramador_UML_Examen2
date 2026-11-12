@@ -86,7 +86,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 - Pulsa «Compartir», luego «Copiar enlace para seguir desde el celular», y abre ese enlace en el celular (tiene la forma /sala/CÓDIGO/seguir). En un iPhone, ábrelo en Safari y agrégalo a la pantalla de inicio (Compartir → «Agregar a Inicio») para poder recibir avisos.
 - Es una vista de solo lectura: muestra el diagrama actualizándose en vivo y la actividad debajo. No tiene controles de edición y no cuenta como participante.
-- Pulsa «🔔 Activar avisos» para recibir una notificación del navegador cuando alguien cambie el diagrama o la IA publique una idea. Los avisos solo llegan mientras la página siga abierta. Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
+- Pulsa «🔔 Activar avisos» para recibir una notificación del navegador cuando alguien cambie el diagrama o la IA publique una idea. Los avisos solo llegan mientras la página siga abierta (no hay avisos con la pantalla bloqueada ni con la app cerrada). Si bloqueas el celular o cambias de app, al volver se reconecta solo y trae el diagrama al día (si fue un rato, la pantalla se recarga). Si el navegador los bloqueó, hay que permitirlos en sus ajustes.
 
 ## 10. Ayuda
 
