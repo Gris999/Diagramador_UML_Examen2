@@ -29,13 +29,25 @@ export class P2PService {
   ));
   public onData?: (from: string, data: any) => void;
   public onReady?: () => void;
+  /** El celular recuperó la conexión: pide de nuevo el estado de la sala. */
+  public onReconnected?: () => void;
 
   constructor(private signaling: SignalingService) {}
+
+  /** La persona volvió a la app (celular): se reabre la conexión de observador sin esperar. */
+  reconnectViewerNow(): void {
+    this.signaling.reconnectViewerNow();
+  }
 
   init(roomId: string, viewer = false) {
     // Una conexión nueva empieza sin haber sido expulsada (el servicio vive toda la sesión).
     this.removed.set(false);
     this.signaling.onMessage = (msg) => this.handleSignaling(msg);
+    this.signaling.onReconnect = () => {
+      // La conexión nueva tiene otro identificador: el servidor lo manda de nuevo en su primer aviso.
+      this.localId.set('');
+      this.onReconnected?.();
+    };
     this.signaling.connect(roomId, viewer);
   }
 

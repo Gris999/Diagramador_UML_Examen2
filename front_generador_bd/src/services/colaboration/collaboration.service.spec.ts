@@ -369,6 +369,24 @@ describe('CollaborationService viewer mode', () => {
     expect(p2p.init).toHaveBeenCalledOnceWith('room-1', true);
   });
 
+  it('asks again for the full state when the phone gets its connection back', () => {
+    service.init('room-1', { viewer: true });
+    p2p.sendToAll.calls.reset();
+
+    p2p.onReconnected();
+
+    expect(p2p.sendToAll).toHaveBeenCalledOnceWith({ t: 'request_full_state' });
+  });
+
+  it('a person who edits does not ask for the state on that signal', () => {
+    service.init('room-1');
+    p2p.sendToAll.calls.reset();
+
+    p2p.onReconnected();
+
+    expect(p2p.sendToAll).not.toHaveBeenCalled();
+  });
+
   it('connects as an editor by default', () => {
     service.init('room-1');
 

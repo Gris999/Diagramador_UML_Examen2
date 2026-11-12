@@ -67,6 +67,10 @@ export class CollaborationService {
         this.broadcast({ t: 'request_full_state' });
       }
     };
+    this.p2p.onReconnected = () => {
+      // El celular estuvo desconectado y pudo perderse cambios: se vuelve a pedir el diagrama completo.
+      if (this.viewer) this.broadcast({ t: 'request_full_state' });
+    };
     this.p2p.init(roomId, this.viewer);
     this.ready = true;
     const session = ++this.session;

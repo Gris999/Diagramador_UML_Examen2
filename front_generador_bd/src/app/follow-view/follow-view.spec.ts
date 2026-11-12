@@ -26,6 +26,7 @@ describe('FollowView', () => {
   };
   let iaStatus: ReturnType<typeof signal<{ state: 'thinking' | 'idle'; by: string }>>;
   let navigate: jasmine.Spy;
+  let reconnectViewerNow: jasmine.Spy;
   let liveActivityEvents: ReturnType<typeof signal<ActivityEvent[]>>;
   let permission: ReturnType<typeof signal<NotificationPermissionState>>;
   let notifications: {
@@ -61,7 +62,7 @@ describe('FollowView', () => {
         { provide: Router, useValue: { navigate } },
         { provide: DiagramService, useValue: diagram },
         { provide: CollaborationService, useValue: { iaStatus } },
-        { provide: P2PService, useValue: { liveActivityEvents } },
+        { provide: P2PService, useValue: { liveActivityEvents, reconnectViewerNow } },
         { provide: NotificationService, useValue: notifications }
       ]
     });
@@ -86,6 +87,7 @@ describe('FollowView', () => {
     jasmine.clock().install();
     iaStatus = signal<{ state: 'thinking' | 'idle'; by: string }>({ state: 'idle', by: '' });
     navigate = jasmine.createSpy('navigate');
+    reconnectViewerNow = jasmine.createSpy('reconnectViewerNow');
     liveActivityEvents = signal<ActivityEvent[]>([]);
     permission = signal<NotificationPermissionState>('default');
     notifications = {
@@ -390,4 +392,44 @@ describe('FollowView', () => {
 
     expect(diagram.initialize).not.toHaveBeenCalled();
   });
+
+  describe('coming back to the app after the phone was locked', () => {
+    it('reopens the live connection when the person was away only a moment', async () => {
+      configure();
+      await start();
+      const reload = spyOn(fixture.componentInstance, 'reloadPage');
+
+      fixture.componentInstance.handleVisibility(false);
+      jasmine.clock().mockDate(new Date(Date.now() + 5000));
+      fixture.componentInstance.handleVisibility(true);
+
+      expect(reconnectViewerNow).toHaveBeenCalledTimes(1);
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('reloads the screen when the person was away a while: the connection and the data are old', async () => {
+      configure();
+      await start();
+      const reload = spyOn(fixture.componentInstance, 'reloadPage');
+
+      fixture.componentInstance.handleVisibility(false);
+      jasmine.clock().mockDate(new Date(Date.now() + 30000));
+      fixture.componentInstance.handleVisibility(true);
+
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(reconnectViewerNow).not.toHaveBeenCalled();
+    });
+
+    it('reopens the connection when it becomes visible without having been hidden first', async () => {
+      configure();
+      await start();
+      const reload = spyOn(fixture.componentInstance, 'reloadPage');
+
+      fixture.componentInstance.handleVisibility(true);
+
+      expect(reconnectViewerNow).toHaveBeenCalledTimes(1);
+      expect(reload).not.toHaveBeenCalled();
+    });
+  });
 });
+
