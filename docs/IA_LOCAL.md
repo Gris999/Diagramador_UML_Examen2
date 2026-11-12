@@ -84,7 +84,7 @@ La instancia (2 vCPU, ~2 GB de RAM) **no** puede correr el modelo local: ni con 
 2. En el servidor, en `back_generador_bd/.env`: `LOCAL_ENGINE=mlx`, `LOCAL_AI_URL=<la dirección>` y `LOCAL_AI_TOKEN=<la clave de ml/serve/.run/clave>`; se recrea el contenedor de Django (`docker-compose -f docker-compose.app.yml up -d --force-recreate django`, un `restart` no vuelve a leer el `.env`).
 3. En la sala, el botón **Local** se enciende y el modelo de toda la sala pasa a ser el del computador. La IA sigue con Gemini por defecto.
 
-La clave es lo que protege el túnel (la dirección de ngrok gratis es pública y cambia cada vez que se reinicia el túnel): sin la clave la puerta responde 401, y aun con ella solo deja generar texto. **Se cierra al terminar** (`ml/serve/iniciar.sh stop`). Si el túnel o el computador se apagan, «Local» vuelve a verse apagado en unos 10 segundos y la sala puede volver a **Nube (Gemini)**.
+La clave es lo que protege el túnel (la dirección es pública; con el dominio estático gratis de la cuenta de ngrok, `….ngrok-free.dev`, es la **misma** cada vez que se reinicia el túnel —verificado el 2026-11-11—, así que el servidor no hay que tocarlo; si algún día cambiara, se actualiza `LOCAL_AI_URL` en el `.env` del servidor y se recrea `django`): sin la clave la puerta responde 401, y aun con ella solo deja generar texto. **Se cierra al terminar** (`ml/serve/iniciar.sh stop`). Si el túnel o el computador se apagan, «Local» vuelve a verse apagado en unos 10 segundos y la sala puede volver a **Nube (Gemini)**.
 
 ## Evaluación (2026-10-22)
 
