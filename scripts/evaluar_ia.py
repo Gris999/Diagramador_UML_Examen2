@@ -36,6 +36,7 @@ django.setup()
 from uml_api.services.ai_provider import (  # noqa: E402
     AIProviderError,
     GeminiProvider,
+    LocalParallelProvider,
     OllamaProvider,
 )
 from uml_api.services.change_guard import count_destructive, validate_changes  # noqa: E402
@@ -371,6 +372,10 @@ def main():
         cambios = sys.argv[4] if len(sys.argv) > 4 else None
         proveedor = OllamaProvider(base_url=url, model=modelo, change_model=cambios)
         etiqueta = f"ollama ({proveedor.model}" + (f"; cambios: {cambios} reentrenado)" if cambios else ")")
+    elif nombre == "mlx":
+        # El modelo local que atiende varios pedidos a la vez: la puerta de ml/serve (URL y clave opcionales).
+        proveedor = LocalParallelProvider(base_url=sys.argv[2] if len(sys.argv) > 2 else None, token=sys.argv[3] if len(sys.argv) > 3 else None)
+        etiqueta = "mlx (Qwen3-4B; cambios: reentrenado)"
     else:
         proveedor = GeminiProvider()
         etiqueta = "gemini"

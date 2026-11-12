@@ -153,8 +153,14 @@ export class CollaborationService {
   }
 
   private publishIaStatus(): void {
-    const first = this.activeIaRequests.values().next();
-    this.iaStatus.set(first.done ? { state: 'idle', by: '' } : { state: 'thinking', by: first.value.by });
+    if (this.activeIaRequests.size === 0) {
+      this.iaStatus.set({ state: 'idle', by: '' });
+      return;
+    }
+    // La IA atiende a varias personas a la vez: se dice a todas («Ana», «Ana y Beto», «Ana, Beto y Carla»), cada una una sola vez.
+    const names = [...new Set([...this.activeIaRequests.values()].map(request => request.by).filter(Boolean))];
+    const by = names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}` : (names[0] ?? '');
+    this.iaStatus.set({ state: 'thinking', by });
   }
 
   closeSocketRTC() {

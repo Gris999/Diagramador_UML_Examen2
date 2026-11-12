@@ -70,6 +70,7 @@ OBJETOS = {
     "AIProvider": _o("ia", B + "uml_api/services/ai_provider.py", "AIProvider", est="interface"),
     "GeminiProvider": _o("ia", B + "uml_api/services/ai_provider.py", "GeminiProvider"),
     "OllamaProvider": _o("ia", B + "uml_api/services/ai_provider.py", "OllamaProvider"),
+    "LocalParallelProvider": _o("ia", B + "uml_api/services/ai_provider.py", "LocalParallelProvider"),
     "services_gemini": _o("ia", B + "uml_api/services/services_gemini.py", "<services_gemini.py>", rotulo="services_gemini", est="module"),
     "ChatMessage": _o("ia", B + "collab/models.py", "ChatMessage", est="entity"),
     "IaAttempt": _o("ia", B + "collab/models.py", "IaAttempt", est="entity"),
@@ -175,12 +176,12 @@ INTERFACES = [
          motivo="Lo que la colaboración necesita del diagrama; evita que el servicio de colaboración dependa del servicio del diagrama."),
     dict(nombre="ActivityStore", sub="nucleo", realiza=["ORMActivityStore", "MongoActivityStore"], operaciones=["identify_now", "create", "recent", "since", "get", "update_data", "identify", "record"],
          motivo="Guardar y leer la actividad de la sala; PostgreSQL o MongoDB, elegidos con una variable de entorno. `identify` y `record` son las versiones asíncronas que usa el canal en vivo."),
-    dict(nombre="AIProvider", sub="ia", realiza=["GeminiProvider", "OllamaProvider"], operaciones=["chat", "change"],
-         motivo="Servicio de IA intercambiable (nube o local) sin que el resto lo note."),
+    dict(nombre="AIProvider", sub="ia", realiza=["GeminiProvider", "OllamaProvider", "LocalParallelProvider"], operaciones=["chat", "change"],
+         motivo="Servicio de IA intercambiable (nube o local, de uno en uno o con varios pedidos a la vez) sin que el resto lo note."),
     dict(nombre="ConversationStore", sub="ia", realiza=["ORMConversationStore", "MongoConversationStore"], operaciones=["append_exchange", "history", "discard_exchange"],
          motivo="La conversación única de la sala con la IA; PostgreSQL o MongoDB."),
     dict(nombre="TurnStore", sub="ia", realiza=["RedisTurnStore"], operaciones=["take", "release", "current"],
-         motivo="Un solo pedido a la IA a la vez por sala."),
+         motivo="Los turnos de la IA de una sala: atiende hasta tantas personas a la vez como cupos tenga el modelo elegido, una persona de a un pedido, y los demás esperan en fila."),
     dict(nombre="RateLimiter", sub="ayuda", realiza=["RedisRateLimiter"], operaciones=["allow"],
          motivo="Tope de uso del asistente de ayuda por persona y para todo el servicio."),
 ]
@@ -216,8 +217,8 @@ ASOCIACIONES = [
     ("ORMActivityStore", "Participant", "importa"), ("ORMActivityStore", "ActivityEvent", "importa"),
     ("chat_views", "Participant", "importa"), ("chat_views", "IaAttempt", "importa"), ("chat_views", "ai_provider", "importa"), ("chat_views", "change_guard", "importa"),
     ("chat_views", "ia_context", "importa"), ("chat_views", "activity", "importa"), ("chat_views", "groups", "importa"),
-    ("GeminiProvider", "AIProvider", "hereda de"), ("OllamaProvider", "AIProvider", "hereda de"),
-    ("ai_provider", "GeminiProvider", "crea"), ("ai_provider", "OllamaProvider", "crea"),
+    ("GeminiProvider", "AIProvider", "hereda de"), ("OllamaProvider", "AIProvider", "hereda de"), ("LocalParallelProvider", "AIProvider", "hereda de"),
+    ("ai_provider", "GeminiProvider", "crea"), ("ai_provider", "OllamaProvider", "crea"), ("ai_provider", "LocalParallelProvider", "crea"),
     ("vistas_respaldo", "BackupUML", "importa"), ("vistas_actividad", "stores", "importa"),
     ("vistas_intercambio", "xmi_service", "importa"), ("vistas_intercambio", "FlutterCRUDGenerator", "importa"),
     ("vistas_ia", "services_gemini", "importa"),
@@ -249,7 +250,7 @@ MECANISMOS = [
      ["ORMActivityStore", "MongoActivityStore", "ORMConversationStore", "MongoConversationStore", "BackupUML"]),
     ("REC-2", "Distribución y concurrencia", "Difusión por grupos de Redis y turno por sala",
      "Cada sala es un grupo de canales (`room_group_name`); las operaciones viajan por WebSocket y el orden de quienes están lo da un conjunto "
-     "ordenado de Redis (el primero es el host). La IA atiende un pedido a la vez por sala con un cerrojo de Redis con vencimiento (TurnStore).",
+     "ordenado de Redis (el primero es el host). La IA atiende a varias personas a la vez por sala (cupos según el modelo) con turnos en un conjunto ordenado de Redis con vencimiento (TurnStore).",
      ["CanvasConsumer", "RedisGroupRoleStore", "RedisTurnStore", "groups"]),
     ("REC-3", "Seguridad", "Autorización en el servidor y entrada no confiable",
      "Expulsar se decide en un guion atómico de Redis que comprueba que quien pide es el host. El XMI se lee sin DOCTYPE ni entidades externas. "
@@ -264,8 +265,8 @@ MECANISMOS = [
      "RateLimiter. Hay tamaños máximos de mensaje, de contexto y de cambio (`MAX_MESSAGE_CHARS`, `MAX_UML_CHARS`, `MAX_CLASSES_PER_CHANGE`).",
      ["chat_views", "IaAttempt", "RedisRateLimiter", "ia_context", "change_guard"]),
     ("RA-01", "IA local intercambiable", "Proveedor detrás de un puerto",
-     "`get_ai_provider()` entrega GeminiProvider u OllamaProvider según la variable AI_PROVIDER; ambos cumplen AIProvider.",
-     ["AIProvider", "GeminiProvider", "OllamaProvider", "ai_provider"]),
+     "`get_ai_provider()` entrega GeminiProvider o el modelo local (OllamaProvider, o LocalParallelProvider si LOCAL_ENGINE=mlx, que atiende varios pedidos a la vez) según AI_PROVIDER y la elección de la sala; todos cumplen AIProvider.",
+     ["AIProvider", "GeminiProvider", "OllamaProvider", "LocalParallelProvider", "ai_provider"]),
 ]
 
 # ---- traza de las clases del análisis a las de diseño (9.3.3 y 9.5.1.3.1) ----------------------------------------
@@ -293,7 +294,7 @@ TRAZA = {
     "PanelChatIA": [("IaChatPanel", ["send", "loadHistory"])],
     "PanelGenerarModelo": [("SidePanel", ["onGenerate", "toggleVoiceInput"])],
     "PanelImportacionImagen": [("SidePanel", ["onImportImage", "replaceImageImport", "mergeImageImport"])],
-    "InterfazServicioIA": [("AIProvider", ["chat", "change"]), ("GeminiProvider", []), ("OllamaProvider", []), ("services_gemini", [])],
+    "InterfazServicioIA": [("AIProvider", ["chat", "change"]), ("GeminiProvider", []), ("OllamaProvider", []), ("LocalParallelProvider", []), ("services_gemini", [])],
     "ControlIA": [("chat_views", ["ia_chat", "claim_suggestion"]), ("ia_context", ["build_chat_prompt"]), ("change_guard", ["validate_changes"]),
                   ("IaChatService", ["send"]), ("IaActionsService", ["request", "applySuggestion"])],
     "ControlImportacionImagen": [("vistas_ia", ["analyze_uml_image"]), ("UmlImageServiceTs", ["analyzeImage"])],

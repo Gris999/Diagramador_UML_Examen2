@@ -88,7 +88,7 @@ El código es el que genera «Crear Nuevo Lienzo» (una serie de letras y númer
 ![Chat con la IA](capturas/05-chat-ia-abierto.png)
 *Figura 3.6. El chat de la sala: lo ven todas las personas y dice qué IA responde.*
 
-Pulsa **Chat** (abajo a la derecha). **Es el chat de toda la sala**: las personas se escriben entre sí y lo ven todas al instante, sin recargar la página, y cada mensaje muestra quién lo escribió; si llegan mensajes con el chat cerrado, el botón muestra un número. **La IA de la sala se llama Uma y solo responde cuando le hablas:** empieza el mensaje con su nombre («Uma, …» o «IA, …»). Lo que escribas sin su nombre es para tu equipo y Uma no se entera. Uma atiende **un pedido a la vez**; si está ocupada con otra persona, el chat dice a quién atiende. Arriba se lee qué IA responde y se puede elegir entre **Nube (Gemini)** y **Local**: el modelo es **uno solo para toda la sala** y el cambio queda en la actividad; **Local** solo se puede elegir si el servidor tiene el modelo local.
+Pulsa **Chat** (abajo a la derecha). **Es el chat de toda la sala**: las personas se escriben entre sí y lo ven todas al instante, sin recargar la página, y cada mensaje muestra quién lo escribió; si llegan mensajes con el chat cerrado, el botón muestra un número. **La IA de la sala se llama Uma y solo responde cuando le hablas:** empieza el mensaje con su nombre («Uma, …» o «IA, …»). Lo que escribas sin su nombre es para tu equipo y Uma no se entera. Uma **atiende a varias personas a la vez** (cuatro por sala con la nube o con el modelo local en paralelo; si el modelo local es Ollama, de a una): si le hablan Ana, Beto y Carla juntos, los tres reciben su respuesta al mismo tiempo, y el chat dice a quiénes atiende. Si ya está atendiendo a todas las que puede, el pedido entra en una fila y se contesta solo. Arriba se lee qué IA responde y se puede elegir entre **Nube (Gemini)** y **Local**: el modelo es **uno solo para toda la sala** y el cambio queda en la actividad; **Local** solo se puede elegir si el servidor tiene el modelo local.
 
 | Lo que escribes | Qué pasa |
 |---|---|
@@ -147,7 +147,7 @@ El botón **Ayuda** está en la página principal y dentro de la sala (en la bar
 | No llega el código ni la invitación | Mira el correo no deseado y espera unos minutos (algunos buzones de universidad demoran); pide otro código con **Pedir otro código** (hay un tiempo de espera entre pedidos). |
 | «El código no es válido» (instalación sin acceso por correo) | Pide el código a quien creó la sala: se copia en **Compartir** → **Copiar código de sala**. |
 | «Demasiadas preguntas seguidas» | La IA y la ayuda tienen un tope de uso por persona, sala y servicio; espera un minuto. |
-| «La IA está atendiendo a…» | Hay varias personas pidiéndole algo a la IA a la vez y la fila pasó de unos 80 segundos; vuelve a enviar en un momento. Normalmente tu pedido espera su turno y se contesta solo. |
+| «La IA está atendiendo a…» | La IA ya está atendiendo a todas las personas que puede a la vez y la fila pasó de unos 80 segundos; vuelve a enviar en un momento. Normalmente tu pedido espera su turno y se contesta solo. |
 | «La IA no pudo responder ahora» | El diagrama no se modificó ni se guardó nada a medias; reintenta o sigue editando a mano. |
 | «No se pudo generar el backend» o «…la aplicación móvil» | El generador no respondió; reintenta en unos momentos o revisa que el diagrama tenga clases. |
 | Me expulsaron | Vuelve a entrar desde **Mis diagramas** (o con el enlace): entrarás como participante nuevo. |

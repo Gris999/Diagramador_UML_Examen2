@@ -165,11 +165,11 @@ CLASES = {
                              [("proveedor", "Nube o local"), ("tiempo máximo de espera", "Duración")],
                              ["El proveedor es intercambiable sin que el resto lo note.",
                               "Con el proveedor en la nube los datos viajan fuera del sistema."],
-                             "existe", "uml_api/services/ai_provider.py (AIProvider, GeminiProvider, OllamaProvider) y services_gemini.py"),
+                             "existe", "uml_api/services/ai_provider.py (AIProvider, GeminiProvider, OllamaProvider, LocalParallelProvider) y services_gemini.py"),
     "ControlIA": _c("Control de IA", "control", "ia",
                     "Coordina cada pedido a la IA: comprueba los topes, arma el contexto, valida lo que devuelve y lo aplica.",
                     [("solicitante", "Participante"), ("eliminaciones pendientes", "Número")],
-                    ["Atiende un pedido a la vez por sala.", "Topes: 12 pedidos por minuto por persona, 30 por sala y 60 en todo el servicio.",
+                    ["Atiende a varias personas a la vez por sala (los cupos dependen del modelo) y a cada una de a un pedido; los demás esperan en fila.", "Topes: 12 pedidos por minuto por persona, 30 por sala y 60 en todo el servicio.",
                      "La IA no hace nada hasta que alguien se lo pide."],
                     "cambia (C1)", "uml_api/chat_views.py ia_chat; services/ia_context.py y change_guard.py; "
                                    "ia-chat.service.ts e ia-actions.service.ts"),
@@ -532,7 +532,7 @@ COLABORACIONES = [
           ("ControlIA", "InterfazServicioIA", "Enviar el pedido con su contexto"),
           ("InterfazServicioIA", "S", "Pedir la respuesta o los cambios")],
          ["Cuando el **Control de IA** recibe un pedido, reserva el cupo en el **Pedido a la IA**; si se pasa de los topes, lo rechaza.",
-          "Toma el turno de la **Conversación de la Sala** (la IA atiende un pedido a la vez) y arma el contexto con el **Diagrama** actual, "
+          "Toma el turno de la **Conversación de la Sala** (la IA atiende a varias personas a la vez, según los cupos del modelo) y arma el contexto con el **Diagrama** actual, "
           "la actividad reciente y la conversación.",
           "Envía el pedido por la **Interfaz del Servicio de IA**, que se lo pide al Servicio de IA."],
          ["La IA no hace nada hasta que alguien se lo pide.", "El proveedor es intercambiable (RA-01)."],
@@ -712,8 +712,8 @@ ACTOR_EXTERNO = {"S": ("A3", "Servicio de IA")}  # instancia del actor secundari
 ESPECIALES_COMUNES = [
     ("REC-1", "Persistencia", "Lo que debe sobrevivir a un reinicio: el respaldo del diagrama, la actividad y la conversación de la sala, y los "
                               "pedidos a la IA (para los topes). El resto es efímero."),
-    ("REC-2", "Distribución y concurrencia", "Dos o tres personas editan a la vez y quien sigue desde el celular solo mira; la IA atiende un "
-                                             "pedido a la vez por sala."),
+    ("REC-2", "Distribución y concurrencia", "Dos o tres personas editan a la vez y quien sigue desde el celular solo mira; la IA atiende a "
+                                             "varias personas a la vez por sala."),
     ("REC-3", "Seguridad", "Los permisos (expulsar) los verifica el servidor; los archivos recibidos no leen archivos locales ni abren conexiones."),
     ("REC-4", "Tolerancia a fallos", "Si falla el servicio de IA, el generador o el registro de actividad, el diagrama sigue editable y no "
                                      "cambia sin que alguien lo confirme."),

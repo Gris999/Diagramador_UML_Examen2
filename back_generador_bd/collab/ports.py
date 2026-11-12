@@ -76,11 +76,14 @@ class ConversationStore(ABC):
 
 
 class TurnStore(ABC):
-    """El turno de la IA de una sala: atiende un pedido a la vez, en orden de llegada, y el turno vence solo si quien lo tiene se desconecta."""
+    """Los turnos de la IA de una sala: la IA atiende hasta `slots` pedidos a la vez (uno por persona), en orden de llegada, y cada turno vence solo si quien lo tiene se desconecta."""
 
     @abstractmethod
-    def take(self, room, holder_id, holder_name, ttl_seconds):
-        """Intenta tomar el turno. Devuelve `(True, None)` si lo tomó o `(False, nombre)` con el nombre de quien lo tiene."""
+    def take(self, room, holder_id, holder_name, ttl_seconds, slots=1):
+        """Intenta tomar un turno. Devuelve `(True, None)` si lo tomó o `(False, nombres)` con los nombres de quienes están siendo atendidos.
+
+        Se atiende a lo más `slots` personas a la vez en la sala, y a cada persona de a un pedido: si ya tiene un turno, no toma otro.
+        """
 
     @abstractmethod
     def release(self, room, holder_id):
@@ -88,9 +91,9 @@ class TurnStore(ABC):
 
     @abstractmethod
     def current(self, room):
-        """Nombre de quien tiene el turno, o `None`."""
+        """Nombres de quienes están siendo atendidos (unidos con «,» y «y»), o `None` si la IA está libre."""
 
-    # La fila de espera: cuando la IA está atendiendo, los demás pedidos se anotan y los atiende de a uno, en el orden en que llegaron.
+    # La fila de espera: cuando todos los cupos de la IA están ocupados, los demás pedidos se anotan y se atienden en el orden en que llegaron, apenas queda un cupo libre.
     @abstractmethod
     def line_up(self, room, holder_id, holder_name, ttl_seconds):
         """Se anota al final de la fila de espera de la sala (si ya estaba, conserva su lugar). La anotación vence sola a los `ttl_seconds`."""

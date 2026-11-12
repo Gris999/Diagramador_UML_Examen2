@@ -8,3 +8,5 @@ data/out*/
 # El adaptador (≈ 59 MB por archivo) no se versiona; su hash queda en runs/<corrida>/adaptador.sha256
 runs/*/adapters/*.safetensors
 runs/*.out
+# Procesos, registros y clave del modelo local en marcha (ml/serve/iniciar.sh)
+serve/.run/

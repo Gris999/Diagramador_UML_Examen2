@@ -72,7 +72,7 @@ RF_POR_REQUISITO_ADICIONAL = {
 
 
 RF_GLOSA = {
-    "RF-01": "Modelado UML 2.5 de clases y datos", "RF-46": "Clase abstracta, interfaz, enumeración y visibilidad de UML 2.5", "RF-47": "Tomar una foto del diagrama con la cámara", "RF-48": "La IA atiende a varias personas a la vez, en fila", "RF-02": "Crear y editar diagramas a mano", "RF-03": "Crear o modificar el UML con texto",
+    "RF-01": "Modelado UML 2.5 de clases y datos", "RF-46": "Clase abstracta, interfaz, enumeración y visibilidad de UML 2.5", "RF-47": "Tomar una foto del diagrama con la cámara", "RF-48": "La IA atiende a varias personas a la vez, con cupos por modelo y fila", "RF-02": "Crear y editar diagramas a mano", "RF-03": "Crear o modificar el UML con texto",
     "RF-04": "Crear o modificar el UML con una imagen o foto", "RF-05": "Crear o modificar el UML con voz", "RF-06": "Sesiones colaborativas de 2 o 3 personas",
     "RF-07": "Distinguir host y participantes", "RF-08": "Sincronización entre las pantallas", "RF-09": "Permisos verificados en el servidor",
     "RF-10": "Reconexión", "RF-11": "Recuperación del estado", "RF-12": "La primera conexión de la sala es el host", "RF-13": "Host y participantes editan por igual",
@@ -86,7 +86,7 @@ RF_GLOSA = {
     "RF-36": "Entrar con el correo y un código", "RF-37": "Salas solo para las personas de su lista", "RF-38": "Roles: propietario, editor y lector",
     "RF-39": "Acceso general: restringido o cualquiera con el enlace", "RF-40": "Lista «Mis diagramas»", "RF-41": "El celular nunca abre el editor", "RF-42": "Chat entre las personas de la sala, en vivo", "RF-43": "La IA se llama Uma y solo responde si la nombran", "RF-44": "Vista previa («holograma») de lo que propone la IA", "RF-45": "Mover a mano las líneas de relación",
     "RNF-01": "Persistencia local sin conexión en la aplicación móvil",
-    "RNF-02": "Arquitectura desplegable en AWS", "RNF-03": "Documentación de ingeniería", "RNF-04": "Un pedido a la IA a la vez por sala",
+    "RNF-02": "Arquitectura desplegable en AWS", "RNF-03": "Documentación de ingeniería", "RNF-04": "Pedidos a la IA por sala con cupos (varios a la vez) y en fila",
     "RNF-05": "Resiliencia ante los fallos de la IA", "RNF-06": "La actividad no estorba la edición", "RNF-07": "Despliegue reproducible con prueba de humo",
     "RNF-08": "Actividad y conversación en una base documental",
 }
@@ -154,6 +154,7 @@ EXCLUIDAS = [
     ("services/diagram/tool.service.ts", "ToolService", C_UI),
     ("app/components/camera-capture/camera-capture.ts", "CameraCapture", C_UI),  # el cuadro para fotografiar el diagrama: muestra la cámara y entrega la foto a «Importar imagen»
     ("uml_api/services/uml_kinds.py", "<uml_kinds.py>", C_APOYO),
+    ("collab/turn.py", "<turn.py>", C_APOYO),  # `join_names`: une los nombres de quienes atiende la IA («Ana, Beto y Carla»)
     ("services/diagram/uml-notation.util.ts", "AttributeData", C_TIPO),
     ("services/diagram/uml-notation.util.ts", "MethodData", C_TIPO),  # la herramienta elegida con un clic en la paleta: estado de la interfaz, sin lógica de negocio
     ("app/components/diagram/spinner/spinner.ts", "Spinner", C_UI),
@@ -283,7 +284,12 @@ EVIDENCIA_RA = {
     "RA-02": ("Una sola conversación por sala: el servidor la entrega a todos y la IA la usa como contexto.",
               [b("uml_api/tests/test_ia_chat_api.py", "IaChatApiTests.test_the_conversation_belongs_to_the_whole_room"),
                b("uml_api/tests/test_ia_chat_api.py", "IaChatApiTests.test_the_prompt_carries_the_conversation_of_the_room_with_who_said_what"),
-               f("app/ia-chat-panel/ia-chat-panel.spec.ts", "says that the conversation belongs to the whole room")], []),
+               f("app/ia-chat-panel/ia-chat-panel.spec.ts", "says that the conversation belongs to the whole room"),
+               b("collab/tests/test_turn_store.py", "TurnStoreContract.test_a_room_with_several_slots_attends_that_many_people_at_once"),
+               b("uml_api/tests/test_ia_chat_api.py", "SimultaneousTurnTests.test_two_people_get_their_turn_at_the_same_time_from_two_threads"),
+               b("uml_api/tests/test_ia_chat_api.py", "SimultaneousTurnTests.test_the_local_model_with_the_ollama_engine_attends_one_at_a_time_and_with_mlx_several"),
+               b("uml_api/tests/test_local_parallel_provider.py", "LocalParallelProviderTests.test_chat_goes_to_the_chat_model_through_the_gateway_with_the_key"),
+               f("services/colaboration/collaboration.service.spec.ts", "says who the IA is attending when it attends several people at once")], []),
     "RA-03": ("Topes de uso, confirmación antes de eliminar y fallo seguro de la IA.",
               [b("uml_api/tests/test_ia_chat_api.py", "IaChatApiTests.test_too_many_requests_in_a_minute_are_throttled"),
                b("uml_api/tests/test_ia_chat_api.py", "ChatReliabilityTests.test_the_whole_room_shares_a_request_budget"),

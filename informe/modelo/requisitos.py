@@ -301,7 +301,7 @@ CASOS = {
         excepciones=["Si el servicio de IA falla, el sistema muestra un mensaje claro y no guarda nada.",
                      "Si se supera el tope de pedidos, el sistema pide esperar un momento.",
                      "Si la respuesta de una revisión no tiene el formato esperado, se muestra como texto y sin botones."],
-        especiales=["Hay una sola instancia de IA para toda la sala: atiende los pedidos de todas las personas en una fila, de a uno y en orden de llegada, y su conversación es la de todos (RA-02).",
+        especiales=["Hay una sola instancia de IA para toda la sala: atiende a varias personas a la vez (hasta los cupos del modelo elegido: la nube y el modelo local con mlx, cuatro; Ollama, uno), a cada una de a un pedido; los demás esperan en una fila en orden de llegada, y su conversación es la de todos (RA-02).",
                     "El estado «Pensando (a pedido de X)» se comparte con la sala."],
         no_permitido=["Que una revisión cambie el diagrama sin que alguien pulse «Aplicar»."],
         pantalla="07-revision-ideas.png"),
@@ -378,7 +378,7 @@ REQUISITOS_ADICIONALES = [
      "a Gemini sin cambiar lo que ve el usuario; el proveedor se elige con una variable del servidor.",
      "Anexos A y B"),
     ("RA-02", "Conversación única de la sala",
-     "La IA es una sola instancia que atiende a todos y guarda el contexto de la conversación de todos: no hay conversaciones privadas.",
+     "La IA es una sola instancia que atiende a todos a la vez (hasta los cupos del modelo elegido) y guarda el contexto de la conversación de todos: no hay conversaciones privadas.",
      "Prueba de la conversación compartida (CP de CU9)"),
     ("RA-03", "Control del costo y resiliencia de la IA",
      "Hay topes de uso por persona, por sala y para todo el servicio; una respuesta que eliminaría elementos pide confirmación; y si la IA falla "

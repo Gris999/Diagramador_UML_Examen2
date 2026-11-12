@@ -47,9 +47,44 @@ OLLAMA_CHANGE_MODEL=uml-qwen-dia3
 
 Las preguntas y la revisión siguen con el modelo general (`OLLAMA_MODEL`); los cambios los atiende el reentrenado, que usa un prompt corto con ids cortos y es más rápido (≈ 2 s por cambio). En los 10 pedidos fijos acierta 8 de 10 (los otros proveedores, 10 de 10) y en 200 ejemplos reservados acierta el 82 %, contra el 35 % del modelo sin entrenar. Si falla, el chat muestra el error de siempre y el diagrama no cambia; la plataforma además pide confirmación cuando una respuesta dejaría fuera atributos o métodos existentes.
 
+## Varios pedidos a la vez (motor `mlx`)
+
+**Problema medido (2026-11-11, Mac M5 de 16 GB, Ollama 0.40.8):** con el motor MLX de Ollama, cuatro pedidos a la vez salen uno tras otro (2,1 / 4,1 / 6,1 / 8,1 s) **aunque se suba `OLLAMA_NUM_PARALLEL=4`**: ese motor no mezcla pedidos (es un problema conocido de Ollama con MLX). Por eso el modelo local tiene un segundo motor, `LOCAL_ENGINE=mlx`, que usa `mlx_lm.server` con `--decode-concurrency`: mezcla los pedidos en una sola pasada del modelo. Tres cambios al diagrama a la vez, desde el servidor completo (Django + Redis), contestan todos a los 5,6 s (en fila serían unos 9 s); cuatro pedidos mezclados (cambios y preguntas), entre 6 y 8,7 s.
+
+Qué hay en `ml/serve/`:
+
+| Archivo | Para qué |
+|---|---|
+| `iniciar.sh` | `start` levanta todo (dos servidores `mlx_lm` y la puerta) y los calienta; `tunel` abre un túnel `ngrok`; `status`; `stop` |
+| `gateway.py` | La **puerta**: una sola dirección (puerto 8090) y una clave (`Authorization: Bearer …`) delante de los dos servidores. Deja pasar solo `POST /v1/chat/completions` y `GET /v1/models` (nada de bajar o borrar modelos), limita el tamaño del pedido y de la respuesta y no acepta respuestas en flujo. Solo usa la biblioteca estándar |
+| `test_gateway.py` | Pruebas de la puerta: `python3 -m unittest discover -s ml/serve -v` |
+
+Los dos servidores cargan el mismo Qwen3-4B (4 bits): `cambios` **con el adaptador que reentrenó el equipo** (los cambios al diagrama) y `chat` sin adaptador (preguntas y revisiones). Los dos juntos ocupan unos 5 GB. La calidad de los cambios es **idéntica** a la del modelo reentrenado en Ollama (7 de 9 pedidos de cambios de `scripts/evaluar_ia.py` en ambos: fallan los mismos dos, «crear dos clases y una relación» y «herencia»); las preguntas y la revisión las contesta el 4B general, que es más pequeño que el 9B del motor Ollama.
+
+Activarlo en el computador de quien presenta (`back_generador_bd/.env`):
+
+```
+AI_PROVIDER=ollama          # o elegir «Local» en el chat de la sala
+LOCAL_ENGINE=mlx
+LOCAL_AI_URL=http://127.0.0.1:8090
+LOCAL_AI_TOKEN=<el contenido de ml/serve/.run/clave>
+```
+
+```bash
+ml/serve/iniciar.sh start
+```
+
+**Cuántas personas atiende a la vez la IA de una sala (RF-48):** los cupos dependen del modelo elegido: nube (Gemini) 4, local con `mlx` 4, local con Ollama 1 (porque su motor contesta de uno en uno). Se ajustan con `AI_CONCURRENCY_GEMINI` y `AI_CONCURRENCY_LOCAL`. Cada persona atiende de a un pedido; si todos los cupos están ocupados, los demás pedidos esperan en fila y se atienden en orden de llegada.
+
 ## En el servidor (AWS)
 
-La instancia (2 vCPU, ~2 GB de RAM) **no** puede correr un modelo de 7 B. Para la demostración, lo razonable es mantener `AI_PROVIDER=gemini` en el servidor y mostrar la IA local en el computador de quien presenta, o instalar Ollama en otra máquina con GPU/más memoria y apuntar `OLLAMA_BASE_URL` allí.
+La instancia (2 vCPU, ~2 GB de RAM) **no** puede correr el modelo local: ni con Ollama (7 B) ni con el 4B de `mlx` junto a Postgres, Mongo, Redis y Django. Mantiene `AI_PROVIDER=gemini` y el botón «Local» del chat aparece apagado. Para que el **sitio desplegado** use el modelo del computador de quien presenta, sin pagar nada, se abre un túnel hacia la puerta:
+
+1. En el computador: `ml/serve/iniciar.sh start` y después `ml/serve/iniciar.sh tunel` (usa `ngrok`, que ya tiene cuenta gratis); muestra una dirección `https://….ngrok-free.app`.
+2. En el servidor, en `back_generador_bd/.env`: `LOCAL_ENGINE=mlx`, `LOCAL_AI_URL=<la dirección>` y `LOCAL_AI_TOKEN=<la clave de ml/serve/.run/clave>`; se recrea el contenedor de Django (`docker-compose -f docker-compose.app.yml up -d --force-recreate django`, un `restart` no vuelve a leer el `.env`).
+3. En la sala, el botón **Local** se enciende y el modelo de toda la sala pasa a ser el del computador. La IA sigue con Gemini por defecto.
+
+La clave es lo que protege el túnel (la dirección de ngrok gratis es pública y cambia cada vez que se reinicia el túnel): sin la clave la puerta responde 401, y aun con ella solo deja generar texto. **Se cierra al terminar** (`ml/serve/iniciar.sh stop`). Si el túnel o el computador se apagan, «Local» vuelve a verse apagado en unos 10 segundos y la sala puede volver a **Nube (Gemini)**.
 
 ## Evaluación (2026-10-22)
 

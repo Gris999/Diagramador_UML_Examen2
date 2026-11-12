@@ -3,7 +3,7 @@ import uuid
 from datetime import timedelta
 from unittest import mock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -1002,8 +1002,9 @@ class SummarizeUmlTests(SimpleTestCase):
         self.assertLessEqual(len(summarize_uml(huge)), 12_000 + 200)
 
 
+@override_settings(AI_CONCURRENCY_GEMINI=1)
 class ShareTurnTests(ChatTestBase):
-    """C1: la IA atiende un pedido a la vez por sala y dice a quién está atendiendo."""
+    """C1: con un solo cupo la IA atiende un pedido a la vez por sala, en fila, y dice a quién está atendiendo."""
 
     def hold_turn(self, participant, room=None):
         return get_turn_store().take(room or self.room, participant.id, participant.display_name, 130)
@@ -1136,3 +1137,97 @@ class ShareTurnTests(ChatTestBase):
             response = self.ask(self.ana, "hola")
 
         self.assertEqual(response.status_code, 200)
+
+
+class SimultaneousTurnTests(ChatTestBase):
+    """La IA atiende a varias personas de una sala a la vez; cuántas depende del modelo (la nube y el motor mlx, varias; Ollama, una)."""
+
+    def hold_turn(self, participant, slots, room=None):
+        return get_turn_store().take(room or self.room, participant.id, participant.display_name, 130, slots)
+
+    def make_person(self, name):
+        return Participant.objects.create(room=self.room, token=uuid.uuid4(), display_name=name)
+
+    def test_with_a_free_slot_a_request_is_answered_at_once_while_someone_else_is_being_served(self):
+        self.hold_turn(self.beto, slots=4)
+
+        response = self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.provider.prompts), 1)
+        self.assertEqual(get_turn_store().current(self.room), "Beto")  # Beto sigue siendo atendido: solo se devolvió el turno de Ana
+
+    @override_settings(AI_CONCURRENCY_GEMINI=2)
+    def test_when_every_slot_is_busy_the_request_waits_and_is_told_who_is_being_served(self):
+        carla = self.make_person("Carla")
+        self.hold_turn(self.beto, slots=2)
+        self.hold_turn(carla, slots=2)
+
+        with mock.patch("uml_api.chat_views.TURN_WAIT_SECONDS", 0):
+            response = self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Beto y Carla", response.data["error"])
+        self.assertEqual(self.provider.prompts, [])
+
+    @override_settings(AI_CONCURRENCY_GEMINI=2)
+    def test_a_request_waiting_for_a_slot_is_answered_as_soon_as_one_is_free(self):
+        carla = self.make_person("Carla")
+        self.hold_turn(self.beto, slots=2)
+        self.hold_turn(carla, slots=2)
+
+        def beto_is_done(_seconds):
+            get_turn_store().release(self.room, self.beto.id)
+
+        with mock.patch("uml_api.chat_views.time.sleep", side_effect=beto_is_done):
+            response = self.ask(self.ana, "¿hay algo?")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(get_turn_store().current(self.room), "Carla")
+
+    def test_the_local_model_with_the_ollama_engine_attends_one_at_a_time_and_with_mlx_several(self):
+        from collab.stores import get_room_state
+        from uml_api.chat_views import _provider_key, _slots_for
+
+        get_room_state().set(_provider_key(self.room), "ollama", 60)
+        self.addCleanup(get_room_state().delete, _provider_key(self.room))  # el estado de la sala vive más que la prueba
+
+        with override_settings(LOCAL_ENGINE="ollama"):
+            self.assertEqual(_slots_for(self.room), 1)
+        with override_settings(LOCAL_ENGINE="mlx"):
+            self.assertEqual(_slots_for(self.room), 4)
+        with override_settings(LOCAL_ENGINE="mlx", AI_CONCURRENCY_LOCAL=3):
+            self.assertEqual(_slots_for(self.room), 3)
+
+    def test_if_the_slots_cannot_be_known_the_room_attends_one_at_a_time(self):
+        from uml_api.chat_views import _slots_for
+
+        with mock.patch("uml_api.chat_views.concurrency", side_effect=RuntimeError("redis caído")):
+            self.assertEqual(_slots_for(self.room), 1)
+
+    def test_two_people_get_their_turn_at_the_same_time_from_two_threads(self):
+        """Dos pedidos que llegan juntos no se turnan: ambos entran, y ninguno espera al otro."""
+        import threading
+        from types import SimpleNamespace
+
+        from uml_api.chat_views import _take_turn
+
+        inside_together = threading.Barrier(2, timeout=10)
+        outcomes = {}
+
+        def person(name, pid):
+            who = SimpleNamespace(id=pid, display_name=name)
+            turnos, busy = _take_turn(self.room, who)
+            try:
+                inside_together.wait()  # solo se cruza si los dos tienen el turno a la vez
+                outcomes[name] = busy is None
+            finally:
+                if turnos is not None:
+                    turnos.release(self.room, pid)
+
+        threads = [threading.Thread(target=person, args=(name, pid)) for name, pid in (("Ana", 901), ("Beto", 902))]
+        [thread.start() for thread in threads]
+        [thread.join(timeout=15) for thread in threads]
+
+        self.assertEqual(outcomes, {"Ana": True, "Beto": True})
+        self.assertIsNone(get_turn_store().current(self.room))
