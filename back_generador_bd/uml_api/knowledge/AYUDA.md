@@ -42,7 +42,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 - «Generar modelo»: escribe en «Describe tu modelo aquí...» lo que quieres (por ejemplo «Agrega una clase Factura con total y fecha») y pulsa «Generar». La IA agrega lo pedido sin duplicar ni mover lo que ya existe, y todos lo ven.
 - Voz: pulsa el micrófono, di la instrucción y vuelve a pulsarlo (⏹️) para terminar. La voz se convierte en texto y esa instrucción se aplica igual que si la hubieras escrito en «Generar modelo». El micrófono funciona solo en Chrome con conexión segura (HTTPS).
-- Foto: en «Importaciones» → «Tomar foto» fotografía un diagrama de clases con la cámara (la del equipo o la del celular): puedes ver la foto, repetirla y usarla; la IA la convierte en un diagrama que puedes seguir editando.
+- Foto: en «Importaciones» → «Tomar foto» fotografía un diagrama de clases con la cámara (la del equipo o la del celular): puedes ver la foto, repetirla y usarla; la IA la convierte en un diagrama que puedes seguir editando, con los signos de visibilidad (+ - # ~) de cada atributo y método y con las clases abstractas, interfaces y enumeraciones tal como se ven en la foto.
 - Imagen: en «Importaciones» → «Importar Imagen» elige la foto o captura de un diagrama de clases. Si el diagrama de la sala ya tiene elementos, la herramienta pregunta qué hacer con el resultado: «Reemplazar diagrama», «Combinar con actual» o «Cancelar».
 - Si un cambio de la IA va a eliminar elementos, la herramienta te pide confirmación antes de aplicarlo.
 

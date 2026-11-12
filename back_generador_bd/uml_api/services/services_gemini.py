@@ -577,6 +577,13 @@ Detecta todos los rectángulos que representan clases con:
 - Nombre de la clase (en la parte superior)
 - Atributos en formato `nombre:tipo`
 - Métodos en formato `nombre():tipoRetorno` o `nombre(params):tipoRetorno`
+- **Visibilidad** de cada atributo y método, si la imagen la muestra: `+` público, `-` privado, `#` protegido, `~` paquete.
+  El signo va al comienzo de la línea; NO es parte del nombre: ponlo en "visibility" y deja "name" sin el signo.
+  Si una línea no lleva signo, no pongas "visibility".
+- **Tipo de la clase** (campo "kind"): si encima del nombre dice «interface» es una interfaz ("interface");
+  si dice «enumeration» o «enum» es una enumeración ("enumeration"; sus valores son los atributos, sin tipo);
+  si el nombre está en cursiva o dice «abstract» o {abstract} es una clase abstracta ("abstract").
+  En cualquier otro caso es una clase común: no pongas "kind".
 
 **PASO 2: Identificar relaciones**
 Para CADA línea/conector entre clases, describe:
@@ -611,11 +618,12 @@ Para CADA línea/conector entre clases, describe:
     {
       "id": "uuid1",
       "name": "NombreClase",
+      "kind": "abstract|interface|enumeration (solo si no es una clase común)",
       "attributes": [
-        {"name": "atributo", "type": "tipo"}
+        {"name": "atributo", "type": "tipo", "visibility": "+|-|#|~ (solo si la imagen lo muestra)"}
       ],
       "methods": [
-        {"name": "metodo", "parameters": "", "returnType": "tipo"}
+        {"name": "metodo", "parameters": "", "returnType": "tipo", "visibility": "+|-|#|~ (solo si la imagen lo muestra)"}
       ]
     }
   ],
@@ -757,6 +765,49 @@ def _edge_to_relationship_type(edge):
     return "association", "none"
 
 
+# La notación UML 2.5 de una foto: el signo de visibilidad de cada miembro y el tipo de la clase (abstracta, interfaz, enumeración).
+_VISIBILITY_SIGNS = "+-#~"
+_VISIBILITY_WORDS = {"public": "+", "private": "-", "protected": "#", "package": "~"}
+_PHOTO_KINDS = ("abstract", "interface", "enumeration")
+
+
+def _clean_member(member):
+    """Un atributo o método de la foto con la visibilidad en su propio campo: el signo que la IA deje dentro del nombre se pasa a `visibility`.
+
+    Una visibilidad que no es un signo (ni su palabra) se descarta: no se inventa. Lo que no es un objeto se deja como llegó."""
+    if not isinstance(member, dict):
+        return member
+    cleaned = dict(member)
+    raw = cleaned.pop("visibility", None)
+    visibility = None
+    if isinstance(raw, str):
+        raw = raw.strip()
+        visibility = raw if raw in tuple(_VISIBILITY_SIGNS) else _VISIBILITY_WORDS.get(raw.lower())
+    name = cleaned.get("name")
+    if isinstance(name, str):
+        stripped = name.strip()
+        if stripped and stripped[0] in _VISIBILITY_SIGNS:
+            visibility = visibility or stripped[0]
+            cleaned["name"] = stripped[1:].strip()
+    if visibility:
+        cleaned["visibility"] = visibility
+    return cleaned
+
+
+def _clean_class(node, class_id):
+    """Una clase de la foto lista para el editor: con su tipo si no es común y con la visibilidad de sus miembros bien puesta."""
+    uml_class = {
+        "id": class_id,
+        "name": node.get("name"),
+        "attributes": [_clean_member(a) for a in (node.get("attributes") or [])],
+        "methods": [_clean_member(m) for m in (node.get("methods") or [])],
+    }
+    kind = node.get("kind")
+    if isinstance(kind, str) and kind.strip().lower() in _PHOTO_KINDS:
+        uml_class["kind"] = kind.strip().lower()
+    return uml_class
+
+
 def _map_edges_to_relationships(parsed_json):
     """
     Convierte los edges detectados por Gemini en relaciones UML bien orientadas.
@@ -768,15 +819,7 @@ def _map_edges_to_relationships(parsed_json):
     # Crear IDs por nombre
     name_to_id = {n.get("name"): (n.get("id") or str(uuid4())) for n in nodes}
 
-    classes = [
-        {
-            "id": name_to_id[n.get("name")],
-            "name": n.get("name"),
-            "attributes": n.get("attributes", []),
-            "methods": n.get("methods", []),
-        }
-        for n in nodes
-    ]
+    classes = [_clean_class(n, name_to_id[n.get("name")]) for n in nodes]
 
     relationships = []
     seen_relationships = set()  # Para evitar duplicados
