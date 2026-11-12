@@ -140,6 +140,7 @@ EXCLUIDAS = [
     ("uml_api/services/full_project.py", "SpringUnavailable", C_TIPO),
     ("uml_api/services/modelo_reentrenado.py", "<modelo_reentrenado.py>", C_APOYO),
     ("uml_api/services/xmi_service.py", "XMIError", C_TIPO),
+    ("uml_api/services/xmi_service.py", "_ReadContext", C_APOYO),  # lo que se sabe de todo el XMI al leer un tipo (nombres por id, tipos de la extensión de EA, visibilidad por omisión); vive solo durante una importación
     ("uml_api/utils/zip_utils.py", "<zip_utils.py>", C_APOYO),
     ("services/colaboration/uml-validation.service.ts", "UmlValidationService", None),  # se modeló en F6 (sección 2.3): no debe estar aquí
     ("services/diagram/association-class.util.ts", "RelationshipLike", C_TIPO),

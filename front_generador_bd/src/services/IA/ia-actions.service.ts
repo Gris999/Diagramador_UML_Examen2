@@ -101,6 +101,30 @@ export class IaActionsService {
   }
 
   private applyChanges(changes: unknown): void {
-    this.collab.runAsIa(() => this.diagram.loadFromJson(changes, true));
+    this.collab.runAsIa(() => this.diagram.loadFromJson(this.withSafeIds(changes), true));
+  }
+
+  /**
+   * Los ids que el modelo local inventa para sus clases nuevas («c2», «c3»…) tienen la forma del id interno que Backbone le da a cada celda de JointJS
+   * (`cid`): `graph.getCell('c2')` devuelve otra celda y la clase nueva no se agrega. Una clase nueva con un id así recibe uno propio, y las relaciones
+   * del mismo cambio lo siguen. Una clase que ya está en el diagrama conserva el suyo.
+   */
+  private withSafeIds(changes: unknown): unknown {
+    const source = changes as { classes?: any[]; relationships?: any[] } | null;
+    if (!source || !Array.isArray(source.classes)) return changes;
+    const existing = new Set<string>(((this.diagram.exportToJson() as any)?.classes ?? []).map((cls: any) => cls?.id));
+    const renamed = new Map<string, string>();
+    const classes = source.classes.map(cls => {
+      const id = cls?.id;
+      if (typeof id !== 'string' || !/^c\d+$/.test(id) || existing.has(id)) return cls;
+      const fresh = renamed.get(id) ?? crypto.randomUUID();
+      renamed.set(id, fresh);
+      return { ...cls, id: fresh };
+    });
+    if (renamed.size === 0) return changes;
+    const relationships = Array.isArray(source.relationships)
+      ? source.relationships.map(rel => ({ ...rel, sourceId: renamed.get(rel?.sourceId) ?? rel?.sourceId, targetId: renamed.get(rel?.targetId) ?? rel?.targetId }))
+      : source.relationships;
+    return { ...source, classes, relationships };
   }
 }

@@ -148,6 +148,108 @@ class CompactarYRestaurarTests(SimpleTestCase):
         self.assertEqual(restaurado["classes"][0]["id"], "c9")
         self.assertEqual(cambios["classes"][0]["id"], "c9")
 
+    def test_a_new_class_that_arrives_with_the_id_of_another_one_gets_a_free_id_so_it_does_not_overwrite_it(self):
+        # Caso real (probado con el modelo local el 2026-11-12): «agrega una clase Factura» llegó con el id de Cliente y lo habría renombrado y vaciado.
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Factura", "attributes": [{"name": "total", "type": "float"}], "methods": []}]}
+
+        clase = modelo.restaurar(cambios, alias, REAL, "agrega una clase Factura con total")["classes"][0]
+
+        reales = {c["id"] for c in REAL["classes"]}
+        self.assertNotIn(clase["id"], reales)
+        self.assertNotIn(clase["id"], alias)
+        self.assertEqual(clase["name"], "Factura")
+
+    def test_a_rename_request_keeps_the_id_of_the_class_that_is_renamed(self):
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Zona", "attributes": [], "methods": []}]}
+
+        for pedido in ("renombra la clase Cliente a Zona", "cambia el nombre de Cliente a Zona", "cambia Cliente por Zona"):
+            with self.subTest(pedido):
+                clase = modelo.restaurar(cambios, alias, REAL, pedido)["classes"][0]
+
+                self.assertEqual(clase["id"], REAL["classes"][0]["id"])
+
+    def test_naming_a_new_class_is_not_a_rename(self):
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Factura", "attributes": [], "methods": []}]}
+
+        clase = modelo.restaurar(cambios, alias, REAL, "agrega una clase llamada Factura")["classes"][0]
+
+        self.assertNotEqual(clase["id"], REAL["classes"][0]["id"])
+
+    def test_two_new_classes_with_the_same_id_get_different_ones_and_the_relationship_still_matches(self):
+        # Caso real: «Crea las clases Cliente y Pedido y una asociación»: el modelo dio c1 a las dos y relacionó c1 con c2.
+        cambios = {
+            "classes": [{"id": "c1", "name": "Cliente", "attributes": [], "methods": []}, {"id": "c1", "name": "Pedido", "attributes": [], "methods": []}],
+            "relationships": [{"type": "association", "sourceId": "c1", "targetId": "c2"}],
+        }
+
+        restaurado = modelo.restaurar(cambios, {}, {"classes": []}, "Crea las clases Cliente y Pedido y una asociación de Cliente a Pedido")
+
+        ids = {c["name"]: c["id"] for c in restaurado["classes"]}
+        self.assertNotEqual(ids["Cliente"], ids["Pedido"])
+        self.assertEqual((restaurado["relationships"][0]["sourceId"], restaurado["relationships"][0]["targetId"]), (ids["Cliente"], ids["Pedido"]))
+
+    def test_the_new_id_never_collides_with_a_real_id_of_the_diagram(self):
+        real = {"classes": [{"id": "c2", "name": "A", "attributes": [], "methods": []}, {"id": "c3", "name": "B", "attributes": [], "methods": []}], "relationships": []}
+        _, alias = modelo.compactar(real)
+        cambios = {"classes": [{"id": "c1", "name": "Nueva", "attributes": [], "methods": []}]}
+
+        clase = modelo.restaurar(cambios, alias, real, "agrega una clase Nueva")["classes"][0]
+
+        self.assertNotIn(clase["id"], {"c1", "c2", "c3"})
+
+    def test_without_the_instruction_ids_are_left_as_the_model_wrote_them(self):
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Factura", "attributes": [], "methods": []}]}
+
+        clase = modelo.restaurar(cambios, alias, REAL)["classes"][0]
+
+        self.assertEqual(clase["id"], REAL["classes"][0]["id"])
+
+    def test_an_attribute_the_model_wrote_as_a_method_goes_to_the_attributes(self):
+        # Caso real: «agrega el atributo telefono a Cliente» llegó como método `telefono`.
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Cliente", "attributes": [{"name": "id", "type": "int"}], "methods": [{"name": "comprar"}, {"name": "telefono"}]}]}
+
+        clase = modelo.restaurar(cambios, alias, REAL, "agrega el atributo telefono a Cliente")["classes"][0]
+
+        self.assertEqual([a["name"] for a in clase["attributes"]], ["id", "telefono"])
+        self.assertEqual([m["name"] for m in clase["methods"]], ["comprar"])
+
+    def test_a_request_that_talks_about_methods_keeps_the_method(self):
+        _, alias = modelo.compactar(REAL)
+        cambios = {"classes": [{"id": "c1", "name": "Cliente", "attributes": [{"name": "id", "type": "int"}], "methods": [{"name": "comprar"}, {"name": "telefono"}]}]}
+
+        for pedido in ("agrega el método telefono a Cliente", "agrega el atributo id y el método telefono a Cliente", "agrega telefono a Cliente"):
+            with self.subTest(pedido):
+                clase = modelo.restaurar(cambios, alias, REAL, pedido)["classes"][0]
+
+                self.assertIn("telefono", [m["name"] for m in clase["methods"]])
+
+    def test_an_inheritance_the_model_wrote_backwards_is_turned_around_when_the_request_says_who_inherits(self):
+        # Caso real: «Haz que Empleado herede de Persona» llegó con la flecha de Persona a Empleado.
+        real = {"classes": [{"id": "p", "name": "Persona", "attributes": [], "methods": []}, {"id": "e", "name": "Empleado", "attributes": [], "methods": []}], "relationships": []}
+        _, alias = modelo.compactar(real)
+        cambios = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c1", "targetId": "c2"}]}  # c1 = Persona, c2 = Empleado
+
+        for pedido in ("Haz que Empleado herede de Persona", "Empleado hereda de Persona", "que Empleado sea subclase de Persona", "Empleado extiende Persona"):
+            with self.subTest(pedido):
+                relacion = modelo.restaurar(cambios, alias, real, pedido)["relationships"][0]
+
+                self.assertEqual((relacion["sourceId"], relacion["targetId"]), ("e", "p"))  # del hijo al padre
+
+    def test_an_inheritance_that_is_already_right_or_a_request_that_does_not_say_is_left_alone(self):
+        real = {"classes": [{"id": "p", "name": "Persona", "attributes": [], "methods": []}, {"id": "e", "name": "Empleado", "attributes": [], "methods": []}], "relationships": []}
+        _, alias = modelo.compactar(real)
+        bien = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c2", "targetId": "c1"}]}
+        al_reves = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c1", "targetId": "c2"}]}
+
+        self.assertEqual(modelo.restaurar(bien, alias, real, "Empleado hereda de Persona")["relationships"][0]["sourceId"], "e")
+        self.assertEqual(modelo.restaurar(al_reves, alias, real, "relaciona Persona con Empleado")["relationships"][0]["sourceId"], "p")
+        self.assertEqual(modelo.restaurar(al_reves, alias, real)["relationships"][0]["sourceId"], "p")
+
     def test_the_empty_think_block_is_removed(self):
         self.assertEqual(modelo.quitar_razonamiento('<think>\n\n</think>\n\n{"a":1}'), '{"a":1}')
         self.assertEqual(modelo.quitar_razonamiento('{"a":1}'), '{"a":1}')

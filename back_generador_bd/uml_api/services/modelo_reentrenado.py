@@ -12,6 +12,7 @@ modelo no ve (parámetros y tipo de retorno de los métodos).
 """
 
 import copy
+import itertools
 import json
 import re
 
@@ -94,8 +95,76 @@ def _fusionar_miembros(devueltos, originales):
     return resultado
 
 
-def restaurar(cambios: dict, alias: dict, uml_real: dict) -> dict:
-    """Vuelve a los ids reales y recupera lo que el modelo no vio."""
+# Un pedido de renombrar: solo entonces es legítimo que una clase conserve su id y cambie de nombre.
+_RENOMBRAR = re.compile(r"renombr|cambi\w*\s+(?:de\s+|el\s+)?nombre|cambi\w*\s+(?:la\s+clase\s+)?\w+\s+(?:a|por)\s|ll[aá]mal[aeo]s?\b|pas\w*\s+a\s+llamarse", re.IGNORECASE)
+_ATRIBUTO = re.compile(r"\batributos?\b", re.IGNORECASE)
+_METODO = re.compile(r"\b(?:m[eé]todos?|operaci[oó]n(?:es)?|funci[oó]n(?:es)?)\b", re.IGNORECASE)
+
+
+def _corregir_ids(clases: list, alias: dict, reales: dict, instruccion: str | None) -> None:
+    """El modelo pequeño a veces le da a una clase nueva un id que ya existe (la nueva «Pedido» llega con el id de «Cliente»), o a dos clases nuevas el mismo.
+
+    Aplicado tal cual, la nueva clase renombraría (y vaciaría) a la que ya estaba. Con la instrucción a la vista se distingue: salvo que se pida renombrar,
+    una clase de nombre nuevo que llega con el id de otra es una clase nueva y recibe un id libre. Sin instrucción (`None`) no se toca nada.
+    """
+    if instruccion is None:
+        return
+    renombra = bool(_RENOMBRAR.search(instruccion))
+    nombre_de = {corto: reales[real].get("name") for corto, real in alias.items() if real in reales}
+    ocupados = set(alias) | set(reales) | {c.get("id") for c in clases if c.get("id")}
+    libres = (f"c{n}" for n in itertools.count(1) if f"c{n}" not in ocupados)
+    vistos = set()
+    for clase in clases:
+        id_ = clase.get("id")
+        ajeno = not renombra and id_ in nombre_de and isinstance(clase.get("name"), str) and clase["name"] != nombre_de[id_]
+        if id_ is not None and (ajeno or id_ in vistos):
+            clase["id"] = next(libres)
+            ocupados.add(clase["id"])
+        vistos.add(clase.get("id"))
+
+
+# «Empleado herede de Persona», «Perro extienda Animal», «Gato es subclase de Animal»: el primero es el hijo y el segundo el padre.
+_HERENCIA = re.compile(
+    r"\b(\w+)\s+(?:hered\w+\s+de|extiend\w+(?:\s+de)?|(?:es|sea)\s+(?:una\s+)?(?:subclase|hij[oa])\s+de)\s+(?:la\s+clase\s+)?(\w+)", re.IGNORECASE
+)
+
+
+def _orientar_herencia(resultado: dict, reales: dict, instruccion: str | None) -> None:
+    """El modelo pequeño a veces invierte la herencia (hace que Persona herede de Empleado). Si el pedido dice quién hereda de quién, la flecha va del hijo al padre."""
+    if not instruccion:
+        return
+    dicho = _HERENCIA.search(instruccion)
+    if not dicho:
+        return
+    hijo, padre = dicho.group(1).lower(), dicho.group(2).lower()
+    nombres = {c.get("id"): c.get("name") for c in reales.values()}
+    nombres.update({c.get("id"): c.get("name") for c in _lista(resultado.get("classes"))})
+    for relacion in _lista(resultado.get("relationships")):
+        if relacion.get("type") != "generalization":
+            continue
+        origen = str(nombres.get(relacion.get("sourceId")) or "").lower()
+        destino = str(nombres.get(relacion.get("targetId")) or "").lower()
+        if (origen, destino) == (padre, hijo):
+            relacion["sourceId"], relacion["targetId"] = relacion["targetId"], relacion["sourceId"]
+
+
+def _atributo_que_llego_como_metodo(clase: dict, original: dict, instruccion: str | None) -> None:
+    """«Agrega el atributo telefono a Cliente»: si el modelo lo puso como método, se pasa a atributo (solo si el pedido habla de atributos y no de métodos)."""
+    if not instruccion or not _ATRIBUTO.search(instruccion) or _METODO.search(instruccion):
+        return
+    if not isinstance(clase.get("methods"), list) or not isinstance(clase.get("attributes"), list):
+        return
+    conocidos = {m.get("name") for m in _lista(original.get("methods"))}
+    atributos = {a.get("name") for a in clase["attributes"] if isinstance(a, dict)}
+    for metodo in list(clase["methods"]):
+        nombre = metodo.get("name") if isinstance(metodo, dict) else None
+        if nombre and nombre not in conocidos and nombre not in atributos and re.search(rf"\b{re.escape(nombre)}\b", instruccion, re.IGNORECASE):
+            clase["methods"].remove(metodo)
+            clase["attributes"].append({"name": nombre, "type": "string"})
+
+
+def restaurar(cambios: dict, alias: dict, uml_real: dict, instruccion: str | None = None) -> dict:
+    """Vuelve a los ids reales y recupera lo que el modelo no vio. Con la `instruccion` también corrige los ids repetidos o ajenos de las clases nuevas."""
     resultado = copy.deepcopy(cambios)
     reales = {c.get("id"): c for c in _lista(uml_real.get("classes") if isinstance(uml_real, dict) else None)}
     # Nombre de cada clase existente -> su id corto. Un modelo pequeño a veces devuelve el id de otra
@@ -105,15 +174,19 @@ def restaurar(cambios: dict, alias: dict, uml_real: dict) -> dict:
         if corto.startswith("c") and real in reales and isinstance(reales[real].get("name"), str):
             corto_por_nombre.setdefault(reales[real]["name"], corto)
 
-    for clase in _lista(resultado.get("classes")):
+    clases = _lista(resultado.get("classes"))
+    for clase in clases:
         nombre = clase.get("name")
         if isinstance(nombre, str) and nombre in corto_por_nombre and clase.get("id") != corto_por_nombre[nombre]:
             clase["id"] = corto_por_nombre[nombre]  # si el nombre es el de una clase que existe, manda el nombre
+    _corregir_ids(clases, alias, reales, instruccion)
+    for clase in clases:
         real = alias.get(clase.get("id"))
         if real is None:
             continue
         clase["id"] = real
         original = reales.get(real, {})
+        _atributo_que_llego_como_metodo(clase, original, instruccion)
         for campo in ("attributes", "methods"):
             if isinstance(clase.get(campo), list):
                 clase[campo] = _fusionar_miembros(clase[campo], _lista(original.get(campo)))
@@ -121,4 +194,5 @@ def restaurar(cambios: dict, alias: dict, uml_real: dict) -> dict:
         for campo in ("id", "sourceId", "targetId"):
             if relacion.get(campo) in alias:
                 relacion[campo] = alias[relacion[campo]]
+    _orientar_herencia(resultado, reales, instruccion)
     return resultado

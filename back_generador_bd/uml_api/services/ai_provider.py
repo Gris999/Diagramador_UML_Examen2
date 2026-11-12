@@ -159,7 +159,7 @@ class OllamaProvider(AIProvider):
         if self.change_model:
             compacto, alias = modelo_reentrenado.compactar(uml)
             respuesta = self._chat_reentrenado(modelo_reentrenado.mensajes(compacto, instruction))
-            return modelo_reentrenado.restaurar(_parse_changes(respuesta), alias, uml)
+            return modelo_reentrenado.restaurar(_parse_changes(respuesta), alias, uml, instruction)
         prompt = (
             build_change_prompt(instruction, uml)
             + "\n\nResponde ÚNICAMENTE con el JSON, sin explicaciones ni Markdown."
@@ -221,7 +221,7 @@ class LocalParallelProvider(AIProvider):
         respuesta = self._complete(
             self.CHANGE_MODEL, modelo_reentrenado.mensajes(compacto, instruction), self.CHANGE_MAX_TOKENS, 0
         )
-        return modelo_reentrenado.restaurar(_parse_changes(respuesta), alias, uml)
+        return modelo_reentrenado.restaurar(_parse_changes(respuesta), alias, uml, instruction)
 
     def reachable(self) -> bool:
         try:
