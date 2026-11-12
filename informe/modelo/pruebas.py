@@ -434,8 +434,10 @@ caso("CU10", "B",
       b("uml_api/tests/test_xmi_service.py", "XmiExportTests.test_export_is_deterministic_and_generated_ids_are_unique"),
       b("uml_api/tests/test_xmi_layout.py", "XMILayoutTests.test_round_trip_preserves_class_position_and_size"),
       b("uml_api/tests/test_xmi_enterprise_architect.py", "EnterpriseArchitectXMITests.test_export_uses_uml_primitive_type_hrefs"),
+      b("uml_api/tests/test_xmi_enterprise_architect.py", "AppToEnterpriseArchitectExportTests.test_primitive_parameter_and_return_types_are_written_as_uml_primitive_types"),
       f("services/interop/xmi.service.spec.ts", "omits association-class connectors while preserving supported relationships")],
-     manual=["Exportar el XMI de un diagrama con clases y relaciones y abrirlo en Enterprise Architect 17.2: clases, atributos, relaciones y multiplicidades intactos (prueba física anterior, ver nota)."])
+     manual=["Exportar el XMI de un diagrama con clases y relaciones y abrirlo en Enterprise Architect 17.2: clases, atributos, relaciones y multiplicidades intactos (prueba física anterior, ver nota).",
+             "Prueba del 2026-11-12 con EA 17.2 (CrossOver): el XMI de un diagrama con clase abstracta, interfaz, enumeración, visibilidad y tipos de parámetros y retorno se importó en EA con todo (abstracto, Interface, Enumeration, Private/Protected/Package/Public, tipos y retornos)."])
 caso("CU10", "A1",
      "Se elige «Importar XMI» y se sube un archivo exportado por Enterprise Architect.",
      "El servidor lo valida y lo convierte en un diagrama con sus clases, atributos, relaciones y multiplicidades (con o sin prefijo de espacio de nombres); el viaje ida y vuelta conserva el modelo.",
@@ -444,7 +446,10 @@ caso("CU10", "A1",
       b("uml_api/tests/test_xmi_service.py", "XmiImportTests.test_json_xmi_json_round_trip"),
       b("uml_api/tests/test_xmi_service.py", "EnterpriseArchitectStyleImportTests.test_imports_external_xmi_supported_subset"),
       b("uml_api/tests/test_xmi_service.py", "EnterpriseArchitectStyleImportTests.test_importer_does_not_depend_on_namespace_prefix"),
-      b("uml_api/tests/test_xmi_enterprise_architect.py", "EnterpriseArchitectXMITests.test_imports_ea_association_type_references_and_multiplicity")])
+      b("uml_api/tests/test_xmi_enterprise_architect.py", "EnterpriseArchitectXMITests.test_imports_ea_association_type_references_and_multiplicity"),
+      b("uml_api/tests/test_xmi_enterprise_architect.py", "RealEnterpriseArchitectExportTests.test_every_xmi_variant_of_ea_gives_the_same_classes_and_kinds"),
+      b("uml_api/tests/test_xmi_enterprise_architect.py", "RealEnterpriseArchitectExportTests.test_every_xmi_variant_keeps_the_visibility_of_each_member_including_the_public_ones"),
+      b("uml_api/tests/test_xmi_enterprise_architect.py", "AppEnterpriseArchitectRoundTripTests.test_what_ea_exports_after_importing_the_apps_file_keeps_kinds_visibility_and_types")])
 caso("CU10", "A2",
      "Se elige «Exportar como Imagen».",
      "Se genera un PNG con fondo claro, el diagrama completo y sin los elementos de la aplicación.",

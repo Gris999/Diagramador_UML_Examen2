@@ -207,10 +207,16 @@ UML_PRIMITIVE_TYPES = {
 }
 
 
-def _append_uml_type(element: ET.Element, type_name: str) -> None:
+def _append_uml_type(element: ET.Element, type_name: str, class_ids: dict[str, str] | None = None) -> None:
+    """Escribe el tipo de un atributo o parámetro.
+
+    Los tipos primitivos van como `<type href=…#Real>` (Enterprise Architect los entiende así). Un tipo que es una clase del diagrama se
+    referencia por el id de esa clase (así EA lo enlaza a la clase); cualquier otro se deja con su nombre. `void` no es un tipo de UML:
+    un retorno sin tipo ya significa «no devuelve nada».
+    """
     type_name = str(type_name or "").strip()
 
-    if not type_name:
+    if not type_name or type_name.lower() == "void":
         return
 
     primitive_name = UML_PRIMITIVE_TYPES.get(type_name.lower())
@@ -226,8 +232,8 @@ def _append_uml_type(element: ET.Element, type_name: str) -> None:
         )
         return
 
-    # Custom/class types keep the existing reference style.
-    element.set("type", type_name)
+    # Un tipo que es una clase del diagrama se referencia por su id; cualquier otro conserva su nombre.
+    element.set("type", (class_ids or {}).get(type_name, type_name))
 
 
 def _parse_parameters(parameters: str) -> list[tuple[str, str]]:
@@ -351,8 +357,9 @@ def _set_visibility(element: ET.Element, member: dict[str, Any]) -> None:
         element.set("visibility", visibility)
 
 
-def _visibility_of(element: ET.Element) -> dict[str, str]:
-    sign = VISIBILITY_FROM_XMI.get(element.attrib.get("visibility", ""))
+def _visibility_of(element: ET.Element, default: str | None = None) -> dict[str, str]:
+    """La visibilidad de un atributo o método. Si el XMI no la dice, vale `default`: en un XMI de Enterprise Architect una visibilidad ausente es la pública."""
+    sign = VISIBILITY_FROM_XMI.get(element.attrib.get("visibility", "")) or default
 
     return {"visibility": sign} if sign else {}
 
@@ -381,6 +388,14 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
 
     class_elements: dict[str, ET.Element] = {}
     layout_entries: list[dict[str, Any]] = []
+
+    # Nombre de cada clase -> su id, para que un atributo o parámetro «de tipo Cliente» quede enlazado a la clase Cliente.
+    class_ids_by_name: dict[str, str] = {}
+    for class_index, uml_class in enumerate(uml_json.get("classes", [])):
+        class_ids_by_name.setdefault(
+            str(uml_class.get("name") or f"Class{class_index + 1}"),
+            str(uml_class.get("id") or _new_id(f"class-{class_index}")),
+        )
 
     for class_index, uml_class in enumerate(uml_json.get("classes", [])):
         class_id = str(
@@ -455,6 +470,7 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
             _append_uml_type(
                 attribute_element,
                 str(attribute.get("type", "")),
+                class_ids_by_name,
             )
 
         for method_index, method in enumerate(
@@ -491,22 +507,20 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                     "direction": "in",
                 }
 
-                if parameter_type:
-                    parameter_data["type"] = parameter_type
-
-                ET.SubElement(
+                parameter_element = ET.SubElement(
                     operation,
                     "ownedParameter",
                     parameter_data,
                 )
+                _append_uml_type(parameter_element, parameter_type, class_ids_by_name)
 
             return_type = str(
                 method.get("returnType", "")
                 or ""
             ).strip()
 
-            if return_type:
-                ET.SubElement(
+            if return_type and return_type.lower() != "void":
+                return_element = ET.SubElement(
                     operation,
                     "ownedParameter",
                     {
@@ -516,9 +530,9 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                         ),
                         "name": "return",
                         "direction": "return",
-                        "type": return_type,
                     },
                 )
+                _append_uml_type(return_element, return_type, class_ids_by_name)
 
     supported_relationships = {
         "association",
@@ -705,11 +719,62 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
     )
 
 
-def _read_attribute_type(element: ET.Element) -> str:
+# Las clases (y los tipos) de un XMI cuelgan de `packagedElement` (UML 2.1 en adelante) o de `ownedMember` (el XMI 2.1 «UML 2.0» de Enterprise Architect).
+PACKAGED_TAGS = ("packagedElement", "ownedMember")
+
+
+class _ReadContext:
+    """Lo que hace falta saber de todo el documento para leer bien un tipo o una visibilidad.
+
+    * `names`: nombre de cada elemento por su id. Enterprise Architect enlaza los tipos por id (`type="EAnone_void"`, o el id de una clase): hay que
+      volver al nombre.
+    * `extension_types`: el nombre del tipo que EA guarda en su extensión (`properties type="double"`), porque en el cuerpo del XMI a veces deja
+      un tipo genérico (`UnlimitedNatural`) en lugar del que el usuario eligió.
+    * `default_visibility`: lo que significa una visibilidad ausente. En un XMI de EA es la pública (EA solo escribe las demás).
+    """
+
+    def __init__(self, root: ET.Element | None = None):
+        self.names: dict[str, str] = {}
+        self.extension_types: dict[str, str] = {}
+        self.default_visibility: str | None = None
+
+        if root is None:
+            return
+
+        for element in root.iter():
+            local_name = _local_name(element.tag)
+
+            if local_name in PACKAGED_TAGS:
+                element_id, name = _xmi_id(element), element.attrib.get("name")
+                if element_id and name:
+                    self.names[element_id] = name
+
+            elif local_name == "Documentation":
+                if str(element.attrib.get("exporter", "")).strip().lower() == "enterprise architect":
+                    self.default_visibility = "+"
+
+            elif local_name in ("attribute", "parameter"):
+                idref = element.attrib.get(_xmi_attr("idref"))
+                properties = next((child for child in element if _local_name(child.tag) == "properties"), None)
+                if idref and properties is not None and properties.attrib.get("type"):
+                    self.extension_types[idref] = properties.attrib["type"]
+
+            elif local_name == "operation":
+                idref = element.attrib.get(_xmi_attr("idref"))
+                returned = next((child for child in element if _local_name(child.tag) == "type"), None)
+                if idref and returned is not None and returned.attrib.get("type"):
+                    self.extension_types[idref] = returned.attrib["type"]
+
+    def resolve(self, value: str) -> str:
+        return self.names.get(value, value)
+
+
+def _read_attribute_type(element: ET.Element, context: _ReadContext | None = None) -> str:
+    context = context or _ReadContext()
     direct_type = element.attrib.get("type")
 
     if direct_type:
-        return direct_type
+        return context.resolve(direct_type)
 
     for child in element:
         if _local_name(child.tag) != "type":
@@ -718,7 +783,7 @@ def _read_attribute_type(element: ET.Element) -> str:
         href = child.attrib.get("href", "")
 
         if "#" in href:
-            return href.rsplit("#", 1)[1]
+            return context.resolve(href.rsplit("#", 1)[1])
 
         idref = (
             child.attrib.get(_xmi_attr("idref"))
@@ -726,12 +791,12 @@ def _read_attribute_type(element: ET.Element) -> str:
         )
 
         if idref:
-            return idref
+            return context.resolve(idref)
 
         child_id = _xmi_id(child)
 
         if child_id:
-            return child_id
+            return context.resolve(child_id)
 
     return ""
 
@@ -739,7 +804,9 @@ def _read_attribute_type(element: ET.Element) -> str:
 def _parse_class(
     class_element: ET.Element,
     fallback_seed: str = "0",
+    context: _ReadContext | None = None,
 ) -> dict[str, Any]:
+    context = context or _ReadContext()
     class_id = _xmi_id(class_element) or _new_id(
         f"import-class-{fallback_seed}-{class_element.attrib.get('name', '')}"
     )
@@ -765,8 +832,9 @@ def _parse_class(
             attributes.append(
                 {
                     "name": child.attrib.get("name", ""),
-                    "type": _read_attribute_type(child),
-                    **_visibility_of(child),
+                    # El tipo que EA guarda en su extensión es el que el usuario eligió; el del cuerpo puede ser uno genérico.
+                    "type": context.extension_types.get(_xmi_id(child) or "") or _read_attribute_type(child, context),
+                    **_visibility_of(child, context.default_visibility),
                 }
             )
 
@@ -783,8 +851,11 @@ def _parse_class(
                     "in",
                 )
 
-                parameter_type = _read_attribute_type(
-                    parameter
+                parameter_type = context.extension_types.get(
+                    _xmi_id(parameter) or ""
+                ) or _read_attribute_type(
+                    parameter,
+                    context,
                 )
 
                 if direction == "return":
@@ -805,12 +876,15 @@ def _parse_class(
                 elif parameter_type:
                     parameters.append(parameter_type)
 
+            # Si el cuerpo no dice qué devuelve, la extensión de EA sí (`void`, `double`…).
+            return_type = return_type or context.extension_types.get(_xmi_id(child) or "", "")
+
             methods.append(
                 {
                     "name": child.attrib.get("name", ""),
                     "parameters": ", ".join(parameters),
                     "returnType": return_type,
-                    **_visibility_of(child),
+                    **_visibility_of(child, context.default_visibility),
                 }
             )
 
@@ -827,7 +901,7 @@ def _parse_class(
 
 def _read_kind(class_element: ET.Element) -> str:
     """El tipo de clase UML 2.5 de un elemento: clase, clase abstracta (`isAbstract`), interfaz o enumeración."""
-    type_name = _uml_type_name(class_element) if _local_name(class_element.tag) == "packagedElement" else _local_name(class_element.tag)
+    type_name = _uml_type_name(class_element) if _local_name(class_element.tag) in PACKAGED_TAGS else _local_name(class_element.tag)
 
     if type_name == "Interface":
         return "interface"
@@ -847,7 +921,7 @@ CLASS_TYPE_NAMES = ("Class", "Interface", "Enumeration")
 def _is_class_element(element: ET.Element) -> bool:
     local_name = _local_name(element.tag)
 
-    if local_name == "packagedElement":
+    if local_name in PACKAGED_TAGS:
         return _uml_type_name(element) in CLASS_TYPE_NAMES
 
     return local_name in CLASS_TYPE_NAMES
@@ -932,6 +1006,7 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
     relationships: list[dict[str, Any]] = []
 
     class_elements: dict[str, ET.Element] = {}
+    context = _ReadContext(root)
 
     for element_index, element in enumerate(root.iter()):
         if not _is_class_element(element):
@@ -940,6 +1015,7 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
         parsed_class = _parse_class(
             element,
             fallback_seed=str(element_index),
+            context=context,
         )
         class_id = parsed_class["id"]
 
@@ -973,7 +1049,7 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
             )
 
     for element in root.iter():
-        if _local_name(element.tag) != "packagedElement":
+        if _local_name(element.tag) not in PACKAGED_TAGS:
             continue
 
         element_type = _uml_type_name(element)
@@ -991,6 +1067,7 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
             first_end = owned_ends[0]
             second_end = owned_ends[1]
 
+            # Los extremos se enlazan por id de clase: aquí no se vuelve al nombre.
             first_type = _read_attribute_type(first_end)
             second_type = _read_attribute_type(second_end)
 

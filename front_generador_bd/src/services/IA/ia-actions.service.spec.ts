@@ -123,6 +123,33 @@ describe('IaActionsService', () => {
       expect(loadFromJson).toHaveBeenCalledOnceWith(changes, true);
     });
 
+    it('gives a new class an id of its own when the model numbered it like JointJS does (c2), and the relationships follow it', () => {
+      // El modelo local numera sus clases «c1», «c2»…: igual que el `cid` interno de Backbone, y `graph.getCell('c2')` devolvería otra celda.
+      const changes = {
+        classes: [{ id: 'c1', name: 'Cliente', attributes: [] }, { id: 'c2', name: 'Pedido', attributes: [] }],
+        relationships: [{ type: 'association', sourceId: 'c1', targetId: 'c2' }]
+      };
+      send.and.returnValue(of({ reply: 'Listo', intent: 'confirm', changes, destructive: 0 }));
+
+      service.request('sala', 'auto', 'sí').subscribe();
+
+      const applied = loadFromJson.calls.mostRecent().args[0];
+      expect(applied.classes[0].id).toBe('c1'); // ya está en el diagrama: conserva el suyo
+      expect(applied.classes[1].id).not.toBe('c2');
+      expect(applied.classes[1].id).not.toMatch(/^c\d+$/);
+      expect(applied.relationships[0]).toEqual({ type: 'association', sourceId: 'c1', targetId: applied.classes[1].id });
+      expect(changes.classes[1].id).toBe('c2'); // lo recibido no se modifica
+    });
+
+    it('leaves alone the ids that do not look like the internal ones', () => {
+      const changes = { classes: [{ id: 'node-pedido', name: 'Pedido' }, { id: '7f3a9c1e-0000-4000-8000-000000000001', name: 'Otra' }], relationships: [] };
+      send.and.returnValue(of({ reply: 'Listo', intent: 'confirm', changes, destructive: 0 }));
+
+      service.request('sala', 'auto', 'sí').subscribe();
+
+      expect(loadFromJson).toHaveBeenCalledOnceWith(changes, true);
+    });
+
     it('does not apply a proposal: it only waits for the permission', () => {
       send.and.returnValue(of({
         reply: 'Esto es lo que haría', intent: 'change', proposal: { lines: ['Crear la clase Factura'], destructive: 0 }

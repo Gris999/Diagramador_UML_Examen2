@@ -55,6 +55,14 @@ class LocalParallelProviderTests(SimpleTestCase):
         self.assertEqual(changes["classes"][0]["id"], "real-1")
         self.assertEqual([a["name"] for a in changes["classes"][0]["attributes"]], ["nombre", "correo"])
 
+    def test_a_new_class_that_the_model_numbers_like_an_existing_one_does_not_overwrite_it(self):
+        reply = '{"classes":[{"id":"c1","name":"Producto","attributes":[{"name":"precio","type":"float"}],"methods":[]}],"relationships":[]}'
+        with mock.patch("uml_api.services.ai_provider.requests.post", return_value=completion(reply)):
+            changes = self.provider().change("agrega una clase Producto con precio", UML)
+
+        self.assertNotEqual(changes["classes"][0]["id"], "real-1")  # Cliente sigue siendo Cliente
+        self.assertEqual(changes["classes"][0]["name"], "Producto")
+
     def test_an_answer_that_is_not_a_valid_change_is_an_error(self):
         with mock.patch("uml_api.services.ai_provider.requests.post", return_value=completion("no sé")):
             with self.assertRaises(AIProviderError):
