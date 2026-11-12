@@ -50,6 +50,14 @@ OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
 OLLAMA_MODEL = env("OLLAMA_MODEL", default="qwen3.5:9b")
 # Modelo reentrenado (carpeta ml/) para los cambios al diagrama; vacío = usar OLLAMA_MODEL.
 OLLAMA_CHANGE_MODEL = env("OLLAMA_CHANGE_MODEL", default="")
+# Motor del modelo "Local": "ollama" (atiende de uno en uno) o "mlx" (la puerta de `ml/serve` con mlx_lm.server, varios a la vez).
+# LOCAL_AI_URL es la dirección de la puerta (puede ser un túnel hacia el computador de quien presenta) y LOCAL_AI_TOKEN su clave.
+LOCAL_ENGINE = env("LOCAL_ENGINE", default="ollama")
+LOCAL_AI_URL = env("LOCAL_AI_URL", default="http://127.0.0.1:8090")
+LOCAL_AI_TOKEN = env("LOCAL_AI_TOKEN", default="")
+# Cuántas personas atiende la IA a la vez en una sala (0 = el valor de cada modelo: nube 4, local con mlx 4, local con Ollama 1).
+AI_CONCURRENCY_GEMINI = env.int("AI_CONCURRENCY_GEMINI", default=0)
+AI_CONCURRENCY_LOCAL = env.int("AI_CONCURRENCY_LOCAL", default=0)
 
 # Entrar con el correo (`collab.auth`). Con AUTH_REQUIRED=True la API y el WebSocket piden una sesión; apagado (por defecto) todo funciona como antes.
 # Es el interruptor para volver al comportamiento sin cuentas si el correo falla: poner False y reiniciar Django.

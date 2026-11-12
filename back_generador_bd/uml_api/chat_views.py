@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from collab.groups import room_group_name, viewers_group_name
 from collab.models import IaAttempt, Participant
 from collab.stores import get_activity_store, get_conversation_store, get_rate_limiter, get_room_state, get_turn_store
-from .services.ai_provider import AIProviderError, describe_ai_provider, get_ai_provider, provider_options
+from .services.ai_provider import AIProviderError, concurrency, describe_ai_provider, get_ai_provider, provider_options
 from .services.change_guard import count_destructive, validate_changes
 from .services.change_summary import summarize_changes
 from .services.chat_intent import AI_NAME, ASK, CHANGE, CONFIRM, DISCARD, HISTORY, REVIEW, classify
@@ -46,13 +46,13 @@ MAX_SAYS_PER_MINUTE = 30
 MAX_ROOM_REQUESTS_PER_MINUTE = 30
 MAX_GLOBAL_REQUESTS_PER_MINUTE = 60
 ATTEMPT_RETENTION = timedelta(hours=1)
-# La IA atiende un pedido a la vez por sala, en orden de llegada, y los demás esperan en fila: el turno vence solo a los 130 s, un poco más que lo que espera el navegador (110 s), para que si
-# quien pidió se desconecta la sala no quede esperando para siempre.
+# La IA atiende a varias personas a la vez en una sala (los cupos dependen del modelo: `ai_provider.concurrency`), una persona de a un pedido, y los demás esperan en fila en orden de llegada:
+# el turno vence solo a los 130 s, un poco más que lo que espera el navegador (110 s), para que si quien pidió se desconecta la sala no quede esperando para siempre.
 TURN_TTL_SECONDS = 130
 # Cuánto espera un pedido su turno cuando la IA está atendiendo a otras personas. Con lo que tarda en contestar (hasta 110 s en el navegador) no
 # puede ser mucho: pasado este tiempo se le avisa que hay fila y que vuelva a intentarlo.
 TURN_WAIT_SECONDS = 80
-TURN_POLL_SECONDS = 0.3
+TURN_POLL_SECONDS = 0.15
 
 
 def _participant_for(request, room):
@@ -105,16 +105,26 @@ def _ia_unavailable():
     )
 
 
+def _slots_for(room):
+    """Cuántas personas puede atender a la vez la IA en esta sala, según el modelo que eligió (una si no se puede saber)."""
+    try:
+        return concurrency(_state_get(_provider_key(room)))
+    except Exception as exc:
+        logger.warning("No se pudo saber cuántos pedidos atiende la IA a la vez en la sala %s (%s)", room, type(exc).__name__)
+        return 1
+
+
 def _take_turn(room, participant):
     """Espera el turno de la sala y lo toma. Devuelve `(turnos, respuesta)`: `respuesta` es el 409 si el turno no llegó a tiempo.
 
-    La IA atiende a varias personas a la vez: si está ocupada con otra, el pedido se anota en la fila de la sala y se atiende cuando le toca, en el orden
-    en que llegaron, sin que la persona tenga que volver a pedirlo. Solo si esperó `TURN_WAIT_SECONDS` sin que le llegara el turno se le dice que hay mucha fila.
+    La IA atiende a varias personas a la vez, hasta los cupos del modelo de la sala: si todos están ocupados, el pedido se anota en la fila de la sala y se atiende
+    en cuanto queda un cupo, en el orden en que llegaron, sin que la persona tenga que volver a pedirlo. Solo si esperó `TURN_WAIT_SECONDS` sin que le llegara el turno se le dice que hay mucha fila.
 
     Si Redis falla la sala sigue funcionando sin turno (se registra el fallo): los topes de uso siguen protegiendo el costo.
     """
     turnos = get_turn_store()
     holder = "otra persona"
+    slots = _slots_for(room)
     try:
         deadline = time.monotonic() + TURN_WAIT_SECONDS
         # Anotarse siempre primero, aunque la IA esté libre: así nadie se cuela por delante de quien ya esperaba.
@@ -125,7 +135,7 @@ def _take_turn(room, participant):
                 if place is None:  # la anotación venció o se perdió: se vuelve a anotar al final
                     turnos.line_up(room, participant.id, participant.display_name, TURN_WAIT_SECONDS + TURN_TTL_SECONDS)
                 elif place == 0:
-                    taken, holder = turnos.take(room, participant.id, participant.display_name, TURN_TTL_SECONDS)
+                    taken, holder = turnos.take(room, participant.id, participant.display_name, TURN_TTL_SECONDS, slots)
                     if taken:
                         return turnos, None
                 if time.monotonic() >= deadline:

@@ -288,6 +288,25 @@ describe('CollaborationService IA signals', () => {
     expect(service.iaStatus()).toEqual({ state: 'idle', by: '' });
   });
 
+  it('says who the IA is attending when it attends several people at once', () => {
+    p2p.onData('peer-1', { t: 'ia_status', state: 'thinking', by: 'Ana', requestId: 'a' });
+    p2p.onData('peer-2', { t: 'ia_status', state: 'thinking', by: 'Beto', requestId: 'b' });
+    expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Ana y Beto' });
+
+    p2p.onData('peer-3', { t: 'ia_status', state: 'thinking', by: 'Carla', requestId: 'c' });
+    expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Ana, Beto y Carla' });
+
+    p2p.onData('peer-1', { t: 'ia_status', state: 'idle', by: '', requestId: 'a' });
+    expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Beto y Carla' });
+  });
+
+  it('names a person once even if she has two requests', () => {
+    p2p.onData('peer-1', { t: 'ia_status', state: 'thinking', by: 'Ana', requestId: 'a1' });
+    p2p.onData('peer-1', { t: 'ia_status', state: 'thinking', by: 'Ana', requestId: 'a2' });
+
+    expect(service.iaStatus()).toEqual({ state: 'thinking', by: 'Ana' });
+  });
+
   it('understands status messages from older clients that carry no request id', () => {
     p2p.onData('peer-1', { t: 'ia_status', state: 'thinking', by: 'Ana' });
     expect(service.iaStatus().state).toBe('thinking');

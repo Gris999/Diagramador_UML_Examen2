@@ -167,8 +167,78 @@ class OllamaProvider(AIProvider):
         return _parse_changes(self._generate(prompt))
 
 
+class LocalParallelProvider(AIProvider):
+    """Modelo local que contesta varios pedidos a la vez: `mlx_lm.server` mezcla los pedidos en una sola pasada del modelo.
+
+    Ollama en un Mac con Apple Silicon (motor MLX) atiende de uno en uno aunque se le suba `OLLAMA_NUM_PARALLEL`; `mlx_lm.server` con
+    `--decode-concurrency` sí los atiende juntos. Este proveedor le habla a la puerta de `ml/serve` (una sola dirección y una clave), que
+    reparte según el nombre del modelo: `cambios` es el Qwen3-4B con el adaptador que reentrenó el equipo y `chat` es el mismo modelo
+    sin adaptador, para preguntas y revisiones.
+    """
+
+    request_timeout = 100
+    CHAT_MODEL = "chat"
+    CHANGE_MODEL = "cambios"
+    CHAT_MAX_TOKENS = 800
+    CHANGE_MAX_TOKENS = 700
+
+    def __init__(self, base_url=None, token=None):
+        self.base_url = (base_url or getattr(settings, "LOCAL_AI_URL", "http://127.0.0.1:8090")).rstrip("/")
+        self.token = token if token is not None else getattr(settings, "LOCAL_AI_TOKEN", "")
+
+    def headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+
+    def _complete(self, model: str, messages: list, max_tokens: int, temperature: float) -> str:
+        body = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": False,
+        }
+        try:
+            response = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                json=body,
+                headers=self.headers(),
+                timeout=self.request_timeout,
+            )
+            response.raise_for_status()
+            text = response.json()["choices"][0]["message"]["content"]
+        except Exception as exc:
+            # Solo el tipo del error: el mensaje de `requests` lleva la dirección y no hace falta mostrarla.
+            raise AIProviderError(f"El modelo local no respondió ({type(exc).__name__}).") from None
+        if not isinstance(text, str) or not text.strip():
+            raise AIProviderError("El modelo local devolvió una respuesta vacía.")
+        return text.strip()
+
+    def chat(self, prompt: str) -> str:
+        return self._complete(self.CHAT_MODEL, [{"role": "user", "content": prompt}], self.CHAT_MAX_TOKENS, 0.3)
+
+    def change(self, instruction: str, uml) -> dict:
+        compacto, alias = modelo_reentrenado.compactar(uml)
+        respuesta = self._complete(
+            self.CHANGE_MODEL, modelo_reentrenado.mensajes(compacto, instruction), self.CHANGE_MAX_TOKENS, 0
+        )
+        return modelo_reentrenado.restaurar(_parse_changes(respuesta), alias, uml)
+
+    def reachable(self) -> bool:
+        try:
+            return requests.get(
+                f"{self.base_url}/v1/models", headers=self.headers(), timeout=OLLAMA_CHECK_TIMEOUT
+            ).ok
+        except Exception:
+            return False
+
+
 GEMINI = "gemini"
+# El modelo "Local" de la sala. Detrás puede estar Ollama (un pedido a la vez) o la puerta de `ml/serve` con `mlx_lm.server` (varios a la vez): `LOCAL_ENGINE`.
 OLLAMA = "ollama"
+ENGINE_OLLAMA = "ollama"
+ENGINE_MLX = "mlx"
+# Cuántas personas atiende a la vez en una sala si no se configura otra cosa: la nube y el motor mlx contestan varias a la vez; Ollama, una.
+DEFAULT_SLOTS = {GEMINI: 4, ENGINE_MLX: 4, ENGINE_OLLAMA: 1}
 # Cuánto tiempo se recuerda si el modelo local responde, para no preguntarle en cada pedido de la pantalla.
 OLLAMA_CHECK_SECONDS = 10
 OLLAMA_CHECK_TIMEOUT = 1.5
@@ -189,16 +259,35 @@ def _gemini_configured() -> bool:
     return bool(key) and str(key).strip().lower() not in {"placeholder", "change-me"}
 
 
+def local_engine() -> str:
+    """El motor del modelo local: `ollama` (por defecto) o `mlx` (varios pedidos a la vez)."""
+    engine = str(getattr(settings, "LOCAL_ENGINE", ENGINE_OLLAMA)).strip().lower()
+    return ENGINE_MLX if engine == ENGINE_MLX else ENGINE_OLLAMA
+
+
+def concurrency(name=None) -> int:
+    """Cuántas personas puede atender a la vez la IA en una sala con ese modelo (al menos una)."""
+    name = str(name).strip().lower() if name else default_provider_name()
+    if name == OLLAMA:
+        configured = int(getattr(settings, "AI_CONCURRENCY_LOCAL", 0) or 0)
+        return max(1, configured or DEFAULT_SLOTS[local_engine()])
+    configured = int(getattr(settings, "AI_CONCURRENCY_GEMINI", 0) or 0)
+    return max(1, configured or DEFAULT_SLOTS[GEMINI])
+
+
 def _ollama_reachable() -> bool:
-    """El modelo local contesta ahora (se recuerda unos segundos). En el servidor de AWS no hay modelo local y da `False`."""
+    """El modelo local contesta ahora (se recuerda unos segundos). En el servidor de AWS sin túnel no hay modelo local y da `False`."""
     now = time.monotonic()
     if _ollama_check["at"] is not None and now - _ollama_check["at"] < OLLAMA_CHECK_SECONDS:
         return _ollama_check["up"]
-    base_url = str(getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
-    try:
-        up = requests.get(f"{base_url}/api/tags", timeout=OLLAMA_CHECK_TIMEOUT).ok
-    except Exception:
-        up = False
+    if local_engine() == ENGINE_MLX:
+        up = LocalParallelProvider().reachable()
+    else:
+        base_url = str(getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
+        try:
+            up = requests.get(f"{base_url}/api/tags", timeout=OLLAMA_CHECK_TIMEOUT).ok
+        except Exception:
+            up = False
     _ollama_check.update(at=now, up=up)
     return up
 
@@ -208,11 +297,13 @@ def get_ai_provider(name=None) -> AIProvider:
     if name == GEMINI:
         return GeminiProvider()
     if name == OLLAMA:
-        return OllamaProvider()
+        return LocalParallelProvider() if local_engine() == ENGINE_MLX else OllamaProvider()
     raise AIProviderError(f"Proveedor de IA desconocido: {name}")
 
 
 def _ollama_label() -> str:
+    if local_engine() == ENGINE_MLX:
+        return "IA local (Qwen3-4B; cambios: reentrenado, varios a la vez)"
     model = getattr(settings, "OLLAMA_MODEL", "qwen3.5:9b")
     change_model = getattr(settings, "OLLAMA_CHANGE_MODEL", "")
     if change_model:
@@ -234,7 +325,7 @@ def provider_options() -> list:
         {"id": GEMINI, "label": "Nube (Gemini)", "available": _gemini_configured()},
         {
             "id": OLLAMA,
-            "label": f"Local ({getattr(settings, 'OLLAMA_MODEL', 'qwen3.5:9b')})",
+            "label": "Local (Qwen3-4B)" if local_engine() == ENGINE_MLX else f"Local ({getattr(settings, 'OLLAMA_MODEL', 'qwen3.5:9b')})",
             "available": _ollama_reachable(),
         },
     ]

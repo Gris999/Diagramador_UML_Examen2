@@ -50,7 +50,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 
 - Pulsa «Chat» (abajo a la derecha). Es el chat de toda la sala: las personas se escriben entre sí y lo ven todas al instante, sin recargar la página. Cada mensaje muestra quién lo escribió. Si llegan mensajes con el chat cerrado, el botón «Chat» muestra un número.
 - La IA de la sala se llama **Uma**. Solo responde cuando le hablas: empieza el mensaje con su nombre («Uma, …» o «IA, …»). Lo que escribas sin su nombre es para tu equipo y Uma no se entera.
-- Uma atiende a varias personas a la vez: si está ocupada con otra, tu pedido entra en la fila de la sala y ella lo contesta cuando le toca, en orden de llegada. No hace falta volver a pedirlo.
+- Uma atiende a varias personas a la vez (hasta cuatro por sala con la nube o con el modelo local en paralelo): si le hablan varias personas juntas, todas reciben su respuesta al mismo tiempo. Si ya atiende a todas las que puede, tu pedido entra en la fila de la sala y ella lo contesta en cuanto queda un lugar, en orden de llegada. No hace falta volver a pedirlo.
 - Lo que le puedes decir a Uma, por ejemplo:
   - Una pregunta, como «Uma, ¿cuántas clases hay?» o «Uma, explícame este diagrama»: solo responde. No toca el diagrama.
   - Un pedido de cambio, como «Uma, agrega una clase Cliente con nombre y correo»: Uma propone lo que haría y te pide permiso. **Mientras esperas, el cambio aparece sobre el diagrama como un «holograma»**: lo nuevo en trazo punteado morado, lo que se agrega a una clase en ámbar bajo ella, y lo que se eliminaría rodeado en rojo. El diagrama no cambia hasta que pulses «Aplicar» (o le digas «sí»). «Descartar» (o «no») cancela la propuesta y quita el holograma. Si escribes «directamente» (por ejemplo «Uma, agrega la clase Venta directamente») lo aplica sin preguntar. En la actividad figura como «IA, a pedido de …».
@@ -96,7 +96,7 @@ Herramienta web para modelar diagramas de clases UML en equipo (de 2 a 3 persona
 ## 11. Problemas frecuentes
 
 - «La IA no pudo responder ahora»: reintenta en unos segundos; el diagrama no se pierde ni cambia.
-- «La IA está atendiendo a otra persona»: la fila de la IA pasó de unos 80 segundos; vuelve a enviar en un momento.
+- «La IA está atendiendo a…»: la IA ya atiende a todas las personas que puede a la vez y la fila pasó de unos 80 segundos; vuelve a enviar en un momento.
 - «Todavía no te identificaste en la sala»: recarga la página.
 - El micrófono no responde: usa Chrome y una conexión segura (HTTPS), o escribe el texto.
 - Una sala que se comporta raro: crea una sala nueva con «Crear Nuevo Lienzo»; lo que se hizo queda respaldado en el servidor.

@@ -2,11 +2,11 @@ from unittest import mock
 
 from django.test import SimpleTestCase
 
-from collab.turn import InMemoryTurnStore, RedisTurnStore
+from collab.turn import _RELEASE_SCRIPT, _TAKE_SCRIPT, InMemoryTurnStore, RedisTurnStore, join_names
 
 
 class TurnStoreContract:
-    """Lo que debe cumplir cualquier adaptador del puerto TurnStore: un solo pedido a la IA a la vez por sala."""
+    """Lo que debe cumplir cualquier adaptador del puerto TurnStore: tantos pedidos a la vez por sala como cupos tenga, y uno por persona."""
 
     def make_store(self):
         raise NotImplementedError
@@ -52,6 +52,45 @@ class TurnStoreContract:
 
         self.assertEqual(store.current("sala-a"), "Ana")
 
+    def test_a_room_with_several_slots_attends_that_many_people_at_once(self):
+        store = self.make_store()
+
+        self.assertTrue(store.take("sala-a", 1, "Ana", 130, 3)[0])
+        self.assertTrue(store.take("sala-a", 2, "Beto", 130, 3)[0])
+        self.assertTrue(store.take("sala-a", 3, "Carla", 130, 3)[0])
+        tomado, quienes = store.take("sala-a", 4, "Dora", 130, 3)
+
+        self.assertFalse(tomado)
+        self.assertEqual(quienes, "Ana, Beto y Carla")
+        self.assertEqual(store.current("sala-a"), "Ana, Beto y Carla")
+
+    def test_a_person_never_holds_two_turns_even_with_free_slots(self):
+        store = self.make_store()
+        store.take("sala-a", 1, "Ana", 130, 3)
+
+        tomado, quienes = store.take("sala-a", 1, "Ana", 130, 3)
+
+        self.assertFalse(tomado)
+        self.assertEqual(quienes, "Ana")
+
+    def test_releasing_one_turn_frees_one_slot_and_keeps_the_others(self):
+        store = self.make_store()
+        store.take("sala-a", 1, "Ana", 130, 2)
+        store.take("sala-a", 2, "Beto", 130, 2)
+
+        store.release("sala-a", 1)
+
+        self.assertEqual(store.current("sala-a"), "Beto")
+        self.assertTrue(store.take("sala-a", 3, "Carla", 130, 2)[0])
+        self.assertFalse(store.take("sala-a", 4, "Dora", 130, 2)[0])
+
+    def test_the_slots_are_per_room(self):
+        store = self.make_store()
+        store.take("sala-a", 1, "Ana", 130, 1)
+
+        self.assertTrue(store.take("sala-b", 2, "Beto", 130, 1)[0])
+
+
     def test_the_line_keeps_the_order_of_arrival(self):
         store = self.make_store()
 
@@ -90,6 +129,14 @@ class TurnStoreContract:
         self.assertIsNone(store.place_in_line("sala-b", 1))
 
 
+class JoinNamesTests(SimpleTestCase):
+    def test_names_are_joined_the_way_a_person_would_say_them(self):
+        self.assertEqual(join_names(["Ana"]), "Ana")
+        self.assertEqual(join_names(["Ana", "Beto"]), "Ana y Beto")
+        self.assertEqual(join_names(["Ana", "Beto", "Carla"]), "Ana, Beto y Carla")
+        self.assertEqual(join_names([]), "otra persona")
+
+
 class InMemoryTurnStoreTests(TurnStoreContract, SimpleTestCase):
     def setUp(self):
         InMemoryTurnStore.reset()
@@ -115,27 +162,22 @@ class InMemoryTurnStoreTests(TurnStoreContract, SimpleTestCase):
 
 
 class FakeRedis:
-    """Lo mínimo de un cliente de Redis que usa RedisTurnStore, con la semántica de SET NX EX y del guion de devolver el turno."""
+    """Lo mínimo de un cliente de Redis que usa RedisTurnStore: conjuntos ordenados y los dos guiones de turno con la misma semántica que en Redis."""
 
     def __init__(self):
         self.values = {}
 
-    def set(self, key, value, nx=False, ex=None):
-        if nx and key in self.values:
-            return None
-        self.values[key] = value.encode() if isinstance(value, str) else value
-        return True
-
-    def get(self, key):
-        return self.values.get(key)
-
-    # Conjunto ordenado (la fila de espera): miembro -> puntaje.
+    # Conjunto ordenado (los turnos y la fila de espera): miembro -> puntaje.
     def zadd(self, key, mapping):
         self.values.setdefault(key, {}).update(mapping)
 
     def zrange(self, key, start, stop):
         members = self.values.get(key, {})
         return [member.encode() for member, _ in sorted(members.items(), key=lambda item: item[1])]
+
+    def zrangebyscore(self, key, low, high):
+        members = self.values.get(key, {})
+        return [member.encode() for member, score in sorted(members.items(), key=lambda item: item[1]) if score >= float(low)]
 
     def zrem(self, key, member):
         self.values.get(key, {}).pop(member, None)
@@ -148,12 +190,23 @@ class FakeRedis:
     def expire(self, key, seconds):
         return True
 
-    def eval(self, script, numkeys, key, holder):
-        value = self.values.get(key)
-        if value is not None and value.decode().startswith(f"{holder}|"):
-            del self.values[key]
-            return 1
-        return 0
+    def eval(self, script, numkeys, key, *args):
+        members = self.values.setdefault(key, {})
+        if script == _TAKE_SCRIPT:
+            now, slots, holder_id, expires, member, _ttl = args
+            for expired in [m for m, score in members.items() if score <= now]:
+                del members[expired]
+            holders = [m.encode() for m, _ in sorted(members.items(), key=lambda item: item[1])]
+            if any(m.startswith(f"{holder_id}|") for m in members) or len(holders) >= slots:
+                return [0, *holders]
+            members[member] = expires
+            return [1]
+        if script == _RELEASE_SCRIPT:
+            for member in [m for m in members if m.startswith(f"{args[0]}|")]:
+                del members[member]
+                return 1
+            return 0
+        raise AssertionError("guion de Redis que el doble no conoce")
 
 
 class RedisTurnStoreTests(TurnStoreContract, SimpleTestCase):

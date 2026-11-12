@@ -6,15 +6,47 @@ from .ports import TurnStore
 
 logger = logging.getLogger(__name__)
 
-# El turno se guarda en una sola clave, `id|nombre`, para que quien lo tiene y su nombre nunca queden desfasados.
-# Se devuelve solo si quien lo pide es quien lo tiene: compara el identificador y borra en un solo paso.
+# Los turnos de una sala viven en un conjunto ordenado de Redis: cada miembro es `id|nombre` y su puntaje es la hora en que vence, así que los
+# turnos de quienes se desconectan desaparecen solos. Tomar un turno y devolverlo son guiones de Lua para que, aunque varios procesos del
+# servidor pidan a la vez, nunca se atienda a más personas que los cupos de la sala ni a una misma persona dos veces.
+_TAKE_SCRIPT = """
+    local now = tonumber(ARGV[1])
+    local slots = tonumber(ARGV[2])
+    local id = ARGV[3]
+    local expires = tonumber(ARGV[4])
+    redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
+    local holders = redis.call('ZRANGE', KEYS[1], 0, -1)
+    local mine = false
+    for _, holder in ipairs(holders) do
+        if string.sub(holder, 1, string.len(id) + 1) == id .. '|' then mine = true end
+    end
+    if mine or #holders >= slots then
+        table.insert(holders, 1, 0)
+        return holders
+    end
+    redis.call('ZADD', KEYS[1], expires, ARGV[5])
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[6]))
+    return {1}
+"""
+# Se devuelve solo si quien lo pide es quien lo tiene.
 _RELEASE_SCRIPT = """
-    local value = redis.call('GET', KEYS[1])
-    if value and string.sub(value, 1, string.len(ARGV[1]) + 1) == ARGV[1] .. '|' then
-        return redis.call('DEL', KEYS[1])
+    local holders = redis.call('ZRANGE', KEYS[1], 0, -1)
+    for _, holder in ipairs(holders) do
+        if string.sub(holder, 1, string.len(ARGV[1]) + 1) == ARGV[1] .. '|' then
+            return redis.call('ZREM', KEYS[1], holder)
+        end
     end
     return 0
 """
+FREE_TEXT = "otra persona"
+
+
+def join_names(names):
+    """«Ana», «Ana y Beto» o «Ana, Beto y Carla»."""
+    names = [name for name in names if name]
+    if not names:
+        return FREE_TEXT
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} y {names[-1]}"
 
 
 class InMemoryTurnStore(TurnStore):
@@ -37,30 +69,27 @@ class InMemoryTurnStore(TurnStore):
         return line
 
     def _live(self, room):
-        turn = self._turns.get(room)
-        if turn and turn["expires"] <= time.monotonic():
-            del self._turns[room]
-            return None
-        return turn
+        now = time.monotonic()
+        turns = [turn for turn in self._turns.get(room, []) if turn["expires"] > now]
+        self._turns[room] = turns
+        return turns
 
-    def take(self, room, holder_id, holder_name, ttl_seconds):
+    def take(self, room, holder_id, holder_name, ttl_seconds, slots=1):
         with self._lock:
-            turn = self._live(room)
-            if turn:
-                return False, turn["name"]
-            self._turns[room] = {"id": holder_id, "name": holder_name, "expires": time.monotonic() + ttl_seconds}
+            turns = self._live(room)
+            if len(turns) >= slots or any(turn["id"] == holder_id for turn in turns):
+                return False, join_names([turn["name"] for turn in turns])
+            turns.append({"id": holder_id, "name": holder_name, "expires": time.monotonic() + ttl_seconds})
             return True, None
 
     def release(self, room, holder_id):
         with self._lock:
-            turn = self._live(room)
-            if turn and turn["id"] == holder_id:
-                del self._turns[room]
+            self._turns[room] = [turn for turn in self._live(room) if turn["id"] != holder_id]
 
     def current(self, room):
         with self._lock:
-            turn = self._live(room)
-            return turn["name"] if turn else None
+            turns = self._live(room)
+            return join_names([turn["name"] for turn in turns]) if turns else None
 
     def line_up(self, room, holder_id, holder_name, ttl_seconds):
         with self._lock:
@@ -85,32 +114,35 @@ class InMemoryTurnStore(TurnStore):
 
 
 class RedisTurnStore(TurnStore):
-    """Adaptador de Redis: un cerrojo por sala con vencimiento, compartido por todos los procesos del servidor."""
+    """Adaptador de Redis: los turnos de cada sala con vencimiento, compartidos por todos los procesos del servidor."""
 
     def __init__(self, client):
         self.client = client
 
     @staticmethod
     def _key(room):
-        return f"ia-turn:{room}"
+        return f"ia-slots:{room}"
 
     @staticmethod
     def _holder_name(value):
         text = value.decode("utf-8") if isinstance(value, bytes) else str(value)
-        return text.split("|", 1)[1] if "|" in text else "otra persona"
+        return text.split("|", 1)[1] if "|" in text else FREE_TEXT
 
-    def take(self, room, holder_id, holder_name, ttl_seconds):
-        if self.client.set(self._key(room), f"{holder_id}|{holder_name}", nx=True, ex=ttl_seconds):
+    def take(self, room, holder_id, holder_name, ttl_seconds, slots=1):
+        now = time.time()
+        result = self.client.eval(
+            _TAKE_SCRIPT, 1, self._key(room), now, max(1, int(slots)), str(holder_id), now + ttl_seconds, f"{holder_id}|{holder_name}", int(ttl_seconds) + 5
+        )
+        if int(result[0]) == 1:
             return True, None
-        value = self.client.get(self._key(room))
-        return False, self._holder_name(value) if value is not None else "otra persona"
+        return False, join_names([self._holder_name(member) for member in result[1:]])
 
     def release(self, room, holder_id):
         self.client.eval(_RELEASE_SCRIPT, 1, self._key(room), str(holder_id))
 
     def current(self, room):
-        value = self.client.get(self._key(room))
-        return None if value is None else self._holder_name(value)
+        members = self.client.zrangebyscore(self._key(room), time.time(), "+inf")
+        return join_names([self._holder_name(member) for member in members]) if members else None
 
     # La fila de espera es un conjunto ordenado por la hora de llegada: `id|nombre` con la hora como puntaje.
     @staticmethod
