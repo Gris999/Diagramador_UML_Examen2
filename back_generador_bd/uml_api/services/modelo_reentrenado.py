@@ -127,25 +127,43 @@ def _corregir_ids(clases: list, alias: dict, reales: dict, instruccion: str | No
 _HERENCIA = re.compile(
     r"\b(\w+)\s+(?:hered\w+\s+de|extiend\w+(?:\s+de)?|(?:es|sea)\s+(?:una\s+)?(?:subclase|hij[oa])\s+de)\s+(?:la\s+clase\s+)?(\w+)", re.IGNORECASE
 )
+# «una generalización de Estudiante a Persona»: la flecha de la generalización va del hijo al padre.
+_GENERALIZACION = re.compile(
+    r"\b(?:generalizaci[oó]n|herencia)\s+(?:de|desde)\s+(?:la\s+clase\s+)?(\w+)\s+(?:a|hacia|hasta)\s+(?:la\s+clase\s+)?(\w+)", re.IGNORECASE
+)
 
 
-def _orientar_herencia(resultado: dict, reales: dict, instruccion: str | None) -> None:
-    """El modelo pequeño a veces invierte la herencia (hace que Persona herede de Empleado). Si el pedido dice quién hereda de quién, la flecha va del hijo al padre."""
+def _orientar_herencia(resultado: dict, reales: dict, instruccion: str | None, existentes: frozenset = frozenset()) -> None:
+    """El modelo pequeño a veces invierte la herencia (hace que Persona herede de Empleado) o la pone entre otras dos clases (con cuatro clases en el diagrama,
+    «Estudiante hereda de Persona» salió entre las dos primeras). Si el pedido dice quién hereda de quién, la flecha va del hijo al padre y entre esas dos clases.
+
+    `existentes`: los pares (origen, destino) que el diagrama ya tenía; una herencia que ya estaba no se toca.
+    """
     if not instruccion:
         return
-    dicho = _HERENCIA.search(instruccion)
+    dicho = _HERENCIA.search(instruccion) or _GENERALIZACION.search(instruccion)
     if not dicho:
         return
     hijo, padre = dicho.group(1).lower(), dicho.group(2).lower()
     nombres = {c.get("id"): c.get("name") for c in reales.values()}
     nombres.update({c.get("id"): c.get("name") for c in _lista(resultado.get("classes"))})
-    for relacion in _lista(resultado.get("relationships")):
-        if relacion.get("type") != "generalization":
-            continue
+    id_de = {}
+    for id_, nombre in nombres.items():
+        if isinstance(nombre, str) and id_ is not None:
+            id_de.setdefault(nombre.lower(), id_)
+    herencias = [r for r in _lista(resultado.get("relationships")) if r.get("type") == "generalization"]
+    for relacion in herencias:
         origen = str(nombres.get(relacion.get("sourceId")) or "").lower()
         destino = str(nombres.get(relacion.get("targetId")) or "").lower()
         if (origen, destino) == (padre, hijo):
             relacion["sourceId"], relacion["targetId"] = relacion["targetId"], relacion["sourceId"]
+    hijo_id, padre_id = id_de.get(hijo), id_de.get(padre)
+    if hijo_id is None or padre_id is None or hijo_id == padre_id:
+        return
+    nuevas = [r for r in herencias if (r.get("sourceId"), r.get("targetId")) not in existentes]
+    ya_esta = any({r.get("sourceId"), r.get("targetId")} == {hijo_id, padre_id} for r in herencias)
+    if len(nuevas) == 1 and not ya_esta:
+        nuevas[0]["sourceId"], nuevas[0]["targetId"] = hijo_id, padre_id
 
 
 def _atributo_que_llego_como_metodo(clase: dict, original: dict, instruccion: str | None) -> None:
@@ -194,5 +212,8 @@ def restaurar(cambios: dict, alias: dict, uml_real: dict, instruccion: str | Non
         for campo in ("id", "sourceId", "targetId"):
             if relacion.get(campo) in alias:
                 relacion[campo] = alias[relacion[campo]]
-    _orientar_herencia(resultado, reales, instruccion)
+    existentes = frozenset(
+        (r.get("sourceId"), r.get("targetId")) for r in _lista(uml_real.get("relationships") if isinstance(uml_real, dict) else None) if isinstance(r, dict)
+    )
+    _orientar_herencia(resultado, reales, instruccion, existentes)
     return resultado

@@ -250,6 +250,45 @@ class CompactarYRestaurarTests(SimpleTestCase):
         self.assertEqual(modelo.restaurar(al_reves, alias, real, "relaciona Persona con Empleado")["relationships"][0]["sourceId"], "p")
         self.assertEqual(modelo.restaurar(al_reves, alias, real)["relationships"][0]["sourceId"], "p")
 
+    def test_an_inheritance_the_model_put_between_the_wrong_classes_goes_between_the_ones_the_request_names(self):
+        # Caso real (2026-11-17): con cuatro clases, «Haz que Estudiante herede de Persona» salió entre las dos primeras (Equipo y Jugador).
+        nombres = ("Equipo", "Jugador", "Persona", "Estudiante")
+        real = {"classes": [{"id": n.lower(), "name": n, "attributes": [], "methods": []} for n in nombres], "relationships": []}
+        _, alias = modelo.compactar(real)
+        cambios = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c1", "targetId": "c2"}]}
+
+        for pedido in (
+            "Haz que Estudiante herede de Persona",
+            "Estudiante hereda de Persona",
+            "Agrega una herencia: Estudiante hereda de Persona",
+            "Agrega una generalización de Estudiante a Persona",
+        ):
+            with self.subTest(pedido):
+                relacion = modelo.restaurar(cambios, alias, real, pedido)["relationships"][0]
+
+                self.assertEqual((relacion["sourceId"], relacion["targetId"]), ("estudiante", "persona"))
+
+    def test_an_inheritance_the_diagram_already_had_is_not_moved_and_two_new_ones_are_left_alone(self):
+        nombres = ("Equipo", "Jugador", "Persona", "Estudiante")
+        real = {
+            "classes": [{"id": n.lower(), "name": n, "attributes": [], "methods": []} for n in nombres],
+            "relationships": [{"id": "r0", "type": "generalization", "sourceId": "equipo", "targetId": "jugador"}],
+        }
+        _, alias = modelo.compactar(real)
+        ya_estaba = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c1", "targetId": "c2"}]}
+        dos_nuevas = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c1", "targetId": "c3"}, {"type": "generalization", "sourceId": "c2", "targetId": "c3"}]}
+        sin_relaciones = {"classes": [], "relationships": [{"type": "generalization", "sourceId": "c1", "targetId": "c2"}]}
+        sin_esas_clases = "Haz que Cliente herede de Proveedor"
+
+        relacion = modelo.restaurar(ya_estaba, alias, real, "Haz que Estudiante herede de Persona")["relationships"][0]
+        self.assertEqual((relacion["sourceId"], relacion["targetId"]), ("equipo", "jugador"))
+        nuevas = modelo.restaurar(dos_nuevas, alias, real, "Haz que Estudiante herede de Persona")["relationships"]
+        self.assertEqual([(r["sourceId"], r["targetId"]) for r in nuevas], [("equipo", "persona"), ("jugador", "persona")])
+        vacio = {"classes": [], "relationships": []}
+        libre = modelo.restaurar(sin_relaciones, alias, {**real, "relationships": []}, sin_esas_clases)["relationships"][0]
+        self.assertEqual((libre["sourceId"], libre["targetId"]), ("equipo", "jugador"))
+        self.assertEqual(modelo.restaurar(vacio, alias, real, "Haz que Estudiante herede de Persona")["relationships"], [])
+
     def test_the_empty_think_block_is_removed(self):
         self.assertEqual(modelo.quitar_razonamiento('<think>\n\n</think>\n\n{"a":1}'), '{"a":1}')
         self.assertEqual(modelo.quitar_razonamiento('{"a":1}'), '{"a":1}')
