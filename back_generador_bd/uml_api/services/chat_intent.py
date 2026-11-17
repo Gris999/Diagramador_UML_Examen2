@@ -85,10 +85,17 @@ def _find_person(normalized, names):
     return None
 
 
+# «Haz que Estudiante herede de Persona», «hazle un atributo a Cliente», «haz una clase Pedido»: «haz» solo es un pedido de cambio con estas formas;
+# «hazme un resumen» o «hazlo» sueltos no lo son (el segundo, con una propuesta pendiente, es un «sí»).
+_DO_ORDER = re.compile(
+    r"^(?:haz|hazle|hagas)\s+(?:que\b|un[ao]?\s+(?:clase|relacion|atributo|metodo|herencia|agregacion|composicion|asociacion|dependencia|interfaz|enumeracion)\b)"
+)
+
+
 def _is_change(normalized) -> bool:
     stripped = _PREFIX.sub("", normalized, count=1)
     first = stripped.split(" ", 1)[0] if stripped else ""
-    return first in _VERBS
+    return first in _VERBS or bool(_DO_ORDER.match(stripped))
 
 
 def classify(message, names=(), *, has_pending=False) -> dict:
