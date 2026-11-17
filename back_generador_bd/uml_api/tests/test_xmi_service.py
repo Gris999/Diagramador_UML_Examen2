@@ -268,10 +268,14 @@ class XmiExportTests(TestCase):
                     if child.tag.split("}")[-1] == "ownedEnd"
                 ]
 
+                # UML y Enterprise Architect marcan el extremo cuyo tipo es la PARTE (el destino); el todo, el del rombo, va sin marca.
+                self.assertIsNone(ends[0].attrib.get("aggregation"))
+                self.assertEqual(ends[0].attrib["type"], "whole-id")
                 self.assertEqual(
-                    ends[0].attrib.get("aggregation"),
+                    ends[1].attrib.get("aggregation"),
                     aggregation_value,
                 )
+                self.assertEqual(ends[1].attrib["type"], "part-id")
 
     def test_exports_generalization(self):
         uml = {

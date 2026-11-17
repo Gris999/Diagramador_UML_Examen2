@@ -31,6 +31,22 @@ class ClassifyChangeTests(SimpleTestCase):
         ):
             self.assertEqual(self.intent(message), CHANGE, message)
 
+    def test_haz_que_is_an_order_to_change_the_diagram(self):
+        # «Haz que Estudiante herede de Persona» es el pedido natural de una herencia: antes «haz» no era un verbo y se contestaba como pregunta.
+        for message in (
+            "Haz que Estudiante herede de Persona",
+            "Uma, haz que Empleado herede de Persona",
+            "por favor haz que Cliente tenga un atributo edad",
+            "hazle un atributo telefono a Cliente",
+            "haz una clase Pedido con fecha y total",
+            "haz una relación entre Equipo y Jugador",
+        ):
+            self.assertEqual(self.intent(message), CHANGE, message)
+
+    def test_haz_in_other_forms_is_not_an_order(self):
+        for message in ("hazme un resumen del diagrama", "hazlo", "haz memoria de lo que pasó", "¿Qué haz que hacer?"):
+            self.assertEqual(self.intent(message), ASK, message)
+
     def test_courtesy_words_before_the_verb_do_not_hide_the_order(self):
         for message in (
             "por favor agrega una clase Producto",

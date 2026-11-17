@@ -11,6 +11,10 @@ XMI_NS = "http://schema.omg.org/spec/XMI/2.1"
 UML_NS = "http://www.eclipse.org/uml2/5.0.0/UML"
 CASE_LAYOUT_NS = "https://software1-case.local/xmi/layout/1.0"
 
+# Tipo de relación del editor <-> valor de `aggregation` de UML/XMI.
+EA_AGGREGATION_OF = {"aggregation": "shared", "composition": "composite"}
+AGGREGATION_RELATIONS = {value: relation for relation, value in EA_AGGREGATION_OF.items()}
+
 ET.register_namespace("xmi", XMI_NS)
 ET.register_namespace("uml", UML_NS)
 ET.register_namespace("case", CASE_LAYOUT_NS)
@@ -388,6 +392,7 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
 
     class_elements: dict[str, ET.Element] = {}
     layout_entries: list[dict[str, Any]] = []
+    relationship_ids: list[str] = []
 
     # Nombre de cada clase -> su id, para que un atributo o parámetro «de tipo Cliente» quede enlazado a la clase Cliente.
     class_ids_by_name: dict[str, str] = {}
@@ -462,6 +467,9 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                         f"{class_id}-attribute-{attribute_index}"
                     ),
                     "name": str(attribute.get("name", "")),
+                    # Sin esto EA, al no ver `isUnique`, dibuja cada atributo con «{bag}».
+                    "isOrdered": "false",
+                    "isUnique": "true",
                 },
             )
 
@@ -558,6 +566,7 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
             relationship.get("id")
             or _new_id(f"relationship-{relation_index}")
         )
+        relationship_ids.append(relation_id)
 
         source_id = str(
             relationship.get("sourceId", "")
@@ -601,32 +610,30 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                 f"{relation_id}-target"
             )
 
-            source_end_data = {
-                _xmi_attr("type"): "uml:Property",
-                _xmi_attr("id"): source_end_id,
-                "type": source_id,
-            }
-
-            if relation_type == "aggregation":
-                source_end_data["aggregation"] = "shared"
-
-            elif relation_type == "composition":
-                source_end_data["aggregation"] = "composite"
-
             source_end = ET.SubElement(
-                association,
-                "ownedEnd",
-                source_end_data,
-            )
-
-            target_end = ET.SubElement(
                 association,
                 "ownedEnd",
                 {
                     _xmi_attr("type"): "uml:Property",
-                    _xmi_attr("id"): target_end_id,
-                    "type": target_id,
+                    _xmi_attr("id"): source_end_id,
+                    "type": source_id,
                 },
+            )
+
+            # En UML (y en Enterprise Architect) `aggregation` va en el extremo cuyo tipo es la PARTE: el destino. El origen es el todo, el del rombo.
+            target_end_data = {
+                _xmi_attr("type"): "uml:Property",
+                _xmi_attr("id"): target_end_id,
+                "type": target_id,
+            }
+
+            if relation_type in EA_AGGREGATION_OF:
+                target_end_data["aggregation"] = EA_AGGREGATION_OF[relation_type]
+
+            target_end = ET.SubElement(
+                association,
+                "ownedEnd",
+                target_end_data,
             )
 
             association.set(
@@ -668,6 +675,10 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
                     "supplier": target_id,
                 },
             )
+
+    # El diagrama de EA va PRIMERO entre las extensiones: con otra extensión delante (la del CASE) EA importa las clases pero no dibuja el diagrama.
+    if class_elements:
+        _append_ea_diagram(root, model, uml_json, relationship_ids)
 
     # Información visual propia del CASE.
     # Herramientas UML externas pueden ignorar esta extensión sin afectar
@@ -719,8 +730,158 @@ def export_uml_to_xmi(uml_json: dict[str, Any]) -> bytes:
     )
 
 
+# Un diagrama de clases que Enterprise Architect dibuja al importar el archivo. EA lo lee de la extensión `xmi:Extension extender="Enterprise Architect"`
+# (la misma que escribe al exportar): el XMI estándar solo lleva el modelo, no el dibujo. Cada clase va con la posición que tiene en el editor.
+#
+# Condición que EA exige y que se comprobó con EA 17.2 (ImportPackageXMI con diagramas): el archivo debe presentarse con
+# `<xmi:Documentation exporter="Enterprise Architect">`. Sin esa línea EA importa las clases y deja la extensión sin leer (no dibuja nada); no importan ni los ids
+# ni el espacio de nombres. El `exporterID` propio avisa de que el archivo lo escribió el CASE: al volver a leerlo no se trata como un export de EA.
+EA_EXPORTER = "Enterprise Architect"
+EA_EXPORTER_ID = "software1-case"
+EA_DIAGRAM_STYLE = (
+    "ShowPrivate=1;ShowProtected=1;ShowPublic=1;HideRelationships=0;Locked=0;Border=1;HighlightForeign=1;PackageContents=1;SequenceNotes=0;"
+    "ScalePrintImage=0;PPgs.cx=0;PPgs.cy=0;DocSize.cx=800;DocSize.cy=1100;ShowDetails=0;Orientation=P;Zoom=100;ShowTags=0;OpParams=1;"
+    "VisibleAttributeDetail=0;ShowOpRetType=1;ShowIcons=1;CollabNums=0;HideProps=0;ShowReqs=0;ShowCons=0;PaperSize=256;HideParents=0;UseAlias=0;"
+    "HideAtts=0;HideOps=0;HideStereo=0;HideElemStereo=0;ShowTests=0;ShowMaint=0;ConnectorNotation=UML 2.1;ExplicitNavigability=0;ShowShape=1;"
+    "AllDockable=0;AdvancedElementProps=1;AdvancedFeatureProps=1;AdvancedConnectorProps=1;m_bElementClassifier=1;SPT=1;ShowNotes=0;"
+    "SuppressBrackets=0;SuppConnectorLabels=0;PrintPageHeadFoot=0;ShowAsList=0;"
+)
+EA_GRID_COLUMNS = 3
+EA_MIN_WIDTH = 210
+EA_MIN_HEIGHT = 100
+EA_LINE_HEIGHT = 17
+
+
+def _ea_box(uml_class: dict[str, Any], index: int) -> tuple[int, int, int, int]:
+    """La caja de una clase en el diagrama de EA: la posición del editor, o una cuadrícula si la clase no la tiene. La altura alcanza para todas sus líneas."""
+    members = len(uml_class.get("attributes") or []) + len(uml_class.get("methods") or [])
+    size = uml_class.get("size") if isinstance(uml_class.get("size"), dict) else {}
+    position = uml_class.get("position") if isinstance(uml_class.get("position"), dict) else {}
+    width = max(EA_MIN_WIDTH, int(size.get("width") or 0))
+    height = max(EA_MIN_HEIGHT, int(size.get("height") or 0), 64 + EA_LINE_HEIGHT * members)
+    if position.get("x") is not None and position.get("y") is not None:
+        left, top = int(position["x"]), int(position["y"])
+    else:
+        left = 40 + (index % EA_GRID_COLUMNS) * (EA_MIN_WIDTH + 90)
+        top = 40 + (index // EA_GRID_COLUMNS) * (EA_MIN_HEIGHT + 130)
+    left, top = max(left, 10), max(top, 10)
+    return left, top, left + width, top + height
+
+
+EA_SCOPE_OF = {"public": "Public", "private": "Private", "protected": "Protected", "package": "Package"}
+EA_TYPE_NAME_OF = {"uml:Class": "Class", "uml:Interface": "Interface", "uml:Enumeration": "Enumeration"}
+
+
+def _ea_type_name(holder: ET.Element, names: dict[str, str]) -> str:
+    """El tipo de un parámetro o retorno como lo escribe EA en su extensión: `Real` para un primitivo, el nombre de la clase si el tipo es una clase."""
+    child = next((c for c in holder if c.tag == "type"), None)
+    if child is not None and child.attrib.get("href"):
+        return child.attrib["href"].rsplit("#", 1)[-1]
+    value = holder.attrib.get("type", "")
+    return names.get(value, value)
+
+
+def _append_ea_class_elements(parent: ET.Element, model: ET.Element, model_id: str, names: dict[str, str]) -> None:
+    """Un `element` por clase, interfaz o enumeración, con lo que EA, al creerse el exportador, ya no deduce del cuerpo del XMI: el tipo del elemento y el tipo de retorno de cada operación."""
+    for index, class_element in enumerate(c for c in model if c.tag == "packagedElement" and c.attrib.get(_xmi_attr("type")) in EA_TYPE_NAME_OF):
+        xmi_type = class_element.attrib[_xmi_attr("type")]
+        type_name = EA_TYPE_NAME_OF[xmi_type]
+        is_abstract = class_element.attrib.get("isAbstract") == "true" or xmi_type == "uml:Interface"
+        element = ET.SubElement(
+            parent,
+            "element",
+            {_xmi_attr("idref"): class_element.attrib[_xmi_attr("id")], _xmi_attr("type"): xmi_type, "name": class_element.attrib.get("name", ""), "scope": "public"},
+        )
+        ET.SubElement(element, "model", {"package": model_id, "tpos": "0", "ea_eleType": "element"})
+        ET.SubElement(
+            element,
+            "properties",
+            {"isSpecification": "false", "sType": type_name, "nType": "0", "scope": "public", "isRoot": "false", "isLeaf": "false", "isAbstract": str(is_abstract).lower()},
+        )
+        operations = [o for o in class_element if o.tag == "ownedOperation"]
+        if operations:
+            operations_element = ET.SubElement(element, "operations")
+            for operation in operations:
+                scope = EA_SCOPE_OF.get(operation.attrib.get("visibility", "public"), "Public")
+                operation_element = ET.SubElement(operations_element, "operation", {_xmi_attr("idref"): operation.attrib[_xmi_attr("id")], "name": operation.attrib.get("name", ""), "scope": scope})
+                returned = next((p for p in operation if p.tag == "ownedParameter" and p.attrib.get("direction") == "return"), None)
+                if returned is not None:
+                    ET.SubElement(operation_element, "type", {"type": _ea_type_name(returned, names)})
+
+
+def _append_ea_connectors(parent: ET.Element, uml_json: dict[str, Any], relationship_ids: list[str], names_by_class_id: dict[str, str]) -> None:
+    """Un `connector` por asociación, agregación o composición: sin él EA, al leer el archivo como un export suyo, deja caer la relación (la herencia y la dependencia sí llegan)."""
+    for relation_id, relationship in zip(relationship_ids, uml_json.get("relationships", [])):
+        relation_type = str(relationship.get("type", "association")).lower()
+        if relation_type not in ("association", "aggregation", "composition"):
+            continue
+        labels = relationship.get("labels") or []
+        source_id, target_id = str(relationship.get("sourceId", "")), str(relationship.get("targetId", ""))
+        connector = ET.SubElement(parent, "connector", {_xmi_attr("idref"): relation_id})
+        for tag, class_id, label, aggregation in (
+            ("source", source_id, labels[0] if len(labels) > 0 else "", EA_AGGREGATION_OF.get(relation_type, "none")),
+            ("target", target_id, labels[1] if len(labels) > 1 else "", "none"),
+        ):
+            end = ET.SubElement(connector, tag, {_xmi_attr("idref"): class_id})
+            ET.SubElement(end, "model", {"type": "Class", "name": names_by_class_id.get(class_id, "")})
+            ET.SubElement(end, "role", {"visibility": "Public"})
+            end_type = {"aggregation": aggregation}
+            if label:
+                end_type = {"multiplicity": str(label), **end_type}
+            ET.SubElement(end, "type", end_type)
+            ET.SubElement(end, "modifiers", {"isOrdered": "false", "isNavigable": "false"})
+            ET.SubElement(end, "style", {"value": "Derived=0;Union=0;Owned=0;Navigable=Unspecified;"})
+        ET.SubElement(connector, "properties", {"ea_type": "Association", "direction": "Unspecified"})
+        ET.SubElement(connector, "appearance", {"linemode": "3", "linecolor": "0", "linewidth": "0", "seqno": "0", "headStyle": "0", "lineStyle": "0"})
+        labels_attrs = {}
+        if len(labels) > 0 and labels[0]:
+            labels_attrs["lb"] = str(labels[0])
+        if len(labels) > 1 and labels[1]:
+            labels_attrs["rb"] = str(labels[1])
+        ET.SubElement(connector, "labels", labels_attrs)
+
+
+def _append_ea_diagram(root: ET.Element, model: ET.Element, uml_json: dict[str, Any], relationship_ids: list[str]) -> None:
+    classes = uml_json.get("classes", [])
+    documentation = ET.Element(
+        f"{{{XMI_NS}}}Documentation",
+        {"exporter": EA_EXPORTER, "exporterVersion": "6.5", "exporterID": EA_EXPORTER_ID},
+    )
+    root.insert(0, documentation)
+    extension = ET.SubElement(root, f"{{{XMI_NS}}}Extension", {"extender": EA_EXPORTER, "extenderID": "6.5"})
+    model_id = model.attrib.get(_xmi_attr("id"), "")
+    names_by_class_id = {c.attrib[_xmi_attr("id")]: c.attrib.get("name", "") for c in model if c.tag == "packagedElement" and _xmi_attr("id") in c.attrib}
+    _append_ea_class_elements(ET.SubElement(extension, "elements"), model, model_id, names_by_class_id)
+    _append_ea_connectors(ET.SubElement(extension, "connectors"), uml_json, relationship_ids, names_by_class_id)
+    diagrams = ET.SubElement(extension, "diagrams")
+    diagram = ET.SubElement(diagrams, "diagram", {_xmi_attr("id"): _new_id("ea-diagram")})
+    ET.SubElement(diagram, "model", {"package": model_id, "localID": "1", "owner": model_id, "tpos": "0"})
+    ET.SubElement(diagram, "properties", {"name": "Diagrama de clases", "type": "Class"})
+    ET.SubElement(diagram, "project", {"version": "1"})
+    ET.SubElement(diagram, "style1", {"value": EA_DIAGRAM_STYLE})
+    ET.SubElement(diagram, "style2")
+    ET.SubElement(diagram, "extendedProperties")
+    ET.SubElement(diagram, "xrefs")
+    elements = ET.SubElement(diagram, "elements")
+    for index, uml_class in enumerate(classes):
+        left, top, right, bottom = _ea_box(uml_class, index)
+        class_id = str(uml_class.get("id") or _new_id(f"class-{index}"))
+        ET.SubElement(
+            elements,
+            "element",
+            {
+                "geometry": f"Left={left};Top={top};Right={right};Bottom={bottom};",
+                "subject": class_id,
+                "seqno": str(index + 1),
+            },
+        )
+    for relation_id in relationship_ids:
+        ET.SubElement(elements, "element", {"geometry": "SX=0;SY=0;EX=0;EY=0;Path=;", "subject": relation_id, "style": ";Hidden=0;"})
+
+
 # Las clases (y los tipos) de un XMI cuelgan de `packagedElement` (UML 2.1 en adelante) o de `ownedMember` (el XMI 2.1 «UML 2.0» de Enterprise Architect).
-PACKAGED_TAGS = ("packagedElement", "ownedMember")
+# En ese mismo XMI 2.0 las dependencias cuelgan de `ownedElement`.
+PACKAGED_TAGS = ("packagedElement", "ownedMember", "ownedElement")
 
 
 class _ReadContext:
@@ -750,7 +911,8 @@ class _ReadContext:
                     self.names[element_id] = name
 
             elif local_name == "Documentation":
-                if str(element.attrib.get("exporter", "")).strip().lower() == "enterprise architect":
+                is_ea = str(element.attrib.get("exporter", "")).strip().lower() == EA_EXPORTER.lower()
+                if is_ea and element.attrib.get("exporterID") != EA_EXPORTER_ID:
                     self.default_visibility = "+"
 
             elif local_name in ("attribute", "parameter"):
@@ -1099,27 +1261,17 @@ def import_xmi_to_uml(xml_data: Any) -> dict[str, Any]:
                 second_multiplicity,
             ]
 
-            if first_aggregation == "shared":
-                relation_type = "aggregation"
-
-            elif first_aggregation == "composite":
-                relation_type = "composition"
-
-            elif second_aggregation == "shared":
-                relation_type = "aggregation"
+            # El extremo marcado es la PARTE (UML y EA lo escriben así): el todo, el del rombo, es el otro y pasa a ser el origen.
+            if first_aggregation in AGGREGATION_RELATIONS:
+                relation_type = AGGREGATION_RELATIONS[first_aggregation]
                 source_id, target_id = (
                     second_type,
                     first_type,
                 )
                 labels.reverse()
 
-            elif second_aggregation == "composite":
-                relation_type = "composition"
-                source_id, target_id = (
-                    second_type,
-                    first_type,
-                )
-                labels.reverse()
+            elif second_aggregation in AGGREGATION_RELATIONS:
+                relation_type = AGGREGATION_RELATIONS[second_aggregation]
 
             relationships.append(
                 {

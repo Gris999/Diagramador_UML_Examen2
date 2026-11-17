@@ -36,7 +36,7 @@ Este guion sigue el orden en que el docente pidió ver el sistema: primero que *
 4. **UML desde voz** *(opcional)*. Pulsar el micrófono y decir una instrucción corta.
 5. **UML desde imagen** *(opcional)*. Importaciones → imagen del diagrama → Reemplazar/Combinar.
 6. **Exportaciones.** *"El mismo diagrama sale en varios formatos"*:
-   - **XMI → Enterprise Architect:** Exportar XMI, abrirlo en EA (clases, atributos, relaciones y multiplicidades intactos) y, al revés, importar un XMI.
+   - **XMI → Enterprise Architect:** Exportar XMI, importarlo en EA (clic derecho en un paquete → Import/Export → Import Package from XMI…): EA **dibuja el diagrama** con las clases en su lugar y las relaciones (rombo en el todo), con clases, atributos, relaciones y multiplicidades intactos. Y, al revés, importar un XMI.
    - **Backend Spring Boot + PostgreSQL + Postman:** Exportaciones → generar; mostrar el `.zip` y que compila con el Maven Wrapper incluido.
    - **Flutter:** proyecto con SQLite local (funciona sin red).
    - **SQL e imagen PNG.**

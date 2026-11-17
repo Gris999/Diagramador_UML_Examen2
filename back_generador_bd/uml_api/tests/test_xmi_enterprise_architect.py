@@ -383,6 +383,16 @@ class XmiReadContextTests(SimpleTestCase):
                 self.assertEqual(cuenta["attributes"][1]["visibility"], "-")
                 self.assertNotIn("visibility", cuenta["methods"][0])
 
+    def test_the_file_the_app_wrote_for_ea_is_not_read_as_an_ea_export(self):
+        # La app se presenta como EA para que EA dibuje el diagrama, pero su `exporterID` dice que lo escribió ella: lo que no trae visibilidad sigue sin ella.
+        own = self.doc("Enterprise Architect").replace(b'exporter="Enterprise Architect"', b'exporter="Enterprise Architect" exporterID="software1-case"')
+
+        cuenta = _by_name(import_xmi_to_uml(own))["Cuenta"]
+
+        self.assertNotIn("visibility", cuenta["attributes"][0])
+        self.assertEqual(cuenta["attributes"][1]["visibility"], "-")
+        self.assertNotIn("visibility", cuenta["methods"][0])
+
     def test_a_type_that_is_the_id_of_a_class_becomes_the_name_of_that_class(self):
         xmi = f"""<?xml version="1.0"?>
 <xmi:XMI xmlns:xmi="{XMI_NS}" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmi:version="2.1"><uml:Model name="M">
@@ -408,3 +418,167 @@ class AppEnterpriseArchitectRoundTripTests(SimpleTestCase):
         self.assertEqual(classes["Pagable"].get("kind"), "interface")
         self.assertEqual(classes["Estado"].get("kind"), "enumeration")
         self.assertEqual(classes["Pagable"]["methods"][0]["returnType"], "Boolean")
+
+
+class AppExportDrawsTheDiagramInEnterpriseArchitectTests(SimpleTestCase):
+    """EA importa el modelo del XMI estándar, pero solo dibuja un diagrama si el archivo se presenta como un export suyo y trae el dibujo en su extensión.
+
+    Probado con EA 17.2 por COM (ImportPackageXMI con diagramas): sin la línea `xmi:Documentation exporter="Enterprise Architect"` importa las clases y no el diagrama;
+    con ella el diagrama sale con todas las clases y las relaciones.
+    """
+
+    UML = {
+        "classes": [
+            {"id": "cuenta", "name": "Cuenta", "attributes": [], "methods": [], "position": {"x": 60, "y": 80}, "size": {"width": 230, "height": 130}},
+            {"id": "ahorro", "name": "Ahorro", "attributes": [], "methods": []},
+            {"id": "cliente", "name": "Cliente", "attributes": [], "methods": []},
+        ],
+        "relationships": [
+            {"id": "r1", "type": "generalization", "sourceId": "ahorro", "targetId": "cuenta"},
+            {"id": "r2", "type": "association", "sourceId": "cliente", "targetId": "cuenta", "labels": ["1", "0..*"]},
+        ],
+    }
+
+    def setUp(self):
+        self.root = ET.fromstring(export_uml_to_xmi(self.UML))
+        self.local = lambda e: e.tag.split("}", 1)[-1]  # noqa: E731
+
+    def find(self, name):
+        return [e for e in self.root.iter() if self.local(e) == name]
+
+    def test_the_file_introduces_itself_as_an_ea_export_but_says_the_app_wrote_it(self):
+        documentation = self.find("Documentation")[0]
+
+        self.assertEqual(documentation.attrib["exporter"], "Enterprise Architect")
+        self.assertEqual(documentation.attrib["exporterID"], "software1-case")
+        self.assertIs(self.root[0], documentation)
+
+    def test_the_ea_extension_comes_before_the_case_layout_extension(self):
+        # Con la extensión del CASE (la posición de cada clase) delante, EA importa las clases pero no dibuja el diagrama.
+        extensions = [e.attrib["extender"] for e in self.root if self.local(e) == "Extension"]
+
+        self.assertEqual(extensions, ["Enterprise Architect", "software1-case"])
+
+    def test_there_is_one_class_diagram_in_the_model_package(self):
+        diagrams = self.find("diagram")
+        model_id = next(m for m in self.find("Model")).attrib[f"{{{XMI_NS}}}id"]
+
+        self.assertEqual(len(diagrams), 1)
+        self.assertEqual(diagrams[0].find("model").attrib["package"], model_id)
+        self.assertEqual(diagrams[0].find("properties").attrib["name"], "Diagrama de clases")
+
+    def test_every_class_and_relationship_is_in_the_diagram(self):
+        subjects = [e.attrib["subject"] for e in self.find("element") if "subject" in e.attrib]
+
+        self.assertEqual(subjects, ["cuenta", "ahorro", "cliente", "r1", "r2"])
+
+    def test_every_subject_of_the_diagram_is_an_element_of_the_model(self):
+        ids = {e.attrib[f"{{{XMI_NS}}}id"] for e in self.root.iter() if f"{{{XMI_NS}}}id" in e.attrib}
+
+        for element in self.find("element"):
+            if "subject" in element.attrib:
+                self.assertIn(element.attrib["subject"], ids)
+
+    def test_a_class_is_drawn_where_the_editor_has_it(self):
+        cuenta = next(e for e in self.find("element") if e.attrib.get("subject") == "cuenta")
+
+        self.assertEqual(cuenta.attrib["geometry"], "Left=60;Top=80;Right=290;Bottom=210;")
+
+    def test_classes_without_a_position_go_on_a_grid_without_overlapping(self):
+        boxes = []
+        for subject in ("ahorro", "cliente"):
+            geometry = next(e for e in self.find("element") if e.attrib.get("subject") == subject).attrib["geometry"]
+            boxes.append(dict(part.split("=") for part in geometry.strip(";").split(";")))
+
+        for box in boxes:
+            self.assertGreater(int(box["Right"]), int(box["Left"]))
+            self.assertGreater(int(box["Bottom"]), int(box["Top"]))
+        self.assertGreaterEqual(int(boxes[1]["Left"]), int(boxes[0]["Right"]))
+
+    def test_coming_back_into_the_app_the_classes_and_relations_are_the_same(self):
+        back = import_xmi_to_uml(export_uml_to_xmi(self.UML))
+
+        self.assertEqual(sorted(c["name"] for c in back["classes"]), ["Ahorro", "Cliente", "Cuenta"])
+        self.assertEqual(sorted(r["type"] for r in back["relationships"]), ["association", "generalization"])
+
+    def test_members_without_visibility_do_not_turn_public_after_the_round_trip(self):
+        uml = {"classes": [{"id": "c1", "name": "Cuenta", "attributes": [{"name": "saldo", "type": "int"}], "methods": [{"name": "depositar"}]}], "relationships": []}
+
+        cuenta = _by_name(import_xmi_to_uml(export_uml_to_xmi(uml)))["Cuenta"]
+
+        self.assertNotIn("visibility", cuenta["attributes"][0])
+        self.assertNotIn("visibility", cuenta["methods"][0])
+
+
+class AggregationDirectionTests(SimpleTestCase):
+    """El rombo va en el todo (el origen en el editor). UML y EA marcan con `aggregation` el extremo cuyo tipo es la parte.
+
+    Antes la app marcaba el extremo del todo: EA dibujaba el rombo en la parte, y como al volver la app lo leía igual de invertido, la ida y vuelta
+    no lo delataba. Con EA 17.2 se vio el rombo en el lado contrario.
+    """
+
+    def uml(self, relation_type):
+        return {
+            "classes": [
+                {"id": "equipo", "name": "Equipo", "attributes": [], "methods": []},
+                {"id": "jugador", "name": "Jugador", "attributes": [], "methods": []},
+            ],
+            "relationships": [{"id": "r1", "type": relation_type, "sourceId": "equipo", "targetId": "jugador", "labels": ["1", "0..*"]}],
+        }
+
+    def test_the_whole_stays_the_source_after_the_round_trip(self):
+        for relation_type in ("aggregation", "composition"):
+            with self.subTest(relation_type):
+                back = import_xmi_to_uml(export_uml_to_xmi(self.uml(relation_type)))
+
+                relationship = back["relationships"][0]
+                self.assertEqual(relationship["type"], relation_type)
+                self.assertEqual((relationship["sourceId"], relationship["targetId"]), ("equipo", "jugador"))
+                self.assertEqual(relationship["labels"], ["1", "0..*"])
+
+    def test_a_file_that_marks_the_part_end_gives_the_other_class_as_the_whole(self):
+        # Así lo escribe Enterprise Architect: el extremo tipado por la parte lleva la marca.
+        xml = f"""<?xml version="1.0"?>
+<xmi:XMI xmlns:xmi="{XMI_NS}" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmi:version="2.1">
+ <uml:Model xmi:type="uml:Model" name="M">
+  <packagedElement xmi:type="uml:Class" xmi:id="equipo" name="Equipo"/>
+  <packagedElement xmi:type="uml:Class" xmi:id="jugador" name="Jugador"/>
+  <packagedElement xmi:type="uml:Association" xmi:id="r1">
+   <ownedEnd xmi:type="uml:Property" xmi:id="e1" type="equipo" aggregation="none"/>
+   <ownedEnd xmi:type="uml:Property" xmi:id="e2" type="jugador" aggregation="shared"/>
+  </packagedElement>
+ </uml:Model>
+</xmi:XMI>""".encode()
+
+        relationship = import_xmi_to_uml(xml)["relationships"][0]
+
+        self.assertEqual(relationship["type"], "aggregation")
+        self.assertEqual((relationship["sourceId"], relationship["targetId"]), ("equipo", "jugador"))
+
+    def test_the_ea_connector_puts_the_aggregation_on_the_whole(self):
+        root = ET.fromstring(export_uml_to_xmi(self.uml("composition")))
+        local = lambda e: e.tag.split("}", 1)[-1]  # noqa: E731
+        connector = next(e for e in root.iter() if local(e) == "connector")
+        source, target = connector.find("source"), connector.find("target")
+
+        self.assertEqual(source.attrib[f"{{{XMI_NS}}}idref"], "equipo")
+        self.assertEqual(source.find("type").attrib, {"multiplicity": "1", "aggregation": "composite"})
+        self.assertEqual(target.find("type").attrib, {"multiplicity": "0..*", "aggregation": "none"})
+
+
+class UmlTwoZeroDependencyTests(SimpleTestCase):
+    def test_a_dependency_written_by_ea_in_its_uml_2_0_variant_is_imported(self):
+        # La variante «UML 2.0» de EA escribe las clases como `ownedMember` y la dependencia como `ownedElement` (comprobado con EA 17.2).
+        xml = f"""<?xml version="1.0"?>
+<xmi:XMI xmlns:xmi="{XMI_NS}" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmi:version="2.1">
+ <xmi:Documentation exporter="Enterprise Architect"/>
+ <uml:Model xmi:type="uml:Model" name="M">
+  <ownedMember xmi:type="uml:Class" xmi:id="pedido" name="Pedido"/>
+  <ownedMember xmi:type="uml:Interface" xmi:id="pagable" name="Pagable"/>
+  <ownedElement xmi:type="uml:Dependency" xmi:id="d1" supplier="pagable" client="pedido"/>
+ </uml:Model>
+</xmi:XMI>""".encode()
+
+        relationship = import_xmi_to_uml(xml)["relationships"][0]
+
+        self.assertEqual((relationship["type"], relationship["sourceId"], relationship["targetId"]), ("dependency", "pedido", "pagable"))
